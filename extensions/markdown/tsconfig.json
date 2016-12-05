@@ -2,9 +2,15 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"target": "es5",
+		"lib": [
+			"es5",
+			"es2015.promise"
+		],
 		"outDir": "./out",
-		"noLib": true,
-		"sourceMap": true
+		"sourceMap": true,
+		"strictNullChecks": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true
 	},
 	"exclude": [
 		"node_modules"

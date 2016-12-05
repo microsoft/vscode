@@ -194,6 +194,10 @@ export abstract class FastDomNode {
 		this._lineNumber = lineNumber;
 		this._domNode.setAttribute('lineNumber', this._lineNumber);
 	}
+
+	public setAttribute(name: string, value: string): void {
+		this._domNode.setAttribute(name, value);
+	}
 }
 
 class WebKitFastDomNode extends FastDomNode {

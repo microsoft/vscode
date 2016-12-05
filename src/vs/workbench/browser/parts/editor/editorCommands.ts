@@ -25,7 +25,7 @@ export function setup(): void {
 	handleCommandDeprecations();
 }
 
-const isActiveEditorMoveArg = function (arg): boolean {
+const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean {
 	if (!types.isObject(arg)) {
 		return false;
 	}

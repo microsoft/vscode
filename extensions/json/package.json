@@ -97,6 +97,16 @@
           "type": "boolean",
           "default": true,
           "description": "%json.format.enable.desc%"
+        },
+        "json.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the JSON language server."
         }
       }
     }

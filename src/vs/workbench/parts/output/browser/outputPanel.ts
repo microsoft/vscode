@@ -98,7 +98,7 @@ export class OutputPanel extends StringEditor {
 		return options;
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => this.revealLastLine());
 	}
 

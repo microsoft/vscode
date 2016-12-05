@@ -125,6 +125,7 @@ export class ElectronWindow {
 		const $this = this;
 		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
 			$this.windowsService.openExternal(url);
+
 			return null;
 		};
 	}

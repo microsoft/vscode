@@ -127,6 +127,11 @@ export interface IFileService {
 	updateOptions(options: any): void;
 
 	/**
+	 * Returns the preferred encoding to use for a given resource.
+	 */
+	getEncoding(resource: URI): string;
+
+	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;

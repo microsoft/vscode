@@ -118,6 +118,8 @@ const schemaId = 'vscode://schemas/vscode-extensions';
 const schema: IJSONSchema = {
 	properties: {
 		engines: {
+			type: 'object',
+
 			properties: {
 				'vscode': {
 					type: 'string',

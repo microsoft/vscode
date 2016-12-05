@@ -171,7 +171,7 @@ export class Client implements IChannelClient, IDisposable {
 					this.activeRequests = [];
 				}
 
-				if (code && signal !== 'SIGTERM') {
+				if (code !== 0 && signal !== 'SIGTERM') {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
 					this.disposeDelayer.cancel();
 					this.disposeClient();

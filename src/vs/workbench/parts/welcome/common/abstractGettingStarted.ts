@@ -37,8 +37,10 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 
 		if (firstStartup && this.welcomePageURL) {
 			this.telemetryService.getTelemetryInfo().then(info => {
-				let url = this.getUrl(info);
-				this.openExternal(url);
+				if (this.telemetryService.getExperiments().openGettingStarted !== false) {
+					let url = this.getUrl(info);
+					this.openExternal(url);
+				}
 				this.storageService.store(AbstractGettingStarted.hideWelcomeSettingskey, true);
 			});
 		}

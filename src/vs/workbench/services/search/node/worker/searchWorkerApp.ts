@@ -7,9 +7,9 @@
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import { SearchWorkerChannel } from './searchWorkerIpc';
-import { SearchWorker } from './searchWorker';
+import { SearchWorkerManager } from './searchWorker';
 
 const server = new Server();
-const worker = new SearchWorker();
+const worker = new SearchWorkerManager();
 const channel = new SearchWorkerChannel(worker);
 server.registerChannel('searchWorker', channel);

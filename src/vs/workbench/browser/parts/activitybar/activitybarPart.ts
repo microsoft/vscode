@@ -21,7 +21,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
@@ -48,8 +47,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private viewletOverflowAction: ViewletOverflowActivityAction;
 	private viewletOverflowActionItem: ViewletOverflowActivityActionItem;
 
-	private activityActionItems: { [actionId: string]: IActionItem; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
+	private viewletIdToActionItems: { [viewletId: string]: IActionItem; };
 	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
 
 	private memento: any;
@@ -60,7 +59,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		id: string,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -68,7 +66,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	) {
 		super(id);
 
-		this.activityActionItems = Object.create(null);
+		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
 		this.viewletIdToActivity = Object.create(null);
 
@@ -168,7 +166,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private createViewletSwitcher(div: Builder): void {
 		this.viewletSwitcherBar = new ActionBar(div, {
-			actionItemProvider: (action: Action) => action instanceof ViewletOverflowActivityAction ? this.viewletOverflowActionItem : this.activityActionItems[action.id],
+			actionItemProvider: (action: Action) => action instanceof ViewletOverflowActivityAction ? this.viewletOverflowActionItem : this.viewletIdToActionItems[action.id],
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false
@@ -182,7 +180,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Always show the active viewlet even if it is marked to be hidden
 		const activeViewlet = this.viewletService.getActiveViewlet();
-		if (activeViewlet && !viewletsToShow.some(v => v.id === activeViewlet.getId())) {
+		if (activeViewlet && !viewletsToShow.some(viewlet => viewlet.id === activeViewlet.getId())) {
 			this.activeUnpinnedViewlet = this.viewletService.getViewlet(activeViewlet.getId());
 			viewletsToShow.push(this.activeUnpinnedViewlet);
 		} else {
@@ -201,7 +199,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		const visibleViewlets = Object.keys(this.viewletIdToActions);
-		const visibleViewletsChange = !arrays.equals(viewletsToShow.map(v => v.id), visibleViewlets);
+		const visibleViewletsChange = !arrays.equals(viewletsToShow.map(viewlet => viewlet.id), visibleViewlets);
 
 		// Pull out overflow action if there is a viewlet change so that we can add it to the end later
 		if (this.viewletOverflowAction && visibleViewletsChange) {
@@ -256,7 +254,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Add overflow action as needed
 		if (visibleViewletsChange && overflows) {
 			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, () => this.viewletOverflowActionItem.showMenu());
-			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, () => this.getOverflowingViewlets(), viewlet => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
+			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, () => this.getOverflowingViewlets(), (viewlet: ViewletDescriptor) => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
 
 			this.viewletSwitcherBar.push(this.viewletOverflowAction, { label: true, icon: true });
 		}
@@ -292,19 +290,23 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			action.dispose();
 			delete this.viewletIdToActions[viewletId];
 
-			const actionItem = this.activityActionItems[action.id];
+			const actionItem = this.viewletIdToActionItems[action.id];
 			actionItem.dispose();
-			delete this.activityActionItems[action.id];
+			delete this.viewletIdToActionItems[action.id];
 		}
 	}
 
 	private toAction(viewlet: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, viewlet);
 
-		this.activityActionItems[action.id] = this.instantiationService.createInstance(ActivityActionItem, action, viewlet);
+		this.viewletIdToActionItems[action.id] = this.instantiationService.createInstance(ActivityActionItem, action, viewlet);
 		this.viewletIdToActions[viewlet.id] = action;
 
 		return action;
+	}
+
+	public getPinned(): string[] {
+		return this.pinnedViewlets;
 	}
 
 	public unpin(viewletId: string): void {

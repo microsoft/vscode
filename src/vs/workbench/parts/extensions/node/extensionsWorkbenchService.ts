@@ -423,6 +423,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this.eventuallyAutoUpdateExtensions();
 	}
 
+	checkForUpdates(): TPromise<void> {
+		return this.syncDelayer.trigger(() => this.syncWithGallery(), 0);
+	}
+
 	private eventuallySyncWithGallery(immediate = false): void {
 		const loop = () => this.syncWithGallery().then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;

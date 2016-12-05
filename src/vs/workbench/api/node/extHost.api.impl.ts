@@ -42,7 +42,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
-import { realpathSync } from 'fs';
+import { realpath } from 'fs';
 import { MainContext, ExtHostContext, InstanceCollection, IInitData } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 
@@ -125,7 +125,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 
 		if (extension.enableProposedApi) {
 
-			if (initData.environment.isBuilt && !initData.environment.extensionDevelopmentPath) {
+			if (!initData.environment.enableProposedApi) {
 				extension.enableProposedApi = false;
 				console.warn('PROPOSED API is only available when developing an extension');
 
@@ -487,21 +487,38 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
-export function defineAPI(factory: IExtensionApiFactory, extensionService: ExtHostExtensionService): void {
+export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory): TPromise<void> {
+	return createExtensionPathIndex(extensionService).then(trie => defineAPI(apiFactory, trie));
+}
+
+function createExtensionPathIndex(extensionService: ExtHostExtensionService): TPromise<TrieMap<IExtensionDescription>> {
+
+	// create trie to enable fast 'filename -> extension id' look up
+	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
+	const extensions = extensionService.getAllExtensionDescriptions().map(ext => {
+		if (!ext.main) {
+			return;
+		}
+		return new TPromise((resolve, reject) => {
+			realpath(ext.extensionFolderPath, (err, path) => {
+				if (err) {
+					reject(err);
+				} else {
+					trie.insert(path, ext);
+					resolve(void 0);
+				}
+			});
+		});
+	});
+
+	return TPromise.join(extensions).then(() => trie);
+}
+
+function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
 	const extApiImpl: { [id: string]: typeof vscode } = Object.create(null);
 	let defaultApiImpl: typeof vscode;
-
-	// create trie to enable fast 'filename -> extension id' look up
-	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
-	const extensions = extensionService.getAllExtensionDescriptions();
-	for (const ext of extensions) {
-		if (ext.main) {
-			const path = realpathSync(ext.extensionFolderPath);
-			trie.insert(path, ext);
-		}
-	}
 
 	const node_module = <any>require.__$__nodeRequire('module');
 	const original = node_module._load;
@@ -511,7 +528,7 @@ export function defineAPI(factory: IExtensionApiFactory, extensionService: ExtHo
 		}
 
 		// get extension id from filename and api for extension
-		const ext = trie.findSubstr(parent.filename);
+		const ext = extensionPaths.findSubstr(parent.filename);
 		if (ext) {
 			let apiImpl = extApiImpl[ext.id];
 			if (!apiImpl) {

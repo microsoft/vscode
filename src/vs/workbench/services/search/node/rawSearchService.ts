@@ -20,6 +20,7 @@ import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
+import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
 
@@ -31,21 +32,30 @@ export class SearchService implements IRawSearchService {
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
+	private textSearchWorkerProvider: TextSearchWorkerProvider;
+
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		return this.doFileSearch(FileSearchEngine, config, SearchService.BATCH_SIZE);
 	}
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
-		let engine = new TextSearchEngine(config, new FileWalker({
-			rootFolders: config.rootFolders,
-			extraFiles: config.extraFiles,
-			includePattern: config.includePattern,
-			excludePattern: config.excludePattern,
-			filePattern: config.filePattern,
-			maxFilesize: MAX_FILE_SIZE
-		}));
+		if (!this.textSearchWorkerProvider) {
+			this.textSearchWorkerProvider = new TextSearchWorkerProvider();
+		}
 
-		return this.doSearch(engine, SearchService.BATCH_SIZE);
+		let engine = new TextSearchEngine(
+			config,
+			new FileWalker({
+				rootFolders: config.rootFolders,
+				extraFiles: config.extraFiles,
+				includePattern: config.includePattern,
+				excludePattern: config.excludePattern,
+				filePattern: config.filePattern,
+				maxFilesize: MAX_FILE_SIZE
+			}),
+			this.textSearchWorkerProvider);
+
+		return this.doSearchWithBatchTimeout(engine, SearchService.BATCH_SIZE);
 	}
 
 	public doFileSearch(EngineClass: { new (config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
@@ -268,6 +278,28 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
+	private doSearchWithBatchTimeout(engine: ISearchEngine<ISerializedFileMatch>, batchSize: number): PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>> {
+		return new PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>>((c, e, p) => {
+			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
+			const collector = new BatchedCollector(batchSize, p);
+			engine.search((match) => {
+				collector.addItem(match, match.numMatches);
+			}, (progress) => {
+				p(progress);
+			}, (error, stats) => {
+				collector.flush();
+
+				if (error) {
+					e(error);
+				} else {
+					c(stats);
+				}
+			});
+		}, () => {
+			engine.cancel();
+		});
+	}
+
 	private doSearch<T>(engine: ISearchEngine<T>, batchSize?: number): PPromise<ISerializedSearchComplete, IRawProgressItem<T>> {
 		return new PPromise<ISerializedSearchComplete, IRawProgressItem<T>>((c, e, p) => {
 			let batch: T[] = [];
@@ -343,4 +375,80 @@ interface CacheStats {
 	cacheWasResolved: boolean;
 	cacheFilterStartTime: number;
 	cacheFilterResultCount: number;
+}
+
+/**
+ * Collects a batch of items that each have a size. When the cumulative size of the batch reaches 'maxBatchSize', it calls the callback.
+ * If the batch isn't filled within some time, the callback is also called.
+ * And after 'runTimeoutUntilCount' items, the timeout is ignored, and the callback is called only when the batch is full.
+ */
+class BatchedCollector<T> {
+	// Use INIT_TIMEOUT for INIT_TIMEOUT_DURATION ms, then switch to LONGER_TIMEOUT
+	private static INIT_TIMEOUT = 500;
+	private static INIT_TIMEOUT_DURATION = 5000;
+	private static LONGER_TIMEOUT = 2000;
+
+	// After RUN_TIMEOUT_UNTIL_COUNT items have been collected, stop flushing on timeout
+	private static RUN_TIMEOUT_UNTIL_COUNT = 50;
+
+	private totalNumberCompleted = 0;
+	private batch: T[] = [];
+	private batchSize = 0;
+	private timeoutHandle: number;
+
+	private startTime: number;
+
+	constructor(private maxBatchSize: number, private cb: (items: T | T[]) => void) {
+	}
+
+	addItem(item: T, size: number): void {
+		if (!item) {
+			return;
+		}
+
+		if (this.maxBatchSize > 0) {
+			this.addItemToBatch(item, size);
+		} else {
+			this.cb(item);
+		}
+	}
+
+	private addItemToBatch(item: T, size: number): void {
+		if (!this.startTime) {
+			this.startTime = Date.now();
+		}
+
+		this.batch.push(item);
+		this.batchSize += size;
+		if (this.batchSize >= this.maxBatchSize) {
+			// Flush because the batch is full
+			this.flush();
+		} else if (!this.timeoutHandle && this.totalNumberCompleted < BatchedCollector.RUN_TIMEOUT_UNTIL_COUNT) {
+			// No timeout running, start a timeout to flush
+			const t = this.getTimeout();
+			this.timeoutHandle = setTimeout(() => {
+				this.flush();
+			}, t);
+		}
+	}
+
+	flush(): void {
+		if (this.batchSize) {
+			this.totalNumberCompleted += this.batchSize;
+			this.cb(this.batch);
+			this.batch = [];
+			this.batchSize = 0;
+
+			if (this.timeoutHandle) {
+				clearTimeout(this.timeoutHandle);
+				this.timeoutHandle = 0;
+			}
+		}
+	}
+
+	private getTimeout(): number {
+		return Date.now() - this.startTime < BatchedCollector.INIT_TIMEOUT_DURATION ?
+			BatchedCollector.INIT_TIMEOUT :
+			BatchedCollector.LONGER_TIMEOUT;
+	}
 }

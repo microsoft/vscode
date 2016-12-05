@@ -167,7 +167,10 @@ export default class BufferSyncSupport {
 
 	public dispose(): void {
 		while (this.disposables.length) {
-			this.disposables.pop().dispose();
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
 		}
 	}
 
@@ -191,7 +194,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
-		let filepath: string = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -208,7 +211,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
-		let filepath: string = this.client.asAbsolutePath(e.document.uri);
+		let filepath = this.client.asAbsolutePath(e.document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -220,7 +223,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidSaveTextDocument(document: TextDocument): void {
-		let filepath: string = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -312,7 +315,7 @@ export default class BufferSyncSupport {
 			return cp.exec(cmd + ' ' + url);
 		}
 
-		let tscVersion: string = undefined;
+		let tscVersion: string | undefined = undefined;
 		try {
 			let out = cp.execSync('tsc --version', { encoding: 'utf8' });
 			if (out) {

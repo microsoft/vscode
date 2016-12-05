@@ -23,6 +23,11 @@ export class ArrayIterator<T> implements IIterator<T> {
 		this.index = start - 1;
 	}
 
+	public first(): T {
+		this.index = this.start - 1;
+		return this.current();
+	}
+
 	public next(): T {
 		this.index = Math.min(this.index + 1, this.end);
 		return this.current();

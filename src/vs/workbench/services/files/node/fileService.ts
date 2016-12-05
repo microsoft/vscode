@@ -518,7 +518,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private getEncoding(resource: uri, preferredEncoding?: string): string {
+	public getEncoding(resource: uri, preferredEncoding?: string): string {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
@@ -660,7 +660,7 @@ export class FileService implements IFileService {
 			});
 
 			// Errors
-			watcher.on('error', (error) => {
+			watcher.on('error', (error: string) => {
 				this.options.errorLogger(error);
 			});
 		}

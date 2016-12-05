@@ -20,20 +20,27 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 		this.client = client;
 	}
 
-	public provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): Promise<WorkspaceEdit> {
+	public provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): Promise<WorkspaceEdit | undefined | null> {
+		const filepath = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve(null);
+		}
 		let args: Proto.RenameRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1,
 			findInStrings: false,
 			findInComments: false
 		};
 		if (!args.file) {
-			return Promise.resolve<WorkspaceEdit>(null);
+			return Promise.resolve(null);
 		}
 
 		return this.client.execute('rename', args, token).then((response) => {
 			let renameResponse = response.body;
+			if (!renameResponse) {
+				return Promise.resolve(null);
+			}
 			let renameInfo = renameResponse.info;
 			let result = new WorkspaceEdit();
 

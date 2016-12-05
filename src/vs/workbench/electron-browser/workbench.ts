@@ -19,9 +19,9 @@ import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import { StopWatch } from 'vs/base/common/stopwatch';
 import errors = require('vs/base/common/errors');
-import { BackupService } from 'vs/workbench/services/backup/node/backupService';
+import { BackupModelService } from 'vs/workbench/services/backup/node/backupModelService';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -101,9 +101,16 @@ interface WorkbenchParams {
 	serviceCollection: ServiceCollection;
 }
 
+export interface IWorkbenchStartedInfo {
+	customKeybindingsCount: number;
+	restoreViewletDuration: number;
+	restoreEditorsDuration: number;
+	pinnedViewlets: string[];
+}
+
 export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
-	onWorkbenchStarted?: (customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number) => void;
+	onWorkbenchStarted?: (info: IWorkbenchStartedInfo) => void;
 }
 
 const Identifiers = {
@@ -322,7 +329,12 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount(), viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0, editorRestoreStopWatch.elapsed());
+					this.callbacks.onWorkbenchStarted({
+						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
+						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
+						pinnedViewlets: this.activitybarPart.getPinned()
+					});
 				}
 
 				if (error) {
@@ -458,10 +470,10 @@ export class Workbench implements IPartService {
 
 		// Backup File Service
 		const workspace = this.contextService.getWorkspace();
-		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, workspace ? workspace.resource : null));
+		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.windowService.getCurrentWindowId()));
 
 		// Backup Service
-		serviceCollection.set(IBackupService, this.instantiationService.createInstance(BackupService));
+		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));

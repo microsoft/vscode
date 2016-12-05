@@ -276,5 +276,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
 		});
+
+		updateService.onError(err => messageService.show(severity.Error, err));
 	}
 }

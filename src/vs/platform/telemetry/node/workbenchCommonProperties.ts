@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getMachineId } from 'vs/base/node/id';
+import { getMachineId, _futureMachineIdExperiment } from 'vs/base/node/id';
 import { resolveCommonProperties } from '../node/commonProperties';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
@@ -32,6 +32,7 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		const promises: TPromise<any>[] = [];
 		promises.push(getOrCreateInstanceId(storageService).then(value => result['common.instanceId'] = value));
 		promises.push(getOrCreateMachineId(storageService).then(value => result['common.machineId'] = value));
+		result['common.machineIdExperiment'] = _futureMachineIdExperiment();
 
 		if (process.platform === 'win32') {
 			promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid'] = value));

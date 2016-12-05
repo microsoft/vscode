@@ -41,23 +41,79 @@
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.start {
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
+	display: flex;
+	align-items: center;
+	margin: 6px 0;
+	border: 1px solid #dddddd;
+	font-size: 11px;
+	margin-right: 0.3em;
+	height: 20px;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
+	border-color: #383838;
+}
+
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
+	border-right: 1px solid #dddddd;
+	height: 20px;
+}
+
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .name {
+	margin-right: 6px;
+	display: inline-block;
+	overflow: hidden;
+	max-width: 100px;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
+	border-color: #383838;
+}
+
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon {
+	width: 20px;
+	height: 20px;
 	background: url('continue.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .debug-action.start,
-.hc-black .monaco-workbench .debug-action.start {
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon {
 	background: url('continue-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+	width: 18px;
+	background-color: inherit;
+	border: none;
+	margin-top: 0px;
+	cursor: pointer;
+	outline: none;
+}
+
+.monaco-workbench.mac .monaco-action-bar .start-debug-action-item .configuration .select-box {
+	width: 13px;
+}
+
+/* Hover feedback for start debug action item */
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
+	background-color: #ececec;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
+	background-color: #2A2D2E;
 }
 
 /* Debug viewlet trees */
 
 .debug-viewlet .monaco-tree .monaco-tree-row > .content {
 	line-height: 22px;
-}
-
-.monaco-workbench .monaco-action-bar .action-item.select-container {
-	overflow: hidden;
 }
 
 .debug-viewlet .line-number {

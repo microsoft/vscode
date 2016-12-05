@@ -668,6 +668,24 @@ export class DisableActionItem extends DropDownMenuActionItem {
 	}
 }
 
+export class CheckForUpdatesAction extends Action {
+
+	static ID = 'workbench.extensions.action.checkForUpdates';
+	static LABEL = localize('checkForUpdates', "Check for Updates");
+
+	constructor(
+		id = UpdateAllAction.ID,
+		label = UpdateAllAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', true);
+	}
+
+	run(): TPromise<any> {
+		return this.extensionsWorkbenchService.checkForUpdates();
+	}
+}
+
 export class UpdateAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.updateAllExtensions';

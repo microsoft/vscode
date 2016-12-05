@@ -6,7 +6,8 @@
 			"es5",
 			"es2015.promise"
 		],
-		"outDir": "./out"
+		"outDir": "./out",
+		"strictNullChecks": true
 	},
 	"exclude": [
 		"node_modules",

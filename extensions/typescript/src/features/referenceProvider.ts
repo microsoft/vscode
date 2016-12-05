@@ -21,8 +21,12 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	}
 
 	public provideReferences(document: TextDocument, position: Position, options: { includeDeclaration: boolean }, token: CancellationToken): Promise<Location[]> {
+		const filepath = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve<Location[]>([]);
+		}
 		let args: Proto.FileLocationRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
@@ -32,6 +36,9 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 		const apiVersion = this.client.apiVersion;
 		return this.client.execute('references', args, token).then((msg) => {
 			let result: Location[] = [];
+			if (!msg.body) {
+				return result;
+			}
 			let refs = msg.body.refs;
 			for (let i = 0; i < refs.length; i++) {
 				let ref = refs[i];

@@ -10,10 +10,9 @@ import network = require('vs/base/common/network');
 import { Registry } from 'vs/platform/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -61,7 +60,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.getVisibleEditors();
 	}
 
-	public isVisible(input: IEditorInput, includeDiff: boolean): boolean {
+	public isVisible(input: IEditorInput, includeSideBySide: boolean): boolean {
 		if (!input) {
 			return false;
 		}
@@ -75,9 +74,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 				return true;
 			}
 
-			if (includeDiff && editor.input instanceof DiffEditorInput) {
-				const diffInput = <DiffEditorInput>editor.input;
-				return input.matches(diffInput.modifiedInput) || input.matches(diffInput.originalInput);
+			if (includeSideBySide && editor.input instanceof SideBySideEditorInput) {
+				const sideBySideInput = <SideBySideEditorInput>editor.input;
+				return input.matches(sideBySideInput.master) || input.matches(sideBySideInput.details);
 			}
 
 			return false;

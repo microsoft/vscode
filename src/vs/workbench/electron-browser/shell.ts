@@ -21,9 +21,9 @@ import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { IStartupFingerprint, IMemoryInfo } from 'vs/workbench/electron-browser/common';
-import { Workbench } from 'vs/workbench/electron-browser/workbench';
+import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
-import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -74,6 +74,7 @@ import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeService
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CrashReporter } from 'vs/workbench/electron-browser/crashReporter';
+import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -86,6 +87,8 @@ import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
+import { IBackupService } from 'vs/platform/backup/common/backup';
+import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { remote } from 'electron';
@@ -168,8 +171,13 @@ export class WorkbenchShell {
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
-			onWorkbenchStarted: (customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration) => {
-				this.onWorkbenchStarted(customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration);
+			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
+
+				// run workbench started logic
+				this.onWorkbenchStarted(info);
+
+				// start cached data manager
+				instantiationService.createInstance(NodeCachedDataManager);
 			}
 		});
 
@@ -188,7 +196,7 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number): void {
+	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
 
 		// Log to timer
 		timer.start(timer.Topic.STARTUP, '[renderer] overall workbench load', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
@@ -202,10 +210,11 @@ export class WorkbenchShell {
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
-			customKeybindingsCount,
+			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme(),
 			language: platform.language,
-			experiments: this.telemetryService.getExperiments()
+			experiments: this.telemetryService.getExperiments(),
+			pinnedViewlets: info.pinnedViewlets
 		});
 
 		// Telemetry: performance info
@@ -246,8 +255,8 @@ export class WorkbenchShell {
 					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
 					ellapsedExtensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
 					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
-					ellapsedViewletRestore: Math.round(restoreViewletDuration),
-					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
+					ellapsedViewletRestore: Math.round(info.restoreViewletDuration),
+					ellapsedEditorRestore: Math.round(info.restoreEditorsDuration),
 					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen),
 					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime),
 					ellapsedTimersToTimersComputed: Date.now() - now
@@ -366,6 +375,7 @@ export class WorkbenchShell {
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
+		disposables.add(lifecycleTelemetry(this.telemetryService, lifecycleService));
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
@@ -431,6 +441,10 @@ export class WorkbenchShell {
 		const urlChannel = mainProcessClient.getChannel('url');
 		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());
 		serviceCollection.set(IURLService, urlChannelClient);
+
+		const backupChannel = mainProcessClient.getChannel('backup');
+		const backupChannelClient = new BackupChannelClient(backupChannel);
+		serviceCollection.set(IBackupService, backupChannelClient);
 
 		return [instantiationServiceImpl, serviceCollection];
 	}
