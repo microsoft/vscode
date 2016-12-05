@@ -173,12 +173,85 @@ export function telemetryURIDescriptor(uri: URI): URIDescriptor {
 	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
 }
 
+const configurationValueWhitelist = [
+	'window.zoomLevel',
+	'editor.fontSize',
+	'editor.fontFamily',
+	'editor.tabSize',
+	'files.autoSave',
+	'files.hotExit',
+	'typescript.check.tscVersion',
+	'editor.renderWhitespace',
+	'editor.cursorBlinking',
+	'editor.cursorStyle',
+	'files.associations',
+	'workbench.statusBar.visible',
+	'editor.wrappingColumn',
+	'editor.insertSpaces',
+	'editor.renderIndentGuides',
+	'files.trimTrailingWhitespace',
+	'git.confirmSync',
+	'editor.rulers',
+	'workbench.sideBar.location',
+	'editor.fontLigatures',
+	'editor.wordWrap',
+	'editor.lineHeight',
+	'editor.detectIndentation',
+	'editor.formatOnType',
+	'editor.formatOnSave',
+	'window.openFilesInNewWindow',
+	'javascript.validate.enable',
+	'editor.mouseWheelZoom',
+	'typescript.check.workspaceVersion',
+	'editor.fontWeight',
+	'editor.scrollBeyondLastLine',
+	'editor.lineNumbers',
+	'editor.wrappingIndent',
+	'editor.renderControlCharacters',
+	'editor.autoClosingBrackets',
+	'window.reopenFolders',
+	'extensions.autoUpdate',
+	'editor.tabCompletion',
+	'files.eol',
+	'explorer.openEditors.visible',
+	'workbench.editor.enablePreview',
+	'files.autoSaveDelay',
+	'editor.roundedSelection',
+	'editor.quickSuggestions',
+	'editor.acceptSuggestionOnEnter',
+	'workbench.editor.showTabs',
+	'files.encoding',
+	'editor.quickSuggestionsDelay',
+	'editor.snippetSuggestions',
+	'editor.selectionHighlight',
+	'editor.glyphMargin',
+	'php.validate.run',
+	'editor.wordSeparators',
+	'editor.mouseWheelScrollSensitivity',
+	'editor.suggestOnTriggerCharacters',
+	'git.enabled',
+	'http.proxyStrictSSL',
+	'terminal.integrated.fontFamily',
+	'editor.overviewRulerLanes',
+	'editor.wordBasedSuggestions',
+	'editor.hideCursorInOverviewRuler',
+	'editor.trimAutoWhitespace',
+	'editor.folding',
+	'workbench.editor.enablePreviewFromQuickOpen',
+	'php.validate.enable',
+	'editor.parameterHints',
+];
+
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidUpdateConfiguration(event => {
 		if (event.source !== ConfigurationSource.Default) {
 			telemetryService.publicLog('updateConfiguration', {
 				configurationSource: ConfigurationSource[event.source],
 				configurationKeys: flattenKeys(event.sourceConfig)
+			});
+			telemetryService.publicLog('updateConfigurationValues', {
+				configurationSource: ConfigurationSource[event.source],
+				configurationValues: JSON.stringify(flattenValues(event.sourceConfig, configurationValueWhitelist))
 			});
 		}
 	});
@@ -206,4 +279,19 @@ function flatKeys(result: string[], prefix: string, value: Object): void {
 	} else {
 		result.push(prefix);
 	}
+}
+
+function flattenValues(value: Object, keys: string[]): { [key: string]: any }[] {
+	if (!value) {
+		return [];
+	}
+
+	return keys.reduce((array, key) => {
+		const v = key.split('.')
+			.reduce((tmp, k) => tmp && typeof tmp === 'object' ? tmp[k] : undefined, value);
+		if (typeof v !== 'undefined') {
+			array.push({ [key]: v });
+		}
+		return array;
+	}, []);
 }
