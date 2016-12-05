@@ -640,7 +640,7 @@ export class CheckoutAction extends GitAction {
 
 		var result = this.gitService.checkout(this.branch.name).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stage your work first.")));
+				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stash your work first.")));
 			}
 
 			return Promise.wrapError(err);
@@ -935,7 +935,7 @@ export class PullAction extends GitAction {
 	protected pull(rebase = false): Promise {
 		return this.gitService.pull(rebase).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stage your work first."), { severity: Severity.Warning }));
+				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stash your work first."), { severity: Severity.Warning }));
 			} else if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
 			}
