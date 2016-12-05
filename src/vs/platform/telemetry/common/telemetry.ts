@@ -11,6 +11,7 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { ConfigurationSource, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -251,7 +252,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			});
 			telemetryService.publicLog('updateConfigurationValues', {
 				configurationSource: ConfigurationSource[event.source],
-				configurationValues: JSON.stringify(flattenValues(event.sourceConfig, configurationValueWhitelist))
+				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}
 	});
@@ -260,6 +261,21 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycleService: ILifecycleService): IDisposable {
 	return lifecycleService.onShutdown(event => {
 		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
+	});
+}
+
+export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
+	return keybindingService.onDidUpdateKeybindings(event => {
+		if (event.source === KeybindingSource.User && event.keybindings) {
+			telemetryService.publicLog('updateKeybindings', {
+				bindings: event.keybindings.map(binding => ({
+					key: binding.key,
+					command: binding.command,
+					when: binding.when,
+					args: binding.args ? true : undefined
+				}))
+			});
+		}
 	});
 }
 

@@ -44,12 +44,22 @@ export interface IKeybindingItem {
 	weight2: number;
 }
 
+export enum KeybindingSource {
+	Default = 1,
+	User
+}
+
+export interface IKeybindingEvent {
+	source: KeybindingSource;
+	keybindings?: IUserFriendlyKeybinding[];
+}
+
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
 	_serviceBrand: any;
 
-	onDidUpdateKeybindings: Event<void>;
+	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
 	getLabelFor(keybinding: Keybinding): string;
 	getAriaLabelFor(keybinding: Keybinding): string;
