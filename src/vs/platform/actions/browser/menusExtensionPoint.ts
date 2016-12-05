@@ -13,7 +13,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, SCMTitleMenuId, SCMResourceMenuID, SCMResourceGroupMenuID, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
@@ -33,12 +33,12 @@ namespace schema {
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
+			case 'scm/title': return MenuId.SCMTitle;
+			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
+			case 'scm/resource/context': return MenuId.SCMResourceContext;
 		}
 
-		return SCMTitleMenuId.parse(value)
-			|| SCMResourceGroupMenuID.parse(value)
-			|| SCMResourceMenuID.parse(value)
-			|| void 0;
+		return void 0;
 	}
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
