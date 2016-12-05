@@ -16,8 +16,7 @@ export interface IMarkerIdToMarkerMap {
 
 export interface INewMarker {
 	decorationId: string;
-	lineNumber: number;
-	column: number;
+	position: Position;
 	stickToPreviousCharacter: boolean;
 }
 
@@ -30,7 +29,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	constructor(allowedEventTypes: string[], rawText: IRawText, languageId: string) {
 		super(allowedEventTypes, rawText, languageId);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
-		this._markerIdToMarker = {};
+		this._markerIdToMarker = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -42,13 +41,13 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		super._resetValue(newValue);
 
 		// Destroy all my markers
-		this._markerIdToMarker = {};
+		this._markerIdToMarker = Object.create(null);
 	}
 
 	_addMarker(decorationId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
-		var marker = new LineMarker(this._markerIdGenerator.nextId(), decorationId, pos.column, stickToPreviousCharacter);
+		var marker = new LineMarker(this._markerIdGenerator.nextId(), decorationId, pos, stickToPreviousCharacter);
 		this._markerIdToMarker[marker.id] = marker;
 
 		this._lines[pos.lineNumber - 1].addMarker(marker);
@@ -62,34 +61,30 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 
 		let markers: LineMarker[] = [];
-		let sortIndices: number[] = [];
 		for (let i = 0, len = newMarkers.length; i < len; i++) {
 			let newMarker = newMarkers[i];
 
-			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.decorationId, newMarker.column, newMarker.stickToPreviousCharacter);
+			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.decorationId, newMarker.position, newMarker.stickToPreviousCharacter);
 			this._markerIdToMarker[marker.id] = marker;
 
 			markers[i] = marker;
-			sortIndices[i] = i;
 		}
 
-		sortIndices.sort((a, b) => {
-			return newMarkers[a].lineNumber - newMarkers[b].lineNumber;
+		let sortedMarkers = markers.slice(0);
+		sortedMarkers.sort((a, b) => {
+			return a.position.lineNumber - b.position.lineNumber;
 		});
 
 		let currentLineNumber = 0;
 		let currentMarkers: LineMarker[] = [], currentMarkersLen = 0;
-		for (let i = 0, len = newMarkers.length; i < len; i++) {
-			let sortIndex = sortIndices[i];
+		for (let i = 0, len = sortedMarkers.length; i < len; i++) {
+			let marker = sortedMarkers[i];
 
-			let lineNumber = newMarkers[sortIndex].lineNumber;
-			let marker = markers[sortIndex];
-
-			if (lineNumber !== currentLineNumber) {
+			if (marker.position.lineNumber !== currentLineNumber) {
 				if (currentLineNumber !== 0) {
 					this._lines[currentLineNumber - 1].addMarkers(currentMarkers);
 				}
-				currentLineNumber = lineNumber;
+				currentLineNumber = marker.position.lineNumber;
 				currentMarkers.length = 0;
 				currentMarkersLen = 0;
 			}
@@ -102,37 +97,38 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_changeMarker(id: string, lineNumber: number, column: number): void {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-			var newPos = this.validatePosition(new Position(lineNumber, column));
-
-			if (newPos.lineNumber !== marker.line.lineNumber) {
-				// Move marker between lines
-				marker.line.removeMarker(marker);
-				this._lines[newPos.lineNumber - 1].addMarker(marker);
-			}
-
-			// Update marker column
-			marker.column = newPos.column;
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return;
 		}
+
+		let newPos = this.validatePosition(new Position(lineNumber, column));
+
+		if (newPos.lineNumber !== marker.position.lineNumber) {
+			// Move marker between lines
+			this._lines[marker.position.lineNumber - 1].removeMarker(marker);
+			this._lines[newPos.lineNumber - 1].addMarker(marker);
+		}
+
+		marker.setPosition(newPos);
 	}
 
 	_changeMarkerStickiness(id: string, newStickToPreviousCharacter: boolean): void {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-
-			if (marker.stickToPreviousCharacter !== newStickToPreviousCharacter) {
-				marker.stickToPreviousCharacter = newStickToPreviousCharacter;
-			}
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return;
 		}
+
+		marker.stickToPreviousCharacter = newStickToPreviousCharacter;
 	}
 
 	_getMarker(id: string): Position {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-			return marker.getPosition();
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return null;
 		}
-		return null;
+
+		return marker.position;
 	}
 
 	_getMarkersCount(): number {
@@ -148,16 +144,18 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_removeMarker(id: string): void {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-			marker.line.removeMarker(marker);
-			delete this._markerIdToMarker[id];
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return;
 		}
+
+		this._lines[marker.position.lineNumber - 1].removeMarker(marker);
+		delete this._markerIdToMarker[id];
 	}
 
 	protected _removeMarkers(markers: LineMarker[]): void {
 		markers.sort((a, b) => {
-			return a.line.lineNumber - b.line.lineNumber;
+			return a.position.lineNumber - b.position.lineNumber;
 		});
 
 		let currentLineNumber = 0;
@@ -166,13 +164,11 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 			let marker = markers[i];
 			delete this._markerIdToMarker[marker.id];
 
-			let lineNumber = marker.line.lineNumber;
-
-			if (lineNumber !== currentLineNumber) {
+			if (marker.position.lineNumber !== currentLineNumber) {
 				if (currentLineNumber !== 0) {
 					this._lines[currentLineNumber - 1].removeMarkers(currentMarkers);
 				}
-				currentLineNumber = lineNumber;
+				currentLineNumber = marker.position.lineNumber;
 				currentMarkers = Object.create(null);
 			}
 

@@ -11,6 +11,7 @@ import { ILineEdit, LineMarker, ModelLine, MarkersTracker } from 'vs/editor/comm
 import { TextModelWithDecorations } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IValidatedEditOperation {
@@ -566,7 +567,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				let markersOnDeletedLines: LineMarker[] = [];
 				for (let j = 0; j < spliceCnt; j++) {
 					let deleteLineIndex = spliceStartLineNumber + j;
-					markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine(markersTracker, spliceStartColumn));
+					markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine());
 				}
 
 				this._lines.splice(spliceStartLineNumber, spliceCnt);
@@ -581,6 +582,13 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					// update prefix sum
 					this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
 				}
+
+				// Update deleted markers
+				let deletedMarkersPosition = new Position(spliceStartLineNumber, spliceStartColumn);
+				for (let j = 0, lenJ = markersOnDeletedLines.length; j < lenJ; j++) {
+					markersOnDeletedLines[j].updatePosition(markersTracker, deletedMarkersPosition);
+				}
+
 				this._lines[spliceStartLineNumber - 1].addMarkers(markersOnDeletedLines);
 				contentChangedEvents.push(this._createLineChangedEvent(spliceStartLineNumber));
 
@@ -703,7 +711,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				foundMarkersCnt++;
 				let markerId = markers[j].id;
 				let marker = this._markerIdToMarker[markerId];
-				if (marker.line !== line) {
+				if (marker.position.lineNumber !== line.lineNumber) {
 					throw new Error('Misplaced marker with id ' + markerId);
 				}
 			}

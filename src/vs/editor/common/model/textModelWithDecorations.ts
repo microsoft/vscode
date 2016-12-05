@@ -439,8 +439,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				continue;
 			}
 
-			let startMarker = decoration.startMarker.getPosition();
-			let endMarker = decoration.endMarker.getPosition();
+			let startMarker = decoration.startMarker.position;
+			let endMarker = decoration.endMarker.position;
 
 			this._setDecorationIsMultiLine(
 				decoration,
@@ -525,14 +525,12 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		let markers = this._addMarkers([
 			{
 				decorationId: decorationId,
-				lineNumber: range.startLineNumber,
-				column: range.startColumn,
+				position: new Position(range.startLineNumber, range.startColumn),
 				stickToPreviousCharacter: TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(options.stickiness)
 			},
 			{
 				decorationId: decorationId,
-				lineNumber: range.endLineNumber,
-				column: range.endColumn,
+				position: new Position(range.endLineNumber, range.endColumn),
 				stickToPreviousCharacter: TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(options.stickiness)
 			}
 		]);
@@ -562,15 +560,13 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 			newMarkers[2 * i] = {
 				decorationId: decorationId,
-				lineNumber: range.startLineNumber,
-				column: range.startColumn,
+				position: new Position(range.startLineNumber, range.startColumn),
 				stickToPreviousCharacter: TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(stickiness)
 			};
 
 			newMarkers[2 * i + 1] = {
 				decorationId: decorationId,
-				lineNumber: range.endLineNumber,
-				column: range.endColumn,
+				position: new Position(range.endLineNumber, range.endColumn),
 				stickToPreviousCharacter: TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(stickiness)
 			};
 		}
@@ -602,20 +598,20 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 
 		let startMarker = decoration.startMarker;
-		if (newRange.startLineNumber !== startMarker.line.lineNumber) {
+		if (newRange.startLineNumber !== startMarker.position.lineNumber) {
 			// move marker between lines
-			startMarker.line.removeMarker(startMarker);
+			this._lines[startMarker.position.lineNumber - 1].removeMarker(startMarker);
 			this._lines[newRange.startLineNumber - 1].addMarker(startMarker);
 		}
-		startMarker.column = newRange.startColumn;
+		startMarker.setPosition(new Position(newRange.startLineNumber, newRange.startColumn));
 
 		let endMarker = decoration.endMarker;
-		if (newRange.endLineNumber !== endMarker.line.lineNumber) {
+		if (newRange.endLineNumber !== endMarker.position.lineNumber) {
 			// move marker between lines
-			endMarker.line.removeMarker(endMarker);
+			this._lines[endMarker.position.lineNumber - 1].removeMarker(endMarker);
 			this._lines[newRange.endLineNumber - 1].addMarker(endMarker);
 		}
-		endMarker.column = newRange.endColumn;
+		endMarker.setPosition(new Position(newRange.endLineNumber, newRange.endColumn));
 
 		this._setDecorationIsMultiLine(decoration, (newRange.startLineNumber !== newRange.endLineNumber));
 		decoration.setRange(newRange);

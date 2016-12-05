@@ -20,6 +20,7 @@ export class ViewOutgoingEvents extends Disposable {
 
 	constructor(viewModel: IViewModel) {
 		super();
+		this._viewModel = viewModel;
 		this._actual = this._register(new EventEmitter());
 	}
 
