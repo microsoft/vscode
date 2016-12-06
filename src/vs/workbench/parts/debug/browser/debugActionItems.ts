@@ -37,6 +37,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
 			this.updateOptions();
+			this.nameContainer.textContent = this.debugService.getViewModel().selectedConfigurationName;
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
 			this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
@@ -93,6 +94,8 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
 			this.selectBox.setOptions(options, selected);
 		}
+
+		this.debugService.getViewModel().setSelectedConfigurationName(this.selectBox.getSelected());
 	}
 }
 

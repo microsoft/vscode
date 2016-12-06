@@ -21,6 +21,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -64,20 +65,23 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
 		this.defaultEditorModels = new Map<URI, IPreferencesEditorModel>();
 	}
 
-	createDefaultSettingsModel(): TPromise<IPreferencesEditorModel> {
-		return this.createDefaultPreferencesEditorModel(PreferencesService.DEFAULT_SETTINGS_URI);
-	}
-
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
+		const editorModel = this.defaultEditorModels.get(uri);
+		if (editorModel) {
+			return TPromise.as(editorModel);
+		}
+
 		if (PreferencesService.DEFAULT_SETTINGS_URI.fsPath === uri.fsPath) {
-			return this.fetchMostCommonlyUsedSettings()
-				.then(mostCommonSettings => {
+			return TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
+				.then(result => {
+					const mostCommonSettings = result[1];
 					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings);
 					this.defaultEditorModels.set(uri, model);
 					return model;

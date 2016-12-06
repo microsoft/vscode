@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .settings-header-widget {
-	display: flex;
 	border-bottom: 1px solid #efefef;
 }
 
@@ -13,7 +12,23 @@
 }
 
 .settings-header-widget > .settings-header-container {
-	margin: 8px 0px 12px 0;
+	margin-top: 8px;
+	padding-left: 28px;
+	padding-right: 32px;
+}
+
+.settings-header-widget > .settings-search-container {
+	padding-left: 28px;
+	padding-right: 32px;
+	padding-bottom: 11px;
+	padding-top: 11px;
+}
+
+.vs .settings-header-widget > .settings-search-container {
+	background: #efeff2;
+}
+.vs-dark .settings-header-widget > .settings-search-container {
+	background: #2d2d30;
 }
 
 .settings-header-widget > .settings-header-container > .settings-title-container {
@@ -21,30 +36,48 @@
 }
 
 .settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
-	color: rgba(170, 170, 170, 1);
-	font-style: italic;
 	white-space: pre-wrap;
 	margin-bottom: 8px;
+	font-size: 12px;
 }
 
-.settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container span {
-	padding-right: 6px;
+.vs .settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
+	color: #6f6f6f;
+}
+.vs-dark .settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
+	color: #bbbbbb;
+}
+.hc-black .settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
+	color: white;
 }
 
-.settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input {
+.settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container .title-label {
+	text-transform: uppercase;
+	font-weight: bold;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input {
 	vertical-align: middle;
 }
 
-.settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input > .monaco-inputbox {
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
 	height: 30px;
 }
 
-.vs .settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input > .monaco-inputbox {
+.vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
 	border: 1px solid #ddd;
 }
 
-.settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
+	padding-left:30px;
+	background-image: url('search.svg');
+	background-repeat: no-repeat;
+	background-position: 8px 50%;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+	background-image: url('search_inverse.svg');
 }
 
 .monaco-editor .settings-group-title-widget {
@@ -54,6 +87,17 @@
 .monaco-editor .settings-group-title-widget .title-container {
 	width: 100%;
 	cursor: pointer;
+	font-weight: bold;
+}
+
+.vs .monaco-editor .settings-group-title-widget .title-container {
+	color: #6f6f6f;
+}
+.vs-dark .monaco-editor .settings-group-title-widget .title-container {
+	color: #bbbbbb;
+}
+.hc-black .monaco-editor .settings-group-title-widget .title-container {
+	color: white;
 }
 
 .monaco-editor .settings-group-title-widget .title-container > * {
@@ -101,20 +145,20 @@
 	background: url(collapsed-dark.svg) 50% 50% no-repeat;
 }
 
-.monaco-editor .view-line:hover :not(.inline-folded).copySetting:after {
+.monaco-editor .view-line:hover .copySetting:after {
 	cursor: pointer;
 	content:" ";
-	background: url('copy.svg') center center no-repeat;
+	background: url('edit.svg') center center no-repeat;
 	margin-left: 1em;
 	display:inline-block;
 	position: absolute;
-	height:16px;
+	height:100%;
 	width:16px;
 }
 
-.monaco-editor.hc-black .view-line:hover :not(.inline-folded).copySetting:after,
-.monaco-editor.vs-dark .view-line:hover :not(.inline-folded).copySetting:after {
-	background: url('copy_inverse.svg') center center no-repeat;
+.monaco-editor.hc-black .view-line:hover .copySetting:after,
+.monaco-editor.vs-dark .view-line:hover .copySetting:after {
+	background: url('edit_inverse.svg') center center no-repeat;
 }
 
 .monaco-editor .floating-click-widget {

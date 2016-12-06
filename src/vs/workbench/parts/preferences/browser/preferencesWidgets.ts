@@ -79,8 +79,8 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		});
 	}
 
-	public collapse() {
-		DOM.addClass(this.titleContainer, 'collapsed');
+	public toggleCollapse(collapse: boolean) {
+		DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
 	}
 
 	public toggleFocus(focus: boolean): void {
@@ -89,7 +89,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 	private layout(): void {
 		this.titleContainer.style.lineHeight = this.editor.getConfiguration().lineHeight + 3 + 'px';
-		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 3 + 'px';
+		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 'px';
 		const iconSize = this.getIconSize();
 		this.icon.style.height = `${iconSize}px`;
 		this.icon.style.width = `${iconSize}px`;
@@ -189,15 +189,14 @@ export class DefaultSettingsHeaderWidget extends Widget {
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.headerContainer = DOM.append(this.domNode, DOM.$('div.settings-header-container'));
-		this.headerContainer.style.paddingLeft = '28px';
-		this.headerContainer.style.paddingRight = '32px';
 		const titleContainer = DOM.append(this.headerContainer, DOM.$('div.settings-title-container'));
 		this.createInfoContainer(DOM.append(titleContainer, DOM.$('div.settings-info-container')));
-		this.createSearchContainer(DOM.append(this.headerContainer, DOM.$('div.settings-search-container')));
+		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 	}
 
 	private createInfoContainer(infoContainer: HTMLElement) {
-		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', "Overwrite settings by placing them into your settings file.");
+		DOM.append(infoContainer, DOM.$('span.title-label')).textContent = localize('defaultSettingsTitle', "Default Settings");
+		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', " - Overwrite these by placing them into your settings file");
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
@@ -220,7 +219,7 @@ export class DefaultSettingsHeaderWidget extends Widget {
 	}
 
 	public layout(dimension: Dimension): void {
-		this.inputBox.width = dimension.width - 65;
+		this.inputBox.width = dimension.width - 62;
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
