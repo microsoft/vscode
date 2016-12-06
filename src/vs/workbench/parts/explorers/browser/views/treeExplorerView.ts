@@ -72,6 +72,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 
 	public getActions(): IAction[] {
 		const refresh = this.instantiationService.createInstance(RefreshViewExplorerAction, this);
+
 		return [refresh];
 	}
 
