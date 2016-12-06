@@ -79,8 +79,8 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		});
 	}
 
-	public collapse() {
-		DOM.addClass(this.titleContainer, 'collapsed');
+	public toggleCollapse(collapse: boolean) {
+		DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
 	}
 
 	public toggleFocus(focus: boolean): void {
