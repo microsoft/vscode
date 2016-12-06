@@ -23,6 +23,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, CONTEXT_DEFAULT_SETTINGS_EDITOR,
@@ -224,6 +225,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public clearInput(): void {
+		this.disposeModel();
 		this.saveState(<DefaultPreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
@@ -272,6 +274,13 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		let data = {};
 		data['filter'] = filter;
 		this.telemetryService.publicLog('defaultSettings.filter', data);
+	}
+
+	private disposeModel(): void {
+		const model = this.defaultPreferencesEditor.getModel();
+		if (model) {
+			this.modelService.destroyModel(model.uri);
+		}
 	}
 }
 
@@ -429,7 +438,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	}
 
 	public focusNextSetting(): void {
-		this.focusNextSettingRenderer.focusNext();
+		const setting = this.focusNextSettingRenderer.focusNext();
+		if (setting) {
+			this.settingsGroupTitleRenderer.showSetting(setting);
+		}
 	}
 
 	public collapseAll() {
@@ -528,16 +540,25 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 	public showGroup(group: number) {
 		this.hiddenGroups = this.settingsGroups.filter((g, i) => i !== group - 1);
 		for (const groupTitleWidget of this.settingsGroupTitleWidgets.filter((g, i) => i !== group - 1)) {
-			groupTitleWidget.collapse();
+			groupTitleWidget.toggleCollapse(true);
 		}
 		this._onHiddenAreasChanged.fire();
+	}
+
+	public showSetting(setting: ISetting): void {
+		const settingsGroupTitleWidget = this.settingsGroupTitleWidgets.filter(widget => Range.containsRange(widget.settingsGroup.range, setting.range))[0];
+		if (settingsGroupTitleWidget && settingsGroupTitleWidget.isCollapsed()) {
+			settingsGroupTitleWidget.toggleCollapse(false);
+			this.hiddenGroups.splice(this.hiddenGroups.indexOf(settingsGroupTitleWidget.settingsGroup), 1);
+			this._onHiddenAreasChanged.fire();
+		}
 	}
 
 	public collapseAll() {
 		this.editor.setPosition({ lineNumber: 1, column: 1 });
 		this.hiddenGroups = this.settingsGroups.slice();
 		for (const groupTitleWidget of this.settingsGroupTitleWidgets) {
-			groupTitleWidget.collapse();
+			groupTitleWidget.toggleCollapse(true);
 		}
 		this._onHiddenAreasChanged.fire();
 	}
@@ -711,7 +732,7 @@ export class FocusNextSettingRenderer extends Disposable {
 		super();
 	}
 
-	public focusNext(): void {
+	public focusNext(): ISetting {
 		this.clear();
 		let setting = this.iterator.next() || this.iterator.first();
 		if (setting) {
@@ -731,7 +752,9 @@ export class FocusNextSettingRenderer extends Disposable {
 				}]);
 			});
 			this.editor.revealLinesInCenterIfOutsideViewport(setting.valueRange.startLineNumber, setting.valueRange.endLineNumber - 1);
+			return setting;
 		}
+		return null;
 	}
 
 	public render(filteredGroups: ISettingsGroup[]) {
@@ -855,16 +878,12 @@ export class CopySettingActionRenderer extends Disposable {
 		if (setting) {
 			let jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
 			const actions = this.getActions(setting, jsonSchema);
-			if (actions) {
-				let elementPosition = DOM.getDomNodePagePosition(<HTMLElement>e.target.element);
-				const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => TPromise.wrap(actions)
-				});
-				return;
-			}
-			this.settingsService.copyConfiguration(setting);
+			let elementPosition = DOM.getDomNodePagePosition(<HTMLElement>e.target.element);
+			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => TPromise.wrap(actions)
+			});
 		}
 	}
 
@@ -907,7 +926,12 @@ export class CopySettingActionRenderer extends Disposable {
 				};
 			});
 		}
-		return null;
+		return [<IAction>{
+			id: 'copyToSettings',
+			label: nls.localize('copyToSettings', "Copy to settings"),
+			enabled: true,
+			run: () => this.settingsService.copyConfiguration(setting)
+		}];
 	}
 
 	public dispose() {

@@ -61,7 +61,6 @@ export interface IPreferencesService {
 	_serviceBrand: any;
 
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
-	createDefaultSettingsModel(): TPromise<IPreferencesEditorModel>;
 	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 
 	openGlobalSettings(): TPromise<void>;

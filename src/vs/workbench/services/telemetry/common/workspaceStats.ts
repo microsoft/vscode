@@ -8,11 +8,19 @@
 import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
+import { ArraySet } from 'vs/base/common/set';
 import { IFileService } from 'vs/platform/files/common/files';
 import product from 'vs/platform/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IOptions } from 'vs/workbench/common/options';
+
+
+const SshProtocolMatcher = /^[^:]+@([^:]+):/;
+const SecondLevelDomainMatcher = /[^.]+\.[^.]+$/;
+const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
+
+type Tags = { [index: string]: boolean | number };
 
 export class WorkspaceStats {
 	constructor(
@@ -26,8 +34,8 @@ export class WorkspaceStats {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
-	private getWorkspaceTags(workbenchOptions: IOptions): winjs.TPromise<{ [index: string]: boolean }> {
-		const tags: { [index: string]: boolean | number } = Object.create(null);
+	private getWorkspaceTags(workbenchOptions: IOptions): winjs.TPromise<Tags> {
+		const tags: Tags = Object.create(null);
 
 		const { filesToOpen, filesToCreate, filesToDiff } = workbenchOptions;
 		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
@@ -40,7 +48,7 @@ export class WorkspaceStats {
 		const folder = workspace ? workspace.resource : product.quality !== 'stable' && this.findFolder(workbenchOptions);
 		if (folder && this.fileService) {
 			return this.fileService.resolveFile(folder).then(stats => {
-				let names = stats.children.map(c => c.name);
+				let names = (stats.children || []).map(c => c.name);
 
 				tags['workspace.language.cs'] = this.searchArray(names, /^.+\.cs$/i);
 				tags['workspace.language.js'] = this.searchArray(names, /^.+\.js$/i);
@@ -130,5 +138,103 @@ export class WorkspaceStats {
 		this.getWorkspaceTags(workbenchOptions).then((tags) => {
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => errors.onUnexpectedError(error));
+	}
+
+	private stripLowLevelDomains(domain: string): string {
+		let match = domain.match(SecondLevelDomainMatcher);
+		return match ? match[0] : null;
+	}
+
+	private extractDomain(url: string): string {
+		let match = url.match(SshProtocolMatcher);
+		if (match) {
+			return this.stripLowLevelDomains(match[1]);
+		}
+		try {
+			let uri = URI.parse(url);
+			if (uri.authority) {
+				return this.stripLowLevelDomains(uri.authority);
+			}
+		} catch (e) {
+			// ignore invalid URIs
+		}
+		return null;
+	}
+
+	private getDomainsOfRemotes(text): string[] {
+		let domains = new ArraySet<string>(), match;
+		while (match = RemoteMatcher.exec(text)) {
+			let domain = this.extractDomain(match[1]);
+			if (domain) {
+				domains.set(domain);
+			}
+		}
+		return domains.elements;
+	}
+
+	private reportRemotes(workspaceUri: URI): void {
+		let uri = workspaceUri.with({ path: `${workspaceUri.path}/.git/config` });
+		this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+			content => {
+				let domains = this.getDomainsOfRemotes(content.value);
+				this.telemetryService.publicLog('workspace.remotes', { domains });
+			},
+			err => {
+				// ignore missing or binary file
+			}
+		).then(null, errors.onUnexpectedError);
+	}
+
+	private reportAzureNode(workspaceUri: URI, tags: Tags): winjs.TPromise<Tags> {
+		// TODO: should also work for `node_modules` folders several levels down
+		let uri = workspaceUri.with({ path: `${workspaceUri.path}/node_modules` });
+		return this.fileService.resolveFile(uri).then(
+			stats => {
+				let names = (stats.children || []).map(c => c.name);
+				let referencesAzure = this.searchArray(names, /azure/i);
+				if (referencesAzure) {
+					tags['node'] = true;
+				}
+				return tags;
+			},
+			err => {
+				return tags;
+			});
+	}
+
+	private reportAzureJava(workspaceUri: URI, tags: Tags): winjs.TPromise<Tags> {
+		let uri = workspaceUri.with({ path: `${workspaceUri.path}/pom.xml` });
+		return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+			content => {
+				let referencesAzure = content.value.match(/azure/i) !== null;
+				if (referencesAzure) {
+					tags['java'] = true;
+				}
+				return tags;
+			},
+			err => {
+				return tags;
+			}
+		);
+	}
+
+	private reportAzure(uri) {
+		const tags: Tags = Object.create(null);
+		this.reportAzureNode(uri, tags).then((tags) => {
+			return this.reportAzureJava(uri, tags);
+		}).then((tags) => {
+			if (Object.keys(tags).length) {
+				this.telemetryService.publicLog('workspace.azure', tags);
+			}
+		}).then(null, errors.onUnexpectedError);
+	}
+
+	public reportCloudStats(): void {
+		const workspace = this.contextService.getWorkspace();
+		let uri = workspace ? workspace.resource : null;
+		if (uri && this.fileService) {
+			this.reportRemotes(uri);
+			this.reportAzure(uri);
+		}
 	}
 }

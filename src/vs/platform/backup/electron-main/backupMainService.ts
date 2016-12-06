@@ -34,12 +34,12 @@ export class BackupMainService implements IBackupMainService {
 		this.loadSync();
 	}
 
-	public get workspaceBackupPaths(): string[] {
-		return this.backups.folderWorkspaces;
+	public getWorkspaceBackupPaths(): string[] {
+		return this.backups.folderWorkspaces.slice(0); // return a copy
 	}
 
-	public get emptyWorkspaceBackupPaths(): string[] {
-		return this.backups.emptyWorkspaces;
+	public getEmptyWorkspaceBackupPaths(): string[] {
+		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
 	public getBackupPath(windowId: number): TPromise<string> {
