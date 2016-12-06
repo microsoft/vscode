@@ -127,7 +127,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 			return '<img ' + attributes.join(' ') + '>';
 		};
 		renderer.link = (href, title, text): string => {
-			// Remove markdown escapes in href and title. Workaround for https://github.com/chjj/marked/issues/829
+			// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
 			if (href === text) { // raw link case
 				text = removeMarkdownEscapes(text);
 			}
