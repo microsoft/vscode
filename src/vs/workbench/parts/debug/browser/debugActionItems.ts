@@ -93,6 +93,8 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
 			this.selectBox.setOptions(options, selected);
 		}
+
+		this.debugService.getViewModel().setSelectedConfigurationName(this.selectBox.getSelected());
 	}
 }
 
