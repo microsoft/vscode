@@ -70,11 +70,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		this.defaultEditorModels = new Map<URI, IPreferencesEditorModel>();
 	}
 
-	createDefaultSettingsModel(): TPromise<IPreferencesEditorModel> {
-		return this.createDefaultPreferencesEditorModel(PreferencesService.DEFAULT_SETTINGS_URI);
-	}
-
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
+		const editorModel = this.defaultEditorModels.get(uri);
+		if (editorModel) {
+			return TPromise.as(editorModel);
+		}
+
 		if (PreferencesService.DEFAULT_SETTINGS_URI.fsPath === uri.fsPath) {
 			return this.fetchMostCommonlyUsedSettings()
 				.then(mostCommonSettings => {
