@@ -50,8 +50,8 @@ class ExcludeHintItem {
 	public show(configFileName: string, largeRoots: string, onExecute: () => void) {
 		this._currentHint = {
 			message: largeRoots.length > 0
-				? localize('hintExclude', "For better performance exclude folders with many files, like: {0}", largeRoots)
-				: localize('hintExclude.generic', "For better performance exclude folders with many files."),
+				? localize('hintExclude', "To enable JavaScript/TypeScript IntelliSense, exclude folders with many files, like: {0}", largeRoots)
+				: localize('hintExclude.generic', "To enable JavaScript/TypeScript IntelliSense, exclude large folders with source files that you do not work on."),
 			options: [{
 				title: localize('open', "Configure Excludes"),
 				execute: () => {
@@ -66,7 +66,7 @@ class ExcludeHintItem {
 		};
 		this._item.tooltip = this._currentHint.message;
 		this._item.text = localize('large.label', "Configure Excludes");
-		this._item.tooltip = localize('hintExclude.tooltip', "For better performance exclude folders with many files.");
+		this._item.tooltip = localize('hintExclude.tooltip', "To enable JavaScript/TypeScript IntelliSense, exclude large folders with source files that you do not work on.");
 		this._item.color = '#A5DF3B';
 		this._item.show();
 		this._client.logTelemetry('js.hintProjectExcludes');
