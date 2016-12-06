@@ -224,6 +224,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public clearInput(): void {
+		this.disposeModel();
 		this.saveState(<DefaultPreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
@@ -272,6 +273,13 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		let data = {};
 		data['filter'] = filter;
 		this.telemetryService.publicLog('defaultSettings.filter', data);
+	}
+
+	private disposeModel(): void {
+		const model = this.defaultPreferencesEditor.getModel();
+		if (model) {
+			this.modelService.destroyModel(model.uri);
+		}
 	}
 }
 
