@@ -323,11 +323,11 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		let foldersToOpen = arrays.distinct(iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => platform.isLinux ? folder : folder.toLowerCase()); // prevent duplicates
-		let foldersToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.workspaceBackupPaths : [];
+		let foldersToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getWorkspaceBackupPaths() : [];
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
 		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
-		let emptyToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.emptyWorkspaceBackupPaths : [];
+		let emptyToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
 		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 
 		// Diff mode needs special care

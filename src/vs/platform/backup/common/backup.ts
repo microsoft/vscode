@@ -17,8 +17,8 @@ export const IBackupService = createDecorator<IBackupService>('backupService');
 export interface IBackupMainService extends IBackupService {
 	_serviceBrand: any;
 
-	workspaceBackupPaths: string[];
-	emptyWorkspaceBackupPaths: string[];
+	getWorkspaceBackupPaths(): string[];
+	getEmptyWorkspaceBackupPaths(): string[];
 
 	registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void;
 }
