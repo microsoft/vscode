@@ -520,12 +520,26 @@ export class TransposeAction extends EditorAction {
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let selection = selections[i];
-			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
-				if (cursor.column > model.getLineContent(cursor.lineNumber).length) {
-					return;
+
+			if (!selection.isEmpty()) {
+				continue;
+			}
+
+			let cursor = selection.getStartPosition();
+			let maxColumn = model.getLineMaxColumn(cursor.lineNumber);
+
+			if (cursor.column >= maxColumn) {
+				if (cursor.lineNumber === model.getLineCount()) {
+					continue;
 				}
 
+				// The cursor is at the end of current line and current line is not empty
+				// then we transpose the character before the cursor and the line break if there is any following line.
+				let deleteSelection = new Range(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber + 1, 1);
+				let chars = model.getValueInRange(deleteSelection).split('').reverse().join('');
+
+				commands.push(new ReplaceCommand(new Selection(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber + 1, 1), chars));
+			} else {
 				let deleteSelection = new Range(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber, cursor.column + 1);
 				let chars = model.getValueInRange(deleteSelection).split('').reverse().join('');
 				commands.push(new ReplaceCommandThatPreservesSelection(deleteSelection, chars,
