@@ -383,7 +383,7 @@ export class VSCodeMenu {
 		const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Close &&Window")), click: () => this.windowsService.getLastActiveWindow().win.close(), enabled: this.windowsService.getWindowCount() > 0 }));
 
 		const closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
-		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "Close &&Editor"), 'workbench.action.closeActiveEditor');
+		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"), 'workbench.action.closeActiveEditor');
 
 		const exit = new MenuItem(this.likeAction('workbench.action.quit', { label: mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), click: () => this.windowsService.quit() }));
 
