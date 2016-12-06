@@ -148,7 +148,7 @@
 .monaco-editor .view-line:hover :not(.inline-folded).copySetting:after {
 	cursor: pointer;
 	content:" ";
-	background: url('copy.svg') center center no-repeat;
+	background: url('edit.svg') center center no-repeat;
 	margin-left: 1em;
 	display:inline-block;
 	position: absolute;
@@ -158,7 +158,7 @@
 
 .monaco-editor.hc-black .view-line:hover :not(.inline-folded).copySetting:after,
 .monaco-editor.vs-dark .view-line:hover :not(.inline-folded).copySetting:after {
-	background: url('copy_inverse.svg') center center no-repeat;
+	background: url('edit_inverse.svg') center center no-repeat;
 }
 
 .monaco-editor .floating-click-widget {
