@@ -878,16 +878,12 @@ export class CopySettingActionRenderer extends Disposable {
 		if (setting) {
 			let jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
 			const actions = this.getActions(setting, jsonSchema);
-			if (actions) {
-				let elementPosition = DOM.getDomNodePagePosition(<HTMLElement>e.target.element);
-				const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => TPromise.wrap(actions)
-				});
-				return;
-			}
-			this.settingsService.copyConfiguration(setting);
+			let elementPosition = DOM.getDomNodePagePosition(<HTMLElement>e.target.element);
+			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => TPromise.wrap(actions)
+			});
 		}
 	}
 
@@ -930,7 +926,12 @@ export class CopySettingActionRenderer extends Disposable {
 				};
 			});
 		}
-		return null;
+		return [<IAction>{
+			id: 'copyToSettings',
+			label: nls.localize('copyToSettings', "Copy to settings"),
+			enabled: true,
+			run: () => this.settingsService.copyConfiguration(setting)
+		}];
 	}
 
 	public dispose() {
