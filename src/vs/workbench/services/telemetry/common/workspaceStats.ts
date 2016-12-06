@@ -18,7 +18,7 @@ import { IOptions } from 'vs/workbench/common/options';
 
 const GitProtocolMatcher = /^git@([^:]+):/;
 const SecondLevelDomainMatcher = /[^.]+.[^.]+$/;
-const RemoteMatcher = /^\s+url\s+=\s+(.+)$/mg;
+const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
 
 type Tags = { [index: string]: boolean | number };
 
@@ -150,9 +150,13 @@ export class WorkspaceStats {
 		if (match) {
 			return this.stripLowLevelDomains(match[1]);
 		}
-		let uri = URI.parse(url);
-		if (uri) {
-			return this.stripLowLevelDomains(uri.authority);
+		try {
+			let uri = URI.parse(url);
+			if (uri.authority) {
+				return this.stripLowLevelDomains(uri.authority);
+			}
+		} catch (e) {
+			// ignore
 		}
 		return null;
 	}
@@ -174,10 +178,13 @@ export class WorkspaceStats {
 			content => {
 				if (content) {
 					let domains = this.getDomainsOfRemotes(content.value);
-					this.telemetryService.publicLog('workspce.remotes', domains);
+					this.telemetryService.publicLog('workspace.remotes', domains);
 				}
+			},
+			err => {
+				// ignore
 			}
-		);
+		).then(null, errors.onUnexpectedError);
 	}
 
 	private reportAzureNode(workspaceUri: URI, tags: Tags): winjs.TPromise<Tags> {
@@ -221,9 +228,9 @@ export class WorkspaceStats {
 			return this.reportAzureJava(uri, tags);
 		}).then((tags) => {
 			if (tags['node'] || tags['java']) {
-				this.telemetryService.publicLog('workspce.azure', tags);
+				this.telemetryService.publicLog('workspace.azure', tags);
 			}
-		});
+		}).then(null, errors.onUnexpectedError);
 	}
 
 	public reportCloudStats(): void {
