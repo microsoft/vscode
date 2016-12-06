@@ -128,6 +128,9 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 		};
 		renderer.link = (href, title, text): string => {
 			// Remove markdown escapes in href and title. Workaround for https://github.com/chjj/marked/issues/829
+			if (href === text) { // raw link case
+				text = removeMarkdownEscapes(text);
+			}
 			title = removeMarkdownEscapes(title);
 			href = removeMarkdownEscapes(href);
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
