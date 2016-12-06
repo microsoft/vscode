@@ -37,6 +37,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
 			this.updateOptions();
+			this.nameContainer.textContent = this.debugService.getViewModel().selectedConfigurationName;
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
 			this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
