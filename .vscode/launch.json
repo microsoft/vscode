@@ -57,7 +57,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "VSCode API Tests",
+			"name": "VS Code API Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceRoot}/extensions/vscode-api-tests/testWorkspace",
@@ -70,7 +70,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "VSCode Tokenizer Tests",
+			"name": "VS Code Tokenizer Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceRoot}/extensions/vscode-colorize-tests/test",
@@ -83,14 +83,14 @@
 		{
 			"type": "chrome",
 			"request": "attach",
-			"name": "Attach to VSCode",
+			"name": "Attach to VS Code",
 			"port": 9222,
 			"sourceMaps": true
 		},
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch VSCode",
+			"name": "Launch VS Code",
 			"windows": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
 			},
@@ -105,7 +105,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Debug monaco",
+			"name": "Debug Monaco",
 			"program": "${workspaceRoot}/build/lib/monaco.js",
 			"cwd": "${workspaceRoot}/build/lib"
 			// ,
