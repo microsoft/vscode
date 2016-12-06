@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorZoom} from 'vs/editor/common/config/commonEditorConfig';
+import { EditorZoom } from 'vs/editor/common/config/commonEditorConfig';
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
