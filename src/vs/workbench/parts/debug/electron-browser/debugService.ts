@@ -196,7 +196,7 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.appendToRepl(simpleVals.join(' '), sev);
+						this.model.appendToRepl(simpleVals.join(' ') + '\n', sev);
 						simpleVals = [];
 					}
 
@@ -230,7 +230,7 @@ export class DebugService implements debug.IDebugService {
 
 			// flush simple values
 			if (simpleVals.length) {
-				this.model.appendToRepl(simpleVals.join(' '), sev);
+				this.model.appendToRepl(simpleVals.join(' ') + '\n', sev);
 			}
 		}
 	}
