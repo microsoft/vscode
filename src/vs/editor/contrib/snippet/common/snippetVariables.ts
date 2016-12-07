@@ -43,7 +43,7 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 
 	private _tmCurrentWord(): string {
 		const word = this._editor.getModel().getWordAtPosition(this._editor.getPosition());
-		return word && word.word;
+		return word ? word.word : '';
 	}
 
 	private _tmFilename(): string {
@@ -52,7 +52,7 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 
 	private _tmDirectory(): string {
 		const dir = dirname(normalize(this._editor.getModel().uri.fsPath));
-		return dir !== '.' ? dir : undefined;
+		return dir !== '.' ? dir : '';
 	}
 
 	private _tmFilepath(): string {
