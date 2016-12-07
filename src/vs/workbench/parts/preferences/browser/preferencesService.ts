@@ -197,6 +197,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return null;
 	}
 
+	private getDefaultSettingsURI(configurationTarget: ConfigurationTarget): URI {
+		return URI.from({ scheme: PreferencesService.DEFAULT_SETTINGS_URI.scheme, authority: PreferencesService.DEFAULT_SETTINGS_URI.authority, path: PreferencesService.DEFAULT_SETTINGS_URI.path, fragment: ConfigurationTarget.USER === configurationTarget ? 'user' : 'workspace' });
+	}
+
 	private promptToOpenWorkspaceSettings() {
 		this.choiceService.choose(Severity.Info, nls.localize('workspaceHasSettings', "The currently opened folder contains workspace settings that may override user settings"),
 			[nls.localize('openWorkspaceSettings', "Open Workspace Settings"), nls.localize('neverShowAgain', "Don't show again"), nls.localize('close', "Close")]
@@ -219,8 +223,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const openDefaultSettings = !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.openDefaultSettings;
 		if (openDefaultSettings) {
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
+			const defaultSettingsResource = this.getDefaultSettingsURI(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
-			return this.openTwoEditors(this.instantiationService.createInstance(DefaultPreferencesEditorInput, PreferencesService.DEFAULT_SETTINGS_URI, true), settingsResource, emptySettingsContents).then(() => null);
+			return this.openTwoEditors(this.instantiationService.createInstance(DefaultPreferencesEditorInput, defaultSettingsResource, true), settingsResource, emptySettingsContents).then(() => null);
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
