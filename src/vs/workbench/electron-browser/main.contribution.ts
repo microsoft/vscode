@@ -189,7 +189,7 @@ let properties: { [path: string]: IJSONSchema; } = {
 	'window.fullScreenZenMode': {
 		'type': 'boolean',
 		'default': true,
-		'description': nls.localize('fullScreenZenMode', "Controls if zen mode should transition the workbench to full screen mode automatically.")
+		'description': nls.localize('fullScreenZenMode', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
 	},
 	'window.zoomLevel': {
 		'type': 'number',
