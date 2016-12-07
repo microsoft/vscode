@@ -31,6 +31,7 @@ export class SelectBox extends Widget {
 		this._onDidSelect = new Emitter<string>();
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.select, 'change', (e) => {
+			this.select.title = e.target.value;
 			this._onDidSelect.fire(e.target.value);
 		}));
 	}
