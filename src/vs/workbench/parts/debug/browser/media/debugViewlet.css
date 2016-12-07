@@ -53,7 +53,7 @@
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
-	border-color: #383838;
+	border-color: #3c3c3c;
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
@@ -70,7 +70,7 @@
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
-	border-color: #383838;
+	border-color: #3c3c3c;
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon {
