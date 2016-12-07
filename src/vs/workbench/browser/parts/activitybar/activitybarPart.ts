@@ -147,6 +147,21 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.showContextMenu(e);
 		}, this.toUnbind);
 
+		// Allow to drop at the end to move viewlet to the end
+		$(parent).on(DOM.EventType.DROP, (e: DragEvent) => {
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			if (draggedViewlet) {
+				DOM.EventHelper.stop(e, true);
+
+				ActivityActionItem.clearDraggedViewlet();
+
+				const targetId = this.pinnedViewlets[this.pinnedViewlets.length - 1];
+				if (targetId !== draggedViewlet.id) {
+					this.move(draggedViewlet.id, this.pinnedViewlets[this.pinnedViewlets.length - 1]);
+				}
+			}
+		});
+
 		return $result;
 	}
 
