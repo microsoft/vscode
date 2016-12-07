@@ -95,6 +95,19 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
+		let lastCategory: string;
+		entries.forEach((e, index) => {
+			if (lastCategory !== e.getCategory()) {
+				lastCategory = e.getCategory();
+
+				e.setShowBorder(index > 0);
+				e.setGroupLabel(lastCategory);
+			} else {
+				e.setShowBorder(false);
+				e.setGroupLabel(void 0);
+			}
+		});
+
 		return TPromise.as(new QuickOpenModel(entries));
 	}
 
@@ -107,10 +120,6 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			const viewsCategory = nls.localize('views', "Views");
 			const entry = new ViewEntry(viewlet.name, viewsCategory, () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError));
 			viewEntries.push(entry);
-
-			if (index === 0) {
-				entry.setGroupLabel(viewsCategory);
-			}
 		});
 
 		const terminals = this.terminalService.terminalInstances;
@@ -130,10 +139,6 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		panels.forEach((panel, index) => {
 			const panelsCategory = nls.localize('panels', "Panels");
 			const entry = new ViewEntry(panel.name, panelsCategory, () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError));
-			if (index === 0) {
-				entry.setShowBorder(true);
-				entry.setGroupLabel(panelsCategory);
-			}
 
 			viewEntries.push(entry);
 		});
@@ -147,11 +152,6 @@ export class ViewPickerHandler extends QuickOpenHandler {
 				}, errors.onUnexpectedError);
 			});
 
-			if (index === 0) {
-				entry.setShowBorder(true);
-				entry.setGroupLabel(terminalsCategory);
-			}
-
 			viewEntries.push(entry);
 		});
 
@@ -160,11 +160,6 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
 			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.getChannel(channel.id).show().done(null, errors.onUnexpectedError));
-
-			if (index === 0) {
-				entry.setShowBorder(true);
-				entry.setGroupLabel(outputCategory);
-			}
 
 			viewEntries.push(entry);
 		});
