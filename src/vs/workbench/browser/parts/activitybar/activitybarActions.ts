@@ -400,7 +400,7 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 	constructor(
 		private showMenu: () => void
 	) {
-		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
+		super('activitybar.additionalViewlets.action', nls.localize('additionalViews', "Additional Views"), 'toggle-more');
 	}
 
 	public run(event): TPromise<any> {
@@ -546,7 +546,7 @@ export class ToggleViewletPinnedAction extends Action {
 		private viewlet: ViewletDescriptor,
 		@IActivityBarService private activityBarService: IActivityBarService
 	) {
-		super('activitybar.show.toggleViewletPinned', viewlet ? viewlet.name : nls.localize('toggle', "Toggle Viewlet Pinned"));
+		super('activitybar.show.toggleViewletPinned', viewlet ? viewlet.name : nls.localize('toggle', "Toggle View Pinned"));
 
 		this.checked = this.viewlet && this.activityBarService.isPinned(this.viewlet.id);
 	}

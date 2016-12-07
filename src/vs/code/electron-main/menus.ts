@@ -602,7 +602,7 @@ export class VSCodeMenu {
 				additionalViewletsMenu.append(this.createMenuItem(viewlet.label, viewlet.id));
 			});
 
-			additionalViewlets = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miAdditionalViewlets', comment: ['&& denotes a mnemonic'] }, "Additional &&Viewlets")), submenu: additionalViewletsMenu, enabled: true });
+			additionalViewlets = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miAdditionalViews', comment: ['&& denotes a mnemonic'] }, "Additional &&Views")), submenu: additionalViewletsMenu, enabled: true });
 		}
 
 		const commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
