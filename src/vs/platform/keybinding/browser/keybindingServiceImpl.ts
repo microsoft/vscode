@@ -7,7 +7,6 @@
 import 'vs/css!./keybindings';
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -142,31 +141,24 @@ export abstract class KeybindingService implements IKeybindingService {
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
-	public resolve(keybinding: Keybinding, target: IContextKeyServiceTarget, skipModifierKeyEvaluation?: boolean): IResolveResult {
-		// To prevent additional work, calling this function internally is allowed to skip the
-		// modifier key evaludation.
-		if (!skipModifierKeyEvaluation) {
-			if (this._isModifierKey(keybinding)) {
-				return null;
-			}
+	public resolve(keybinding: Keybinding, target: IContextKeyServiceTarget): IResolveResult {
+		if (keybinding.isModifierKey()) {
+			return null;
 		}
 
 		const contextValue = this._contextKeyService.getContextValue(target);
 		return this._getResolver().resolve(contextValue, this._currentChord, keybinding.value);
 	}
 
-	private _isModifierKey(keybinding: Keybinding): boolean {
-		const keyCode = keybinding.extractKeyCode();
-		return (keyCode === KeyCode.Ctrl || keyCode === KeyCode.Shift || keyCode === KeyCode.Alt || keyCode === KeyCode.Meta);
-	}
-
 	protected _dispatch(e: IKeyboardEvent): void {
+		// Check modifier key here and cancel early, it's also checked in resolve as the function
+		// is used externally.
 		const keybinding = new Keybinding(e.asKeybinding());
-		if (this._isModifierKey(keybinding)) {
-			return null;
+		if (keybinding.isModifierKey()) {
+			return;
 		}
 
-		const resolveResult = this.resolve(keybinding, e.target, true);
+		const resolveResult = this.resolve(keybinding, e.target);
 
 		if (resolveResult && resolveResult.enterChord) {
 			e.preventDefault();
