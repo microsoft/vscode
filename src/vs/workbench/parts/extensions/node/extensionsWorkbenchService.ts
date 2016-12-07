@@ -211,11 +211,11 @@ class Extension implements IExtension {
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
-		if (gallery) {
-			return gallery.properties.dependencies;
-		}
 		if (local && local.manifest.extensionDependencies) {
 			return local.manifest.extensionDependencies;
+		}
+		if (gallery) {
+			return gallery.properties.dependencies;
 		}
 		return [];
 	}
