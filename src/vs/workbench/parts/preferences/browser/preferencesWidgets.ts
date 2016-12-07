@@ -131,7 +131,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	private onCursorChange(e: editorCommon.ICursorPositionChangedEvent): void {
-		if (this.focusTitle(e.position)) {
+		if (e.source !== 'mouse' && this.focusTitle(e.position)) {
 			this.titleContainer.focus();
 		}
 	}
