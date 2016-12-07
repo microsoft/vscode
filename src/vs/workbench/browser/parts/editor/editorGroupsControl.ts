@@ -265,7 +265,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 				// Refresh title when icons change
 				else if (showingIcons !== this.showIcons || showTabCloseButton !== this.showTabCloseButton) {
-					titleControl.refresh(true);
+					titleControl.refresh();
 				}
 			}
 		});
