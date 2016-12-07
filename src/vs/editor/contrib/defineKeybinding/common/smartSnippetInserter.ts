@@ -131,7 +131,7 @@ export class SmartSnippetInserter {
 					acceptState = lastValidState;
 				}
 
-				if (acceptState === State.AFTER_OBJECT) {
+				if (acceptState as State === State.AFTER_OBJECT) {
 					return {
 						position: this.offsetToPosition(model, acceptPosition),
 						prepend: ',',
