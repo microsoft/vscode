@@ -66,6 +66,10 @@
 	border-color: #3c3c3c;
 }
 
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
+	border: 1px solid #dddddd;
+}
+
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
 	border-color: #3c3c3c;
