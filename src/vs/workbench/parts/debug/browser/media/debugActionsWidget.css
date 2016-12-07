@@ -90,10 +90,6 @@
 	background-image: url('stop.svg');
 }
 
-.monaco-workbench .debug-actions-widget .debug-action.disconnect {
-	background-image: url('disconnect.svg');
-}
-
 /* Dark and hc theme actions */
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-over,
@@ -133,9 +129,4 @@
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.stop,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.stop {
 	background-image: url('stop-inverse.svg');
-}
-
-.vs-dark .monaco-workbench .debug-actions-widget .debug-action.disconnect,
-.hc-black .monaco-workbench .debug-actions-widget .debug-action.disconnect {
-	background-image: url('disconnect-inverse.svg');
 }
