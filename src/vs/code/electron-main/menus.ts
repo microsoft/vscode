@@ -564,22 +564,21 @@ export class VSCodeMenu {
 		const smartSelectshrink = this.createMenuItem(nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"), 'editor.action.smartSelect.shrink');
 
 		[
-			insertCursorAbove,
-			insertCursorBelow,
-			insertCursorAtEndOfEachLineSelected,
-			__separator__(),
-			addSelectionToNextFindMatch,
-			addSelectionToPreviousFindMatch,
-			selectHighlights,
+			selectAll,
+			smartSelectGrow,
+			smartSelectshrink,
 			__separator__(),
 			copyLinesUp,
 			copyLinesDown,
 			moveLinesUp,
 			moveLinesDown,
 			__separator__(),
-			selectAll,
-			smartSelectGrow,
-			smartSelectshrink,
+			insertCursorAbove,
+			insertCursorBelow,
+			insertCursorAtEndOfEachLineSelected,
+			addSelectionToNextFindMatch,
+			addSelectionToPreviousFindMatch,
+			selectHighlights,
 		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
