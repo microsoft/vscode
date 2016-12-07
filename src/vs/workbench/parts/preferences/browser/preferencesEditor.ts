@@ -840,8 +840,8 @@ export class CopySettingActionRenderer extends Disposable {
 					options: {
 						afterContentClassName: 'copySetting',
 						stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-						hoverMessage: canChooseValue ? this.isDefaultSettings ? nls.localize('selectAndCopySetting', "Select a value and copy to settings")
-							: nls.localize('selectValue', "Select a value") : nls.localize('copy', "Copy to settings")
+						hoverMessage: canChooseValue ? this.isDefaultSettings ? nls.localize('selectAndCopySetting', "Select a value and copy to Settings")
+							: nls.localize('selectValue', "Select a value") : nls.localize('copy', "Copy to Settings")
 					}
 				};
 			}
@@ -928,7 +928,7 @@ export class CopySettingActionRenderer extends Disposable {
 		}
 		return [<IAction>{
 			id: 'copyToSettings',
-			label: nls.localize('copyToSettings', "Copy to settings"),
+			label: nls.localize('copyToSettings', "Copy to Settings"),
 			enabled: true,
 			run: () => this.settingsService.copyConfiguration(setting)
 		}];
