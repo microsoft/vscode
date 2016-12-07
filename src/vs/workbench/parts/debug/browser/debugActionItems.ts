@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
@@ -41,6 +42,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
 			this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
+			this.actionRunner.run(this.action).done(null, errors.onUnexpectedError);
 		}));
 	}
 
@@ -53,12 +55,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		icon.tabIndex = 0;
 
 		this.toDispose.push(dom.addDisposableListener(icon, 'click', () => {
-			this.actionRunner.run(this.action, this.context);
+			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 		}));
 		this.toDispose.push(dom.addDisposableListener(icon, 'keyup', (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
-				this.actionRunner.run(this.action, this.context);
+				this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 			}
 		}));
 
