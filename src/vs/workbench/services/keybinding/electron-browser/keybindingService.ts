@@ -285,14 +285,18 @@ let schema: IJSONSchema = {
 		'properties': {
 			'key': {
 				'type': 'string',
-				'description': nls.localize('keybindings.json.key', 'Key or key sequence (separated by space)'),
+				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
-				'description': nls.localize('keybindings.json.command', 'Name of the command to execute'),
+				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'when': {
 				'type': 'string',
-				'description': nls.localize('keybindings.json.when', 'Condition when the key is active.')
+				'description': nls.localize('keybindings.json.when', "Condition when the key is active.")
+			},
+			'args': {
+				'type': 'object',
+				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		}
 	}
