@@ -17,7 +17,7 @@ import { IOptions } from 'vs/workbench/common/options';
 
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
-const SecondLevelDomainMatcher = /[^@.]+\.[^.]+$/;
+const SecondLevelDomainMatcher = /([^@:.]+\.[^@:.]+)(:\d+)?$/;
 const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
 
 type Tags = { [index: string]: boolean | number };
@@ -142,7 +142,7 @@ export class WorkspaceStats {
 
 	private stripLowLevelDomains(domain: string): string {
 		let match = domain.match(SecondLevelDomainMatcher);
-		return match ? match[0] : null;
+		return match ? match[1] : null;
 	}
 
 	private extractDomain(url: string): string {
