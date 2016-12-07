@@ -44,30 +44,30 @@
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
 	display: flex;
 	align-items: center;
-	margin: 6px 0;
-	border: 1px solid #dddddd;
 	font-size: 11px;
 	margin-right: 0.3em;
 	height: 20px;
 	flex-shrink: 1;
-}
-
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
-	border-color: #3c3c3c;
+	height: 35px;
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
-	border-right: 1px solid #dddddd;
 	height: 20px;
 	width: 20px;
 	background: url('continue.svg') center center no-repeat;
 	flex-shrink: 0;
+	border: 1px solid #dddddd;
+	border-right: none;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	background: url('continue-inverse.svg') center center no-repeat;
+	border-color: #3c3c3c;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
 	border-color: #3c3c3c;
 }
 
