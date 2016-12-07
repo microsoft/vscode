@@ -72,7 +72,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		};
 
 		const unwind = (processed: number) => {
-			console.log(`unwind`);
 			this.processedBytes += processed;
 
 			// Emit progress() unless we got canceled or hit the limit
