@@ -908,7 +908,7 @@ export class CopySettingActionRenderer extends Disposable {
 			return jsonSchema.enum.map(value => {
 				return <IAction>{
 					id: value,
-					label: value,
+					label: JSON.stringify(value),
 					enabled: true,
 					run: () => this.settingsService.copyConfiguration({ key: setting.key, value })
 				};
