@@ -413,7 +413,8 @@ export class JoinLinesAction extends EditorAction {
 			precondition: EditorContextKeys.Writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.WinCtrl | KeyCode.KEY_J
+				primary: 0,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J }
 			}
 		});
 	}
