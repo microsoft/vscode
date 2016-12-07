@@ -68,7 +68,7 @@ suite('Editor Contrib - Line Operations', () => {
 			});
 	});
 
-	test('Join lines', function () {
+	test('join lines', function () {
 		withMockCodeEditor(
 			[
 				'hello',
@@ -110,6 +110,50 @@ suite('Editor Contrib - Line Operations', () => {
 				joinLinesAction.run(null, editor);
 				assert.equal(model.getLineContent(5), 'hello world', '009');
 				assert.deepEqual(editor.getSelection().toString(), new Selection(5, 1, 5, 3).toString(), '010');
+			});
+	});
+
+	test('join lines in multi cursor mode', function () {
+		withMockCodeEditor(
+			[
+				'hello',
+				'world',
+				'hello ',
+				'world',
+				'hello		',
+				'	world',
+				'hello   ',
+				'	world',
+				'',
+				'',
+				'hello world'
+			], {}, (editor, cursor) => {
+				let model = editor.getModel();
+				let joinLinesAction = new JoinLinesAction();
+
+				editor.setSelections([
+					/** primary cursor */
+					new Selection(5, 2, 5, 2),
+					new Selection(1, 2, 1, 2),
+					new Selection(3, 2, 4, 2),
+					new Selection(5, 4, 6, 3),
+					new Selection(7, 5, 8, 4),
+					new Selection(10, 1, 10, 1)
+				]);
+
+				joinLinesAction.run(null, editor);
+				assert.equal(model.getLinesContent().join('\n'), 'hello world\nhello world\nhello world\nhello world\n\nhello world', '001');
+				assert.deepEqual(editor.getSelections().toString(), [
+					/** primary cursor */
+					new Selection(3, 2, 3, 8),
+					new Selection(1, 6, 1, 6),
+					new Selection(2, 2, 2, 8),
+					new Selection(4, 5, 4, 9),
+					new Selection(6, 1, 6, 1)
+				].toString(), '002');
+
+				/** primary cursor */
+				assert.deepEqual(editor.getSelection().toString(), new Selection(3, 2, 3, 8).toString(), '003');
 			});
 	});
 
