@@ -14,7 +14,6 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel, IRange } from 'vs/editor/common/editorCommon';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy, matchesWords } from 'vs/base/common/filters';
@@ -287,11 +286,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private _content: string;
 	private _contentByLines: string[];
 
-	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[],
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[]) {
 		super();
-		const editorConfig = this.configurationService.getConfiguration<any>();
-		this.indent = editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t';
+		this.indent = '  ';
 	}
 
 	public get uri(): URI {
