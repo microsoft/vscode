@@ -186,6 +186,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.wrappingColumn = 0;
 			options.overviewRulerLanes = 0;
 			options.renderIndentGuides = false;
+			options.rulers = [];
 		}
 		return options;
 	}
