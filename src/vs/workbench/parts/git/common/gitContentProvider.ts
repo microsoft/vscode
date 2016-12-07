@@ -36,6 +36,14 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 		const model = this.modelService.createModel('', null, uri);
 		const throttler = new Throttler();
 
+		const setModelContents = contents => {
+			if (model.isDisposed()) {
+				return;
+			}
+
+			model.setValue(contents || '');
+		};
+
 		const updateModel = () => {
 			const gitModel = this.gitService.getModel();
 			const root = gitModel.getRepositoryRoot();
@@ -46,10 +54,14 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 
 			const path = uri.fsPath;
 			const relativePath = paths.relative(root, path).replace(/\\/g, '/');
+
+			if (/^\.\./.test(relativePath)) {
+				return TPromise.as(null);
+			}
+
 			const treeish = gitModel.getStatus().find(relativePath, StatusType.INDEX) ? '~' : 'HEAD';
 
-			return this.gitService.buffer(path, treeish)
-				.then(contents => model.setValue(contents || ''));
+			return this.gitService.buffer(path, treeish).then(setModelContents);
 		};
 
 		const triggerModelUpdate = () => {
