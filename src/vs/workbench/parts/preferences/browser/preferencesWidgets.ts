@@ -55,7 +55,6 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 	private create() {
 		this._domNode = DOM.$('.settings-group-title-widget');
-		this._domNode.style.paddingLeft = '10px';
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
 		this.titleContainer.tabIndex = 1;
