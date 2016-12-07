@@ -31,7 +31,11 @@
 				"url": "vscode://schemas/keybindings"
 			},
 			{
-				"fileMatch": "vscode://defaultsettings/settings.json",
+				"fileMatch": "vscode://defaultsettings/settings.json#user",
+				"url": "vscode://schemas/settings"
+			},
+			{
+				"fileMatch": "vscode://defaultsettings/settings.json#workspace",
 				"url": "vscode://schemas/settings"
 			},
 			{
