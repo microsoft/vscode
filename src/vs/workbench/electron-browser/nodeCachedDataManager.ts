@@ -40,7 +40,7 @@ export class NodeCachedDataManager {
 		};
 
 		// handle future and past errors
-		(<any>self).require.config({ onNodeCachedDataError }, true);
+		(<any>self).require.config({ onNodeCachedDataError });
 		(<any[]>(<any>window).MonacoEnvironment.nodeCachedDataErrors).forEach(onNodeCachedDataError);
 		delete (<any>window).MonacoEnvironment.nodeCachedDataErrors;
 
