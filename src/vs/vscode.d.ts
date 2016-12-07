@@ -2066,8 +2066,9 @@ declare module 'vscode' {
 	 *
 	 * A snippet can define tab stops and placeholders with `$1`, `$2`
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
-	 * the end of the snippet. Placeholders with equal identifiers are linked,
-	 * that is typing in one will update others too.
+	 * the end of the snippet. Variables are defined with `$name` and
+	 * `${name:default value}`. The full snippet syntax is documented
+	 * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
