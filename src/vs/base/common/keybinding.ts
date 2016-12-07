@@ -207,6 +207,10 @@ export class Keybinding {
 		return BinaryKeybindings.hasWinCtrl(this.value);
 	}
 
+	public isModifierKey(): boolean {
+		return BinaryKeybindings.isModifierKey(this.value);
+	}
+
 	public extractKeyCode(): KeyCode {
 		return BinaryKeybindings.extractKeyCode(this.value);
 	}

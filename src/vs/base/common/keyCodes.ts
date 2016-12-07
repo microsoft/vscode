@@ -459,6 +459,11 @@ export class BinaryKeybindings {
 		return (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
 	}
 
+	public static isModifierKey(keybinding: number): boolean {
+		const modifierKeyMask = (BinaryKeybindingsMask.Alt | BinaryKeybindingsMask.CtrlCmd | BinaryKeybindingsMask.Shift | BinaryKeybindingsMask.WinCtrl);
+		return (keybinding & modifierKeyMask) === keybinding;
+	}
+
 	public static extractKeyCode(keybinding: number): KeyCode {
 		return (keybinding & BinaryKeybindingsMask.KeyCode);
 	}
