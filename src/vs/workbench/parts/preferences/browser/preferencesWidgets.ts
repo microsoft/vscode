@@ -58,7 +58,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
 		this.titleContainer.tabIndex = 1;
-		this.onclick(this.titleContainer, () => this.onTitleClicked());
+		this.onclick(this.titleContainer, () => this.toggle());
 		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
 		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
 		focusTracker.addFocusListener(() => this.toggleFocus(true));
@@ -86,6 +86,10 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		DOM.toggleClass(this.titleContainer, 'focused', focus);
 	}
 
+	public isCollapsed(): boolean {
+		return DOM.hasClass(this.titleContainer, 'collapsed');
+	}
+
 	private layout(): void {
 		this.titleContainer.style.lineHeight = this.editor.getConfiguration().lineHeight + 3 + 'px';
 		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 'px';
@@ -99,21 +103,17 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		return fontSize > 8 ? Math.max(fontSize, 16) : 12;
 	}
 
-	private onTitleClicked() {
-		const isCollapsed = this.isCollapsed();
-		DOM.toggleClass(this.titleContainer, 'collapsed', !isCollapsed);
-		this._onToggled.fire(!isCollapsed);
-	}
-
-	public isCollapsed(): boolean {
-		return DOM.hasClass(this.titleContainer, 'collapsed');
-	}
-
 	private onKeyDown(keyboardEvent: IKeyboardEvent): void {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
 			case KeyCode.Space:
-				this.onTitleClicked();
+				this.toggle();
+				break;
+			case KeyCode.LeftArrow:
+				this.collapse(true);
+				break;
+			case KeyCode.RightArrow:
+				this.collapse(false);
 				break;
 			case KeyCode.UpArrow:
 				if (this.settingsGroup.range.startLineNumber - 3 !== 1) {
@@ -127,6 +127,17 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 				this.editor.focus();
 				this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
 				break;
+		}
+	}
+
+	private toggle() {
+		this.collapse(!this.isCollapsed());
+	}
+
+	private collapse(collapse: boolean) {
+		if (collapse !== this.isCollapsed()) {
+			DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
+			this._onToggled.fire(collapse);
 		}
 	}
 
