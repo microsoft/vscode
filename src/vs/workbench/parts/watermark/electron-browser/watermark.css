@@ -67,6 +67,15 @@
 	font-family: "Lucida Grande", sans-serif;
 }
 
+.monaco-workbench > .part.editor.empty > .content > .watermark dd > .unbound {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+}
+
+.monaco-workbench.mac > .part.editor.empty > .content > .watermark dd > .unbound {
+	font-family: "Lucida Grande", sans-serif;
+}
+
 .monaco-workbench > .part.editor.empty > .content > .watermark dt,
 .monaco-workbench > .part.editor.empty > .content > .watermark dd {
 	display: table-cell;

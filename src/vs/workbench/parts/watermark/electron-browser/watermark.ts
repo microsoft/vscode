@@ -169,7 +169,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 						entry.ids
 							.map(id => this.keybindingService.lookupKeybindings(id).slice(0, 1)
 								.map(k => `<span class="shortcuts">${this.keybindingService.getLabelFor(k)}</span>`)
-								.join('') || UNBOUND)
+								.join('') || `<span class="unbound">${UNBOUND}</span>`)
 							.join(' / ')
 					));
 				});
