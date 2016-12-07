@@ -2110,19 +2110,10 @@ declare module 'vscode' {
 		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
 
 		/**
-		 * Builder-function that appends a variable (`$VAR`) to
+		 * Builder-function that appends a variable (`${VAR}`) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
 		 * @param name The name of the variable - excluding the `$`.
-		 * @return This snippet string.
-		 */
-		appendVariable(name: string): SnippetString;
-
-		/**
-		 * Builder-function that appends a variable and default value (`${VAR:fallback}`) to
-		 * the [`value`](#SnippetString.value) of this snippet string.
-		 *
-		 * @param name The name of the variable (excluding the `$`)
 		 * @param defaultValue The default value which is used when the variable name cannot
 		 * be resolved - either a string or a function with which a nested snippet can be created.
 		 * @return This snippet string.
