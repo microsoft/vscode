@@ -35,6 +35,7 @@ documents.listen(connection);
 
 let workspacePath: string;
 var languageModes: LanguageModes;
+var settings: any = {};
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
@@ -68,9 +69,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
-
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
+	settings = change.settings;
+
 	languageModes.getAllModes().forEach(m => {
 		if (m.configure) {
 			m.configure(change.settings);
@@ -201,9 +203,12 @@ connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
 	let ranges = languageModes.getModesInRange(document, formatParams.range);
 	let result: TextEdit[] = [];
+	let unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
+	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/), html: true };
 	ranges.forEach(r => {
 		let mode = r.mode;
-		if (mode && mode.format && !r.attributeValue) {
+		if (mode && mode.format && enabledModes[mode.getId()] && !r.attributeValue) {
+			console.log(mode.getId());
 			let edits = mode.format(document, r, formatParams.options);
 			pushAll(result, edits);
 		}

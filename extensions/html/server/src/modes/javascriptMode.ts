@@ -56,7 +56,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	return {
 		getId() {
-			return 'html';
+			return 'javascript';
 		},
 		configure(options: any) {
 			settings = options && options.javascript;
