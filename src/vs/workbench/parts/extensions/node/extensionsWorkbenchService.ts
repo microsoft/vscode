@@ -57,15 +57,15 @@ class Extension implements IExtension {
 	}
 
 	get name(): string {
-		return this.local ? this.local.manifest.name : this.gallery.name;
+		return this.gallery ? this.gallery.name : this.local.manifest.name;
 	}
 
 	get displayName(): string {
-		if (this.local) {
-			return this.local.manifest.displayName || this.local.manifest.name;
+		if (this.gallery) {
+			return this.gallery.displayName || this.gallery.name;
 		}
 
-		return this.gallery.displayName || this.gallery.name;
+		return this.local.manifest.displayName || this.local.manifest.name;
 	}
 
 	get identifier(): string {
@@ -73,19 +73,19 @@ class Extension implements IExtension {
 	}
 
 	get publisher(): string {
-		return this.local ? this.local.manifest.publisher : this.gallery.publisher;
+		return this.gallery ? this.gallery.publisher : this.local.manifest.publisher;
 	}
 
 	get publisherDisplayName(): string {
-		if (this.local) {
-			if (this.local.metadata && this.local.metadata.publisherDisplayName) {
-				return this.local.metadata.publisherDisplayName;
-			}
-
-			return this.local.manifest.publisher;
+		if (this.gallery) {
+			return this.gallery.publisherDisplayName || this.gallery.publisher;
 		}
 
-		return this.gallery.publisherDisplayName || this.gallery.publisher;
+		if (this.local.metadata && this.local.metadata.publisherDisplayName) {
+			return this.local.metadata.publisherDisplayName;
+		}
+
+		return this.local.manifest.publisher;
 	}
 
 	get version(): string {
@@ -97,23 +97,27 @@ class Extension implements IExtension {
 	}
 
 	get description(): string {
-		return this.local ? this.local.manifest.description : this.gallery.description;
+		return this.gallery ? this.gallery.description : this.local.manifest.description;
 	}
 
 	private get changelogUrl(): string {
+		if (this.gallery && this.gallery.assets.changelog) {
+			return this.gallery.assets.changelog.uri;
+		}
+
 		if (this.local && this.local.changelogUrl) {
 			return this.local.changelogUrl;
 		}
 
-		return this.gallery && this.gallery.assets.changelog && this.gallery.assets.changelog.uri;
+		return null;
 	}
 
 	get iconUrl(): string {
-		return this.localIconUrl || this.galleryIconUrl || this.defaultIconUrl;
+		return this.galleryIconUrl || this.localIconUrl || this.defaultIconUrl;
 	}
 
 	get iconUrlFallback(): string {
-		return this.localIconUrl || this.galleryIconUrlFallback || this.defaultIconUrl;
+		return this.galleryIconUrlFallback || this.localIconUrl || this.defaultIconUrl;
 	}
 
 	private get localIconUrl(): string {
@@ -168,21 +172,21 @@ class Extension implements IExtension {
 	}
 
 	getManifest(): TPromise<IExtensionManifest> {
-		if (this.local) {
-			return TPromise.as(this.local.manifest);
+		if (this.gallery) {
+			return this.galleryService.getManifest(this.gallery);
 		}
 
-		return this.galleryService.getManifest(this.gallery);
+		return TPromise.as(this.local.manifest);
 	}
 
 	getReadme(): TPromise<string> {
+		if (this.gallery) {
+			return this.galleryService.getReadme(this.gallery);
+		}
+
 		if (this.local && this.local.readmeUrl) {
 			const uri = URI.parse(this.local.readmeUrl);
 			return readFile(uri.fsPath, 'utf8');
-		}
-
-		if (this.gallery) {
-			return this.galleryService.getReadme(this.gallery);
 		}
 
 		return TPromise.wrapError('not available');
@@ -207,11 +211,11 @@ class Extension implements IExtension {
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
-		if (local && local.manifest.extensionDependencies) {
-			return local.manifest.extensionDependencies;
-		}
 		if (gallery) {
 			return gallery.properties.dependencies;
+		}
+		if (local && local.manifest.extensionDependencies) {
+			return local.manifest.extensionDependencies;
 		}
 		return [];
 	}
