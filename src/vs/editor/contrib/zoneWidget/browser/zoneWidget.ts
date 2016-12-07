@@ -187,6 +187,19 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: {} }]);
 	}
 
+	public hide(): void {
+		if (this._viewZone) {
+			this.editor.changeViewZones(accessor => {
+				accessor.removeZone(this._viewZone.id);
+			});
+			this._viewZone = null;
+		}
+		if (this._overlayWidget) {
+			this.editor.removeOverlayWidget(this._overlayWidget);
+			this._overlayWidget = null;
+		}
+	}
+
 	private _decoratingElementsHeight(): number {
 		let lineHeight = this.editor.getConfiguration().lineHeight;
 		let result = 0;

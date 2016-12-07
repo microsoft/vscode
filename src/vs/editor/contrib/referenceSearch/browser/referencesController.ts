@@ -208,6 +208,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	private _gotoReference(ref: OneReference): void {
+		this._widget.hide();
+
 		this._ignoreModelChangeEvent = true;
 		const {uri, range} = ref;
 
