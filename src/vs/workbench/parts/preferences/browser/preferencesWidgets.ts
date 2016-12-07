@@ -209,10 +209,6 @@ export class DefaultSettingsHeaderWidget extends Widget {
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
 	}
 
-	public focusTracker(): DOM.IFocusTracker {
-		return DOM.trackFocus(this.inputBox.inputElement);
-	}
-
 	public focus() {
 		this.inputBox.focus();
 	}
