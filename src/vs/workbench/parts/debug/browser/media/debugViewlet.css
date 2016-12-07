@@ -87,14 +87,14 @@
 /* Hover feedback for start debug action item */
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled) {
-	background-color: #ececec;
+	background-color: #ECECEC;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled),
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled) {
-	background-color: #2A2D2E;
+	background-color: #2D2D2D
 }
 
 /* Debug viewlet trees */
