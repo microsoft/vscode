@@ -90,6 +90,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch');
 		if (!config || !config.configurations || config.configurations.length === 0) {
 			this.selectBox.setOptions([NO_CONFIGURATIONS_LABEL], 0);
+			this.selectBox.enabled = false;
 		} else {
 			const options = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
 			if (config.compounds) {
@@ -98,6 +99,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 			const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
 			this.selectBox.setOptions(options, selected);
+			this.selectBox.enabled = true;
 		}
 
 		this.debugService.getViewModel().setSelectedConfigurationName(this.selectBox.getSelected());

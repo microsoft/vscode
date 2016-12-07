@@ -15,6 +15,7 @@ export class SelectBox extends Widget {
 	private select: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
+	private container: HTMLElement;
 	private _onDidSelect: Emitter<string>;
 	private toDispose: IDisposable[];
 
@@ -56,6 +57,7 @@ export class SelectBox extends Widget {
 	}
 
 	public set enabled(value: boolean) {
+		dom.toggleClass(this.container, 'disabled', !value);
 		this.select.disabled = !value;
 	}
 
@@ -66,6 +68,7 @@ export class SelectBox extends Widget {
 	}
 
 	public render(container: HTMLElement): void {
+		this.container = container;
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.select);
 		this.doSetOptions();

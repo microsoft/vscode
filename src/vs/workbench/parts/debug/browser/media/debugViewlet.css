@@ -78,16 +78,22 @@
 	cursor: pointer;
 }
 
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {
+	opacity: 0.7;
+	font-style: italic;
+	cursor: initial;
+}
+
 /* Hover feedback for start debug action item */
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled) {
 	background-color: #ececec;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover,
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled),
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled) {
 	background-color: #2A2D2E;
 }
 
