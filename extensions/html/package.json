@@ -86,7 +86,7 @@
             "string",
             "null"
           ],
-          "default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, pre, q, samp, script, select, small, span, strong, sub, sup, textarea, tt, var",
+          "default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, pre, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
           "description": "%html.format.unformatted.desc%"
         },
         "html.format.indentInnerHtml": {
