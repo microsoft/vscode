@@ -5,7 +5,9 @@
 
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
@@ -18,7 +20,6 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
-	private nameContainer: HTMLElement;
 	private selectBox: SelectBox;
 	private toDispose: lifecycle.IDisposable[];
 
@@ -37,24 +38,28 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
 			this.updateOptions();
-			this.nameContainer.textContent = this.debugService.getViewModel().selectedConfigurationName;
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
 			this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
-			this.nameContainer.textContent = configurationName;
 		}));
 	}
 
 	public render(container: HTMLElement): void {
 		this.container = container;
+		this.container.tabIndex = 0;
 		dom.addClass(container, 'start-debug-action-item');
-		const debugStartContainer = dom.append(container, $('.start-debug'));
-		dom.append(debugStartContainer, $('.icon'));
-		this.nameContainer = dom.append(debugStartContainer, $('.name'));
-		this.nameContainer.textContent = this.debugService.getViewModel().selectedConfigurationName;
+		const icon = dom.append(container, $('.icon'));
+		icon.title = this.action.label;
+		icon.tabIndex = 0;
 
-		this.toDispose.push(dom.addDisposableListener(debugStartContainer, 'click', () => {
+		this.toDispose.push(dom.addDisposableListener(icon, 'click', () => {
 			this.actionRunner.run(this.action, this.context);
+		}));
+		this.toDispose.push(dom.addDisposableListener(icon, 'keyup', (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter)) {
+				this.actionRunner.run(this.action, this.context);
+			}
 		}));
 
 		this.selectBox.render(dom.append(container, $('.configuration')));
