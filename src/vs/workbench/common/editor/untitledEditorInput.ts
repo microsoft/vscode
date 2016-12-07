@@ -30,6 +30,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	private _hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
+	private modelResolve: TPromise<UntitledEditorModel>;
 
 	private _onDidModelChangeContent: Emitter<void>;
 	private _onDidModelChangeEncoding: Emitter<void>;
@@ -143,15 +144,16 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public resolve(refresh?: boolean): TPromise<UntitledEditorModel> {
 
-		// Use Cached Model
-		if (this.cachedModel) {
-			return TPromise.as(this.cachedModel);
+		// Join a model resolve if we have had one before
+		if (this.modelResolve) {
+			return this.modelResolve;
 		}
 
 		// Otherwise Create Model and load
 		this.cachedModel = this.createModel();
+		this.modelResolve = this.cachedModel.load();
 
-		return this.cachedModel.load();
+		return this.modelResolve;
 	}
 
 	private createModel(): UntitledEditorModel {
@@ -192,6 +194,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
+		this.modelResolve = void 0;
 
 		super.dispose();
 	}
