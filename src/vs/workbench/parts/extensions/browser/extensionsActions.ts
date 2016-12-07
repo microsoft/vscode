@@ -224,6 +224,7 @@ export class UpdateAction extends Action {
 
 	private static EnabledClass = 'extension-action update';
 	private static DisabledClass = `${UpdateAction.EnabledClass} disabled`;
+	private static Label = localize('updateAction', "Update");
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
@@ -233,7 +234,7 @@ export class UpdateAction extends Action {
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.update', localize('updateAction', "Update"), UpdateAction.DisabledClass, false);
+		super('extensions.update', UpdateAction.Label, UpdateAction.DisabledClass, false);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
@@ -243,12 +244,14 @@ export class UpdateAction extends Action {
 		if (!this.extension) {
 			this.enabled = false;
 			this.class = UpdateAction.DisabledClass;
+			this.label = UpdateAction.Label;
 			return;
 		}
 
 		if (this.extension.type !== LocalExtensionType.User) {
 			this.enabled = false;
 			this.class = UpdateAction.DisabledClass;
+			this.label = UpdateAction.Label;
 			return;
 		}
 
@@ -257,6 +260,7 @@ export class UpdateAction extends Action {
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
+		this.label = localize('updateTo', "Update to {0}", this.extension.latestVersion);
 	}
 
 	run(): TPromise<any> {
