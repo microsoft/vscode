@@ -136,9 +136,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	private inputDisposeListener;
 	private defaultSettingHeaderWidget: DefaultSettingsHeaderWidget;
 
-	private isFocussed = false;
-	private toDispose: IDisposable[] = [];
-
 	private delayedFilterLogging: Delayer<void>;
 
 	constructor(
@@ -162,14 +159,12 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public createEditorControl(parent: Builder): editorCommon.IEditor {
 		const parentContainer = parent.getHTMLElement();
+
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
 		this._register(this.defaultSettingHeaderWidget.onEnter(value => this.focusNextPreference()));
 
 		const defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions());
-		const focusTracker = this._register(DOM.trackFocus(parentContainer));
-		focusTracker.addBlurListener(() => { this.isFocussed = false; });
-		defaultPreferencesEditor.onDidFocusEditorText(() => this.onEditorTextFocussed(), this.toDispose);
 
 		return defaultPreferencesEditor;
 	}
@@ -207,7 +202,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public focus(): void {
-		this.isFocussed = true;
 		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
 			this.defaultSettingHeaderWidget.focus();
 		} else {
@@ -241,12 +235,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	private getDefaultPreferencesContribution(): PreferencesEditorContribution {
 		return <PreferencesEditorContribution>(<CodeEditor>this.getControl()).getContribution(PreferencesEditorContribution.ID);
-	}
-
-	private onEditorTextFocussed() {
-		if (!this.isFocussed) {
-			this.focus();
-		}
 	}
 
 	protected restoreViewState(input: EditorInput) {
