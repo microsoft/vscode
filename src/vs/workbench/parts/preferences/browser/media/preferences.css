@@ -88,6 +88,7 @@
 	width: 100%;
 	cursor: pointer;
 	font-weight: bold;
+	-webkit-user-select: none;
 }
 
 .vs .monaco-editor .settings-group-title-widget .title-container {
