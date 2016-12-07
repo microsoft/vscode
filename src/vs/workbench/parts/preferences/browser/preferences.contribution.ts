@@ -37,7 +37,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;
-	isSettings: boolean;
 }
 
 // Register Editor Input Factory for Default Preferences Input
@@ -46,7 +45,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	public serialize(editorInput: EditorInput): string {
 		const input = <DefaultPreferencesEditorInput>editorInput;
 
-		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString(), isSettings: input.isSettings };
+		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
 
 		return JSON.stringify(serialized);
 	}
@@ -54,7 +53,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(DefaultPreferencesEditorInput, URI.parse(deserialized.resource), deserialized.isSettings);
+		return instantiationService.createInstance(DefaultPreferencesEditorInput, URI.parse(deserialized.resource));
 	}
 }
 
