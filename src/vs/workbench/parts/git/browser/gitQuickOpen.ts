@@ -139,14 +139,14 @@ class CheckoutCommand implements ICommand {
 
 		const checkoutType = this.gitService.checkoutType;
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
-		const inclueRemotes = checkoutType === 'all' || checkoutType === 'remote';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
 		const gitModel = this.gitService.getModel();
 		const currentHead = gitModel.getHEAD();
 		const refs = gitModel.getRefs();
 		const heads = refs.filter(ref => ref.type === RefType.Head);
 		const tags = includeTags ? refs.filter(ref => ref.type === RefType.Tag) : [];
-		const remoteHeads = inclueRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [];
+		const remoteHeads = includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [];
 
 		const headMatches = heads
 			.map(head => ({ head, highlights: matchesContiguousSubString(input, head.name) }))
