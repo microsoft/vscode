@@ -6,7 +6,6 @@
 import 'vs/css!vs/workbench/parts/debug/browser/media/debugActionsWidget';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
 import * as browser from 'vs/base/browser/browser';
 import severity from 'vs/base/common/severity';
 import * as builder from 'vs/base/browser/builder';
@@ -19,7 +18,7 @@ import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/acti
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -196,7 +195,6 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			this.allActions.push(this.instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(StepOverAction, StepOverAction.ID, StepOverAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL));
@@ -211,7 +209,6 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		const state = this.debugService.state;
 		const process = this.debugService.getViewModel().focusedProcess;
-		const attached = process && !strings.equalsIgnoreCase(process.session.configuration.type, 'extensionHost') && process.session.requestType === debug.SessionRequestType.ATTACH;
 
 		return this.allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
@@ -226,11 +223,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			if (a.id === ReverseContinueAction.ID) {
 				return process && process.session.configuration.capabilities.supportsStepBack;
 			}
-			if (a.id === DisconnectAction.ID) {
-				return attached;
-			}
 			if (a.id === StopAction.ID) {
-				return !attached;
+				return true;
 			}
 			if (a.id === FocusProcessAction.ID) {
 				return this.debugService.getViewModel().isMultiProcessView();

@@ -27,7 +27,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
-	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
+	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, PauseAction, AddFunctionBreakpointAction,
 	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
@@ -119,7 +119,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(StepIntoAction, StepIn
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOutAction, StepOutAction.ID, StepOutAction.LABEL, { primary: KeyMod.Shift | KeyCode.F11 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Step Out', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(RestartAction, RestartAction.ID, RestartAction.LABEL, { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Restart', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StopAction, StopAction.ID, StopAction.LABEL, { primary: KeyMod.Shift | KeyCode.F5 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Stop', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL), 'Debug: Disconnect', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ContinueAction, ContinueAction.ID, ContinueAction.LABEL, { primary: KeyCode.F5 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Continue', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(PauseAction, PauseAction.ID, PauseAction.LABEL), 'Debug: Pause', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL), 'Debug: Open launch.json', debugCategory);
