@@ -17,7 +17,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/platform';
-import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -58,10 +59,14 @@ export class DefaultPreferencesEditorInput extends EditorInput {
 
 	public static ID = 'workbench.editorinputs.defaultpreferences';
 
+	private editorModel: IEditorModel;
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
 
-	constructor(private _defaultPreferencesResource: URI, private _isSettingsInput: boolean) {
+	constructor(private _defaultPreferencesResource: URI, private _isSettingsInput: boolean,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super();
 	}
 
@@ -86,7 +91,7 @@ export class DefaultPreferencesEditorInput extends EditorInput {
 	}
 
 	resolve(): TPromise<IEditorModel> {
-		return TPromise.wrap(null);
+		return this.getOrCreateEditorModel();
 	}
 
 	matches(other: any): boolean {
@@ -96,13 +101,30 @@ export class DefaultPreferencesEditorInput extends EditorInput {
 		if (this._defaultPreferencesResource.fsPath !== other._defaultPreferencesResource.fsPath) {
 			return false;
 		}
+		if (this._isSettingsInput !== other._isSettingsInput) {
+			return false;
+		}
 		return true;
 	}
 
 	dispose() {
 		this._willDispose.fire();
 		this._willDispose.dispose();
+		if (this.editorModel) {
+			this.editorModel.dispose();
+		}
 		super.dispose();
+	}
+
+	private getOrCreateEditorModel(): TPromise<IEditorModel> {
+		if (this.editorModel) {
+			return TPromise.as(this.editorModel);
+		}
+		return this.preferencesService.createDefaultPreferencesEditorModel(this.getResource())
+			.then(preferencesEditorModel => {
+				this.editorModel = this.instantiationService.createInstance(StringEditorModel, preferencesEditorModel.content, 'json', this.getResource());
+				return this.editorModel;
+			});
 	}
 }
 
@@ -112,7 +134,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
 
 	private inputDisposeListener;
-	private defaultPreferencesEditor: CodeEditor;
 	private defaultSettingHeaderWidget: DefaultSettingsHeaderWidget;
 
 	private isFocussed = false;
@@ -145,11 +166,12 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
 		this._register(this.defaultSettingHeaderWidget.onEnter(value => this.focusNextPreference()));
 
-		this.defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions());
+		const defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions());
 		const focusTracker = this._register(DOM.trackFocus(parentContainer));
 		focusTracker.addBlurListener(() => { this.isFocussed = false; });
+		defaultPreferencesEditor.onDidFocusEditorText(() => this.onEditorTextFocussed(), this.toDispose);
 
-		return this.defaultPreferencesEditor;
+		return defaultPreferencesEditor;
 	}
 
 	protected getCodeEditorOptions(): editorCommon.IEditorOptions {
@@ -171,14 +193,13 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions): TPromise<void> {
 		this.listenToInput(input);
 		return super.setInput(input, options)
-			.then(() => this.getOrCreateModel(input)
-				.then(model => this.setDefaultPreferencesEditorInput(model, input)));
+			.then(() => this.updateInput());
 	}
 
 	public layout(dimension: Dimension) {
 		this.defaultSettingHeaderWidget.layout(dimension);
 		const headerWidgetPosition = DOM.getDomNodePagePosition(this.defaultSettingHeaderWidget.domNode);
-		this.defaultPreferencesEditor.layout({
+		this.getControl().layout({
 			height: dimension.height - headerWidgetPosition.height,
 			width: dimension.width
 		});
@@ -193,26 +214,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		}
 	}
 
-	private getOrCreateModel(input: DefaultPreferencesEditorInput): TPromise<editorCommon.IModel> {
-		return this.preferencesService.createDefaultPreferencesEditorModel(input.getResource())
-			.then(preferencesEditorModel => {
-				let model = this.modelService.getModel(input.getResource());
-				if (!model) {
-					let mode = this.modeService.getOrCreateMode('json');
-					model = this.modelService.createModel(preferencesEditorModel.content, mode, preferencesEditorModel.uri);
-				}
-				return model;
-			});
-	}
-
-	private setDefaultPreferencesEditorInput(model: editorCommon.IModel, input: DefaultPreferencesEditorInput): void {
-		this.defaultPreferencesEditor.setModel(model);
-		this.defaultPreferencesEditor.updateOptions(this.getCodeEditorOptions());
-		if (input.isSettings) {
-			this.defaultPreferencesEditor.onDidFocusEditorText(() => this.onEditorTextFocussed(), this.toDispose);
-		} else {
-			this.toDispose = dispose(this.toDispose);
-		}
+	private updateInput(): TPromise<void> {
+		return this.input.resolve()
+			.then(editorModel => editorModel.load())
+			.then(editorModel => this.getControl().setModel((<StringEditorModel>editorModel).textEditorModel));
 	}
 
 	private filterPreferences(filter: string) {
@@ -225,7 +230,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public clearInput(): void {
-		this.disposeModel();
+		this.getControl().setModel(null);
 		this.saveState(<DefaultPreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
@@ -234,7 +239,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	private getDefaultPreferencesContribution(): PreferencesEditorContribution {
-		return <PreferencesEditorContribution>this.defaultPreferencesEditor.getContribution(PreferencesEditorContribution.ID);
+		return <PreferencesEditorContribution>(<CodeEditor>this.getControl()).getContribution(PreferencesEditorContribution.ID);
 	}
 
 	private onEditorTextFocussed() {
@@ -274,13 +279,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		let data = {};
 		data['filter'] = filter;
 		this.telemetryService.publicLog('defaultSettings.filter', data);
-	}
-
-	private disposeModel(): void {
-		const model = this.defaultPreferencesEditor.getModel();
-		if (model) {
-			this.modelService.destroyModel(model.uri);
-		}
 	}
 }
 
@@ -619,6 +617,7 @@ export class HiddenAreasRenderer extends Disposable {
 export class FilteredMatchesRenderer extends Disposable implements HiddenAreasProvider {
 
 	private decorationIds: string[] = [];
+	private model: editorCommon.IModel;
 	public hiddenAreas: editorCommon.IRange[] = [];
 
 	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
@@ -631,15 +630,15 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	}
 
 	public render(result: IFilterResult): void {
-		const model = this.editor.getModel();
+		this.model = this.editor.getModel();
 		this.hiddenAreas = [];
-		model.changeDecorations(changeAccessor => {
+		this.model.changeDecorations(changeAccessor => {
 			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 		});
 		if (result) {
-			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, model);
-			model.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, model)));
+			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, this.model);
+			this.model.changeDecorations(changeAccessor => {
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, this.model)));
 			});
 		}
 		this._onHiddenAreasChanged.fire();
@@ -713,8 +712,8 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	}
 
 	public dispose() {
-		if (this.decorationIds && this.editor.getModel()) {
-			this.decorationIds = this.editor.getModel().changeDecorations(changeAccessor => {
+		if (this.decorationIds && this.model) {
+			this.decorationIds = this.model.changeDecorations(changeAccessor => {
 				return changeAccessor.deltaDecorations(this.decorationIds, []);
 			});
 		}
@@ -935,9 +934,10 @@ export class CopySettingActionRenderer extends Disposable {
 	}
 
 	public dispose() {
-		this.model.deltaDecorations(this.decorationIds, []);
+		if (this.model) {
+			this.model.deltaDecorations(this.decorationIds, []);
+		}
 		super.dispose();
-
 	}
 }
 

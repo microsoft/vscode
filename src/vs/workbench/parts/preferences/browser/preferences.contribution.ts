@@ -54,7 +54,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
-		return new DefaultPreferencesEditorInput(URI.parse(deserialized.resource), deserialized.isSettings);
+		return instantiationService.createInstance(DefaultPreferencesEditorInput, URI.parse(deserialized.resource), deserialized.isSettings);
 	}
 }
 

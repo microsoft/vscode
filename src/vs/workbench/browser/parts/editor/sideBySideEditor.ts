@@ -124,11 +124,11 @@ export class SideBySideEditor extends BaseEditor {
 	private setNewInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
 		return TPromise.join([
 			this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer),
-			this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer, options)
-		]).then(result => this.onEditorsCreated(result[0], result[1], newInput.details, newInput.master));
+			this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer)
+		]).then(result => this.onEditorsCreated(result[0], result[1], newInput.details, newInput.master, options));
 	}
 
-	private _createEditor(editorInput: EditorInput, container: HTMLElement, options?: EditorOptions): TPromise<BaseEditor> {
+	private _createEditor(editorInput: EditorInput, container: HTMLElement): TPromise<BaseEditor> {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
 			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
@@ -141,11 +141,11 @@ export class SideBySideEditor extends BaseEditor {
 			});
 	}
 
-	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput): TPromise<void> {
+	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions): TPromise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 		this.dolayout(this.sash.getVerticalSashLeft());
-		return TPromise.join([this.detailsEditor.setInput(detailsInput), this.masterEditor.setInput(masterInput)]).then(() => this.focus());
+		return TPromise.join([this.detailsEditor.setInput(detailsInput), this.masterEditor.setInput(masterInput, options)]).then(() => this.focus());
 	}
 
 	private createEditorContainers(): void {
@@ -188,7 +188,7 @@ export class SideBySideEditor extends BaseEditor {
 		}
 		if (this.masterEditor) {
 			this.masterEditor.dispose();
-			this.detailsEditor = null;
+			this.masterEditor = null;
 		}
 		if (this.detailsEditorContainer) {
 			parentContainer.removeChild(this.detailsEditorContainer);
@@ -198,5 +198,10 @@ export class SideBySideEditor extends BaseEditor {
 			parentContainer.removeChild(this.masterEditorContainer);
 			this.masterEditorContainer = null;
 		}
+	}
+
+	public dispose(): void {
+		this.disposeEditors();
+		super.dispose();
 	}
 }
