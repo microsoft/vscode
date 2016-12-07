@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename, dirname, normalize } from 'vs/base/common/paths';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ISnippetVariableResolver } from './snippet';
 
@@ -51,7 +51,8 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 	}
 
 	private _tmDirectory(): string {
-		return dirname(this._editor.getModel().uri.fsPath);
+		const dir = dirname(normalize(this._editor.getModel().uri.fsPath));
+		return dir !== '.' ? dir : undefined;
 	}
 
 	private _tmFilepath(): string {
