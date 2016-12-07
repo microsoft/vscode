@@ -689,6 +689,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private hide(): void {
 		this.suggestWidgetVisible.reset();
+		this.suggestWidgetMultipleSuggestions.reset();
 		removeClass(this.element, 'visible');
 	}
 
