@@ -196,7 +196,7 @@ export class DefaultSettingsHeaderWidget extends Widget {
 
 	private createInfoContainer(infoContainer: HTMLElement) {
 		DOM.append(infoContainer, DOM.$('span.title-label')).textContent = localize('defaultSettingsTitle', "Default Settings");
-		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', " - Overwrite these by placing them into your settings file");
+		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', " - Overwrite these by placing them into your settings file to the right");
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
