@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -58,6 +58,13 @@ class ExcludeHintItem {
 					this._client.logTelemetry('js.hintProjectExcludes.accepted');
 					onExecute();
 					this._item.hide();
+
+					let configFileUri: vscode.Uri;
+					if (vscode.workspace.rootPath && dirname(configFileName).indexOf(vscode.workspace.rootPath) === 0) {
+						configFileUri = vscode.Uri.file(configFileName);
+					} else {
+						configFileUri = vscode.Uri.parse('untitled://' + join(vscode.workspace.rootPath || '', 'jsconfig.json'));
+					}
 
 					return vscode.workspace.openTextDocument(configFileName)
 						.then(vscode.window.showTextDocument);
