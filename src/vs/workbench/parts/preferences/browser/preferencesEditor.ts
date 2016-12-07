@@ -18,8 +18,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -48,6 +48,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -55,53 +56,35 @@ import { FindController } from 'vs/editor/contrib/find/browser/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
 
 
-export class DefaultPreferencesEditorInput extends EditorInput {
+export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 
 	public static ID = 'workbench.editorinputs.defaultpreferences';
 
-	private editorModel: IEditorModel;
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
 
-	constructor(private _defaultPreferencesResource: URI, private _isSettingsInput: boolean,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService
+	constructor(resource: URI, @ITextModelResolverService textModelResolverService: ITextModelResolverService
 	) {
-		super();
+		super(nls.localize('settingsEditorName', "Default Settings"), '', resource, textModelResolverService);
 	}
 
-	get isSettings(): boolean {
-		return this._isSettingsInput;
-	}
-
-	getName(): string {
-		return this._isSettingsInput ? nls.localize('settingsEditorName', "Default Settings") : nls.localize('keybindingsEditorName', "Default Keyboard Shortcuts");
+	getResource(): URI {
+		return this.resource;
 	}
 
 	getTypeId(): string {
 		return DefaultPreferencesEditorInput.ID;
 	}
 
-	getResource(): URI {
-		return this._defaultPreferencesResource;
-	}
-
 	supportsSplitEditor(): boolean {
 		return false;
 	}
 
-	resolve(): TPromise<IEditorModel> {
-		return this.getOrCreateEditorModel();
-	}
-
 	matches(other: any): boolean {
+		if (!super.matches(other)) {
+			return false;
+		}
 		if (!(other instanceof DefaultPreferencesEditorInput)) {
-			return false;
-		}
-		if (this._defaultPreferencesResource.fsPath !== other._defaultPreferencesResource.fsPath) {
-			return false;
-		}
-		if (this._isSettingsInput !== other._isSettingsInput) {
 			return false;
 		}
 		return true;
@@ -110,21 +93,7 @@ export class DefaultPreferencesEditorInput extends EditorInput {
 	dispose() {
 		this._willDispose.fire();
 		this._willDispose.dispose();
-		if (this.editorModel) {
-			this.editorModel.dispose();
-		}
 		super.dispose();
-	}
-
-	private getOrCreateEditorModel(): TPromise<IEditorModel> {
-		if (this.editorModel) {
-			return TPromise.as(this.editorModel);
-		}
-		return this.preferencesService.createDefaultPreferencesEditorModel(this.getResource())
-			.then(preferencesEditorModel => {
-				this.editorModel = this.instantiationService.createInstance(StringEditorModel, preferencesEditorModel.content, 'json', this.getResource());
-				return this.editorModel;
-			});
 	}
 }
 
@@ -172,7 +141,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	protected getCodeEditorOptions(): editorCommon.IEditorOptions {
 		const options = super.getCodeEditorOptions();
 		options.readOnly = true;
-		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
+		if (this.input) {
 			options.lineNumbers = 'off';
 			options.renderLineHighlight = 'none';
 			options.scrollBeyondLastLine = false;
@@ -202,7 +171,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public focus(): void {
-		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
+		if (this.input) {
 			this.defaultSettingHeaderWidget.focus();
 		} else {
 			super.focus();
@@ -212,7 +181,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	private updateInput(): TPromise<void> {
 		return this.input.resolve()
 			.then(editorModel => editorModel.load())
-			.then(editorModel => this.getControl().setModel((<StringEditorModel>editorModel).textEditorModel));
+			.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel));
 	}
 
 	private filterPreferences(filter: string) {
@@ -276,7 +245,9 @@ class DefaultPreferencesCodeEditor extends CodeEditor {
 	protected _getContributions(): IEditorContributionCtor[] {
 		let contributions = super._getContributions();
 		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
-		return contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
+		contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
+		contributions.push(DefaultSettingsEditorContribution);
+		return contributions;
 	}
 }
 
@@ -285,15 +256,14 @@ export interface IPreferencesRenderer {
 	dispose();
 }
 
-@editorContribution
-export class PreferencesEditorContribution extends Disposable implements editorCommon.IEditorContribution {
+export abstract class PreferencesEditorContribution extends Disposable implements editorCommon.IEditorContribution {
 
 	static ID: string = 'editor.contrib.preferences';
 	private preferencesRenderer: IPreferencesRenderer;
 
-	constructor(private editor: ICodeEditor,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPreferencesService private preferencesService: IPreferencesService
+	constructor(protected editor: ICodeEditor,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IPreferencesService protected preferencesService: IPreferencesService
 	) {
 		super();
 		this._register(editor.onDidChangeModel(() => this.onModelChanged()));
@@ -323,15 +293,7 @@ export class PreferencesEditorContribution extends Disposable implements editorC
 		return this.preferencesRenderer;
 	}
 
-	private createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer {
-		if (editorModel instanceof DefaultSettingsEditorModel) {
-			return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
-		}
-		if (editorModel instanceof SettingsEditorModel) {
-			return this.instantiationService.createInstance(SettingsRenderer, this.editor, editorModel);
-		}
-		return null;
-	}
+	protected abstract createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer
 
 	private disposePreferencesRenderer() {
 		if (this.preferencesRenderer) {
@@ -343,6 +305,25 @@ export class PreferencesEditorContribution extends Disposable implements editorC
 	public dispose() {
 		this.disposePreferencesRenderer();
 		super.dispose();
+	}
+}
+
+export class DefaultSettingsEditorContribution extends PreferencesEditorContribution implements editorCommon.IEditorContribution {
+	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer {
+		if (editorModel instanceof DefaultSettingsEditorModel) {
+			return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
+		}
+		return null;
+	}
+}
+
+@editorContribution
+export class SettingsEditorContribution extends PreferencesEditorContribution implements editorCommon.IEditorContribution {
+	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer {
+		if (editorModel instanceof SettingsEditorModel) {
+			return this.instantiationService.createInstance(SettingsRenderer, this.editor, editorModel);
+		}
+		return null;
 	}
 }
 
