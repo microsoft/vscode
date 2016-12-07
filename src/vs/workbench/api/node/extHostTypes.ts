@@ -37,11 +37,6 @@ export class Disposable {
 	}
 }
 
-export interface EditorOptions {
-	tabSize: number | string;
-	insertSpaces: boolean | string;
-}
-
 export class Position {
 
 	static Min(...positions: Position[]): Position {
