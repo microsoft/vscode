@@ -250,15 +250,15 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 			let actual = actuals[0];
 			assert.equal(LocalExtensionType.User, actual.type);
-			assert.equal('local1', actual.name);
-			assert.equal('localDisplayName1', actual.displayName);
-			assert.equal('localPublisher1.local1', actual.identifier);
-			assert.equal('localPublisher1', actual.publisher);
+			assert.equal('expectedName', actual.name);
+			assert.equal('expectedDisplayName', actual.displayName);
+			assert.equal('expectedPublisher.expectedName', actual.identifier);
+			assert.equal('expectedPublisher', actual.publisher);
 			assert.equal('1.1.0', actual.version);
 			assert.equal('1.5.0', actual.latestVersion);
-			assert.equal('localDescription1', actual.description);
-			assert.equal('file:///localPath1/localIcon1', actual.iconUrl);
-			assert.equal('file:///localPath1/localIcon1', actual.iconUrlFallback);
+			assert.equal('expectedDescription', actual.description);
+			assert.equal('uri:icon', actual.iconUrl);
+			assert.equal('fallback:icon', actual.iconUrlFallback);
 			assert.equal(ExtensionState.Installed, actual.state);
 			assert.equal('uri:license', actual.licenseUrl);
 			assert.equal(1000, actual.installCount);
