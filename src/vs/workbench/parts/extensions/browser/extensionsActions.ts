@@ -26,7 +26,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
 
@@ -742,9 +742,8 @@ export class ReloadAction extends Action {
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionService private extensionService: IExtensionService,
-		@ICommandService private commandService: ICommandService
+		@IWindowService private windowService: IWindowService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.throttler = new Throttler();
@@ -818,9 +817,8 @@ export class ReloadAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		if (this.messageService.confirm({ message: this.reloadMessaage })) {
-			// TODO: @sandy: Temporary hack. Adopt to new IWindowService from @bpasero and @jaoa
-			this.commandService.executeCommand('workbench.action.reloadWindow');
+		if (this.messageService.confirm({ message: this.reloadMessaage, primaryButton: localize('reload', "&&Reload Window") })) {
+			return this.windowService.reloadWindow();
 		}
 		return TPromise.wrap(null);
 	}
