@@ -63,8 +63,7 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
 
-	constructor(resource: URI, @ITextModelResolverService textModelResolverService: ITextModelResolverService
-	) {
+	constructor(resource: URI, @ITextModelResolverService textModelResolverService: ITextModelResolverService) {
 		super(nls.localize('settingsEditorName', "Default Settings"), '', resource, textModelResolverService);
 	}
 
@@ -558,8 +557,6 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 
 export class HiddenAreasRenderer extends Disposable {
 
-	private model: editorCommon.IModel;
-
 	constructor(private editor: ICodeEditor, private hiddenAreasProviders: HiddenAreasProvider[],
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -570,7 +567,6 @@ export class HiddenAreasRenderer extends Disposable {
 	}
 
 	public render() {
-		this.model = this.editor.getModel();
 		const ranges: editorCommon.IRange[] = [];
 		for (const hiddenAreaProvider of this.hiddenAreasProviders) {
 			ranges.push(...hiddenAreaProvider.hiddenAreas);
@@ -587,7 +583,6 @@ export class HiddenAreasRenderer extends Disposable {
 export class FilteredMatchesRenderer extends Disposable implements HiddenAreasProvider {
 
 	private decorationIds: string[] = [];
-	private model: editorCommon.IModel;
 	public hiddenAreas: editorCommon.IRange[] = [];
 
 	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
@@ -600,15 +595,15 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	}
 
 	public render(result: IFilterResult): void {
-		this.model = this.editor.getModel();
+		const model = this.editor.getModel();
 		this.hiddenAreas = [];
-		this.model.changeDecorations(changeAccessor => {
+		this.editor.changeDecorations(changeAccessor => {
 			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 		});
 		if (result) {
-			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, this.model);
-			this.model.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, this.model)));
+			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, model);
+			this.editor.changeDecorations(changeAccessor => {
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, model)));
 			});
 		}
 		this._onHiddenAreasChanged.fire();
@@ -682,8 +677,8 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	}
 
 	public dispose() {
-		if (this.decorationIds && this.model) {
-			this.decorationIds = this.model.changeDecorations(changeAccessor => {
+		if (this.decorationIds) {
+			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
 				return changeAccessor.deltaDecorations(this.decorationIds, []);
 			});
 		}
@@ -694,7 +689,6 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 export class FocusNextSettingRenderer extends Disposable {
 
 	private iterator: ArrayIterator<ISetting>;
-	private model: editorCommon.IModel;
 	private decorationIds: string[] = [];
 
 	constructor(private editor: ICodeEditor) {
@@ -705,13 +699,14 @@ export class FocusNextSettingRenderer extends Disposable {
 		this.clear();
 		let setting = this.iterator.next() || this.iterator.first();
 		if (setting) {
-			this.model.changeDecorations(changeAccessor => {
+			const model = this.editor.getModel();
+			this.editor.changeDecorations(changeAccessor => {
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, [{
 					range: {
 						startLineNumber: setting.valueRange.startLineNumber,
-						startColumn: this.model.getLineMinColumn(setting.valueRange.startLineNumber),
+						startColumn: model.getLineMinColumn(setting.valueRange.startLineNumber),
 						endLineNumber: setting.valueRange.endLineNumber,
-						endColumn: this.model.getLineMaxColumn(setting.valueRange.endLineNumber)
+						endColumn: model.getLineMaxColumn(setting.valueRange.endLineNumber)
 					},
 					options: {
 						stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -728,7 +723,6 @@ export class FocusNextSettingRenderer extends Disposable {
 
 	public render(filteredGroups: ISettingsGroup[]) {
 		this.clear();
-		this.model = this.editor.getModel();
 
 		const settings: ISetting[] = [];
 		for (const group of filteredGroups) {
@@ -740,11 +734,9 @@ export class FocusNextSettingRenderer extends Disposable {
 	}
 
 	private clear() {
-		if (this.model) {
-			this.model.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
-		}
+		this.editor.changeDecorations(changeAccessor => {
+			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
+		});
 	}
 
 	public dispose() {
