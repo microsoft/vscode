@@ -94,9 +94,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			this.selectBox.setOptions([NO_CONFIGURATIONS_LABEL], 0);
 			this.selectBox.enabled = false;
 		} else {
-			const options = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
+			const options = config.configurations.filter(cfg => typeof cfg.name === 'string').map(cfg => cfg.name);
 			if (config.compounds) {
-				options.push(...config.compounds.filter(compound => !!compound.name).map(compound => compound.name));
+				options.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
+					.map(compound => compound.name));
 			}
 
 			const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
