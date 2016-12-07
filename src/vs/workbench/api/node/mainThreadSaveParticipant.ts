@@ -121,7 +121,11 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 			prevSelection = editor.getSelections();
 		}
 
-		model.pushEditOperations(prevSelection, [EditOperation.insert(new Position(lineCount + 1, 0), model.getEOL())], (edits) => prevSelection);
+		model.pushEditOperations(prevSelection, [EditOperation.insert(new Position(lineCount, model.getLineMaxColumn(lineCount)), model.getEOL())], edits => prevSelection);
+
+		if (editor) {
+			editor.setSelections(prevSelection);
+		}
 	}
 }
 
