@@ -7,7 +7,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { dirname, join } from 'vs/base/common/paths';
+import { dirname, basename, join } from 'vs/base/common/paths';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -55,7 +55,7 @@ export class NodeCachedDataManager {
 	private _manageCachedDataSoon(): void {
 		// Cached data is stored as user data in directories like `CachedData/1.8.0`.
 		// This function makes sure to delete cached data from previous versions,
-		// like`CachedData/1.7.2`.
+		// like `CachedData/1.7.2`.
 
 		const {nodeCachedDataDir} = this._environmentService;
 		if (!nodeCachedDataDir) {
@@ -65,14 +65,14 @@ export class NodeCachedDataManager {
 		let handle = setTimeout(() => {
 			handle = undefined;
 
-			const nodeCachedDataBase = dirname(nodeCachedDataDir);
+			const nodeCachedDataDirname = dirname(nodeCachedDataDir);
+			const nodeCachedDataBasename = basename(nodeCachedDataDir);
 
-			readdir(nodeCachedDataBase).then(entries => {
+			readdir(nodeCachedDataDirname).then(entries => {
 
 				const deletes = entries.map(entry => {
-					const path = join(nodeCachedDataBase, entry);
-					if (path !== nodeCachedDataDir) {
-						return rimraf(path);
+					if (entry !== nodeCachedDataBasename) {
+						return rimraf(join(nodeCachedDataDirname, entry));
 					}
 				});
 
