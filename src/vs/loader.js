@@ -1789,7 +1789,7 @@ var AMDLoader;
                                 });
                                 NodeScriptLoader._runSoon(function () { return _this._fs.unlink(cachedDataPath_1, function (err) {
                                     if (err) {
-                                        opts.onNodeCachedDataError({
+                                        _this._moduleManager.getConfigurationOptions().onNodeCachedDataError({
                                             errorCode: 'unlink',
                                             path: cachedDataPath_1,
                                             detail: err
@@ -1801,7 +1801,7 @@ var AMDLoader;
                                 // data produced => write cache file
                                 NodeScriptLoader._runSoon(function () { return _this._fs.writeFile(cachedDataPath_1, script.cachedData, function (err) {
                                     if (err) {
-                                        opts.onNodeCachedDataError({
+                                        _this._moduleManager.getConfigurationOptions().onNodeCachedDataError({
                                             errorCode: 'writeFile',
                                             path: cachedDataPath_1,
                                             detail: err
