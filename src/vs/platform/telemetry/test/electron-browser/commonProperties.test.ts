@@ -17,6 +17,7 @@ suite('Telemetry - common properties', function () {
 	test('default', function () {
 
 		return resolveWorkbenchCommonProperties(new TestStorageService(), commit, version).then(props => {
+
 			assert.ok('commitHash' in props);
 			assert.ok('sessionID' in props);
 			assert.ok('timestamp' in props);
@@ -36,13 +37,12 @@ suite('Telemetry - common properties', function () {
 			// machine id et al
 			assert.ok('common.instanceId' in props, 'instanceId');
 			assert.ok('common.machineId' in props, 'machineId');
-			assert.ok('common.machineIdExperiment' in props, 'machineIdExperiment');
 			if (process.platform === 'win32') { // SQM only on windows
 				assert.ok('common.sqm.userid' in props, 'userid');
 				assert.ok('common.sqm.machineid' in props, 'machineid');
 			}
 
-			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 18 : 16);
+			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 17 : 15);
 		});
 	});
 
