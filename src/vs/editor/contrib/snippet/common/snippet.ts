@@ -543,13 +543,15 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 		} else if (marker instanceof Variable) {
 
-			if (!marker.isDefined && marker.defaultValue.length === 0) {
+			if (!marker.isDefined) {
 				// contine as placeholder
 				// THIS is because of us having falsy
 				// advertised ${foo} as placeholder syntax
-				stack.unshift(new Placeholder(marker.name, [new Text(marker.name)]));
+				stack.unshift(new Placeholder(marker.name, marker.defaultValue.length === 0
+					? [new Text(marker.name)]
+					: marker.defaultValue));
 
-			} else if (marker.isDefined && marker.resolvedValue) {
+			} else if (marker.resolvedValue) {
 				// contine with the value
 				stack.unshift(new Text(marker.resolvedValue));
 
