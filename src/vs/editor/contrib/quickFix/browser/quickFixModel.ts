@@ -55,7 +55,7 @@ class QuickFixOracle {
 			type: 'auto',
 			range,
 			position: this._editor.getPosition(),
-			fixes: range && getCodeActions(this._editor.getModel(), Range.lift(range))
+			fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
 		});
 	}
 
