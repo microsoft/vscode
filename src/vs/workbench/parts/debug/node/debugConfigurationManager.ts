@@ -137,6 +137,7 @@ const schema: IJSONSchema = {
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch"),
 	required: ['version', 'configurations'],
+	default: { version: '0.2.0', configurations: [], compounds: [] },
 	properties: {
 		version: {
 			type: 'string',
