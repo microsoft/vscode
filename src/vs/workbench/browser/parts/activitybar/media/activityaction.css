@@ -6,7 +6,7 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item {
 	display: block;
 	position: relative;
-	margin: 10px 0;
+	padding: 5px 0;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.dropfeedback {
@@ -32,7 +32,7 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	content: "";
 	position: absolute;
-	top: 4px;
+	top: 9px;
 	height: 32px;
 	width: 0;
 	border-left: 2px solid;
@@ -86,7 +86,7 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
 	position: absolute;
-	top: 0;
+	top: 5px;
 	left: 0;
 	overflow: hidden;
 	width: 50px;
@@ -145,7 +145,7 @@
 	content: "";
 	opacity: 0.6;
 	position: absolute;
-	top: 4px;
+	top: 9px;
 	left: 9px;
 	height: 32px;
 	width: 32px;
