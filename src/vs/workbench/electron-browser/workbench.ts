@@ -179,7 +179,8 @@ export class Workbench implements IPartService {
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
-		wasPartVisible: { [part: string]: boolean };
+		wasSideBarVisible: boolean;
+		wasPanelVisible: boolean;
 	};
 
 	constructor(
@@ -540,8 +541,9 @@ export class Workbench implements IPartService {
 		// Zen mode
 		this.zenMode = {
 			active: false,
-			wasPartVisible: {},
-			transitionedToFullScreen: false
+			transitionedToFullScreen: false,
+			wasSideBarVisible: false,
+			wasPanelVisible: false
 		};
 	}
 
@@ -862,21 +864,23 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	private onDidUpdateConfiguration(): void {
+	private onDidUpdateConfiguration(skipLayout?: boolean): void {
 		const newSidebarPositionValue = this.configurationService.lookup<string>(Workbench.sidebarPositionConfigurationKey).value;
 		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
 		if (newSidebarPosition !== this.getSideBarPosition()) {
 			this.setSideBarPosition(newSidebarPosition);
 		}
 
-		const newStatusbarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.statusbarVisibleConfigurationKey).value;
-		if (newStatusbarHiddenValue !== this.statusBarHidden) {
-			this.setStatusBarHidden(newStatusbarHiddenValue);
-		}
+		if (!this.zenMode.active) {
+			const newStatusbarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.statusbarVisibleConfigurationKey).value;
+			if (newStatusbarHiddenValue !== this.statusBarHidden) {
+				this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
+			}
 
-		const newActivityBarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.activityBarVisibleConfigurationKey).value;
-		if (newActivityBarHiddenValue !== this.activityBarHidden) {
-			this.setActivityBarHidden(newActivityBarHiddenValue);
+			const newActivityBarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.activityBarVisibleConfigurationKey).value;
+			if (newActivityBarHiddenValue !== this.activityBarHidden) {
+				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
+			}
 		}
 	}
 
@@ -1055,29 +1059,21 @@ export class Workbench implements IPartService {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 			toggleFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenZenMode;
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
-			const rememberPartsVisible = (part: Parts) => this.zenMode.wasPartVisible[part] = this.isVisible(part);
-			rememberPartsVisible(Parts.ACTIVITYBAR_PART);
-			rememberPartsVisible(Parts.PANEL_PART);
-			rememberPartsVisible(Parts.SIDEBAR_PART);
-			rememberPartsVisible(Parts.STATUSBAR_PART);
-			this.setActivityBarHidden(true, true);
+			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
+			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
 			this.setPanelHidden(true, true);
 			this.setSideBarHidden(true, true);
+			this.setActivityBarHidden(true, true);
 			this.setStatusBarHidden(true, true);
 		} else {
-			if (this.zenMode.wasPartVisible[Parts.ACTIVITYBAR_PART]) {
-				this.setActivityBarHidden(false, true);
-			}
-			if (this.zenMode.wasPartVisible[Parts.PANEL_PART]) {
+			if (this.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true);
 			}
-			if (this.zenMode.wasPartVisible[Parts.SIDEBAR_PART]) {
+			if (this.zenMode.wasSideBarVisible) {
 				this.setSideBarHidden(false, true);
 			}
-			if (this.zenMode.wasPartVisible[Parts.STATUSBAR_PART]) {
-				this.setStatusBarHidden(false, true);
-			}
-			this.zenMode.wasPartVisible = {};
+			// Status bar and activity bar visibility come from settings -> update their visibility.
+			this.onDidUpdateConfiguration(true);
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 		}
 		this.inZenMode.set(this.zenMode.active);
