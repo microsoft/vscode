@@ -14,7 +14,9 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
+
+const AUTO_SAVE_AFTER_DELAY_DISABLED_TIME = CONTENT_CHANGE_EVENT_BUFFER_DELAY + 500;
 
 export class BackupModelTracker implements IWorkbenchContribution {
 
@@ -54,7 +56,13 @@ export class BackupModelTracker implements IWorkbenchContribution {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		this.configuredAutoSaveAfterDelay = configuration && configuration.files && configuration.files.autoSave === AutoSaveConfiguration.AFTER_DELAY;
+		if (!configuration || !configuration.files) {
+			this.configuredAutoSaveAfterDelay = false;
+			return;
+		}
+		this.configuredAutoSaveAfterDelay =
+			(configuration.files.autoSave === AutoSaveConfiguration.AFTER_DELAY &&
+				configuration.files.autoSaveDelay <= AUTO_SAVE_AFTER_DELAY_DISABLED_TIME);
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {
