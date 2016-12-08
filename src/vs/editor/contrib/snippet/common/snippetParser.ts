@@ -124,7 +124,7 @@ export class Scanner {
 export abstract class Marker {
 	_markerBrand: any;
 
-	static toString(marker: Marker[]): string {
+	static toString(marker?: Marker[]): string {
 		let result = '';
 		for (const m of marker) {
 			result += m.toString();
