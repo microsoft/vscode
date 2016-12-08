@@ -464,6 +464,8 @@ export const AutoSaveConfiguration = {
 	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
+export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
+
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
