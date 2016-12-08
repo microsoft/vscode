@@ -8,9 +8,9 @@
       "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.15.6.tgz"
     },
     "argparse": {
-      "version": "1.0.7",
+      "version": "1.0.9",
       "from": "argparse@>=1.0.7 <2.0.0",
-      "resolved": "https://registry.npmjs.org/argparse/-/argparse-1.0.7.tgz"
+      "resolved": "https://registry.npmjs.org/argparse/-/argparse-1.0.9.tgz"
     },
     "entities": {
       "version": "1.1.1",
@@ -18,9 +18,9 @@
       "resolved": "https://registry.npmjs.org/entities/-/entities-1.1.1.tgz"
     },
     "highlight.js": {
-      "version": "9.5.0",
+      "version": "9.8.0",
       "from": "highlight.js@>=9.3.0 <10.0.0",
-      "resolved": "https://registry.npmjs.org/highlight.js/-/highlight.js-9.5.0.tgz"
+      "resolved": "https://registry.npmjs.org/highlight.js/-/highlight.js-9.8.0.tgz"
     },
     "linkify-it": {
       "version": "1.2.4",
@@ -48,14 +48,14 @@
       "resolved": "https://registry.npmjs.org/sprintf-js/-/sprintf-js-1.0.3.tgz"
     },
     "string": {
-      "version": "3.3.1",
+      "version": "3.3.3",
       "from": "string@>=3.0.1 <4.0.0",
-      "resolved": "https://registry.npmjs.org/string/-/string-3.3.1.tgz"
+      "resolved": "https://registry.npmjs.org/string/-/string-3.3.3.tgz"
     },
     "uc.micro": {
-      "version": "1.0.2",
+      "version": "1.0.3",
       "from": "uc.micro@>=1.0.1 <2.0.0",
-      "resolved": "https://registry.npmjs.org/uc.micro/-/uc.micro-1.0.2.tgz"
+      "resolved": "https://registry.npmjs.org/uc.micro/-/uc.micro-1.0.3.tgz"
     },
     "vscode-extension-telemetry": {
       "version": "0.0.5",
