@@ -169,7 +169,7 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	}
 
 	if (telemetryService) {
-		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from: args && args.from || 'keybinding' });
+		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from: args && args.from || 'unknown' });
 	}
 
 	// run action when workbench is created

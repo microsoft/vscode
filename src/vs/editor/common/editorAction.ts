@@ -53,7 +53,7 @@ export class InternalEditorAction extends AbstractInternalEditorAction implement
 		}
 
 		return this._instantiationService.invokeFunction((accessor) => {
-			return TPromise.as(this._actual.runEditorCommand(accessor, this._editor, null));
+			return TPromise.as(this._actual.runEditorCommand(accessor, this._editor, { from: 'wrapper' }));
 		});
 	}
 }
