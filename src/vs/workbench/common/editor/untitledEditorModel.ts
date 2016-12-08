@@ -11,7 +11,7 @@ import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel'
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,7 +23,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 
-	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 1000;
+	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
 	private textModelChangeListener: IDisposable;
 	private configurationChangeListener: IDisposable;
