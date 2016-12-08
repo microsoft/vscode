@@ -61,9 +61,6 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
-		if (!isEmptyWorkspace) {
-			workspaceIdentifier = this.sanitizePath(workspaceIdentifier);
-		}
 		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
 		if (array.indexOf(workspaceIdentifier) === -1) {
 			array.push(workspaceIdentifier);
