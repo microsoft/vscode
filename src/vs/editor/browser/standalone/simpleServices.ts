@@ -13,9 +13,9 @@ import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, 
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IExtensionDescription, IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService, ICommand, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -30,6 +30,7 @@ import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel 
 import { IDisposable, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class SimpleEditor implements IEditor {
 
@@ -284,9 +285,10 @@ export class StandaloneCommandService extends CommandService {
 	}
 }
 
-export class StandaloneKeybindingService extends KeybindingService {
+export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private static LAST_GENERATED_ID = 0;
 
+	private _cachedResolver: KeybindingResolver;
 	private _dynamicKeybindings: IKeybindingItem[];
 
 	constructor(
@@ -297,6 +299,7 @@ export class StandaloneKeybindingService extends KeybindingService {
 	) {
 		super(contextKeyService, commandService, messageService);
 
+		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
 
 		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -333,7 +336,19 @@ export class StandaloneKeybindingService extends KeybindingService {
 		return commandId;
 	}
 
-	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
+	private updateResolver(event: IKeybindingEvent): void {
+		this._cachedResolver = null;
+		this._onDidUpdateKeybindings.fire(event);
+	}
+
+	protected _getResolver(): KeybindingResolver {
+		if (!this._cachedResolver) {
+			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings());
+		}
+		return this._cachedResolver;
+	}
+
+	private _getExtraKeybindings(): IKeybindingItem[] {
 		return this._dynamicKeybindings;
 	}
 }
