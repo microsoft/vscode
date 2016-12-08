@@ -428,6 +428,13 @@ export class JoinLinesAction extends EditorAction {
 
 		let lastSelection = selections.reduce((previousValue, currentValue) => {
 			if (previousValue.isEmpty()) {
+				if (previousValue.endLineNumber === currentValue.startLineNumber) {
+					if (primarySelection.equalsSelection(previousValue)) {
+						primarySelection = currentValue;
+					}
+					return currentValue;
+				}
+
 				if (currentValue.startLineNumber > previousValue.endLineNumber + 1) {
 					reducedSelections.push(previousValue);
 					return currentValue;
