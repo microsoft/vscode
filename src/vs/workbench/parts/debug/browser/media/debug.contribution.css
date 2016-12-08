@@ -221,5 +221,6 @@
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-line {
-	background: rgb(255, 246, 0);
+	background: rgba(255, 246, 0, .87);
+	mix-blend-mode: lighten; /* Preserves text selection's contrast */
 }
