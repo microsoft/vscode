@@ -17,7 +17,10 @@ suite('StandaloneKeybindingService', () => {
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
 		public dispatch(e: IKeyboardEvent): void {
-			super._dispatch(e);
+			let shouldPreventDefault = super._dispatch(e.toKeybinding(), e.target);
+			if (shouldPreventDefault) {
+				e.preventDefault();
+			}
 		}
 	}
 

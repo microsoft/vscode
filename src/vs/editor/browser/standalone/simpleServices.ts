@@ -28,6 +28,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export class SimpleEditor implements IEditor {
 
@@ -297,7 +299,13 @@ export class StandaloneKeybindingService extends KeybindingService {
 
 		this._dynamicKeybindings = [];
 
-		this._beginListening(domNode);
+		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let keyEvent = new StandardKeyboardEvent(e);
+			let shouldPreventDefault = this._dispatch(keyEvent.toKeybinding(), keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+		}));
 	}
 
 	public addDynamicKeybinding(keybinding: number, handler: ICommandHandler, when: string, commandId: string = null): string {
