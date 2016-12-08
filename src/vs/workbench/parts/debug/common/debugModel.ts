@@ -65,7 +65,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements deb
 		} else if (isObject(this.valueObj)) {
 			return 'Object';
 		} else if (isString(this.valueObj)) {
-			return this.valueObj;
+			return `"${this.valueObj}"`;
 		}
 
 		return String(this.valueObj) || '';
