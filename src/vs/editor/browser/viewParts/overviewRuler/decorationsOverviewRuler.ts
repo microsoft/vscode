@@ -144,13 +144,14 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
+			let ovewviewRuler = dec.source.options.overviewRuler;
 			zones.push(new editorCommon.OverviewRulerZone(
 				dec.range.startLineNumber,
 				dec.range.endLineNumber,
-				dec.options.overviewRuler.position,
+				ovewviewRuler.position,
 				0,
-				dec.options.overviewRuler.color,
-				dec.options.overviewRuler.darkColor
+				ovewviewRuler.color,
+				ovewviewRuler.darkColor
 			));
 		}
 
