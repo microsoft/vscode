@@ -57,7 +57,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			if (realIndent !== 0 && !foldingMap[key]) {
 				let result = new SymbolInformation(item.text,
 					outlineTypeTable[item.kind] || SymbolKind.Variable,
-					'' + containerLabel,
+					containerLabel ? containerLabel : '',
 					new Location(resource.uri, textSpan2Range(item.spans[0])));
 				foldingMap[key] = result;
 				bucket.push(result);
@@ -72,7 +72,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		function convertNavTree(bucket: SymbolInformation[], item: Proto.NavigationTree, containerLabel?: string): void {
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind] || SymbolKind.Variable,
-				'' + containerLabel,
+				containerLabel ? containerLabel : '',
 				new Location(resource.uri, textSpan2Range(item.spans[0]))
 			);
 			if (item.childItems && item.childItems.length > 0) {
