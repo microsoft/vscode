@@ -71,20 +71,28 @@ export class InsertSnippetController {
 
 		// track each occurence
 		this.model.changeDecorations((changeAccessor) => {
-			for (const {occurences} of adaptedSnippet.placeHolders) {
+
+			for (let i = 0; i < adaptedSnippet.placeHolders.length; i++) {
+				const {occurences} = adaptedSnippet.placeHolders[i];
 				const trackedRanges: string[] = [];
 
 				for (const range of occurences) {
 					let stickiness = editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 
-					// Check if the previous range ends exactly where this range starts
-					// and iff so change the stickiness to avoid conflicts
-					let idx = binarySearch(sortedOccurrences, range, Range.compareRangesUsingStarts);
-					if (idx > 0
-						&& sortedOccurrences[idx - 1].endLineNumber === range.startLineNumber
-						&& sortedOccurrences[idx - 1].endColumn === range.startColumn) {
+					if (i === adaptedSnippet.finishPlaceHolderIndex) {
+						// final tab stop decoration never grows
+						stickiness = editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+					} else {
+						// Check if the previous range ends exactly where this range starts
+						// and iff so change the stickiness to avoid conflicts
+						let idx = binarySearch(sortedOccurrences, range, Range.compareRangesUsingStarts);
+						if (idx > 0
+							&& sortedOccurrences[idx - 1].endLineNumber === range.startLineNumber
+							&& sortedOccurrences[idx - 1].endColumn === range.startColumn) {
+
+							stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+						}
 					}
 
 					trackedRanges.push(changeAccessor.addDecoration(range, {
@@ -116,6 +124,7 @@ export class InsertSnippetController {
 				newDecorations.push({
 					range: this.model.getDecorationRange(this.trackedPlaceHolders[i].ranges[0]),
 					options: {
+						stickiness: this.model.getDecorationOptions(this.trackedPlaceHolders[i].ranges[0]).stickiness,
 						className: className
 					}
 				});
@@ -126,8 +135,17 @@ export class InsertSnippetController {
 			this.placeHolderDecorations = decorations.slice(1);
 		});
 
+		// let print = () => {
+		// 	console.log('trackedPlaceHolders: ' + this.trackedPlaceHolders.map((placeholder, index) => 'placeHolder index ' + index + ': ' + placeholder.ranges.map(id => id + '(' + this.model.getDecorationRange(id) + ')').join(', ')).join('\n'));
+		// 	console.log('highlightDecoration: ' + this.highlightDecorationId + '(' + this.model.getDecorationRange(this.highlightDecorationId) + ')');
+		// 	console.log('placeHolderDecorations: ' + this.placeHolderDecorations.map(id => id + '(' + this.model.getDecorationRange(id) + ')').join(', '));
+		// };
+		// print();
+
 		this.listenersToRemove = [];
 		this.listenersToRemove.push(this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
+			// console.log('-------MODEL CHANGED');
+			// print();
 			if (this.isFinished) {
 				return;
 			}
