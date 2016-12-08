@@ -605,4 +605,34 @@ suite('deltaDecorations', () => {
 
 		model.dispose();
 	});
+
+	test('issue #16922: Clicking on link doesn\'t seem to do anything', () => {
+		var model = Model.createFromString([
+			'Hello world,',
+			'How are you?',
+			'Fine.',
+			'Good.',
+		].join('\n'));
+
+		model.deltaDecorations([], [
+			{ range: new Range(1, 1, 1, 1), options: { className: '1' } },
+			{ range: new Range(1, 13, 1, 13), options: { className: '2' } },
+			{ range: new Range(2, 1, 2, 1), options: { className: '3' } },
+			{ range: new Range(2, 1, 2, 4), options: { className: '4' } },
+			{ range: new Range(2, 8, 2, 13), options: { className: '5' } },
+			{ range: new Range(3, 1, 4, 6), options: { className: '6' } },
+			{ range: new Range(1, 1, 3, 6), options: { className: 'x1' } },
+			{ range: new Range(2, 5, 2, 8), options: { className: 'x2' } },
+			{ range: new Range(1, 1, 2, 8), options: { className: 'x3' } },
+			{ range: new Range(2, 5, 3, 1), options: { className: 'x4' } },
+		]);
+
+		let inRange = model.getDecorationsInRange(new Range(2, 6, 2, 6));
+
+		let inRangeClassNames = inRange.map(d => d.options.className);
+		inRangeClassNames.sort();
+		assert.deepEqual(inRangeClassNames, ['x1', 'x2', 'x3', 'x4']);
+
+		model.dispose();
+	});
 });
