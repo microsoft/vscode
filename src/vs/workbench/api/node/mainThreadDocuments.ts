@@ -12,8 +12,6 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEventService } from 'vs/platform/event/common/event';
-import { getResource } from 'vs/workbench/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -29,7 +27,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _textModelResolverService: ITextModelResolverService;
 	private _textFileService: ITextFileService;
 	private _codeEditorService: ICodeEditorService;
-	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
 	private _toDispose: IDisposable[];
@@ -37,7 +34,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _proxy: ExtHostDocumentsShape;
 	private _modelIsSynced: { [modelId: string]: boolean; };
 	private _resourceContentProvider: { [handle: number]: IDisposable };
-	private _virtualDocumentSet: { [resource: string]: boolean };
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -46,7 +42,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@IEventService eventService: IEventService,
 		@ITextFileService textFileService: ITextFileService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
@@ -57,7 +52,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._codeEditorService = codeEditorService;
-		this._editorService = editorService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocuments);
@@ -84,12 +78,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			}
 		}));
 
-		const handle = setInterval(() => this._runDocumentCleanup(), 1000 * 60 * 3);
-		this._toDispose.push({ dispose() { clearInterval(handle); } });
-
 		this._modelToDisposeMap = Object.create(null);
 		this._resourceContentProvider = Object.create(null);
-		this._virtualDocumentSet = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -229,7 +219,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			provideTextContent: (uri: URI): TPromise<editorCommon.IModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
-						this._virtualDocumentSet[uri.toString()] = true;
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
 						return this._modelService.createModel(value, mode, uri);
@@ -251,39 +240,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		const model = this._modelService.getModel(uri);
 		if (model) {
 			model.setValue(value);
-		}
-	}
-
-	private _runDocumentCleanup(): void {
-
-		const toBeDisposed: URI[] = [];
-
-		// list of uris used in editors
-		const activeResources: { [uri: string]: boolean } = Object.create(null);
-		for (const editor of this._codeEditorService.listCodeEditors()) {
-			if (editor.getModel()) {
-				activeResources[editor.getModel().uri.toString()] = true;
-			}
-		}
-
-		for (const workbenchEditor of this._editorService.getVisibleEditors()) {
-			const uri = getResource(workbenchEditor.input);
-			if (uri) {
-				activeResources[uri.toString()] = true;
-			}
-		}
-
-		// intersect with virtual documents
-		for (let uri in this._virtualDocumentSet) {
-			if (!activeResources[uri]) {
-				toBeDisposed.push(URI.parse(uri));
-			}
-		}
-
-		// dispose unused virtual documents
-		for (let resource of toBeDisposed) {
-			this._modelService.destroyModel(resource);
-			delete this._virtualDocumentSet[resource.toString()];
 		}
 	}
 }
