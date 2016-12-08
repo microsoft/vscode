@@ -405,9 +405,9 @@
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.14.0",
-      "from": "vscode-debugprotocol@1.14.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.14.0.tgz"
+      "version": "1.15.0",
+      "from": "vscode-debugprotocol@1.15.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.15.0.tgz"
     },
     "vscode-textmate": {
       "version": "2.3.1",
