@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./keybindings';
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -59,13 +56,6 @@ export abstract class KeybindingService implements IKeybindingService {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-	}
-
-	protected _beginListening(domNode: HTMLElement): void {
-		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let keyEvent = new StandardKeyboardEvent(e);
-			this._dispatch(keyEvent);
-		}));
 	}
 
 	private _getResolver(): KeybindingResolver {
@@ -150,32 +140,32 @@ export abstract class KeybindingService implements IKeybindingService {
 		return this._getResolver().resolve(contextValue, this._currentChord, keybinding.value);
 	}
 
-	protected _dispatch(e: IKeyboardEvent): void {
+	protected _dispatch(keybinding: Keybinding, target: IContextKeyServiceTarget): boolean {
 		// Check modifier key here and cancel early, it's also checked in resolve as the function
 		// is used externally.
-		const keybinding = e.toKeybinding();
+		let shouldPreventDefault = false;
 		if (keybinding.isModifierKey()) {
-			return;
+			return shouldPreventDefault;
 		}
 
-		const resolveResult = this.resolve(keybinding, e.target);
+		const resolveResult = this.resolve(keybinding, target);
 
 		if (resolveResult && resolveResult.enterChord) {
-			e.preventDefault();
+			shouldPreventDefault = true;
 			this._currentChord = resolveResult.enterChord;
 			if (this._statusService) {
 				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
 				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
 			}
-			return;
+			return shouldPreventDefault;
 		}
 
 		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
 				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
-				let chordPartLabel = this.getLabelFor(e.toKeybinding());
+				let chordPartLabel = this.getLabelFor(keybinding);
 				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
-				e.preventDefault();
+				shouldPreventDefault = true;
 			}
 		}
 		if (this._currentChordStatusMessage) {
@@ -186,12 +176,14 @@ export abstract class KeybindingService implements IKeybindingService {
 
 		if (resolveResult && resolveResult.commandId) {
 			if (!/^\^/.test(resolveResult.commandId)) {
-				e.preventDefault();
+				shouldPreventDefault = true;
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
 			this._commandService.executeCommand(commandId, resolveResult.commandArgs || {}).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
 		}
+
+		return shouldPreventDefault;
 	}
 }

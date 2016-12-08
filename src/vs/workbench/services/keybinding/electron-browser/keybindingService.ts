@@ -25,6 +25,8 @@ import { getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import * as dom from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -147,7 +149,14 @@ export class WorkbenchKeybindingService extends KeybindingService {
 			keybindings: event.config
 		})));
 
-		this._beginListening(domNode);
+		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let keyEvent = new StandardKeyboardEvent(e);
+			let shouldPreventDefault = this._dispatch(keyEvent.toKeybinding(), keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+		}));
+
 		keybindingsTelemetry(telemetryService, this);
 	}
 
