@@ -5,7 +5,7 @@
 'use strict';
 
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { IModelDecorationOptions, IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
+import { IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
 import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -71,10 +71,10 @@ export class ViewModelDecoration {
 	_viewModelDecorationBrand: void;
 
 	public range: Range;
-	public readonly options: IModelDecorationOptions;
+	public readonly source: IModelDecoration;
 
 	constructor(source: IModelDecoration) {
 		this.range = null;
-		this.options = source.options;
+		this.source = source;
 	}
 }
