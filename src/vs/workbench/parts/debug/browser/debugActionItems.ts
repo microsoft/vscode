@@ -42,7 +42,6 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
 			this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
-			this.actionRunner.run(this.action).done(null, errors.onUnexpectedError);
 		}));
 	}
 
