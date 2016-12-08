@@ -53,12 +53,16 @@ suite('HTML Embedded Formatting', () => {
 	test('HTML & Scripts', function (): any {
 		assertFormat('<html><head><script></script></head></html>', '<html>\n\n<head>\n  <script></script>\n</head>\n\n</html>');
 		assertFormat('<html><head><script>var x=1;</script></head></html>', '<html>\n\n<head>\n  <script>var x = 1;</script>\n</head>\n\n</html>');
-		assertFormat('<html><head><script>\nvar x=1;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n  var x = 1;\n</script>\n</head>\n\n</html>');
-		assertFormat('<html><head>\n  <script>\nvar x=1;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n</script>\n</head>\n\n</html>');
-		assertFormat('<html><head>\n  <script>\nvar x=1;\nconsole.log("Hi");\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n    console.log("Hi");\n</script>\n</head>\n\n</html>');
+		assertFormat('<html><head><script>\nvar x=2;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n  var x = 2;\n</script>\n</head>\n\n</html>');
+		assertFormat('<html><head>\n  <script>\nvar x=3;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 3;\n  </script>\n</head>\n\n</html>');
+		assertFormat('<html><head>\n  <script>\nvar x=4;\nconsole.log("Hi");\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 4;\n    console.log("Hi");\n  </script>\n</head>\n\n</html>');
 
-		assertFormat('<html><head>\n  |<script>\nvar x=1;\n</script>|</head></html>', '<html><head>\n  <script>\n    var x = 1;\n</script></head></html>');
-		assertFormat('<html><head>\n  <script>\n|var x=1;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 1;\n</script></head></html>');
+		assertFormat('<html><head>\n  |<script>\nvar x=5;\n</script>|</head></html>', '<html><head>\n  <script>\n    var x = 5;\n  </script></head></html>');
+		assertFormat('<html><head>\n  <script>\n|var x=6;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n</script></head></html>');
+	});
+
+	test('Script end tag', function (): any {
+		assertFormat('<html>\n<head>\n  <script>\nvar x  =  0;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 0;\n  </script>\n</head>\n\n</html>');
 	});
 
 	test('HTML & Multiple Scripts', function (): any {
@@ -94,7 +98,13 @@ function pushAll<T>(to: T[], from: T[]) {
 
 function applyEdits(document: TextDocument, edits: TextEdit[]): string {
 	let text = document.getText();
-	let sortedEdits = edits.sort((a, b) => document.offsetAt(b.range.start) - document.offsetAt(a.range.start));
+	let sortedEdits = edits.sort((a, b) => {
+		let startDiff = document.offsetAt(b.range.start) - document.offsetAt(a.range.start);
+		if (startDiff === 0) {
+			return document.offsetAt(b.range.end) - document.offsetAt(a.range.end);
+		}
+		return startDiff;
+	});
 	let lastOffset = text.length;
 	sortedEdits.forEach(e => {
 		let startOffset = document.offsetAt(e.range.start);

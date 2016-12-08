@@ -41,6 +41,22 @@ export function startsWith(haystack: string, needle: string): boolean {
 	return true;
 }
 
+export function repeat(value: string, count: number) {
+	var s = '';
+	while (count > 0) {
+		if ((count & 1) === 1) {
+			s += value;
+		}
+		value += value;
+		count = count >>> 1;
+	}
+	return s;
+}
+
+export function isWhitespaceOnly(str: string) {
+	return /^\s*$/.test(str);
+}
+
 
 const CR = '\r'.charCodeAt(0);
 const NL = '\n'.charCodeAt(0);
