@@ -352,7 +352,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			keyEvent.preventDefault();
 			keyEvent.stopPropagation();
 
-			let kb = new Keybinding(keyEvent.asKeybinding());
+			let kb = keyEvent.toKeybinding();
 			switch (kb.value) {
 				case KeyCode.Enter:
 					if (this._lastKeybinding) {

@@ -20,7 +20,6 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Keybinding } from 'vs/base/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -125,7 +124,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Skip processing by xterm.js of keyboard events that resolve to commands described
 			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const keybinding = new Keybinding(standardKeyboardEvent.asKeybinding());
+			const keybinding = standardKeyboardEvent.toKeybinding();
 			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
 			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();

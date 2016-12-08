@@ -15,6 +15,7 @@ import mouse = require('vs/base/browser/mouseEvent');
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -115,11 +116,11 @@ export class KeybindingDispatcher {
 		});
 	}
 
-	public dispatch(keybinding: number): IKeyBindingCallback {
+	public dispatch(keybinding: Keybinding): IKeyBindingCallback {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
-			if (keybinding === item.keybinding) {
+			if (keybinding.value === item.keybinding) {
 				return item.callback;
 			}
 		}
@@ -256,7 +257,7 @@ export class DefaultController implements _.IController {
 	}
 
 	private onKey(bindings: KeybindingDispatcher, tree: _.ITree, event: IKeyboardEvent): boolean {
-		var handler = bindings.dispatch(event.asKeybinding());
+		var handler = bindings.dispatch(event.toKeybinding());
 		if (handler) {
 			if (handler(tree, event)) {
 				event.preventDefault();

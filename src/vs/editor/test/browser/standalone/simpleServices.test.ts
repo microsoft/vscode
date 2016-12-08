@@ -10,6 +10,7 @@ import { SimpleConfigurationService, SimpleMessageService, SimpleExtensionServic
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 suite('StandaloneKeybindingService', () => {
@@ -45,7 +46,7 @@ suite('StandaloneKeybindingService', () => {
 		}, null);
 
 		keybindingService.dispatch(<any>{
-			asKeybinding: () => KeyCode.F9,
+			toKeybinding: () => new Keybinding(KeyCode.F9),
 			preventDefault: () => { }
 		});
 
