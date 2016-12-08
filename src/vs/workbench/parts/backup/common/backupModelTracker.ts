@@ -13,18 +13,22 @@ import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/work
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 
 export class BackupModelTracker implements IWorkbenchContribution {
 
 	public _serviceBrand: any;
 
+	private configuredAutoSaveAfterDelay: boolean;
 	private toDispose: IDisposable[];
 
 	constructor(
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
 
@@ -44,14 +48,26 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		// Listen for untitled model changes
 		this.toDispose.push(this.untitledEditorService.onDidChangeContent((e) => this.onUntitledModelChanged(e)));
 		this.toDispose.push(this.untitledEditorService.onDidDisposeModel((e) => this.discardBackup(e)));
+
+		// Listen to config changes
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+	}
+
+	private onConfigurationChange(configuration: IFilesConfiguration): void {
+		this.configuredAutoSaveAfterDelay = configuration && configuration.files && configuration.files.autoSave === AutoSaveConfiguration.AFTER_DELAY;
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {
 		if (event.kind === StateChange.REVERTED) {
+			// This must proceed even if auto save after delay is configured in order to clean up
+			// any backups made before the config change
 			this.discardBackup(event.resource);
 		} else if (event.kind === StateChange.CONTENT_CHANGE) {
-			const model = this.textFileService.models.get(event.resource);
-			this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
+			// Do not backup when auto save after delay is configured
+			if (!this.configuredAutoSaveAfterDelay) {
+				const model = this.textFileService.models.get(event.resource);
+				this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
+			}
 		}
 	}
 
