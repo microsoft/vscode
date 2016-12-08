@@ -32,7 +32,7 @@
     "native-keymap": "0.3.0",
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
     "semver": "4.3.6",
-    "vscode-debugprotocol": "1.14.0",
+    "vscode-debugprotocol": "1.15.0",
     "vscode-textmate": "2.3.1",
     "winreg": "1.2.0",
     "xterm": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.8",
