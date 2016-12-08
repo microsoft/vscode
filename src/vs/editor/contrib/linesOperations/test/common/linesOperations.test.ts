@@ -145,7 +145,7 @@ suite('Editor Contrib - Line Operations', () => {
 				assert.equal(model.getLinesContent().join('\n'), 'hello world\nhello world\nhello world\nhello world\n\nhello world', '001');
 				assert.deepEqual(editor.getSelections().toString(), [
 					/** primary cursor */
-					new Selection(3, 2, 3, 8),
+					new Selection(3, 4, 3, 8),
 					new Selection(1, 6, 1, 6),
 					new Selection(2, 2, 2, 8),
 					new Selection(4, 5, 4, 9),
@@ -153,7 +153,7 @@ suite('Editor Contrib - Line Operations', () => {
 				].toString(), '002');
 
 				/** primary cursor */
-				assert.deepEqual(editor.getSelection().toString(), new Selection(3, 2, 3, 8).toString(), '003');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(3, 4, 3, 8).toString(), '003');
 			});
 	});
 
