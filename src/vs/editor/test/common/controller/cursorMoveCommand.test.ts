@@ -338,7 +338,7 @@ suite('Cursor move command test', () => {
 		thisCursor = aCursor();
 
 		moveToEndOfLine(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
 
 		moveToEndOfLine(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length + 1);
