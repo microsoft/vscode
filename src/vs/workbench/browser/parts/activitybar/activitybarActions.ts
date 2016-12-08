@@ -244,10 +244,10 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Drop
 		$(container).on(DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.EventHelper.stop(e, true);
+
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
-				DOM.EventHelper.stop(e, true);
-
 				DOM.removeClass(container, 'dropfeedback');
 				ActivityActionItem.clearDraggedViewlet();
 
