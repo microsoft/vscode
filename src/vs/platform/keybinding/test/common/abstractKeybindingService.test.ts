@@ -147,7 +147,7 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, [
-			'(Ctrl+K) was pressed. Waiting for second key of chord...'
+			`(${new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_K)._toUSLabel()}) was pressed. Waiting for second key of chord...`
 		]);
 		assert.deepEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
@@ -161,10 +161,10 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, [
-			'The key combination (Ctrl+K, Backspace) is not a command.'
+			`The key combination (${new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_K)._toUSLabel()}, ${new Keybinding(KeyCode.Backspace)._toUSLabel()}) is not a command.`
 		]);
 		assert.deepEqual(statusMessageCallsDisposed, [
-			'(Ctrl+K) was pressed. Waiting for second key of chord...'
+			`(${new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_K)._toUSLabel()}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
 		showMessageCalls = [];
@@ -262,7 +262,7 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, [
-			'(Ctrl+K) was pressed. Waiting for second key of chord...'
+			`(${new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_K)._toUSLabel()}) was pressed. Waiting for second key of chord...`
 		]);
 		assert.deepEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
@@ -281,7 +281,7 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
 		assert.deepEqual(statusMessageCallsDisposed, [
-			'(Ctrl+K) was pressed. Waiting for second key of chord...'
+			`(${new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_K)._toUSLabel()}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
 		showMessageCalls = [];
