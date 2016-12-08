@@ -12,11 +12,11 @@ import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -115,7 +115,10 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
-export class WorkbenchKeybindingService extends KeybindingService {
+export class WorkbenchKeybindingService extends AbstractKeybindingService {
+
+	private _cachedResolver: KeybindingResolver;
+	private _firstTimeComputingResolver: boolean;
 	private userKeybindings: ConfigWatcher<IUserFriendlyKeybinding[]>;
 
 	constructor(
@@ -128,6 +131,9 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
 		super(contextKeyService, commandService, messageService, statusBarService);
+
+		this._cachedResolver = null;
+		this._firstTimeComputingResolver = true;
 
 		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [] });
 		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
@@ -174,7 +180,20 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return userKeybindings.length;
 	}
 
-	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
+	private updateResolver(event: IKeybindingEvent): void {
+		this._cachedResolver = null;
+		this._onDidUpdateKeybindings.fire(event);
+	}
+
+	protected _getResolver(): KeybindingResolver {
+		if (!this._cachedResolver) {
+			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings(this._firstTimeComputingResolver));
+			this._firstTimeComputingResolver = false;
+		}
+		return this._cachedResolver;
+	}
+
+	private _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
 		let extraUserKeybindings: IUserFriendlyKeybinding[] = this._safeGetConfig();
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
