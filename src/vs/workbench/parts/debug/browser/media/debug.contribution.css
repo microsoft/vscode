@@ -221,5 +221,5 @@
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 255, 0, 0.5);
+	background: rgb(255, 246, 0);
 }
