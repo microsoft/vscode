@@ -266,8 +266,9 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		for (let i = 0, len = events.length; i < len; i++) {
 			const resource = events[i].resource;
 			const isJson = paths.extname(resource.fsPath) === '.json';
-			if (!isJson) {
-				continue; // only JSON files
+			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && paths.basename(resource.fsPath) === this.workspaceSettingsRootFolder);
+			if (!isJson && !isDeletedSettingsFolder) {
+				continue; // only JSON files or the actual settings folder
 			}
 
 			const workspacePath = this.contextService.toWorkspaceRelativePath(resource);
