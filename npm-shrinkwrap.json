@@ -410,9 +410,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.15.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.3.1",
-      "from": "vscode-textmate@2.3.1",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.3.1.tgz"
+      "version": "2.3.2",
+      "from": "vscode-textmate@2.3.2",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.3.2.tgz"
     },
     "windows-foreground-love": {
       "version": "0.1.0",
