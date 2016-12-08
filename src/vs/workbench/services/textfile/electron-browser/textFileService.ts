@@ -30,6 +30,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -49,7 +50,8 @@ export class TextFileService extends AbstractTextFileService {
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IBackupModelService backupService: IBackupModelService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
 	}
@@ -135,6 +137,23 @@ export class TextFileService extends AbstractTextFileService {
 		const choice = this.windowService.getWindow().showMessageBox(opts);
 
 		return buttons[choice].result;
+	}
+
+	public showHotExitMessage(): void {
+		const key = 'hotExit/hasShownMessage';
+		const hasShownMessage = !!this.storageService.get(key, StorageScope.GLOBAL);
+		if (!hasShownMessage) {
+			this.storageService.store(key, true, StorageScope.GLOBAL);
+			const opts: Electron.ShowMessageBoxOptions = {
+				title: product.nameLong,
+				message: nls.localize('hotExitEducationalMessage', "Hot exit is now enabled by default"),
+				type: 'info',
+				detail: nls.localize('hotExitEducationalDetail', "Hot exit remembers any unsaved changed between sessions, so you don't have to save your files before you exit. You can disable this feature in the settings."),
+				buttons: [nls.localize('ok', "OK")],
+				noLink: true
+			};
+			this.windowService.getWindow().showMessageBox(opts);
+		}
 	}
 
 	private mnemonicLabel(label: string): string {
