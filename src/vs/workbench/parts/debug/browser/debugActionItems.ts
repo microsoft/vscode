@@ -47,13 +47,13 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 	public render(container: HTMLElement): void {
 		this.container = container;
-		this.container.tabIndex = 0;
 		dom.addClass(container, 'start-debug-action-item');
 		const icon = dom.append(container, $('.icon'));
 		icon.title = this.action.label;
 		icon.tabIndex = 0;
 
 		this.toDispose.push(dom.addDisposableListener(icon, 'click', () => {
+			icon.blur();
 			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 		}));
 		this.toDispose.push(dom.addDisposableListener(icon, 'keyup', (e: KeyboardEvent) => {
