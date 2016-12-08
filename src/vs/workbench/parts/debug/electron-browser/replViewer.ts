@@ -40,7 +40,7 @@ export class ReplExpressionsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || (<IExpressionContainer>element).hasChildren || element instanceof OutputNameValueElement;
+		return element instanceof Model || (<IExpressionContainer>element).hasChildren;
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {

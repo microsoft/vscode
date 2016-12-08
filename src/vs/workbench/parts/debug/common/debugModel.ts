@@ -72,7 +72,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements deb
 	}
 
 	public get hasChildren(): boolean {
-		return Object.getOwnPropertyNames(this.valueObj).length > 0;
+		return isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0;
 	}
 
 	public getChildren(): TPromise<debug.IExpression[]> {
