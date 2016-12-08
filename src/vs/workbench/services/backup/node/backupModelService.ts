@@ -17,6 +17,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class BackupModelService implements IBackupModelService {
 
@@ -34,7 +35,8 @@ export class BackupModelService implements IBackupModelService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private windowsService: IWindowsService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.toDispose = [];
 
@@ -124,6 +126,8 @@ export class BackupModelService implements IBackupModelService {
 			if (!doBackup) {
 				return TPromise.as({ didBackup: false });
 			}
+
+			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });
 
 			// Backup
 			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => { return { didBackup: true }; }); // we did backup
