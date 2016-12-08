@@ -295,7 +295,6 @@ let schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.when', "Condition when the key is active.")
 			},
 			'args': {
-				'type': 'object',
 				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		}
