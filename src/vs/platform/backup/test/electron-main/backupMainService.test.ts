@@ -242,6 +242,16 @@ suite('BackupMainService', () => {
 				done();
 			});
 		});
+
+		test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive', done => {
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath.toUpperCase());
+			assert.deepEqual(service.getWorkspaceBackupPaths(), [fooFile.fsPath.toUpperCase()]);
+			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
+				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
+				assert.deepEqual(json.folderWorkspaces, [fooFile.fsPath.toUpperCase()]);
+				done();
+			});
+		});
 	});
 
 	suite('removeBackupPathSync', () => {
