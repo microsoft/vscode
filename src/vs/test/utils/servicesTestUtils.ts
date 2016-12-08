@@ -164,6 +164,8 @@ export class TestTextFileService extends TextFileService {
 	public confirmSave(resources?: URI[]): ConfirmResult {
 		return this.confirmResult;
 	}
+
+	public showHotExitMessage(): void { }
 }
 
 export function workbenchInstantiationService(): IInstantiationService {
