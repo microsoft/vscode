@@ -316,13 +316,13 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			if (range.startLineNumber > filterEndLineNumber) {
 				continue;
 			}
-			if (range.startLineNumber === filterStartLineNumber && range.startColumn < filterStartColumn) {
+			if (range.startLineNumber === filterEndLineNumber && range.startColumn > filterEndColumn) {
 				continue;
 			}
 			if (range.endLineNumber < filterStartLineNumber) {
 				continue;
 			}
-			if (range.endLineNumber === filterEndLineNumber && range.endColumn > filterEndColumn) {
+			if (range.endLineNumber === filterStartLineNumber && range.endColumn < filterStartColumn) {
 				continue;
 			}
 
@@ -376,13 +376,13 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				if (range.startLineNumber > filterEndLineNumber) {
 					continue;
 				}
-				if (range.startLineNumber === filterStartLineNumber && range.startColumn < filterStartColumn) {
+				if (range.startLineNumber === filterEndLineNumber && range.startColumn > filterEndColumn) {
 					continue;
 				}
 				if (range.endLineNumber < filterStartLineNumber) {
 					continue;
 				}
-				if (range.endLineNumber === filterEndLineNumber && range.endColumn > filterEndColumn) {
+				if (range.endLineNumber === filterStartLineNumber && range.endColumn < filterStartColumn) {
 					continue;
 				}
 
