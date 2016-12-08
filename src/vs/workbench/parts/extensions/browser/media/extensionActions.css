@@ -123,6 +123,7 @@
 	background: url('manage.svg') center center no-repeat;
 }
 
+.hc-black .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage,
 .vs-dark .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
 	background: url('manage-inverse.svg') center center no-repeat;
 }
