@@ -162,3 +162,7 @@
 .hc-black .global-message-list li.message-list-entry .message-left-side.severity {
 	border: 1px solid #6FC3DF;
 }
+
+.hc-black .global-message-list li.message-list-entry .actions-container .message-action .action-button {
+	border: 1px solid #6FC3DF;
+}
