@@ -7,7 +7,7 @@
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
 import { LanguageMode } from './languageModes';
-import { getWordAtText, startsWith } from '../utils/strings';
+import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
@@ -235,10 +235,15 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions): TextEdit[] {
 			currentTextDocument = jsDocuments.get(document);
-			let initialIndentLevel = computeInitialIndent(document, range, formatParams) + 1;
-			let formatSettings = convertOptions(formatParams, settings && settings.format, initialIndentLevel);
+			let initialIndentLevel = computeInitialIndent(document, range, formatParams);
+			let formatSettings = convertOptions(formatParams, settings && settings.format, initialIndentLevel + 1);
 			let start = currentTextDocument.offsetAt(range.start);
 			let end = currentTextDocument.offsetAt(range.end);
+			let lastLineRange = null;
+			if (range.end.character === 0 || isWhitespaceOnly(currentTextDocument.getText().substr(end - range.end.character, range.end.character))) {
+				end -= range.end.character;
+				lastLineRange = Range.create(Position.create(range.end.line, 0), range.end);
+			}
 			let edits = jsLanguageService.getFormattingEditsForRange(FILE_NAME, start, end, formatSettings);
 			if (edits) {
 				let result = [];
@@ -249,6 +254,12 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 							newText: edit.newText
 						});
 					}
+				}
+				if (lastLineRange) {
+					result.push({
+						range: lastLineRange,
+						newText: generateIndent(initialIndentLevel, formatParams)
+					});
 				}
 				return result;
 			}
@@ -370,4 +381,12 @@ function computeInitialIndent(document: TextDocument, range: Range, options: For
 		i++;
 	}
 	return Math.floor(nChars / tabSize);
+}
+
+function generateIndent(level: number, options: FormattingOptions) {
+	if (options.insertSpaces) {
+		return repeat(' ', level * options.tabSize);
+	} else {
+		return repeat('\t', level);
+	}
 }

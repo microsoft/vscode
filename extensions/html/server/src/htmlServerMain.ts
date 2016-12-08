@@ -208,7 +208,6 @@ connection.onDocumentRangeFormatting(formatParams => {
 	ranges.forEach(r => {
 		let mode = r.mode;
 		if (mode && mode.format && enabledModes[mode.getId()] && !r.attributeValue) {
-			console.log(mode.getId());
 			let edits = mode.format(document, r, formatParams.options);
 			pushAll(result, edits);
 		}
