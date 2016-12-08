@@ -36,8 +36,8 @@ class TestBackupMainService extends BackupMainService {
 		super.loadSync();
 	}
 
-	public sanitizeFolderWorkspaces(backups: IBackupWorkspacesFormat): void {
-		super.sanitizeFolderWorkspaces(backups);
+	public dedupeFolderWorkspaces(backups: IBackupWorkspacesFormat): void {
+		super.dedupeFolderWorkspaces(backups);
 	}
 
 	public toBackupPath(workspacePath: string): string {
@@ -209,24 +209,25 @@ suite('BackupMainService', () => {
 		});
 	});
 
-	suite('sanitizeFolderWorkspaces', () => {
-		test('should merge same cased paths on Windows and Mac', () => {
+	suite('dedupeFolderWorkspaces', () => {
+		test('should ignore duplicates on Windows and Mac', () => {
 			// Skip test on Linux
 			if (platform.isLinux) {
 				return;
 			}
 
 			const backups: IBackupWorkspacesFormat = {
-				folderWorkspaces: platform.isWindows ? ['c:\\foo', 'C:\\FOO', 'c:\\FOO'] : ['/foo', '/FOO'],
+				folderWorkspaces: platform.isWindows ? ['c:\\FOO', 'C:\\FOO', 'c:\\foo'] : ['/FOO', '/foo'],
 				emptyWorkspaces: []
 			};
 
-			service.sanitizeFolderWorkspaces(backups);
+			service.dedupeFolderWorkspaces(backups);
 
+			assert.equal(backups.folderWorkspaces.length, 1);
 			if (platform.isWindows) {
-				assert.deepEqual(backups.folderWorkspaces, ['c:\\foo']);
+				assert.deepEqual(backups.folderWorkspaces, ['c:\\FOO'], 'should return the first duplicated entry');
 			} else {
-				assert.deepEqual(backups.folderWorkspaces, ['/foo']);
+				assert.deepEqual(backups.folderWorkspaces, ['/FOO'], 'should return the first duplicated entry');
 			}
 		});
 	});

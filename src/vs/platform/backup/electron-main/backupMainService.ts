@@ -117,16 +117,16 @@ export class BackupMainService implements IBackupMainService {
 		this.validateBackupWorkspaces(backups);
 	}
 
-	protected sanitizeFolderWorkspaces(backups: IBackupWorkspacesFormat): void {
-		// Merge duplicates for folder workspaces, don't worry about cleaning them up as they will
-		// be removed when there are no backups.
-		backups.folderWorkspaces = arrays.distinct(backups.folderWorkspaces.map(w => this.sanitizePath(w)));
+	protected dedupeFolderWorkspaces(backups: IBackupWorkspacesFormat): void {
+		// De-duplicate folder workspaces, don't worry about cleaning them up any duplicates as
+		// they will be removed when there are no backups.
+		backups.folderWorkspaces = arrays.distinct(backups.folderWorkspaces, ws => this.sanitizePath(ws));
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
 		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; isEmptyWorkspace: boolean }[] = [];
 
-		this.sanitizeFolderWorkspaces(backups);
+		this.dedupeFolderWorkspaces(backups);
 
 		backups.folderWorkspaces.forEach(workspacePath => {
 			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
