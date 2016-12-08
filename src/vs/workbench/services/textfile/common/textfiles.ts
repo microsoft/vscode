@@ -325,6 +325,12 @@ export interface ITextFileService extends IDisposable {
 	confirmSave(resources?: URI[]): ConfirmResult;
 
 	/**
+	 * Brings up an informational message about how exit now being enabled by default. This message
+	 * is temporary and will eventually be removed.
+	 */
+	showHotExitMessage(): void;
+
+	/**
 	 * Convinient fast access to the current auto save mode.
 	 */
 	getAutoSaveMode(): AutoSaveMode;
