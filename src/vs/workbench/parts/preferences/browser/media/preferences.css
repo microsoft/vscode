@@ -163,15 +163,11 @@
 }
 
 .monaco-editor .floating-click-widget {
-	background: rgb(179,255,179);
+	background: #007ACC;
+	color: white;
 	padding: 10px;
 	border-radius: 5px;
 	cursor: pointer;
-}
-
-.monaco-editor.vs-dark .floating-click-widget,
-.monaco-editor.hc-black .floating-click-widget {
-	background: rgb(21,97,21);
 }
 
 .title-actions .action-item .icon.collapseAll,
