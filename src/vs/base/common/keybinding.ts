@@ -70,6 +70,10 @@ export class Keybinding {
 	}
 
 	private static _cachedKeybindingRegex: string = null;
+
+	/**
+	 * @internal
+	 */
 	public static getUserSettingsKeybindingRegex(): string {
 		if (!this._cachedKeybindingRegex) {
 			let numpadKey = 'numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)';
@@ -87,6 +91,7 @@ export class Keybinding {
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
+	 * @internal
 	 */
 	public static toUserSettingsLabel(value: number, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE, Platform);
@@ -101,6 +106,9 @@ export class Keybinding {
 		return result;
 	}
 
+	/**
+	 * @internal
+	 */
 	public static fromUserSettingsLabel(input: string, Platform: ISimplifiedPlatform = defaultPlatform): number {
 		if (!input) {
 			return null;
@@ -191,6 +199,10 @@ export class Keybinding {
 		this.value = keybinding;
 	}
 
+	public equals(other: Keybinding): boolean {
+		return this.value === other.value;
+	}
+
 	public hasCtrlCmd(): boolean {
 		return BinaryKeybindings.hasCtrlCmd(this.value);
 	}
@@ -211,12 +223,13 @@ export class Keybinding {
 		return BinaryKeybindings.isModifierKey(this.value);
 	}
 
-	public extractKeyCode(): KeyCode {
+	public getKeyCode(): KeyCode {
 		return BinaryKeybindings.extractKeyCode(this.value);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
 	public _toUSLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toUSLabel(this.value, Platform);
@@ -224,6 +237,7 @@ export class Keybinding {
 
 	/**
 	 * Format the binding to a format appropiate for placing in an aria-label.
+	 * @internal
 	 */
 	public _toUSAriaLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toUSAriaLabel(this.value, Platform);
@@ -231,6 +245,7 @@ export class Keybinding {
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
 	public _toUSHTMLLabel(Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
 		return Keybinding._toUSHTMLLabel(this.value, Platform);
@@ -238,6 +253,7 @@ export class Keybinding {
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
 	public toCustomLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toCustomLabel(this.value, labelProvider, Platform);
@@ -245,6 +261,7 @@ export class Keybinding {
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
 	public toCustomHTMLLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
 		return Keybinding._toCustomHTMLLabel(this.value, labelProvider, Platform);
@@ -253,6 +270,7 @@ export class Keybinding {
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
+	 * @internal
 	 */
 	public _toElectronAccelerator(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toElectronAccelerator(this.value, Platform);
@@ -260,6 +278,7 @@ export class Keybinding {
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
+	 * @internal
 	 */
 	public toUserSettingsLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding.toUserSettingsLabel(this.value, Platform);

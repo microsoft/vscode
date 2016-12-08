@@ -153,7 +153,7 @@ export abstract class KeybindingService implements IKeybindingService {
 	protected _dispatch(e: IKeyboardEvent): void {
 		// Check modifier key here and cancel early, it's also checked in resolve as the function
 		// is used externally.
-		const keybinding = new Keybinding(e.asKeybinding());
+		const keybinding = e.toKeybinding();
 		if (keybinding.isModifierKey()) {
 			return;
 		}
@@ -173,7 +173,7 @@ export abstract class KeybindingService implements IKeybindingService {
 		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
 				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
-				let chordPartLabel = this.getLabelFor(new Keybinding(e.asKeybinding()));
+				let chordPartLabel = this.getLabelFor(e.toKeybinding());
 				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
 				e.preventDefault();
 			}

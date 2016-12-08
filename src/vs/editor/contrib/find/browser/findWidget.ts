@@ -356,7 +356,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.asKeybinding()) {
+		switch (e.toKeybinding().value) {
 			case KeyCode.Enter:
 				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
 				e.preventDefault();
@@ -385,7 +385,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.asKeybinding()) {
+		switch (e.toKeybinding().value) {
 			case KeyCode.Enter:
 				this._controller.replace();
 				e.preventDefault();
