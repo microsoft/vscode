@@ -275,7 +275,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private stack: IStackEntry[];
 	private index: number;
-	private blockStackChanges: boolean;
+	private navigatingInStack: boolean;
 	private currentFileEditorState: EditorState;
 
 	private history: (IEditorInput | IResourceInput)[];
@@ -389,7 +389,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			options = { revealIfVisible: true };
 		}
 
-		this.blockStackChanges = true;
+		this.navigatingInStack = true;
 
 		let openEditorPromise: TPromise<IBaseEditor>;
 		if (entry.input instanceof EditorInput) {
@@ -399,9 +399,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		openEditorPromise.done(() => {
-			this.blockStackChanges = false;
+			this.navigatingInStack = false;
 		}, error => {
-			this.blockStackChanges = false;
+			this.navigatingInStack = false;
 			errors.onUnexpectedError(error);
 		});
 	}
@@ -462,11 +462,22 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private handleEditorEventInStack(editor: IBaseEditor): void {
-		if (this.blockStackChanges) {
-			return; // while we open an editor due to a navigation, we do not want to update our stack
+		const control = getCodeEditor(editor);
+
+		// treat editor changes that happen as part of stack navigation specially
+		// we do not want to add a new stack entry as a matter of navigating the
+		// stack but we need to keep our currentFileEditorState up to date with
+		// the navigtion that occurs.
+		if (this.navigatingInStack) {
+			if (control && editor.input) {
+				this.currentFileEditorState = new EditorState(editor.input, control.getSelection());
+			} else {
+				this.currentFileEditorState = null; // we navigated to a non file editor
+			}
+
+			return;
 		}
 
-		const control = getCodeEditor(editor);
 		if (control && editor.input) {
 			this.handleTextEditorEvent(editor, control);
 
@@ -508,7 +519,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public add(input: IEditorInput, options?: ITextEditorOptions, fromEvent?: boolean): void {
-		if (!this.blockStackChanges) {
+		if (!this.navigatingInStack) {
 			this.addToStack(input, options, fromEvent);
 		}
 	}
