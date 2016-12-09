@@ -320,7 +320,6 @@ class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 		const headings = tokens.filter(token => token.type === 'heading_open');
 
 		const symbols = headings.map(heading => {
-			console.log(heading);
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber + offset);
 			const location = new vscode.Location(document.uri, line.range);
