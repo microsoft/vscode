@@ -17,31 +17,66 @@ interface IPackageInfo {
 
 var telemetryReporter: TelemetryReporter | null;
 
+interface IToken {
+	type: string;
+	map: [number, number];
+}
+
+interface MarkdownIt {
+	render(text: string): string;
+	parse(text: string): IToken[];
+}
+
+function createMarkdownIt(): MarkdownIt {
+	const hljs = require('highlight.js');
+	const mdnh = require('markdown-it-named-headers');
+	const md = require('markdown-it')({
+		html: true,
+		highlight: (str: string, lang: string) => {
+			if (lang && hljs.getLanguage(lang)) {
+				try {
+					return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+				} catch (error) { }
+			}
+			return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
+		}
+	}).use(mdnh, {});
+
+	return md;
+}
+
+const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
+
 export function activate(context: vscode.ExtensionContext) {
 
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
-	let provider = new MDDocumentContentProvider(context);
-	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
+	const markdownIt = createMarkdownIt();
+
+	const contentProvider = new MDDocumentContentProvider(markdownIt, context);
+	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
+
+	const symbolsProvider = new MDDocumentSymbolProvider(markdownIt);
+	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
 
 	let d1 = vscode.commands.registerCommand('markdown.showPreview', showPreview);
 	let d2 = vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true));
 	let d3 = vscode.commands.registerCommand('markdown.showSource', showSource);
 
-	context.subscriptions.push(d1, d2, d3, registration);
+	context.subscriptions.push(d1, d2, d3, contentProviderRegistration, symbolsProviderRegistration);
 
 	vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {
 			const uri = getMarkdownUri(document.uri);
-			provider.update(uri);
+			contentProvider.update(uri);
 		}
 	});
 
 	vscode.workspace.onDidChangeTextDocument(event => {
 		if (isMarkdownFile(event.document)) {
 			const uri = getMarkdownUri(event.document.uri);
-			provider.update(uri);
+			contentProvider.update(uri);
 
 		}
 	});
@@ -50,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.textDocuments.forEach(document => {
 			if (document.uri.scheme === 'markdown') {
 				// update all generated md documents
-				provider.update(document.uri);
+				contentProvider.update(document.uri);
 			}
 		});
 	});
@@ -149,38 +184,16 @@ function getPackageInfo(context: vscode.ExtensionContext): IPackageInfo | null {
 	return null;
 }
 
-
-interface IRenderer {
-	render(text: string): string;
-}
-
 class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _context: vscode.ExtensionContext;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean;
-	private _renderer: IRenderer;
+	private _markdownIt: MarkdownIt;
 
-	constructor(context: vscode.ExtensionContext) {
+	constructor(markdownIt: MarkdownIt, context: vscode.ExtensionContext) {
 		this._context = context;
 		this._waiting = false;
-		this._renderer = this.createRenderer();
-	}
-
-	private createRenderer(): IRenderer {
-		const hljs = require('highlight.js');
-		const mdnh = require('markdown-it-named-headers');
-		const md = require('markdown-it')({
-			html: true,
-			highlight: (str: string, lang: string) => {
-				if (lang && hljs.getLanguage(lang)) {
-					try {
-						return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-					} catch (error) { }
-				}
-				return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-			}
-		}).use(mdnh, {});
-		return md;
+		this._markdownIt = markdownIt;
 	}
 
 	private getMediaPath(mediaFile: string): string {
@@ -257,7 +270,11 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				'</head>',
 				`<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''}">`
 			).join('\n');
-			const body = this._renderer.render(this.getDocumentContentForPreview(document));
+
+			const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
+			const text = document.getText();
+			const contents = previewFrontMatter === 'hide' ? text.replace(FrontMatterRegex, '') : text;
+			const body = this._markdownIt.render(contents);
 
 			const tail = [
 				'</body>',
@@ -281,13 +298,37 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			}, 300);
 		}
 	}
+}
 
-	private getDocumentContentForPreview(document: vscode.TextDocument): string {
-		const content = document.getText();
-		const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
-		if (previewFrontMatter === 'hide') {
-			return content.replace(/^-{3}[ \t]*(\r\n|\n)(.|\r\n|\n)*?(\r\n|\n)-{3}[ \t]*(\r\n|\n)/, '');
+class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+
+	constructor(private markdownIt: MarkdownIt) { }
+
+	provideDocumentSymbols(document: vscode.TextDocument): vscode.ProviderResult<vscode.SymbolInformation[]> {
+		let offset = 0;
+		let text = document.getText();
+		const frontMatterMatch = FrontMatterRegex.exec(text);
+
+		if (frontMatterMatch) {
+			const frontMatter = frontMatterMatch[0];
+
+			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
+			text = text.substr(frontMatter.length);
 		}
-		return content;
+
+		const tokens = this.markdownIt.parse(text);
+		const headings = tokens.filter(token => token.type === 'heading_open');
+
+		const symbols = headings.map(heading => {
+			console.log(heading);
+			const lineNumber = heading.map[0];
+			const line = document.lineAt(lineNumber + offset);
+			const location = new vscode.Location(document.uri, line.range);
+			const text = line.text.replace(/^\s*#+\s*/, '');
+
+			return new vscode.SymbolInformation(text, vscode.SymbolKind.Module, '', location);
+		});
+
+		return symbols;
 	}
 }
