@@ -134,7 +134,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				range
 			});
 
-			if (stackFrame.thread.stoppedDetails.reason === 'exception') {
+			if (stackFrame.thread.stoppedDetails && stackFrame.thread.stoppedDetails.reason === 'exception') {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
 					range: wholeLineRange
