@@ -81,7 +81,8 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 
 		return first(factories).then(uri => {
 			if (!uri) {
-				return TPromise.wrapError(`Could not resolve any model with uri '${resource}'.`);
+				console.error(`Could not resolve any model with uri '${resource}'.`); // TODO PII
+				return TPromise.wrapError('Could not resolve any model with provided uri.');
 			}
 
 			return uri;
