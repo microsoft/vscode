@@ -36,8 +36,8 @@ class TestBackupMainService extends BackupMainService {
 		super.loadSync();
 	}
 
-	public dedupeFolderWorkspaces(backups: IBackupWorkspacesFormat): void {
-		super.dedupeFolderWorkspaces(backups);
+	public dedupeFolderWorkspaces(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
+		return super.dedupeFolderWorkspaces(backups);
 	}
 
 	public toBackupPath(workspacePath: string): string {
@@ -347,6 +347,41 @@ suite('BackupMainService', () => {
 
 		test('should throw when the window is not registered', () => {
 			assert.throws(() => service.getBackupPath(1));
+		});
+	});
+
+	suite('mixed path casing', () => {
+		test('should handle case insensitive paths properly (registerWindowForBackupsSync)', done => {
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath.toUpperCase());
+
+			if (platform.isLinux) {
+				assert.equal(service.getWorkspaceBackupPaths().length, 2);
+			} else {
+				assert.equal(service.getWorkspaceBackupPaths().length, 1);
+			}
+
+			done();
+		});
+
+		test('should handle case insensitive paths properly (removeBackupPathSync)', done => {
+
+			// same case
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.removeBackupPathSync(fooFile.fsPath, false);
+			assert.equal(service.getWorkspaceBackupPaths().length, 0);
+
+			// mixed case
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.removeBackupPathSync(fooFile.fsPath.toUpperCase(), false);
+
+			if (platform.isLinux) {
+				assert.equal(service.getWorkspaceBackupPaths().length, 1);
+			} else {
+				assert.equal(service.getWorkspaceBackupPaths().length, 0);
+			}
+
+			done();
 		});
 	});
 });
