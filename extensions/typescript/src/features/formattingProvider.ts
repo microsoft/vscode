@@ -23,6 +23,8 @@ interface Configuration {
 	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
+
+	[key: string]: boolean;
 }
 
 namespace Configuration {
