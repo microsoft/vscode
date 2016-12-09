@@ -189,7 +189,6 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 export class UpdateContribution implements IWorkbenchContribution {
 
 	private static KEY = 'releaseNotes/lastVersion';
-	private static INSIDER_KEY = 'releaseNotes/shouldShowInsiderDisclaimer';
 	getId() { return 'vs.update'; }
 
 	constructor(
@@ -223,27 +222,6 @@ export class UpdateContribution implements IWorkbenchContribution {
 				message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", product.nameLong, pkg.version),
 				actions: [
 					LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl),
-					CloseAction
-				]
-			});
-		}
-
-		const shouldShowInsiderDisclaimer = storageService.getBoolean(UpdateContribution.INSIDER_KEY, StorageScope.GLOBAL, true);
-
-		// is this a build which releases often?
-		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(pkg.version)) {
-			messageService.show(Severity.Info, {
-				message: nls.localize('insiderBuilds', "Insider builds and releases everyday!", product.nameLong, pkg.version),
-				actions: [
-					new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
-						window.open('http://go.microsoft.com/fwlink/?LinkID=798816');
-						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
-						return TPromise.as(null);
-					}),
-					new Action('update.neverAgain', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
-						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
-						return TPromise.as(null);
-					}),
 					CloseAction
 				]
 			});
