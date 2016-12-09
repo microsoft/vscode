@@ -19,6 +19,21 @@ import { IOptions } from 'vs/workbench/common/options';
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SecondLevelDomainMatcher = /([^@:.]+\.[^@:.]+)(:\d+)?$/;
 const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
+const AnyButDot = /[^.]/g;
+const SecondLevelDomainWhitelist = [
+	'github.com',
+	'bitbucket.org',
+	'visualstudio.com',
+	'gitlab.com',
+	'heroku.com',
+	'azurewebsites.net',
+	'ibm.com',
+	'amazon.com',
+	'amazonaws.com',
+	'cloudapp.net',
+	'rhcloud.com',
+	'google.com'
+];
 
 type Tags = { [index: string]: boolean | number };
 
@@ -166,7 +181,7 @@ export class WorkspaceStats {
 	/**
 	 * Public for testing.
 	 */
-	public getDomainsOfRemotes(text): string[] {
+	public getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
 		let domains = new ArraySet<string>(), match;
 		while (match = RemoteMatcher.exec(text)) {
 			let domain = this.extractDomain(match[1]);
@@ -174,14 +189,21 @@ export class WorkspaceStats {
 				domains.set(domain);
 			}
 		}
-		return domains.elements;
+
+		const whitemap = whitelist.reduce((map, key) => {
+			map[key] = true;
+			return map;
+		}, Object.create(null));
+
+		return domains.elements
+			.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
 	}
 
 	private reportRemotes(workspaceUri: URI): void {
 		let uri = workspaceUri.with({ path: `${workspaceUri.path}/.git/config` });
 		this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => {
-				let domains = this.getDomainsOfRemotes(content.value);
+				let domains = this.getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist);
 				this.telemetryService.publicLog('workspace.remotes', { domains });
 			},
 			err => {
