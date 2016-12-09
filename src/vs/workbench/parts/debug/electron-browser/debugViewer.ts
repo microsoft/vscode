@@ -17,7 +17,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, Separator, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -831,11 +831,7 @@ export class WatchExpressionsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as(this.getExpressionActions());
-	}
-
-	public getExpressionActions(): IAction[] {
-		return [this.instantiationService.createInstance(RemoveWatchExpressionAction, RemoveWatchExpressionAction.ID, RemoveWatchExpressionAction.LABEL)];
+		return TPromise.as([]);
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
@@ -901,7 +897,6 @@ export class WatchExpressionsDataSource implements IDataSource {
 
 interface IWatchExpressionTemplateData {
 	watchExpression: HTMLElement;
-	actionBar: ActionBar;
 	expression: HTMLElement;
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
@@ -947,8 +942,6 @@ export class WatchExpressionsRenderer implements IRenderer {
 			const data: IWatchExpressionTemplateData = Object.create(null);
 			data.watchExpression = dom.append(container, $('.watch-expression'));
 			createVariableTemplate(data, data.watchExpression);
-			data.actionBar = new ActionBar(data.watchExpression, { actionRunner: this.actionRunner });
-			data.actionBar.push(this.actionProvider.getExpressionActions(), { icon: true, label: false });
 
 			return data;
 		}
@@ -976,7 +969,6 @@ export class WatchExpressionsRenderer implements IRenderer {
 				ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
 			});
 		}
-		data.actionBar.context = watchExpression;
 
 		data.name.textContent = watchExpression.name;
 		if (watchExpression.value) {
@@ -992,9 +984,7 @@ export class WatchExpressionsRenderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
-			(<IWatchExpressionTemplateData>templateData).actionBar.dispose();
-		}
+		// noop
 	}
 
 	public dispose(): void {
