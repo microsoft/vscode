@@ -9,8 +9,8 @@ import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
@@ -148,7 +148,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	private _dec: string[] = [];
 	private _updateDecorationsNow(): void {
 		let model = this._editor.getModel();
-		let regex = Keybinding.getUserSettingsKeybindingRegex();
+		let regex = KeybindingLabels.getUserSettingsKeybindingRegex();
 
 		var m = model.findMatches(regex, false, true, false, false);
 
@@ -165,7 +165,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			return {
 				strKeybinding: strKeybinding,
 				keybinding: keybinding,
-				usLabel: keybinding._toUSLabel(),
+				usLabel: KeybindingLabels._toUSLabel(keybinding),
 				label: this._keybindingService.getLabelFor(keybinding),
 				range: range
 			};
@@ -356,7 +356,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			switch (kb.value) {
 				case KeyCode.Enter:
 					if (this._lastKeybinding) {
-						this._onAccepted(this._lastKeybinding.toUserSettingsLabel());
+						this._onAccepted(KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value));
 					}
 					this._stop();
 					return;
@@ -368,7 +368,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 
 			this._lastKeybinding = kb;
 
-			this._inputNode.value = this._lastKeybinding.toUserSettingsLabel().toLowerCase();
+			this._inputNode.value = KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value).toLowerCase();
 			this._inputNode.title = 'keyCode: ' + keyEvent.browserEvent.keyCode;
 
 			dom.clearNode(this._outputNode);
