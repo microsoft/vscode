@@ -573,7 +573,7 @@ export class CallStackRenderer implements IRenderer {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 
-		data.stateLabel.textContent = thread.stopped ? nls.localize('pausedOn', "Paused on {0}", thread.stoppedDetails.reason)
+		data.stateLabel.textContent = thread.stopped ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason)
 			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 	}
 
