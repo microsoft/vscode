@@ -5,8 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';

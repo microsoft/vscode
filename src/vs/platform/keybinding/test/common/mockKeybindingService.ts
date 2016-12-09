@@ -5,7 +5,8 @@
 'use strict';
 
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import Event from 'vs/base/common/event';
 import { IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -68,19 +69,19 @@ export class MockKeybindingService2 implements IKeybindingService {
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
-		return keybinding._toUSLabel();
+		return KeybindingLabels._toUSLabel(keybinding);
 	}
 
 	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return keybinding._toUSHTMLLabel();
+		return KeybindingLabels._toUSHTMLLabel(keybinding);
 	}
 
 	public getAriaLabelFor(keybinding: Keybinding): string {
-		return keybinding._toUSAriaLabel();
+		return KeybindingLabels._toUSAriaLabel(keybinding);
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		return keybinding._toElectronAccelerator();
+		return KeybindingLabels._toElectronAccelerator(keybinding);
 	}
 
 	public getDefaultKeybindings(): string {

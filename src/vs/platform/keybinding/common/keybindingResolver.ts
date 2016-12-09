@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BinaryKeybindings } from 'vs/base/common/keyCodes';
-import { ISimplifiedPlatform, Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, BinaryKeybindings } from 'vs/base/common/keyCodes';
+import { ISimplifiedPlatform, KeybindingLabels } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -192,7 +192,7 @@ export class KeybindingResolver {
 			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && item.isDefault) {
-					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress) + ' due to ' + item.command);
+					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + KeybindingLabels.toUserSettingsLabel(keypress) + ' due to ' + item.command);
 				}
 				this._lookupMapUnreachable[conflict.commandId] = this._lookupMapUnreachable[conflict.commandId] || [];
 				this._lookupMapUnreachable[conflict.commandId].push(conflict.keybinding);
@@ -447,11 +447,11 @@ export class IOSupport {
 	}
 
 	public static writeKeybinding(input: number, Platform: ISimplifiedPlatform = platform): string {
-		return Keybinding.toUserSettingsLabel(input, Platform);
+		return KeybindingLabels.toUserSettingsLabel(input, Platform);
 	}
 
 	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = platform): number {
-		return Keybinding.fromUserSettingsLabel(input, Platform);
+		return KeybindingLabels.fromUserSettingsLabel(input, Platform);
 	}
 
 	public static readKeybindingWhen(input: string): ContextKeyExpr {

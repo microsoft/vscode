@@ -6,7 +6,8 @@
 
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
@@ -60,19 +61,19 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
-		return keybinding._toUSLabel();
+		return KeybindingLabels._toUSLabel(keybinding);
 	}
 
 	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return keybinding._toUSHTMLLabel();
+		return KeybindingLabels._toUSHTMLLabel(keybinding);
 	}
 
 	public getAriaLabelFor(keybinding: Keybinding): string {
-		return keybinding._toUSAriaLabel();
+		return KeybindingLabels._toUSAriaLabel(keybinding);
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		return keybinding._toElectronAccelerator();
+		return KeybindingLabels._toElectronAccelerator(keybinding);
 	}
 
 	public getDefaultKeybindings(): string {

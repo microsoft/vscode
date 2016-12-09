@@ -17,7 +17,8 @@ import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import product from 'vs/platform/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
@@ -119,7 +120,7 @@ export class VSCodeMenu {
 			// Fill hash map of resolved keybindings
 			let needsMenuUpdate = false;
 			keybindings.forEach(keybinding => {
-				const accelerator = new Keybinding(keybinding.binding)._toElectronAccelerator();
+				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
 				if (accelerator) {
 					this.mapResolvedKeybindingToActionId[keybinding.id] = accelerator;
 					if (this.mapLastKnownKeybindingToActionId[keybinding.id] !== accelerator) {

@@ -477,3 +477,40 @@ export class BinaryKeybindings {
 		return (keybinding & BinaryKeybindingsMask.KeyCode);
 	}
 }
+
+export class Keybinding {
+
+	public value: number;
+
+	constructor(keybinding: number) {
+		this.value = keybinding;
+	}
+
+	public equals(other: Keybinding): boolean {
+		return this.value === other.value;
+	}
+
+	public hasCtrlCmd(): boolean {
+		return BinaryKeybindings.hasCtrlCmd(this.value);
+	}
+
+	public hasShift(): boolean {
+		return BinaryKeybindings.hasShift(this.value);
+	}
+
+	public hasAlt(): boolean {
+		return BinaryKeybindings.hasAlt(this.value);
+	}
+
+	public hasWinCtrl(): boolean {
+		return BinaryKeybindings.hasWinCtrl(this.value);
+	}
+
+	public isModifierKey(): boolean {
+		return BinaryKeybindings.isModifierKey(this.value);
+	}
+
+	public getKeyCode(): KeyCode {
+		return BinaryKeybindings.extractKeyCode(this.value);
+	}
+}

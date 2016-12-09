@@ -7,7 +7,8 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -207,15 +208,15 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
-		return keybinding.toCustomLabel(getNativeLabelProvider());
+		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
 	}
 
 	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return keybinding.toCustomHTMLLabel(getNativeLabelProvider());
+		return KeybindingLabels.toCustomHTMLLabel(keybinding, getNativeLabelProvider());
 	}
 
 	public getAriaLabelFor(keybinding: Keybinding): string {
-		return keybinding.toCustomLabel(getNativeAriaLabelProvider());
+		return KeybindingLabels.toCustomLabel(keybinding, getNativeAriaLabelProvider());
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
@@ -224,7 +225,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return super.getElectronAcceleratorFor(keybinding);
 		}
 
-		let usLabel = keybinding._toUSLabel();
+		let usLabel = KeybindingLabels._toUSLabel(keybinding);
 		let label = this.getLabelFor(keybinding);
 		if (usLabel !== label) {
 			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)

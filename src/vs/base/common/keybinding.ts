@@ -8,14 +8,14 @@
 import * as nls from 'vs/nls';
 import * as defaultPlatform from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord, KeyCodeUtils, BinaryKeybindings, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils, BinaryKeybindings, USER_SETTINGS } from 'vs/base/common/keyCodes';
 
 export interface ISimplifiedPlatform {
 	isMacintosh: boolean;
 	isWindows: boolean;
 }
 
-export class Keybinding {
+export class KeybindingLabels {
 
 	private static _cachedKeybindingRegex: string = null;
 
@@ -117,7 +117,7 @@ export class Keybinding {
 		let firstSpaceIdx = input.indexOf(' ');
 		if (firstSpaceIdx > 0) {
 			key = input.substring(0, firstSpaceIdx);
-			chord = Keybinding.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
+			chord = KeybindingLabels.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
 		} else {
 			key = input;
 		}
@@ -141,78 +141,44 @@ export class Keybinding {
 		return KeyChord(result, chord);
 	}
 
-	public value: number;
-
-	constructor(keybinding: number) {
-		this.value = keybinding;
-	}
-
-	public equals(other: Keybinding): boolean {
-		return this.value === other.value;
-	}
-
-	public hasCtrlCmd(): boolean {
-		return BinaryKeybindings.hasCtrlCmd(this.value);
-	}
-
-	public hasShift(): boolean {
-		return BinaryKeybindings.hasShift(this.value);
-	}
-
-	public hasAlt(): boolean {
-		return BinaryKeybindings.hasAlt(this.value);
-	}
-
-	public hasWinCtrl(): boolean {
-		return BinaryKeybindings.hasWinCtrl(this.value);
-	}
-
-	public isModifierKey(): boolean {
-		return BinaryKeybindings.isModifierKey(this.value);
-	}
-
-	public getKeyCode(): KeyCode {
-		return BinaryKeybindings.extractKeyCode(this.value);
-	}
-
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 * @internal
 	 */
-	public _toUSLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(this.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
+	public static _toUSLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		return _asString(keybinding.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for placing in an aria-label.
 	 * @internal
 	 */
-	public _toUSAriaLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(this.value, AriaKeyLabelProvider.INSTANCE, Platform);
+	public static _toUSAriaLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		return _asString(keybinding.value, AriaKeyLabelProvider.INSTANCE, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 * @internal
 	 */
-	public _toUSHTMLLabel(Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return _asHTML(this.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
+	public static _toUSHTMLLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return _asHTML(keybinding.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 * @internal
 	 */
-	public toCustomLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(this.value, labelProvider, Platform);
+	public static toCustomLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		return _asString(keybinding.value, labelProvider, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 * @internal
 	 */
-	public toCustomHTMLLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return _asHTML(this.value, labelProvider, Platform);
+	public static toCustomHTMLLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return _asHTML(keybinding.value, labelProvider, Platform);
 	}
 
 	/**
@@ -220,27 +186,18 @@ export class Keybinding {
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 * @internal
 	 */
-	public _toElectronAccelerator(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		if (BinaryKeybindings.hasChord(this.value)) {
+	public static _toElectronAccelerator(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		if (BinaryKeybindings.hasChord(keybinding.value)) {
 			// Electron cannot handle chords
 			return null;
 		}
-		let keyCode = BinaryKeybindings.extractKeyCode(this.value);
+		let keyCode = BinaryKeybindings.extractKeyCode(keybinding.value);
 		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
 			// Electron cannot handle numpad keys
 			return null;
 		}
-		return _asString(this.value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
+		return _asString(keybinding.value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
 	}
-
-	/**
-	 * Format the binding to a format appropiate for the user settings file.
-	 * @internal
-	 */
-	public toUserSettingsLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return Keybinding.toUserSettingsLabel(this.value, Platform);
-	}
-
 }
 
 export interface IKeyBindingLabelProvider {

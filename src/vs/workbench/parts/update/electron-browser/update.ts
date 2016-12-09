@@ -19,7 +19,8 @@ import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/re
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -70,7 +71,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 		};
 
 		const kbstyle = (match: string, kb: string) => {
-			const code = Keybinding.fromUserSettingsLabel(kb);
+			const code = KeybindingLabels.fromUserSettingsLabel(kb);
 
 			if (!code) {
 				return unassigned;
