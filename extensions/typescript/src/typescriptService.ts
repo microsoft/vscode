@@ -69,7 +69,7 @@ export interface ITypescriptServiceClient {
 
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 
-	logTelemetry(eventName: string, properties?: { [prop: string]: string });
+	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
 	experimentalAutoBuild: boolean;
 	apiVersion: API;
