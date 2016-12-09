@@ -330,16 +330,29 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleEnablementAction extends AbstractDebugAction {
-	static ID = 'workbench.debug.viewlet.action.toggleBreakpointEnablement';
-	static LABEL = nls.localize('toggleEnablement', "Enable/Disable Breakpoint");
+export class EnableBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.enableBreakpoint';
+	static LABEL = nls.localize('enableBreakpoint', "Enable Breakpoint");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action toggle-enablement', debugService, keybindingService);
+		super(id, label, undefined, debugService, keybindingService);
 	}
 
 	public run(element: IEnablement): TPromise<any> {
-		return this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
+		return this.debugService.enableOrDisableBreakpoints(true, element);
+	}
+}
+
+export class DisableBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.disableBreakpoint';
+	static LABEL = nls.localize('disableBreakpoint', "Disable Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, undefined, debugService, keybindingService);
+	}
+
+	public run(element: IEnablement): TPromise<any> {
+		return this.debugService.enableOrDisableBreakpoints(false, element);
 	}
 }
 
