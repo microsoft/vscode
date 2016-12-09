@@ -9,7 +9,6 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as platform from 'vs/base/common/platform';
 import * as extfs from 'vs/base/node/extfs';
-import Uri from 'vs/base/common/uri';
 import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -62,7 +61,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
 		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
-		if (array.indexOf(workspaceIdentifier) === -1) {
+		if (this.indexOf(workspaceIdentifier, isEmptyWorkspace) === -1) {
 			array.push(workspaceIdentifier);
 			this.saveSync();
 		}
@@ -75,12 +74,27 @@ export class BackupMainService implements IBackupMainService {
 		if (!array) {
 			return;
 		}
-		const index = array.indexOf(workspaceIdentifier);
+		const index = this.indexOf(workspaceIdentifier, isEmptyWorkspace);
 		if (index === -1) {
 			return;
 		}
 		array.splice(index, 1);
 		this.saveSync();
+	}
+
+	private indexOf(workspaceIdentifier: string, isEmptyWorkspace: boolean): number {
+		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
+		if (!array) {
+			return -1;
+		}
+
+		if (isEmptyWorkspace) {
+			return array.indexOf(workspaceIdentifier);
+		}
+
+		// for backup workspaces, sanitize the workspace identifier to accomodate for case insensitive file systems
+		const sanitizedWorkspaceIdentifier = this.sanitizePath(workspaceIdentifier);
+		return arrays.firstIndex(array, id => this.sanitizePath(id) === sanitizedWorkspaceIdentifier);
 	}
 
 	protected loadSync(): void {
@@ -111,23 +125,24 @@ export class BackupMainService implements IBackupMainService {
 			backups.emptyWorkspaces = [];
 		}
 
-		this.backups = backups;
+		this.backups = this.dedupeFolderWorkspaces(backups);
 
 		// Validate backup workspaces
 		this.validateBackupWorkspaces(backups);
 	}
 
-	protected dedupeFolderWorkspaces(backups: IBackupWorkspacesFormat): void {
+	protected dedupeFolderWorkspaces(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
 		// De-duplicate folder workspaces, don't worry about cleaning them up any duplicates as
 		// they will be removed when there are no backups.
 		backups.folderWorkspaces = arrays.distinct(backups.folderWorkspaces, ws => this.sanitizePath(ws));
+
+		return backups;
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
 		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; isEmptyWorkspace: boolean }[] = [];
 
-		this.dedupeFolderWorkspaces(backups);
-
+		// Validate Folder Workspaces
 		backups.folderWorkspaces.forEach(workspacePath => {
 			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
 			const hasBackups = this.hasBackupsSync(backupPath);
@@ -136,8 +151,7 @@ export class BackupMainService implements IBackupMainService {
 			// If the folder has no backups, make sure to delete it
 			// If the folder has backups, but the target workspace is missing, convert backups to empty ones
 			if (!hasBackups || missingWorkspace) {
-				const backupWorkspace = this.sanitizePath(workspacePath);
-				staleBackupWorkspaces.push({ workspaceIdentifier: Uri.file(backupWorkspace).fsPath, backupPath, isEmptyWorkspace: false });
+				staleBackupWorkspaces.push({ workspaceIdentifier: workspacePath, backupPath, isEmptyWorkspace: false });
 
 				if (missingWorkspace) {
 					const identifier = this.pushBackupPathsSync(this.getRandomEmptyWorkspaceId(), true /* is empty workspace */);
@@ -153,6 +167,7 @@ export class BackupMainService implements IBackupMainService {
 			}
 		});
 
+		// Validate Empty Workspaces
 		backups.emptyWorkspaces.forEach(backupFolder => {
 			const backupPath = path.join(this.backupHome, backupFolder);
 			if (!this.hasBackupsSync(backupPath)) {
@@ -160,6 +175,7 @@ export class BackupMainService implements IBackupMainService {
 			}
 		});
 
+		// Clean up stale backups
 		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
 			const {backupPath, workspaceIdentifier, isEmptyWorkspace} = staleBackupWorkspace;
 
