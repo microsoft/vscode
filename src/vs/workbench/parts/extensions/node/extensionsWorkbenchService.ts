@@ -100,18 +100,6 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.description : this.local.manifest.description;
 	}
 
-	private get changelogUrl(): string {
-		if (this.gallery && this.gallery.assets.changelog) {
-			return this.gallery.assets.changelog.uri;
-		}
-
-		if (this.local && this.local.changelogUrl) {
-			return this.local.changelogUrl;
-		}
-
-		return null;
-	}
-
 	get iconUrl(): string {
 		return this.galleryIconUrl || this.localIconUrl || this.defaultIconUrl;
 	}
@@ -193,7 +181,11 @@ class Extension implements IExtension {
 	}
 
 	getChangelog(): TPromise<string> {
-		const changelogUrl = this.changelogUrl;
+		if (this.gallery && this.gallery.assets.changelog) {
+			return this.galleryService.getChangelog(this.gallery);
+		}
+
+		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
 			return TPromise.wrapError('not available');
@@ -205,7 +197,6 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		// TODO@Joao
 		return TPromise.wrapError('not available');
 	}
 
