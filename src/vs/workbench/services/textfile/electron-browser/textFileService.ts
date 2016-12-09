@@ -146,9 +146,9 @@ export class TextFileService extends AbstractTextFileService {
 			this.storageService.store(key, true, StorageScope.GLOBAL);
 			const opts: Electron.ShowMessageBoxOptions = {
 				title: product.nameLong,
-				message: nls.localize('hotExitEducationalMessage', "Hot exit is now enabled by default"),
+				message: nls.localize('hotExitEducationalMessage', "Hot Exit is now enabled by default"),
 				type: 'info',
-				detail: nls.localize('hotExitEducationalDetail', "Hot exit remembers any unsaved changed between sessions, so you don't have to save your files before you exit. You can disable this feature in the settings."),
+				detail: nls.localize('hotExitEducationalDetail', "Hot Exit remembers any unsaved files between sessions, so you don't have to save your files before you exit. You can disable this feature with the 'files.hotExit' setting."),
 				buttons: [nls.localize('ok', "OK")],
 				noLink: true
 			};
