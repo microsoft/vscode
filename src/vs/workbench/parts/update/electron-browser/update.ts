@@ -56,13 +56,14 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 	const versionLabel = match[1].replace(/\./g, '_');
 	const baseUrl = 'https://code.visualstudio.com/raw';
 	const url = `${baseUrl}/v${versionLabel}.md`;
+	const unassigned = nls.localize('unassigned', "unassigned");
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
 			const keybinding = keybindingService.lookupKeybindings(kb)[0];
 
 			if (!keybinding) {
-				return match;
+				return unassigned;
 			}
 
 			return keybindingService.getLabelFor(keybinding);
@@ -72,13 +73,13 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 			const code = Keybinding.fromUserSettingsLabel(kb);
 
 			if (!code) {
-				return match;
+				return unassigned;
 			}
 
 			const keybinding = new Keybinding(code);
 
 			if (!keybinding) {
-				return match;
+				return unassigned;
 			}
 
 			return keybindingService.getLabelFor(keybinding);
