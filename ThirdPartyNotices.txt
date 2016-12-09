@@ -20,12 +20,12 @@ This project incorporates components from the projects listed below. The origina
 13.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
 14.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
 15.	ionide/ionide-fsharp (https://github.com/ionide/ionide-atom-fsharp)
-16.	js-beautify version 1.6.2 (https://github.com/beautify-web/js-beautify)
+16.	js-beautify version 1.6.4 (https://github.com/beautify-web/js-beautify)
 17.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 18.	language-docker (https://github.com/docker/docker)
 19.	language-go version 0.39.0 (https://github.com/atom/language-go)
 20.	language-less (https://github.com/atom/language-less)
-21.	language-php version 0.29.0 (https://github.com/atom/language-php)
+21.	language-php (https://github.com/atom/language-php)
 22.	language-rust version 0.4.4 (https://github.com/zargony/atom-language-rust)
 23.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
 24.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
@@ -46,13 +46,13 @@ This project incorporates components from the projects listed below. The origina
 39.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
 40.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
 41.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
-42.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-43.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-44.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
-45.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-46.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
-47.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-48.	textmate/php.tmbundle (https://github.com/textmate/php.tmbundle)
+42.	textmate/javadoc.tmbundle (https://github.com/textmate/javadoc.tmbundle)
+43.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+44.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+45.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
+46.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+47.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
+48.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
 49.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
 50.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
 51.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
@@ -1556,6 +1556,24 @@ to the base-name name of the original file, and an extension of txt, html, or si
 =========================================
 END OF textmate/java.tmbundle NOTICES AND INFORMATION
 
+%% textmate/javadoc.tmbundle NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) textmate-javadoc.tmbundle project authors
+
+If not otherwise specified (see below), files in this repository fall under the following license:
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+
+An exception is made for files in readable text which contain their own license information,
+or files where an accompanying file exists (in the same directory) with a "-license" suffix added
+to the base-name name of the original file, and an extension of txt, html, or similar. For example
+"tidy" is accompanied by "tidy-license.txt".
+=========================================
+END OF textmate/javadoc.tmbundle NOTICES AND INFORMATION
+
 %% textmate/javascript.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) textmate-javascript.tmbundle project authors
@@ -1663,24 +1681,6 @@ to the base-name name of the original file, and an extension of txt, html, or si
 "tidy" is accompanied by "tidy-license.txt".
 =========================================
 END OF textmate/perl.tmbundle NOTICES AND INFORMATION
-
-%% textmate/php.tmbundle NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) textmate-php.tmbundle project authors
-
-If not otherwise specified (see below), files in this repository fall under the following license:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-
-An exception is made for files in readable text which contain their own license information,
-or files where an accompanying file exists (in the same directory) with a "-license" suffix added
-to the base-name name of the original file, and an extension of txt, html, or similar. For example
-"tidy" is accompanied by "tidy-license.txt".
-=========================================
-END OF textmate/php.tmbundle NOTICES AND INFORMATION
 
 %% textmate/r.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
