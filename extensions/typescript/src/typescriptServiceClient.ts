@@ -114,7 +114,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.globalState = globalState;
 		this.pathSeparator = path.sep;
 
-		const p = new Promise<void>((resolve, reject) => {
+		var p = new Promise<void>((resolve, reject) => {
 			this._onReady = { promise: p, resolve, reject };
 		});
 		this._onReady.promise = p;
@@ -665,7 +665,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
 				} else if (event.event === 'telemetry') {
 					let telemetryData = (event as Proto.TelemetryEvent).body;
-					let properties: Map<string> = Object.create(null);
+					let properties: ObjectMap<string> = Object.create(null);
 					switch (telemetryData.telemetryEventName) {
 						case 'typingsInstalled':
 							let typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
