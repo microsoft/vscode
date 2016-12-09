@@ -118,7 +118,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	private createCallStackDecorations(modelUrlStr: string): IModelDeltaDecoration[] {
 		const result: IModelDeltaDecoration[] = [];
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!stackFrame) {
+		if (!stackFrame || stackFrame.source.uri.toString() !== modelUrlStr) {
 			return result;
 		}
 
