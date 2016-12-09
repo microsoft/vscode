@@ -309,7 +309,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withPage(1, pageSize)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
-			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
+			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX, AssetType.Changelog);
 
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
@@ -392,6 +392,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.getAsset(extension.assets.manifest)
 			.then(asText)
 			.then(JSON.parse);
+	}
+
+	getChangelog(extension: IGalleryExtension): TPromise<string> {
+		return this.getAsset(extension.assets.changelog)
+			.then(asText);
 	}
 
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
