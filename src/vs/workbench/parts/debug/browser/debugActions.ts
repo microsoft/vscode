@@ -565,7 +565,7 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 	static LABEL = nls.localize('removeWatchExpression', "Remove Expression");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action remove', debugService, keybindingService);
+		super(id, label, undefined, debugService, keybindingService);
 	}
 
 	public run(expression: Expression): TPromise<any> {
