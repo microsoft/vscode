@@ -31,7 +31,7 @@ import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { ContinueAction, StepOverAction, PauseAction, AddFunctionBreakpointAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, ToggleEnablementAction, RenameFunctionBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, EditWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, ToggleBreakpointsActivatedAction, RestartFrameAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, EditWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
@@ -1099,12 +1099,12 @@ export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 
 export class BreakpointsActionProvider implements IActionProvider {
 
-	constructor(private instantiationService: IInstantiationService) {
+	constructor(private instantiationService: IInstantiationService, private debugService: debug.IDebugService) {
 		// noop
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return element instanceof Breakpoint;
+		return false;;
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -1112,40 +1112,24 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		if (element instanceof Breakpoint) {
-			return TPromise.as(this.getBreakpointActions());
-		}
-
 		return TPromise.as([]);
 	}
 
-	public getBreakpointActions(): IAction[] {
-		return [this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL)];
-	}
-
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		const actions: IAction[] = [this.instantiationService.createInstance(ToggleEnablementAction, ToggleEnablementAction.ID, ToggleEnablementAction.LABEL)];
-		actions.push(new Separator());
+		const actions: IAction[] = [];
 
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
 			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
 		}
-		actions.push(this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL));
-		actions.push(new Separator());
+		if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length > 1) {
+			actions.push(this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL));
+			actions.push(new Separator());
 
-		actions.push(this.instantiationService.createInstance(ToggleBreakpointsActivatedAction, ToggleBreakpointsActivatedAction.ID, ToggleBreakpointsActivatedAction.ACTIVATE_LABEL));
-		actions.push(new Separator());
-
-		actions.push(this.instantiationService.createInstance(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL));
-		actions.push(this.instantiationService.createInstance(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL));
-		actions.push(new Separator());
-
-		actions.push(this.instantiationService.createInstance(AddFunctionBreakpointAction, AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL));
-		if (element instanceof FunctionBreakpoint) {
-			actions.push(this.instantiationService.createInstance(RenameFunctionBreakpointAction, RenameFunctionBreakpointAction.ID, RenameFunctionBreakpointAction.LABEL));
+			actions.push(this.instantiationService.createInstance(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL));
+			actions.push(this.instantiationService.createInstance(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL));
 		}
-		actions.push(new Separator());
 
+		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ReapplyBreakpointsAction, ReapplyBreakpointsAction.ID, ReapplyBreakpointsAction.LABEL));
 
 		return TPromise.as(actions);
