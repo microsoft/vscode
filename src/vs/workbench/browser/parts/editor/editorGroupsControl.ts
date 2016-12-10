@@ -1163,6 +1163,10 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			if (!TitleControl.getDraggedEditor() && !extractResources(e).length) {
+				return; // invalid DND
+			}
+
 			counter++;
 			DOM.addClass(node, 'dropfeedback');
 
