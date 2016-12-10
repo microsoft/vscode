@@ -62,8 +62,8 @@ export class TerminalPanel extends Panel {
 
 		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
-		this._register(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
-		this._register(this._configurationService.onDidUpdateConfiguration(this._updateFont.bind(this)));
+		this._register(this._themeService.onDidColorThemeChange(themeId => this._updateTheme(themeId)));
+		this._register(this._configurationService.onDidUpdateConfiguration(() => this._updateFont()));
 		this._updateFont();
 		this._updateTheme();
 

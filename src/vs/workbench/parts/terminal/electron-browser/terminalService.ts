@@ -56,7 +56,7 @@ export class TerminalService implements ITerminalService {
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 
-		this._configurationService.onDidUpdateConfiguration(this.updateConfig.bind(this));
+		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._configHelper = <TerminalConfigHelper>this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
