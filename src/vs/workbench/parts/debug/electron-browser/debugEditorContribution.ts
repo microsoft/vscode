@@ -26,7 +26,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, ToggleEnablementAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 
@@ -137,6 +137,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
 		this.toDispose.push(this.debugService.onDidChangeState(() => this.onDebugStateUpdate()));
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame((sf) => this.onFocusStackFrame(sf)));
 
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
@@ -190,6 +191,22 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.codeEditorService.listCodeEditors().forEach(e => {
 			e.updateOptions({ hover: state !== State.Stopped });
 		});
+	}
+
+	private onFocusStackFrame(stackFrame: IStackFrame): void {
+		if (!stackFrame || stackFrame.source.uri.toString() !== this.editor.getModel().uri.toString()) {
+			// clear all inline value decorations in this editor
+			return;
+		}
+
+		// Compute all inline value decorations for this editor
+		// 1. Find all the words in this document (in the future improve to only look inside ranges for top scope). Editor has nice api for this
+		// 2. All words found should be compared against a children of all non expenisve scopes (good pointer for this is debugHover.ts)
+		// 2b. If there seems to be a lot of duplication between here and debugHover we should consider to move this variable searching method inside a stack frame
+		// 3. Words found in the variables map should be added as decorations on correct locations
+		// 4. Nicely style decorations
+
+		// If needed for performance we could introduce some sort of a map on scopes that could fastly lookup name -> Variable
 	}
 
 	private hideHoverWidget(): void {
