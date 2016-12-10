@@ -209,10 +209,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public updateConfig(): void {
-		this.terminalInstances.forEach((terminalInstance) => {
-			terminalInstance.setCursorBlink(this.configHelper.getCursorBlink());
-			terminalInstance.setCommandsToSkipShell(this.configHelper.getCommandsToSkipShell());
-			terminalInstance.setScrollback(this.configHelper.getScrollback());
-		});
+		this.terminalInstances.forEach(instance => instance.updateConfig());
 	}
 }
