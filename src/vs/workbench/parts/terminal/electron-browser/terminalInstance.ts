@@ -188,9 +188,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
-		this.setCursorBlink(this._configHelper.getCursorBlink());
-		this.setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
-		this.setScrollback(this._configHelper.getScrollback());
+		this.updateConfig();
 	}
 
 	public copySelection(): void {
@@ -379,18 +377,24 @@ export class TerminalInstance implements ITerminalInstance {
 		return parts.join('_') + '.UTF-8';
 	}
 
-	public setCursorBlink(blink: boolean): void {
+	public updateConfig(): void {
+		this._setCursorBlink(this._configHelper.getCursorBlink());
+		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
+		this._setScrollback(this._configHelper.getScrollback());
+	}
+
+	private _setCursorBlink(blink: boolean): void {
 		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
 		}
 	}
 
-	public setCommandsToSkipShell(commands: string[]): void {
+	private _setCommandsToSkipShell(commands: string[]): void {
 		this._skipTerminalCommands = commands;
 	}
 
-	public setScrollback(lineCount: number): void {
+	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
 			this._xterm.setOption('scrollback', lineCount);
 		}

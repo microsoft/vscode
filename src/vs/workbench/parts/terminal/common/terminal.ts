@@ -197,22 +197,9 @@ export interface ITerminalInstance {
 	attachToElement(container: HTMLElement): void;
 
 	/**
-	 * Sets whether the terminal instance's cursor will blink or be solid.
-	 *
-	 * @param blink Whether the cursor will blink.
+	 * Updates the configuration of the terminal instance.
 	 */
-	setCursorBlink(blink: boolean): void;
-
-	/**
-	 * Sets the array of commands that skip the shell process so they can be handled by VS Code's
-	 * keybinding system.
-	 */
-	setCommandsToSkipShell(commands: string[]): void;
-
-	/**
-	 * Sets the maximum amount of lines that the buffer can store before discarding old ones.
-	 */
-	setScrollback(lineCount: number): void;
+	updateConfig(): void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.
