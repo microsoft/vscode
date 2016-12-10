@@ -161,12 +161,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public getScrollback(): number {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return config.terminal.integrated.scrollback;
 	}
 
 	public isSetLocaleVariables(): boolean {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return config.terminal.integrated.setLocaleVariables;
 	}
 
