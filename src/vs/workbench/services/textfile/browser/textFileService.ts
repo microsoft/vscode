@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import Event, { Emitter } from 'vs/base/common/event';
@@ -108,11 +107,6 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Configuration changes
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
-
-		// Application & Editor focus change
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onEditorFocusChanged(), true));
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
 	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
@@ -195,18 +189,6 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		return this.backupService.cleanupBackupsBeforeShutdown().then(() => false, () => false);
-	}
-
-	private onWindowFocusLost(): void {
-		if (this.configuredAutoSaveOnWindowChange && this.isDirty()) {
-			this.saveAll(void 0, SaveReason.WINDOW_CHANGE).done(null, errors.onUnexpectedError);
-		}
-	}
-
-	private onEditorFocusChanged(): void {
-		if (this.configuredAutoSaveOnFocusChange && this.isDirty()) {
-			this.saveAll(void 0, SaveReason.FOCUS_CHANGE).done(null, errors.onUnexpectedError);
-		}
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
