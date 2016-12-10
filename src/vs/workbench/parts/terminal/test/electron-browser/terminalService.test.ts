@@ -8,14 +8,21 @@
 import * as assert from 'assert';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TPromise } from 'vs/base/common/winjs.base';
+
+class TestTerminalService extends TerminalService {
+	public showPanel(focus?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public hidePanel(): void { }
+}
 
 suite('Workbench - TerminalService', () => {
 	let instantiationService: TestInstantiationService;
@@ -33,10 +40,8 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(IContextKeyService, { createKey: () => null });
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IInstantiationService, instantiationService);
-		instantiationService.stub(IPanelService, {});
-		instantiationService.stub(IPartService, {});
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => null });
-		service = instantiationService.createInstance(TerminalService);
+		service = instantiationService.createInstance(TestTerminalService);
 	});
 
 	suite('createInstance', () => {
@@ -44,9 +49,17 @@ suite('Workbench - TerminalService', () => {
 			assert.ok(service.createInstance() instanceof TerminalInstance);
 		});
 
-		test('should register the new instance on the terminal service', () => {
+		test('should register the new instance on the service', () => {
 			const instance = service.createInstance();
 			assert.deepEqual(service.terminalInstances, [instance]);
+		});
+
+		test('should deregister an instance from the service when it\'s disposed', () => {
+			const instance = service.createInstance();
+			assert.equal(service.terminalInstances.length, 1);
+
+			instance.dispose();
+			assert.equal(service.terminalInstances.length, 0);
 		});
 
 		test('should only automatically set the first instance as the active instance', () => {
@@ -55,6 +68,33 @@ suite('Workbench - TerminalService', () => {
 
 			service.createInstance();
 			assert.equal(service.getActiveInstance(), first);
+		});
+	});
+
+	suite('onInstancesChanged event', () => {
+		test('should fire when an instance is created', () => {
+			let count = 0;
+			service.onInstancesChanged(() => { count++; });
+			service.createInstance();
+			assert.equal(count, 1);
+			service.createInstance();
+			assert.equal(count, 2);
+		});
+
+		test('should fire when an instance is disposed', () => {
+			let count = 0;
+			service.onInstancesChanged(() => { count++; });
+			service.createInstance().dispose();
+			assert.equal(count, 2);
+		});
+	});
+
+	suite('onInstanceDisposed event', () => {
+		test('should fire when an instance is disposed', () => {
+			let count = 0;
+			service.onInstanceDisposed(() => { count++; });
+			service.createInstance().dispose();
+			assert.equal(count, 1);
 		});
 	});
 });
