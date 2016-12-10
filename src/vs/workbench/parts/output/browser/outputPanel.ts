@@ -27,6 +27,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class OutputPanel extends StringEditor {
 
@@ -46,10 +47,11 @@ export class OutputPanel extends StringEditor {
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, themeService, untitledEditorService);
+			messageService, configurationService, eventService, editorService, themeService, untitledEditorService, textFileService);
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
 	}
