@@ -12,6 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
+import { TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -33,6 +34,11 @@ suite('Workbench - TerminalService', () => {
 		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('terminal', {
 			integrated: {
+				shell: {
+					linux: TERMINAL_DEFAULT_SHELL_LINUX,
+					osx: TERMINAL_DEFAULT_SHELL_OSX,
+					windows: TERMINAL_DEFAULT_SHELL_WINDOWS
+				},
 				setLocaleVariables: false
 			}
 		});
