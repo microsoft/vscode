@@ -352,10 +352,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					return this.createTextEditorModel(fileContent, content.resource).then(() => {
 						this.createTextEditorModelPromise = null;
 
+						// We restored a backup so we have to set the model as being dirty
+						// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
+						// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
 						if (backupResource) {
 							this.makeDirty();
-						} else {
-							this.setDirty(false); // Ensure we are not tracking a stale state
+							if (this.autoSaveAfterMilliesEnabled) {
+								this.doAutoSave(this.versionId);
+							}
+						}
+
+						// Ensure we are not tracking a stale state
+						else {
+							this.setDirty(false);
 						}
 
 						this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
