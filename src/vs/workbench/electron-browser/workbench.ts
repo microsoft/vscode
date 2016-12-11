@@ -422,7 +422,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
 		// Context Menu
-		serviceCollection.set(IContextMenuService, this.instantiationService.createInstance(ContextMenuService));
+		serviceCollection.set(IContextMenuService, new SyncDescriptor(ContextMenuService));
 
 		// Menus/Actions
 		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
@@ -463,35 +463,33 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IEditorGroupService, this.editorPart);
 
 		// File Service
-		const fileService = this.instantiationService.createInstance(FileService);
-		serviceCollection.set(IFileService, fileService);
+		serviceCollection.set(IFileService, new SyncDescriptor(FileService));
 
 		// History
-		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
+		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
 		// Backup File Service
 		const workspace = this.contextService.getWorkspace();
 		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.windowService.getCurrentWindowId()));
 
 		// Backup Service
-		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));
+		serviceCollection.set(IBackupModelService, new SyncDescriptor(BackupModelService));
 
 		// Text File Service
-		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
+		serviceCollection.set(ITextFileService, new SyncDescriptor(TextFileService));
 
 		// SCM Service
-		serviceCollection.set(ISCMService, this.instantiationService.createInstance(SCMService));
+		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
 
 		// Text Model Resolver Service
-		serviceCollection.set(ITextModelResolverService, this.instantiationService.createInstance(TextModelResolverService));
+		serviceCollection.set(ITextModelResolverService, new SyncDescriptor(TextModelResolverService));
 
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
 		// Configuration Resolver
-		const configurationResolverService = this.instantiationService.createInstance(ConfigurationResolverService, workspace ? workspace.resource : null, process.env);
-		serviceCollection.set(IConfigurationResolverService, configurationResolverService);
+		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, workspace ? workspace.resource : null, process.env));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
