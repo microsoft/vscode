@@ -17,6 +17,7 @@ import { dispose, IDisposable, Disposables } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/product';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
@@ -294,33 +295,31 @@ export class WorkbenchShell {
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
-		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));
-		disposables.add(mainProcessClient);
-
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IEventService, this.eventService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 
-		const instantiationServiceImpl = new InstantiationService(serviceCollection, true);
-		const instantiationService = instantiationServiceImpl as IInstantiationService;
+		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
 		// TODO@joao remove this
 		const windowIPCService = instantiationService.createInstance<IWindowIPCService>(WindowIPCService);
 		serviceCollection.set(IWindowIPCService, windowIPCService);
 
-		const windowsChannel = mainProcessClient.getChannel('windows');
-		const windowsChannelClient = new WindowsChannelClient(windowsChannel);
-		serviceCollection.set(IWindowsService, windowsChannelClient);
+		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));
+		disposables.add(mainProcessClient);
 
-		const windowService = new WindowService(windowIPCService.getWindowId(), windowsChannelClient);
-		serviceCollection.set(IWindowService, windowService);
+		const windowsChannel = mainProcessClient.getChannel('windows');
+		serviceCollection.set(IWindowsService, new SyncDescriptor(WindowsChannelClient, windowsChannel));
+
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, windowIPCService.getWindowId()));
 
 		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${windowIPCService.getWindowId()}`);
 		sharedProcess.done(client => {
 
-			client.registerChannel('choice', new ChoiceChannel(this.messageService));
+			// Choice channel
+			client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel));
 
 			client.onClose(() => {
 				this.messageService.show(Severity.Error, {
@@ -379,8 +378,7 @@ export class WorkbenchShell {
 		disposables.add(lifecycleTelemetry(this.telemetryService, lifecycleService));
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
-		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
@@ -400,54 +398,42 @@ export class WorkbenchShell {
 			timers.perfAfterExtensionLoad = new Date();
 		});
 
-		serviceCollection.set(ICommandService, new CommandService(instantiationService, this.extensionService));
+		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
 
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);
 
-		const requestService = instantiationService.createInstance(RequestService);
-		serviceCollection.set(IRequestService, requestService);
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
 
-		const markerService = instantiationService.createInstance(MarkerService);
-		serviceCollection.set(IMarkerService, markerService);
+		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
-		const modeService = instantiationService.createInstance(MainThreadModeServiceImpl);
-		serviceCollection.set(IModeService, modeService);
+		serviceCollection.set(IModeService, new SyncDescriptor(MainThreadModeServiceImpl));
 
-		const modelService = instantiationService.createInstance(ModelServiceImpl);
-		serviceCollection.set(IModelService, modelService);
+		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
 
-		const editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
-		serviceCollection.set(IEditorWorkerService, editorWorkerService);
+		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 
-		const untitledEditorService = instantiationService.createInstance(UntitledEditorService);
-		serviceCollection.set(IUntitledEditorService, untitledEditorService);
+		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
 
 		this.themeService = instantiationService.createInstance(ThemeService);
 		serviceCollection.set(IThemeService, this.themeService);
 
-		const searchService = instantiationService.createInstance(SearchService);
-		serviceCollection.set(ISearchService, searchService);
+		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
-		const codeEditorService = instantiationServiceImpl.createInstance(CodeEditorServiceImpl);
-		serviceCollection.set(ICodeEditorService, codeEditorService);
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
 
-		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
-		serviceCollection.set(IIntegrityService, integrityService);
+		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
 		const updateChannel = mainProcessClient.getChannel('update');
-		const updateChannelClient = new UpdateChannelClient(updateChannel);
-		serviceCollection.set(IUpdateService, updateChannelClient);
+		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 		const urlChannel = mainProcessClient.getChannel('url');
-		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());
-		serviceCollection.set(IURLService, urlChannelClient);
+		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, windowIPCService.getWindowId()));
 
 		const backupChannel = mainProcessClient.getChannel('backup');
-		const backupChannelClient = new BackupChannelClient(backupChannel);
-		serviceCollection.set(IBackupService, backupChannelClient);
+		serviceCollection.set(IBackupService, new SyncDescriptor(BackupChannelClient, backupChannel));
 
-		return [instantiationServiceImpl, serviceCollection];
+		return [instantiationService, serviceCollection];
 	}
 
 	public open(): void {

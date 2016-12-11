@@ -100,8 +100,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	private get backupEnabled(): boolean {
-		// Hot exit is disabled when doing extension development
-		return !this.environmentService.isExtensionDevelopment;
+		return !this.environmentService.isExtensionDevelopment; // Hot exit is disabled when doing extension development
 	}
 
 	private init(windowId: number): TPromise<IBackupFilesModel> {
