@@ -29,8 +29,8 @@ import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
+import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { ElectronIntegration } from 'vs/workbench/electron-browser/integration';
 import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
 import { IWindowIPCService, WindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -110,6 +110,8 @@ export interface ICoreServices {
 
 const timers = (<any>window).MonacoEnvironment.timers;
 
+const currentWindow = remote.getCurrentWindow();
+
 /**
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
@@ -126,6 +128,7 @@ export class WorkbenchShell {
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
 	private extensionService: MainProcessExtensionService;
+	private windowIPCService: IWindowIPCService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -182,8 +185,9 @@ export class WorkbenchShell {
 			}
 		});
 
-		// Electron integration
-		this.workbench.getInstantiationService().createInstance(ElectronIntegration).integrate(this.container);
+		// Window
+		const activeWindow = this.workbench.getInstantiationService().createInstance(ElectronWindow, currentWindow, this.container);
+		this.windowIPCService.registerWindow(activeWindow);
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
@@ -304,18 +308,18 @@ export class WorkbenchShell {
 		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
 		// TODO@joao remove this
-		const windowIPCService = instantiationService.createInstance<IWindowIPCService>(WindowIPCService);
-		serviceCollection.set(IWindowIPCService, windowIPCService);
+		this.windowIPCService = instantiationService.createInstance<IWindowIPCService>(WindowIPCService);
+		serviceCollection.set(IWindowIPCService, this.windowIPCService);
 
-		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));
+		const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
 		disposables.add(mainProcessClient);
 
 		const windowsChannel = mainProcessClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new SyncDescriptor(WindowsChannelClient, windowsChannel));
 
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, windowIPCService.getWindowId()));
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.windowIPCService.getWindowId()));
 
-		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${windowIPCService.getWindowId()}`);
+		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${this.windowIPCService.getWindowId()}`);
 		sharedProcess.done(client => {
 
 			// Choice channel
@@ -428,7 +432,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 		const urlChannel = mainProcessClient.getChannel('url');
-		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, windowIPCService.getWindowId()));
+		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, this.windowIPCService.getWindowId()));
 
 		const backupChannel = mainProcessClient.getChannel('backup');
 		serviceCollection.set(IBackupService, new SyncDescriptor(BackupChannelClient, backupChannel));
