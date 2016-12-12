@@ -10,7 +10,7 @@ import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionI
 import { ITypescriptServiceClient } from '../typescriptService';
 
 import * as PConst from '../protocol.const';
-import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
+import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, FileLocationRequestArgs } from '../protocol';
 import * as Previewer from './previewer';
 
 class MyCompletionItem extends CompletionItem {
@@ -156,38 +156,66 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				entryNames: [item.label]
 			};
 			return this.client.execute('completionEntryDetails', args, token).then((response) => {
-				let details = response.body;
-				let detail: CompletionEntryDetails | null = null;
-				if (details && details.length > 0) {
-					detail = details[0];
-					item.documentation = Previewer.plain(detail.documentation);
-					item.detail = Previewer.plain(detail.displayParts);
+				const details = response.body;
+				if (!details || !details.length || !details[0]) {
+					return item;
 				}
+				const detail = details[0];
+				item.documentation = Previewer.plain(detail.documentation);
+				item.detail = Previewer.plain(detail.displayParts);
 
 				if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
-					let codeSnippet = detail.name;
-					let suggestionArgumentNames: string[];
-
-					suggestionArgumentNames = detail.displayParts
-						.filter(part => part.kind === 'parameterName')
-						.map((part, i) => `\${${i + 1}:${part.text}}`);
-
-					if (suggestionArgumentNames.length > 0) {
-						codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
-					} else {
-						codeSnippet += '()';
-					}
-
-					item.insertText = new SnippetString(codeSnippet);
+					return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
+						if (shouldCompleteFunction) {
+							item.insertText = this.snippetForFunctionCall(detail);
+						}
+						return item;
+					});
 				}
 
 				return item;
-
 			}, (err) => {
 				this.client.error(`'completionEntryDetails' request failed with error.`, err);
 				return item;
 			});
-
 		}
+	}
+
+	private isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
+		const args: FileLocationRequestArgs = {
+			file: filepath,
+			line: position.line + 1,
+			offset: position.character + 1
+		};
+		return this.client.execute('quickinfo', args).then(infoResponse => {
+			const info = infoResponse.body;
+			console.log(info && info.kind);
+			switch (info && info.kind) {
+				case 'var':
+				case 'let':
+				case 'const':
+				case 'alias':
+					return false;
+				default:
+					return true;
+			}
+		}, () => {
+			return true;
+		});
+	}
+
+	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
+		let codeSnippet = detail.name;
+		const suggestionArgumentNames: string[] = detail.displayParts
+			.filter(part => part.kind === 'parameterName')
+			.map((part, i) => `\${${i + 1}:${part.text}}`);
+
+		if (suggestionArgumentNames.length > 0) {
+			codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
+		} else {
+			codeSnippet += '()';
+		}
+
+		return new SnippetString(codeSnippet);
 	}
 }
