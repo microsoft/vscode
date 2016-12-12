@@ -36,7 +36,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 			let data = response.body;
 			if (data && data.length) {
 				// Workaround for https://github.com/Microsoft/TypeScript/issues/12780
-				// Don't highlight strings
+				// Don't highlight string occurrences
 				const firstOccurrence = data[0];
 				if (firstOccurrence.start.offset > 1) {
 					// Check to see if contents around first occurrence are string delimiters
