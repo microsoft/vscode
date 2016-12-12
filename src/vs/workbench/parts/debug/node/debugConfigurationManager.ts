@@ -153,11 +153,6 @@ const schema: IJSONSchema = {
 				oneOf: []
 			}
 		},
-		// TODO@Isidor remove support for this in December
-		debugServer: {
-			type: 'number',
-			description: nls.localize('app.launch.json.debugServer', "DEPRECATED: please move debugServer inside a configuration.")
-		},
 		compounds: {
 			type: 'array',
 			description: nls.localize('app.launch.json.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
@@ -282,9 +277,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 			result = filtered.length === 1 ? filtered[0] : config.configurations[0];
 			result = objects.deepClone(result);
-			if (config && result && config.debugServer) {
-				result.debugServer = config.debugServer;
-			}
 		}
 
 		if (result) {

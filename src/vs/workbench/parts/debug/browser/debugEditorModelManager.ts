@@ -3,43 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import objects = require('vs/base/common/objects');
-import lifecycle = require('vs/base/common/lifecycle');
-import editorcommon = require('vs/editor/common/editorCommon');
+import * as objects from 'vs/base/common/objects';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import { Range } from 'vs/editor/common/core/range';
+import { IModel, TrackedRangeStickiness, IRange, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-function toMap(arr: string[]): { [key: string]: boolean; } {
-	const result: { [key: string]: boolean; } = {};
-	for (let i = 0, len = arr.length; i < len; i++) {
-		result[arr[i]] = true;
-	}
-
-	return result;
-}
-
-function createRange(startLineNUmber: number, startColumn: number, endLineNumber: number, endColumn: number): editorcommon.IRange {
-	return {
-		startLineNumber: startLineNUmber,
-		startColumn: startColumn,
-		endLineNumber: endLineNumber,
-		endColumn: endColumn
-	};
-}
-
 interface IDebugEditorModelData {
-	model: editorcommon.IModel;
+	model: IModel;
 	toDispose: lifecycle.IDisposable[];
 	breakpointDecorationIds: string[];
 	breakpointLines: number[];
 	breakpointDecorationsAsMap: { [decorationId: string]: boolean; };
 	currentStackDecorations: string[];
-	topStackFrameRange: editorcommon.IRange;
+	topStackFrameRange: IRange;
 	dirty: boolean;
 }
+
+const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 export class DebugEditorModelManager implements IWorkbenchContribution {
 	static ID = 'breakpointManager';
@@ -90,7 +75,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}));
 	}
 
-	private onModelAdded(model: editorcommon.IModel): void {
+	private onModelAdded(model: IModel): void {
 		const modelUrlStr = model.uri.toString();
 		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr);
 
@@ -104,14 +89,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			toDispose: toDispose,
 			breakpointDecorationIds: breakPointDecorations,
 			breakpointLines: breakpoints.map(bp => bp.lineNumber),
-			breakpointDecorationsAsMap: toMap(breakPointDecorations),
+			breakpointDecorationsAsMap: objects.toObject(breakPointDecorations, key => key, key => true),
 			currentStackDecorations: currentStackDecorations,
 			topStackFrameRange: null,
 			dirty: false
 		};
 	}
 
-	private onModelRemoved(model: editorcommon.IModel): void {
+	private onModelRemoved(model: IModel): void {
 		const modelUrlStr = model.uri.toString();
 		if (this.modelData.hasOwnProperty(modelUrlStr)) {
 			const modelData = this.modelData[modelUrlStr];
@@ -130,65 +115,64 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		});
 	}
 
-	private createCallStackDecorations(modelUrlStr: string): editorcommon.IModelDeltaDecoration[] {
-		const result: editorcommon.IModelDeltaDecoration[] = [];
-		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!focusedStackFrame || !focusedStackFrame.thread.getCallStack()) {
+	private createCallStackDecorations(modelUrlStr: string): IModelDeltaDecoration[] {
+		const result: IModelDeltaDecoration[] = [];
+		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		if (!stackFrame || stackFrame.source.uri.toString() !== modelUrlStr) {
 			return result;
 		}
 
 		// only show decorations for the currently focussed thread.
-		focusedStackFrame.thread.getCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
-			const wholeLineRange = createRange(sf.lineNumber, sf.column, sf.lineNumber, Number.MAX_VALUE);
+		const wholeLineRange = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, Number.MAX_VALUE);
+		const range = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column + 1);
 
-			// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
-			// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-			if (sf === focusedStackFrame.thread.getCallStack()[0]) {
+		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
+		// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
+		if (stackFrame === stackFrame.thread.getCallStack()[0]) {
+			result.push({
+				options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
+				range
+			});
+
+			if (stackFrame.thread.stoppedDetails && stackFrame.thread.stoppedDetails.reason === 'exception') {
 				result.push({
-					options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
-					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)
-				});
-
-				if (focusedStackFrame.thread.stoppedDetails.reason === 'exception') {
-					result.push({
-						options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
-						range: wholeLineRange
-					});
-				} else {
-					result.push({
-						options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
-						range: wholeLineRange
-					});
-
-					if (this.modelData[modelUrlStr]) {
-						if (this.modelData[modelUrlStr].topStackFrameRange && this.modelData[modelUrlStr].topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
-							this.modelData[modelUrlStr].topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
-							result.push({
-								options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
-								range: wholeLineRange
-							});
-						}
-						this.modelData[modelUrlStr].topStackFrameRange = wholeLineRange;
-					}
-				}
-			} else if (sf === focusedStackFrame) {
-				result.push({
-					options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
-					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)
-				});
-
-				result.push({
-					options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
+					options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
 					range: wholeLineRange
 				});
+			} else {
+				result.push({
+					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
+					range: wholeLineRange
+				});
+
+				if (this.modelData[modelUrlStr]) {
+					if (this.modelData[modelUrlStr].topStackFrameRange && this.modelData[modelUrlStr].topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
+						this.modelData[modelUrlStr].topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
+						result.push({
+							options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
+							range: wholeLineRange
+						});
+					}
+					this.modelData[modelUrlStr].topStackFrameRange = wholeLineRange;
+				}
 			}
-		});
+		} else {
+			result.push({
+				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
+				range
+			});
+
+			result.push({
+				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
+				range: wholeLineRange
+			});
+		}
 
 		return result;
 	}
 
 	// breakpoints management. Represent data coming from the debug service and also send data back.
-	private onModelDecorationsChanged(modelUrlStr: string, e: editorcommon.IModelDecorationsChangedEvent): void {
+	private onModelDecorationsChanged(modelUrlStr: string, e: IModelDecorationsChangedEvent): void {
 		const modelData = this.modelData[modelUrlStr];
 		let myDecorationsCount = Object.keys(modelData.breakpointDecorationsAsMap).length;
 		if (myDecorationsCount === 0) {
@@ -260,20 +244,20 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
 		modelData.breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorationIds, this.createBreakpointDecorations(newBreakpoints));
-		modelData.breakpointDecorationsAsMap = toMap(modelData.breakpointDecorationIds);
+		modelData.breakpointDecorationsAsMap = objects.toObject(modelData.breakpointDecorationIds, key => key, (key) => true);
 		modelData.breakpointLines = newBreakpoints.map(bp => bp.lineNumber);
 	}
 
-	private createBreakpointDecorations(breakpoints: IBreakpoint[]): editorcommon.IModelDeltaDecoration[] {
+	private createBreakpointDecorations(breakpoints: IBreakpoint[]): IModelDeltaDecoration[] {
 		return breakpoints.map((breakpoint) => {
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),
-				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE)
+				range: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE)
 			};
 		});
 	}
 
-	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): editorcommon.IModelDecorationOptions {
+	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): IModelDecorationOptions {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
 		const state = this.debugService.state;
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
@@ -311,74 +295,74 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		return {
 			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
 			glyphMarginHoverMessage,
-			stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+			stickiness
 		};
 	}
 
 	// editor decorations
 
-	private static BREAKPOINT_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static BREAKPOINT_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph',
 		glyphMarginHoverMessage: nls.localize('breakpointHover', "Breakpoint"),
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static BREAKPOINT_DISABLED_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static BREAKPOINT_DISABLED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-disabled-glyph',
 		glyphMarginHoverMessage: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static BREAKPOINT_UNVERIFIED_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static BREAKPOINT_UNVERIFIED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
 		glyphMarginHoverMessage: nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint"),
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static BREAKPOINT_DIRTY_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static BREAKPOINT_DIRTY_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
 		glyphMarginHoverMessage: nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session."),
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static BREAKPOINT_UNSUPPORTED_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static BREAKPOINT_UNSUPPORTED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unsupported-glyph',
 		glyphMarginHoverMessage: nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
 	// we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
-	private static TOP_STACK_FRAME_MARGIN: editorcommon.IModelDecorationOptions = {
+	private static TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-top-stack-frame-glyph',
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static FOCUSED_STACK_FRAME_MARGIN: editorcommon.IModelDecorationOptions = {
+	private static FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-focused-stack-frame-glyph',
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static TOP_STACK_FRAME_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
 		className: 'debug-top-stack-frame-line',
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static TOP_STACK_FRAME_EXCEPTION_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static TOP_STACK_FRAME_EXCEPTION_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
 		className: 'debug-top-stack-frame-exception-line',
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static TOP_STACK_FRAME_COLUMN_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static TOP_STACK_FRAME_COLUMN_DECORATION: IModelDecorationOptions = {
 		isWholeLine: false,
 		className: 'debug-top-stack-frame-column',
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 
-	private static FOCUSED_STACK_FRAME_DECORATION: editorcommon.IModelDecorationOptions = {
+	private static FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
 		className: 'debug-focused-stack-frame-line',
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness
 	};
 }
