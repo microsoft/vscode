@@ -1066,6 +1066,10 @@ export class Workbench implements IPartService {
 			}
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
+			const activeEditor = this.editorPart.getActiveEditor();
+			if (activeEditor) {
+				activeEditor.focus();
+			}
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 		}
 		this.inZenMode.set(this.zenMode.active);
