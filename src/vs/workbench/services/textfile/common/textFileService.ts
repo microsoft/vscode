@@ -141,7 +141,7 @@ export abstract class TextFileService implements ITextFileService {
 				if (dirty.length) {
 
 					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
-					if (this.configuredHotExit) {
+					if (this.isHotExitEnabled) {
 						this.showHotExitMessage();
 
 						return this.backupBeforeShutdown(dirty, this.models, reason).then(result => {
@@ -669,6 +669,10 @@ export abstract class TextFileService implements ITextFileService {
 			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange,
 			autoSaveApplicationChange: this.configuredAutoSaveOnWindowChange
 		};
+	}
+
+	public get isHotExitEnabled(): boolean {
+		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit;
 	}
 
 	public dispose(): void {
