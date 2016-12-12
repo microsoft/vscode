@@ -36,13 +36,13 @@ export class CloneAction extends Action {
 
 	run(): TPromise<void> {
 		return this.quickOpenService.input({
-			prompt: localize('repo', "Provide a git repository URL."),
+			prompt: localize('valid', "Provide a valid git repository URL"),
 			placeHolder: localize('url', "Repository URL"),
 			validateInput: input => {
 				const parsedUrl = url.parse(input);
 
 				if (!parsedUrl.protocol || !parsedUrl.host) {
-					return TPromise.as(localize('valid', "Please provide a valid git repository URL"));
+					return TPromise.as(localize('valid', "Provide a valid git repository URL"));
 				}
 
 				return TPromise.as('');
