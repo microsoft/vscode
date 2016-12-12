@@ -89,6 +89,7 @@
 	cursor: pointer;
 	font-weight: bold;
 	-webkit-user-select: none;
+	user-select: none;
 }
 
 .vs .monaco-editor .settings-group-title-widget .title-container {
@@ -198,6 +199,7 @@
 	background-color: #EFEFF2;
 }
 
+.monaco-editor.hc-black .settings-count-widget.show:not(.no-results),
 .monaco-editor.vs-dark .settings-count-widget.show:not(.no-results) {
 	background-color: #2D2D30;
 }
@@ -206,6 +208,7 @@
 	background-color: rgba(255,0,0,0.5);
 }
 
-.monaco-editor .settings-count-widget.show.no-results {
+.monaco-editor.hc-black .settings-count-widget.show.no-results,
+.monaco-editor.vs-dark .settings-count-widget.show.no-results {
 	background-color: rgba(255,0,0,0.3);
 }
