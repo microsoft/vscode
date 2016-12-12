@@ -378,7 +378,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.focusNextSettingRenderer = this._register(instantiationService.createInstance(FocusNextSettingRenderer, editor));
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, true));
 		this.settingsCountWidget = this._register(instantiationService.createInstance(SettingsCountWidget, editor, this.getCount(settingsEditorModel.settingsGroups)));
-		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(ParanthesisHidingRenderer, editor));
+		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, settingsEditorModel.settingsGroups));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
 	}
 
@@ -438,12 +438,12 @@ export interface HiddenAreasProvider {
 	hiddenAreas: editorCommon.IRange[];
 }
 
-export class ParanthesisHidingRenderer extends Disposable implements HiddenAreasProvider {
+export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
 
 	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
 	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; };
 
-	constructor(private editor: ICodeEditor
+	constructor(private editor: ICodeEditor, private settingsGroups: ISettingsGroup[]
 	) {
 		super();
 	}
@@ -454,12 +454,18 @@ export class ParanthesisHidingRenderer extends Disposable implements HiddenAreas
 			{
 				startLineNumber: 1,
 				startColumn: model.getLineMinColumn(1),
-				endLineNumber: 1,
-				endColumn: model.getLineMaxColumn(1)
+				endLineNumber: 2,
+				endColumn: model.getLineMaxColumn(2)
 			},
 			{
-				startLineNumber: model.getLineCount(),
-				startColumn: model.getLineMinColumn(model.getLineCount()),
+				startLineNumber: this.settingsGroups[0].range.endLineNumber + 1,
+				startColumn: model.getLineMinColumn(this.settingsGroups[0].range.endLineNumber + 1),
+				endLineNumber: this.settingsGroups[0].range.endLineNumber + 4,
+				endColumn: model.getLineMaxColumn(this.settingsGroups[0].range.endLineNumber + 4)
+			},
+			{
+				startLineNumber: model.getLineCount() - 1,
+				startColumn: model.getLineMinColumn(model.getLineCount() - 1),
 				endLineNumber: model.getLineCount(),
 				endColumn: model.getLineMaxColumn(model.getLineCount())
 			}
