@@ -372,11 +372,9 @@ suite('Debug - Model', () => {
 		assert.equal(elements[1].severity, severity.Warning);
 
 		model.appendToRepl('1', severity.Warning);
-		model.appendToRepl('2', severity.Warning);
-		model.appendToRepl('3', severity.Warning);
 		elements = <OutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 4);
-		assert.equal(elements[3].value, '123');
+		assert.equal(elements[3].value, '1');
 		assert.equal(elements[3].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
@@ -392,9 +390,8 @@ suite('Debug - Model', () => {
 		assert.equal(model.getReplElements().length, 6);
 
 		model.appendToRepl('second line', severity.Warning);
-		model.appendToRepl('second line', severity.Warning);
 
-		assert.equal((<OutputElement>model.getReplElements()[6]).value, 'second linesecond line');
+		assert.equal((<OutputElement>model.getReplElements()[6]).value, 'second line');
 
 		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
