@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
 
 interface ISnippetPick extends IPickOpenEntry {

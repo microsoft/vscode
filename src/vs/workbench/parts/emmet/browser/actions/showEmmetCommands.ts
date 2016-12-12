@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/platform';
 
 import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 const EMMET_COMMANDS_PREFIX = '>Emmet: ';
 
