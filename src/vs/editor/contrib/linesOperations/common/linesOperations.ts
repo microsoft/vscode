@@ -404,6 +404,59 @@ export class DeleteAllLeftAction extends EditorAction {
 }
 
 @editorAction
+export class DeleteAllRightAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'deleteAllRight',
+			label: nls.localize('lines.deleteAllRight', "Delete All Right"),
+			alias: 'Delete All Right',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let model = editor.getModel();
+
+		let rangesToDelete: Range[] = editor.getSelections().map((sel) => {
+			if (sel.isEmpty()) {
+				let maxColumn = model.getLineMaxColumn(sel.startLineNumber);
+				return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber, maxColumn);
+			}
+			return sel;
+		});
+
+		rangesToDelete.sort(Range.compareRangesUsingStarts);
+
+		// merge overlapping selections
+		let effectiveRanges: Range[] = [];
+
+		for (let i = 0, count = rangesToDelete.length - 1; i < count; i++) {
+			let range = rangesToDelete[i];
+			let nextRange = rangesToDelete[i + 1];
+
+			if (Range.intersectRanges(range, nextRange) === null) {
+				effectiveRanges.push(range);
+			} else {
+				rangesToDelete[i + 1] = Range.plusRange(range, nextRange);
+			}
+		}
+
+		effectiveRanges.push(rangesToDelete[rangesToDelete.length - 1]);
+
+		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
+			return EditOperation.replace(range, '');
+		});
+
+		editor.executeEdits(this.id, edits);
+	}
+}
+
+@editorAction
 export class JoinLinesAction extends EditorAction {
 	constructor() {
 		super({
