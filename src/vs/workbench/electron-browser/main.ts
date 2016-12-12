@@ -27,13 +27,13 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import path = require('path');
 import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
+import { IInitData } from 'vs/workbench/services/timer/common/timerService';
+import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 
 import { webFrame } from 'electron';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-const timers = (<any>window).MonacoEnvironment.timers;
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
@@ -135,22 +135,24 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.getWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return configurationService.initialize().then(() => {
-		timers.perfBeforeDOMContentLoaded = new Date();
+		timerService.beforeDOMContentLoaded = new Date();
 
 		return domContentLoaded().then(() => {
-			timers.perfAfterDOMContentLoaded = new Date();
+			timerService.afterDOMContentLoaded = new Date();
 
 			// Open Shell
-			timers.perfBeforeWorkbenchOpen = new Date();
+			timerService.beforeWorkbenchOpen = new Date();
 			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
 				eventService,
 				contextService,
-				environmentService
+				environmentService,
+				timerService
 			}, options);
 			shell.open();
 

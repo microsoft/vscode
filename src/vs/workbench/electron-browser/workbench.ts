@@ -9,14 +9,12 @@ import 'vs/css!./media/workbench';
 
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import strings = require('vs/base/common/strings');
 import Event, { Emitter } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
-import timer = require('vs/base/common/timer');
 import { StopWatch } from 'vs/base/common/stopwatch';
 import errors = require('vs/base/common/errors');
 import { BackupModelService } from 'vs/workbench/services/backup/node/backupModelService';
@@ -284,9 +282,7 @@ export class Workbench implements IPartService {
 				}
 
 				viewletRestoreStopWatch = StopWatch.create();
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
 				compositeAndEditorPromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
-					viewletTimerEvent.stop();
 					viewletRestoreStopWatch.stop();
 				}));
 			}
@@ -300,7 +296,6 @@ export class Workbench implements IPartService {
 
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
-			const editorTimerEvent = timer.start(timer.Topic.STARTUP, '[renderer] restoring editor view state');
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
 				if (inputsWithOptions.length) {
@@ -319,7 +314,6 @@ export class Workbench implements IPartService {
 
 				return editorOpenPromise.then(() => {
 					this.onEditorsChanged(); // make sure we show the proper background in the editor area
-					editorTimerEvent.stop();
 					editorRestoreStopWatch.stop();
 				});
 			}));
