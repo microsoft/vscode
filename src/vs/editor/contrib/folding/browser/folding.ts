@@ -704,63 +704,17 @@ class FoldLevelAction extends FoldingAction<void> {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(1),
-		label: nls.localize('foldLevel1Action.label', "Fold Level 1"),
-		alias: 'Fold Level 1',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(2),
-		label: nls.localize('foldLevel2Action.label', "Fold Level 2"),
-		alias: 'Fold Level 2',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(3),
-		label: nls.localize('foldLevel3Action.label', "Fold Level 3"),
-		alias: 'Fold Level 3',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(4),
-		label: nls.localize('foldLevel4Action.label', "Fold Level 4"),
-		alias: 'Fold Level 4',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(5),
-		label: nls.localize('foldLevel5Action.label', "Fold Level 5"),
-		alias: 'Fold Level 5',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_5)
-		}
-	})
-);
+for (let i = 1; i <= 9; i++) {
+	CommonEditorRegistry.registerEditorAction(
+		new FoldLevelAction({
+			id: FoldLevelAction.ID(i),
+			label: nls.localize('foldLevelAction.label', "Fold Level {0}", i),
+			alias: `Fold Level ${i}`,
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i))
+			}
+		})
+	);
+};
