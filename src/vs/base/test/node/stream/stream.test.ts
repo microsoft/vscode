@@ -62,7 +62,8 @@ suite('Stream', () => {
 
 		stream.readToMatchingString(file, '\n', 10, 100, (error: Error, result: string) => {
 			assert.equal(error, null);
-			assert.equal(result, '/*---------------------------------------------------------------------------------------------');
+			// \r may be present on Windows
+			assert.equal(result.replace('\r', ''), '/*---------------------------------------------------------------------------------------------');
 
 			done();
 		});
