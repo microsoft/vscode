@@ -87,8 +87,8 @@ export class TreeController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
 
-	public onLeftClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
-		super.onLeftClick(tree, node, event, origin);
+	public onLeftOrMiddleClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
+		super.onLeftOrMiddleClick(tree, node, event, origin);
 
 		if (node.clickCommand) {
 			this.treeExplorerService.executeCommand(this.treeNodeProviderId, node);

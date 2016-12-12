@@ -423,7 +423,7 @@ export class FileController extends DefaultController {
 		this.state = state;
 	}
 
-	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	/* protected */ public onLeftOrMiddleClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 

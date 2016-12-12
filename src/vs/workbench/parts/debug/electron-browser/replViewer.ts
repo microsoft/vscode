@@ -505,11 +505,11 @@ export class ReplExpressionsController extends BaseDebugController {
 		super(actionProvider, MenuId.DebugConsoleContext, debugService, contextMenuService, contextKeyService, menuService);
 	}
 
-	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+	protected onLeftOrMiddleClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
 		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.hasChildren)) && mouseEvent.target.className.indexOf('input expression') === -1) {
-			super.onLeftClick(tree, element, eventish, origin);
+			super.onLeftOrMiddleClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);
 		}

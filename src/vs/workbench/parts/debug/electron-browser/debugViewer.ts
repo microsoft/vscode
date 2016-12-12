@@ -262,13 +262,13 @@ class ThreadAndProcessIds implements debug.ITreeElement {
 
 export class CallStackController extends BaseDebugController {
 
-	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+	protected onLeftOrMiddleClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
 		this.focusStackFrame(element, event, true);
 
-		return super.onLeftClick(tree, element, event);
+		return super.onLeftOrMiddleClick(tree, element, event);
 	}
 
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
@@ -788,7 +788,7 @@ export class VariablesAccessibilityProvider implements IAccessibilityProvider {
 
 export class VariablesController extends BaseDebugController {
 
-	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+	protected onLeftOrMiddleClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
 			const expression = <debug.IExpression>element;
@@ -798,7 +798,7 @@ export class VariablesController extends BaseDebugController {
 			return true;
 		}
 
-		return super.onLeftClick(tree, element, event);
+		return super.onLeftOrMiddleClick(tree, element, event);
 	}
 
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
@@ -1008,7 +1008,7 @@ export class WatchExpressionsAccessibilityProvider implements IAccessibilityProv
 
 export class WatchExpressionsController extends BaseDebugController {
 
-	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+	protected onLeftOrMiddleClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
@@ -1018,7 +1018,7 @@ export class WatchExpressionsController extends BaseDebugController {
 			return true;
 		}
 
-		return super.onLeftClick(tree, element, event);
+		return super.onLeftOrMiddleClick(tree, element, event);
 	}
 
 	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
@@ -1316,7 +1316,7 @@ export class BreakpointsAccessibilityProvider implements IAccessibilityProvider 
 
 export class BreakpointsController extends BaseDebugController {
 
-	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+	protected onLeftOrMiddleClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof FunctionBreakpoint && event.detail === 2) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
@@ -1325,7 +1325,7 @@ export class BreakpointsController extends BaseDebugController {
 			this.openBreakpointSource(element, event, true);
 		}
 
-		return super.onLeftClick(tree, element, event);
+		return super.onLeftOrMiddleClick(tree, element, event);
 	}
 
 	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {

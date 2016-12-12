@@ -153,7 +153,7 @@ export class DefaultController implements _.IController {
 	}
 
 	public onMouseDown(tree: _.ITree, element: any, event: mouse.IMouseEvent, origin: string = 'mouse'): boolean {
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
+		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			if (event.target) {
 				if (event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 					return false; // Ignore event if target is a form input field (avoids browser specific issues)
@@ -164,8 +164,8 @@ export class DefaultController implements _.IController {
 				}
 			}
 
-			// Propagate to onLeftClick now
-			return this.onLeftClick(tree, element, event, origin);
+			// Propagate to onLeftOrMiddleClick now
+			return this.onLeftOrMiddleClick(tree, element, event, origin);
 		}
 
 		return false;
@@ -181,22 +181,18 @@ export class DefaultController implements _.IController {
 			return false;
 		}
 
-		if (event.middleButton) {
-			return false; // Give contents of the item a chance to handle this (e.g. open link in new tab)
-		}
-
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
+		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			return false; // Already handled by onMouseDown
 		}
 
-		return this.onLeftClick(tree, element, event);
+		return this.onLeftOrMiddleClick(tree, element, event);
 	}
 
-	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+	protected onLeftOrMiddleClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		var payload = { origin: origin, originalEvent: eventish };
 
 		if (tree.getInput() === element) {
@@ -244,7 +240,7 @@ export class DefaultController implements _.IController {
 			return false; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
-		return this.onLeftClick(tree, element, event, 'touch');
+		return this.onLeftOrMiddleClick(tree, element, event, 'touch');
 	}
 
 	public onKeyDown(tree: _.ITree, event: IKeyboardEvent): boolean {
