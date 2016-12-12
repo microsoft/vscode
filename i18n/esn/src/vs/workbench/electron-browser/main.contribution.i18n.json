@@ -10,6 +10,7 @@
 	"enablePreview": "Controla si los editores abiertos se muestran en vista previa. Los editores en vista previa se reutilizan hasta que se guardan (por ejemplo, mediante doble clic o editándolos).",
 	"enablePreviewFromQuickOpen": "Controla si los editores abiertos mediante Quick Open se muestran en modo de vista previa. Los editores en modo de vista previa se reutilizan hasta que se conservan (por ejemplo, mediante doble clic o editándolos).",
 	"file": "Archivo",
+	"fullScreenZenMode": "Controla si el modo zen debe cambiar el área de trabajo a modo de pantalla completa automáticamente.",
 	"help": "Ayuda",
 	"openDefaultSettings": "Controla si la configuración de apertura también abre un editor que muestra todos los valores predeterminados.",
 	"openFilesInNewWindow": "Si está habilitado, los archivos se abrirán en una nueva ventana en lugar de volver a usar una instancia existente.",

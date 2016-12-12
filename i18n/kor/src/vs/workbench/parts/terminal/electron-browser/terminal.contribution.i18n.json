@@ -11,6 +11,7 @@
 	"terminal.integrated.fontLigatures": "터미널에서 글꼴 합자가 사용되는지를 제어합니다.",
 	"terminal.integrated.fontSize": "터미널의 글꼴 크기(픽셀)를 제어하며, 기본값으로 editor.fontSize의 값이 사용됩니다.",
 	"terminal.integrated.lineHeight": "터미널의 줄 높이를 제어하며, 이 숫자는 터미널 글꼴 크기를 곱하여 실제 줄 높이(픽셀)를 얻습니다.",
+	"terminal.integrated.scrollback": "터미널에서 버퍼에 유지하는 최대 줄 수를 제어합니다.",
 	"terminal.integrated.setLocaleVariables": "로캘 변수가 터미널 시작 시 설정되는지 여부를 제어하며, 기본값은 OS X에서 true이고 기타 플랫폼에서 false입니다.",
 	"terminal.integrated.shell.linux": "터미널이 Linux에서 사용하는 셸의 경로입니다.",
 	"terminal.integrated.shell.osx": "터미널이 OS X에서 사용하는 셸의 경로입니다.",

@@ -13,6 +13,7 @@
 	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "archivos",
 	"folders": "carpetas",
+	"keybindingsReference": "Referencia de métodos abreviados de teclado",
 	"newWindow": "Nueva ventana",
 	"noFolderOpened": "No hay ninguna carpeta abierta en esta instancia para cerrar.",
 	"openRecent": "Abrir recientes",

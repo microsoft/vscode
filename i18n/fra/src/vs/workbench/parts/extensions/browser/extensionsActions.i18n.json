@@ -42,6 +42,8 @@
 	"showOutdatedExtensions": "Afficher les extensions obsolètes",
 	"showPopularExtensions": "Afficher les extensions les plus demandées",
 	"showRecommendedExtensions": "Afficher les extensions recommandées",
+	"showRecommendedKeymapExtensions": "Afficher les mappages de touches recommandés",
+	"showRecommendedKeymapExtensionsShort": "Mappages de touches",
 	"showWorkspaceRecommendedExtensions": "Afficher les extensions recommandées pour l'espace de travail",
 	"toggleExtensionsViewlet": "Afficher les extensions",
 	"uninstallAction": "Désinstaller",

@@ -13,6 +13,7 @@
 	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "Dateien",
 	"folders": "Ordner",
+	"keybindingsReference": "Referenz für Tastenkombinationen",
 	"newWindow": "Neues Fenster",
 	"noFolderOpened": "Zurzeit ist kein Ordner in dieser Instanz geöffnet, der geschlossen werden kann.",
 	"openRecent": "Zuletzt verwendete öffnen",
