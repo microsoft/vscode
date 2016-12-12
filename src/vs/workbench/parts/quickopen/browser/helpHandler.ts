@@ -13,7 +13,7 @@ import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenEntryItem, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { ITree, IElementCallback } from 'vs/base/parts/tree/browser/tree';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export const HELP_PREFIX = '?';
 
