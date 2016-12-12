@@ -339,4 +339,9 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	/**
+	 * Convinient fast access to the hot exit file setting.
+	 */
+	isHotExitEnabled: boolean;
 }
