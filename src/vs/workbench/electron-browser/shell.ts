@@ -21,7 +21,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
-import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';

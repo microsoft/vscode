@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { clone } from 'vs/base/common/objects';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { TestContextService, TestWorkspace } from 'vs/test/utils/servicesTestUtils';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 
 suite('Workbench StorageSevice', () => {
 
