@@ -17,9 +17,8 @@ import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
 import { StopWatch } from 'vs/base/common/stopwatch';
 import errors = require('vs/base/common/errors');
-import { BackupModelService } from 'vs/workbench/services/backup/node/backupModelService';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -465,9 +464,6 @@ export class Workbench implements IPartService {
 		// Backup File Service
 		const workspace = this.contextService.getWorkspace();
 		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.windowService.getCurrentWindowId()));
-
-		// Backup Service
-		serviceCollection.set(IBackupModelService, new SyncDescriptor(BackupModelService));
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, new SyncDescriptor(TextFileService));

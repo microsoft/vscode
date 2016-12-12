@@ -28,9 +28,10 @@ import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -48,12 +49,13 @@ export class TextFileService extends AbstractTextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IModelService private modelService: IModelService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupModelService backupService: IBackupModelService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IMessageService messageService: IMessageService,
-		@IStorageService private storageService: IStorageService
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IStorageService private storageService: IStorageService,
+		@IWindowsService windowsService: IWindowsService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

@@ -11,6 +11,9 @@ import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import Event, { Emitter } from 'vs/base/common/event';
+import platform = require('vs/base/common/platform');
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
@@ -19,13 +22,17 @@ import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperati
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+
+export interface IBackupResult {
+	didBackup: boolean;
+}
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -47,6 +54,8 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
 
+	private configuredHotExit: boolean;
+
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -56,8 +65,10 @@ export abstract class TextFileService implements ITextFileService {
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IBackupModelService private backupService: IBackupModelService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IEnvironmentService protected environmentService: IEnvironmentService,
+		@IBackupFileService private backupFileService: IBackupFileService,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		this.toUnbind = [];
 
@@ -130,10 +141,10 @@ export abstract class TextFileService implements ITextFileService {
 				if (dirty.length) {
 
 					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
-					if (this.backupService.isHotExitEnabled) {
+					if (this.configuredHotExit) {
 						this.showHotExitMessage();
 
-						return this.backupService.backupBeforeShutdown(dirty, this.models, reason).then(result => {
+						return this.backupBeforeShutdown(dirty, this.models, reason).then(result => {
 							if (result.didBackup) {
 								return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
 							}
@@ -156,6 +167,85 @@ export abstract class TextFileService implements ITextFileService {
 
 		// No dirty files: no veto
 		return this.noVeto({ cleanUpBackups: true });
+	}
+
+	private backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult> {
+		return this.windowsService.getWindowCount().then(windowCount => {
+
+			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
+			// When quit is not requested the confirm callback should be shown when the window being
+			// closed is the only VS Code window open, except for on Mac where hot exit is only
+			// ever activated when quit is requested.
+
+			let doBackup: boolean;
+			switch (reason) {
+				case ShutdownReason.CLOSE:
+					if (windowCount > 1 || platform.isMacintosh) {
+						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
+					} else {
+						doBackup = true; // backup if last window is closed on win/linux where the application quits right after
+					}
+					break;
+
+				case ShutdownReason.QUIT:
+					doBackup = true; // backup because next start we restore all backups
+					break;
+
+				case ShutdownReason.RELOAD:
+					doBackup = true; // backup because after window reload, backups restore
+					break;
+
+				case ShutdownReason.LOAD:
+					doBackup = false; // do not backup because we are switching contexts
+					break;
+			}
+
+			if (!doBackup) {
+				return TPromise.as({ didBackup: false });
+			}
+
+			// Telemetry
+			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });
+
+			// Backup
+			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => { return { didBackup: true }; });
+		});
+	}
+
+	private backupAll(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager): TPromise<void> {
+
+		// split up between files and untitled
+		const filesToBackup: ITextFileEditorModel[] = [];
+		const untitledToBackup: URI[] = [];
+		dirtyToBackup.forEach(s => {
+			if (s.scheme === 'file') {
+				filesToBackup.push(textFileEditorModelManager.get(s));
+			} else if (s.scheme === 'untitled') {
+				untitledToBackup.push(s);
+			}
+		});
+
+		return this.doBackupAll(filesToBackup, untitledToBackup);
+	}
+
+	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): TPromise<void> {
+
+		// Handle file resources first
+		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()))).then(results => {
+
+			// Handle untitled resources
+			const untitledModelPromises = untitledResources.map(untitledResource => this.untitledEditorService.get(untitledResource))
+				.filter(untitled => !!untitled)
+				.map(untitled => untitled.resolve());
+
+			return TPromise.join(untitledModelPromises).then(untitledModels => {
+				const untitledBackupPromises = untitledModels.map(model => {
+					return this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId());
+				});
+
+				return TPromise.join(untitledBackupPromises).then(() => void 0);
+			});
+		});
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -188,7 +278,15 @@ export abstract class TextFileService implements ITextFileService {
 			return false;
 		}
 
-		return this.backupService.cleanupBackupsBeforeShutdown().then(() => false, () => false);
+		return this.cleanupBackupsBeforeShutdown().then(() => false, () => false);
+	}
+
+	private cleanupBackupsBeforeShutdown(): TPromise<void> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return TPromise.as(void 0);
+		}
+
+		return this.backupFileService.discardAllWorkspaceBackups();
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -235,6 +333,9 @@ export abstract class TextFileService implements ITextFileService {
 			this.currentFilesAssociationConfig = filesAssociation;
 			this._onFilesAssociationChange.fire();
 		}
+
+		// Hot exit
+		this.configuredHotExit = configuration && configuration.files && configuration.files.hotExit;
 	}
 
 	public getDirty(resources?: URI[]): URI[] {
