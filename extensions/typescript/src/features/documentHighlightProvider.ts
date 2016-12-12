@@ -38,7 +38,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 				// Workaround for https://github.com/Microsoft/TypeScript/issues/12780
 				// Don't highlight string occurrences
 				const firstOccurrence = data[0];
-				if (firstOccurrence.start.offset > 1) {
+				if (this.client.apiVersion.has213Features() && firstOccurrence.start.offset > 1) {
 					// Check to see if contents around first occurrence are string delimiters
 					const contents = resource.getText(new Range(firstOccurrence.start.line - 1, firstOccurrence.start.offset - 1 - 1, firstOccurrence.end.line - 1, firstOccurrence.end.offset - 1 + 1));
 					const stringDelimiters = ['"', '\'', '`'];
