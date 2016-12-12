@@ -187,6 +187,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			line: position.line + 1,
 			offset: position.character + 1
 		};
+		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
+		// Don't complete function calls inside of destructive assigments or imports
 		return this.client.execute('quickinfo', args).then(infoResponse => {
 			const info = infoResponse.body;
 			console.log(info && info.kind);
