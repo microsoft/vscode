@@ -579,7 +579,7 @@ Steps to Reproduce:
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return tableHeader + '\n' + table;
+		return `${tableHeader}\n${table}`;
 	}
 }
 
