@@ -12,6 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineParts } from 'vs/editor/common/core/lineParts';
+import * as strings from 'vs/base/common/strings';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -60,7 +61,10 @@ export class Colorizer {
 	}
 
 	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions): TPromise<string> {
-		let lines = text.split('\n');
+		if (strings.startsWithUTF8BOM(text)) {
+			text = text.substr(1);
+		}
+		let lines = text.split(/\r\n|\r|\n/);
 		let languageId = modeService.getModeId(mimeType);
 
 		options = options || {};
