@@ -8,31 +8,13 @@
 import Uri from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextFileEditorModelManager, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
-export const IBackupModelService = createDecorator<IBackupModelService>('backupService');
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
 export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf-8' };
 export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'utf-8' };
-
-export interface IBackupResult {
-	didBackup: boolean;
-}
-
-/**
- * A service that handles the lifecycle of backups, eg. listening for file changes and acting
- * appropriately on shutdown.
- */
-export interface IBackupModelService {
-	_serviceBrand: any;
-
-	isHotExitEnabled: boolean;
-	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult>;
-	cleanupBackupsBeforeShutdown(): TPromise<void>;
-}
 
 /**
  * A service that handles any I/O and state associated with the backup system.
