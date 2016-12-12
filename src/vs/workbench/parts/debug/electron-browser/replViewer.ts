@@ -29,7 +29,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 const $ = dom.$;
 
@@ -106,8 +105,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private characterWidth: number;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		// noop
 	}
@@ -378,10 +376,9 @@ export class ReplExpressionsRenderer implements IRenderer {
 			pattern.lastIndex = 0; // the holy grail of software development
 
 			const match = pattern.exec(text);
-			let resource: uri = null;
+			let resource = null;
 			try {
-				// If root slash / drive letter is present, resolve relative path
-				resource = match && (match[2] ? uri.file(match[1]) : this.contextService.toResource(match[1]));
+				resource = match && uri.file(match[1]);
 			} catch (e) { }
 
 			if (resource) {

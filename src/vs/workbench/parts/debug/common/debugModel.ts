@@ -819,15 +819,9 @@ export class Model implements debug.IModel {
 
 	public appendToRepl(output: string | debug.IExpression, severity: severity): void {
 		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-		const groupTogether = typeof output === 'string' && previousOutput instanceof OutputElement && severity === previousOutput.severity;
-		if (groupTogether) {
-			if (strings.endsWith(previousOutput.value, '\n') && previousOutput.value === output && output.trim()) {
-				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				previousOutput.counter++;
-			} else {
-				// append to previous line if same group
-				previousOutput.value += output;
-			}
+		if (previousOutput instanceof OutputElement && strings.endsWith(previousOutput.value, '\n') && previousOutput.value === output && output.trim()) {
+			// we got the same output (but not an empty string when trimmed) so we just increment the counter
+			previousOutput.counter++;
 		} else {
 			const newReplElement = typeof output === 'string' ? new OutputElement(output, severity) : output;
 			this.addReplElement(newReplElement);
