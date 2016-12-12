@@ -6,7 +6,7 @@
 
 import { Registry } from 'vs/platform/platform';
 import { StatusbarAlignment, IStatusbarRegistry, Extensions, StatusbarItemDescriptor } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { FeedbackStatusbarItem } from 'vs/workbench/parts/feedback/browser/feedbackStatusbarItem';
+import { FeedbackStatusbarItem } from './feedbackStatusbarItem';
 
 // Register Statusbar item
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(new StatusbarItemDescriptor(

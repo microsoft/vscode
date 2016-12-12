@@ -25,7 +25,7 @@ import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';

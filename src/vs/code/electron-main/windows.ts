@@ -27,7 +27,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 
 enum WindowError {
 	UNRESPONSIVE,

@@ -33,7 +33,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITemplateData } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
@@ -241,11 +240,9 @@ export class ExtensionEditor extends BaseEditor {
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 
-		if (product.extensionsGallery) {
-			const extensionUrl = `${product.extensionsGallery.itemUrl}?itemName=${extension.publisher}.${extension.name}`;
-
-			this.name.onclick = finalHandler(() => window.open(extensionUrl));
-			this.rating.onclick = finalHandler(() => window.open(`${extensionUrl}#review-details`));
+		if (extension.url) {
+			this.name.onclick = finalHandler(() => window.open(extension.url));
+			this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)

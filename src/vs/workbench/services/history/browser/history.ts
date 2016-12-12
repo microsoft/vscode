@@ -11,7 +11,6 @@ import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import product from 'vs/platform/product';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
@@ -198,7 +197,7 @@ export abstract class BaseHistoryService {
 	}
 
 	private doGetWindowTitle(input?: IEditorInput): string {
-		const appName = product.nameLong;
+		const appName = this.environmentService.appNameLong;
 
 		let prefix: string;
 		const fileInput = asFileEditorInput(input);
