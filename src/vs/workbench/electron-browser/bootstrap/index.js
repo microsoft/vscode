@@ -172,12 +172,11 @@ function main() {
 
 		// Perf Counters
 		const timers = window.MonacoEnvironment.timers = {
-			start: new Date(configuration.isInitialStartup ? configuration.perfStartTime : configuration.perfWindowLoadTime),
 			isInitialStartup: !!configuration.isInitialStartup,
 			hasAccessibilitySupport: !!configuration.accessibilitySupport,
-			perfStartTime: new Date(configuration.perfStartTime),
-			perfWindowLoadTime: new Date(configuration.perfWindowLoadTime),
-			perfBeforeLoadWorkbenchMain: new Date()
+			start: new Date(configuration.perfStartTime),
+			windowLoad: new Date(configuration.perfWindowLoadTime),
+			beforeLoadWorkbenchMain: new Date()
 		};
 
 		require([
@@ -185,7 +184,7 @@ function main() {
 			'vs/nls!vs/workbench/electron-browser/workbench.main',
 			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.perfAfterLoadWorkbenchMain = new Date();
+			timers.afterLoadWorkbenchMain = new Date();
 
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)
