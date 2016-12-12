@@ -11,6 +11,7 @@
 	"terminal.integrated.fontLigatures": "Controla si las ligaduras tipográficas están habilitadas en el terminal.",
 	"terminal.integrated.fontSize": "Controla el tamaño de fuente del terminal en píxeles. De forma predeterminada, es el valor de editor.fontSize.",
 	"terminal.integrated.lineHeight": "Controla el alto de línea del terminal. Este número se multiplica por el tamaño de fuente del terminal para obtener el alto de línea real en píxeles.",
+	"terminal.integrated.scrollback": "Controla la cantidad máxima de líneas que mantiene el terminal en su búfer.",
 	"terminal.integrated.setLocaleVariables": "Controla si las variables de configuración regional se definen al inicio del terminal. El valor predeterminado es true en OS X y false en las demás plataformas.",
 	"terminal.integrated.shell.linux": "La ruta de acceso del shell que el terminal usa en Linux.",
 	"terminal.integrated.shell.osx": "La ruta de acceso del shell que el terminal usa en OS X.",

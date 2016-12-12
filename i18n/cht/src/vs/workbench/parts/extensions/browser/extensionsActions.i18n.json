@@ -42,6 +42,8 @@
 	"showOutdatedExtensions": "顯示過期的擴充功能",
 	"showPopularExtensions": "顯示熱門擴充功能",
 	"showRecommendedExtensions": "顯示建議的擴充功能",
+	"showRecommendedKeymapExtensions": "顯示建議的按鍵對應",
+	"showRecommendedKeymapExtensionsShort": "按鍵對應",
 	"showWorkspaceRecommendedExtensions": "顯示工作區的建議擴充功能",
 	"toggleExtensionsViewlet": "顯示擴充功能",
 	"uninstallAction": "解除安裝",

@@ -10,6 +10,7 @@
 	"enablePreview": "Steuert, ob geöffnete Editoren als Vorschau angezeigt werden. Vorschau-Editoren werden wiederverwendet, bis sie gespeichert werden (z. B. über Doppelklicken oder Bearbeiten).",
 	"enablePreviewFromQuickOpen": "Steuert, ob geöffnete Editoren aus Quick Open als Vorschau angezeigt werden. Vorschau-Editoren werden wiederverwendet, bis sie gespeichert werden (z. B. über Doppelklicken oder Bearbeiten).",
 	"file": "Datei",
+	"fullScreenZenMode": "Steuert, ob die Workbench im Zen-Modus automatisch in den Vollbildmodus wechselt.",
 	"help": "Hilfe",
 	"openDefaultSettings": "Steuert, ob beim Öffnen der Einstellungen auch ein Editor geöffnet wird, der alle Standardeinstellungen anzeigt.",
 	"openFilesInNewWindow": "Wenn diese Option aktiviert ist, werden Dateien in einem neuen Fenster geöffnet anstatt eine vorhandene Instanz wiederzuverwenden.",

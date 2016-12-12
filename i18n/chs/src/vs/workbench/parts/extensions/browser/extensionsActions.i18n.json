@@ -42,6 +42,8 @@
 	"showOutdatedExtensions": "显示过时扩展",
 	"showPopularExtensions": "显示常用的扩展",
 	"showRecommendedExtensions": "显示推荐的扩展",
+	"showRecommendedKeymapExtensions": "显示推荐键映射",
+	"showRecommendedKeymapExtensionsShort": "键映射",
 	"showWorkspaceRecommendedExtensions": "显示工作区建议的扩展名",
 	"toggleExtensionsViewlet": "显示扩展",
 	"uninstallAction": "卸载",
