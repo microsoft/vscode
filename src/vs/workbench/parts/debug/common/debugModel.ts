@@ -12,7 +12,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
-import * as strings from 'vs/base/common/strings';
 import { distinct } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
@@ -812,26 +811,31 @@ export class Model implements debug.IModel {
 
 	public addReplExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name);
-		this.addReplElement(expression);
+		this.addReplElements([expression]);
 		return expression.evaluate(process, stackFrame, 'repl')
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
 	public appendToRepl(output: string | debug.IExpression, severity: severity): void {
 		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-		if (previousOutput instanceof OutputElement && strings.endsWith(previousOutput.value, '\n') && severity === previousOutput.severity && previousOutput.value === output && output.trim()) {
+		if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim()) {
 			// we got the same output (but not an empty string when trimmed) so we just increment the counter
 			previousOutput.counter++;
 		} else {
-			const newReplElement = typeof output === 'string' ? new OutputElement(output, severity) : output;
-			this.addReplElement(newReplElement);
+			if (previousOutput && previousOutput.value === '') {
+				// remove potential empty lines between different output types
+				this.replElements.pop();
+			}
+
+			const newReplElements = typeof output === 'string' ? output.split('\n').map(line => new OutputElement(line, severity)) : [output];
+			this.addReplElements(newReplElements);
 		}
 
 		this._onDidChangeREPLElements.fire();
 	}
 
-	private addReplElement(newElement: debug.ITreeElement): void {
-		this.replElements.push(newElement);
+	private addReplElements(newElements: debug.ITreeElement[]): void {
+		this.replElements.push(...newElements);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}
