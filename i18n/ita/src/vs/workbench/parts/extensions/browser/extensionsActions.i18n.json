@@ -42,6 +42,8 @@
 	"showOutdatedExtensions": "Mostra estensioni obsolete",
 	"showPopularExtensions": "Mostra estensioni più richieste",
 	"showRecommendedExtensions": "Mostra estensioni consigliate",
+	"showRecommendedKeymapExtensions": "Mostra mappature tastiera consigliate",
+	"showRecommendedKeymapExtensionsShort": "Mappature tastiera",
 	"showWorkspaceRecommendedExtensions": "Mostra estensioni consigliate per l'area di lavoro",
 	"toggleExtensionsViewlet": "Mostra estensioni",
 	"uninstallAction": "Disinstalla",

@@ -42,6 +42,8 @@
 	"showOutdatedExtensions": "Показать устаревшие расширения",
 	"showPopularExtensions": "Показать популярные расширения",
 	"showRecommendedExtensions": "Показать рекомендуемые расширения",
+	"showRecommendedKeymapExtensions": "Показать рекомендуемые раскладки клавиатуры",
+	"showRecommendedKeymapExtensionsShort": "Раскладки клавиатуры",
 	"showWorkspaceRecommendedExtensions": "Показать рекомендуемые расширения рабочей области",
 	"toggleExtensionsViewlet": "Показать расширения",
 	"uninstallAction": "Удалить",

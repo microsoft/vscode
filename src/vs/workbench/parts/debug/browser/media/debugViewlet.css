@@ -76,10 +76,15 @@
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	background-color: inherit;
+	background-color: #f3f3f3;
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
+}
+
+.vs-dark .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box,
+.hc-black .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+	background-color: #252526;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {

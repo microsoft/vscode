@@ -33,7 +33,7 @@
 	"quickSuggestionsDelay": "Controla el retardo en ms tras el cual aparecerán sugerencias rápidas",
 	"renderControlCharacters": "Controla si el editor debe representar caracteres de control",
 	"renderIndentGuides": "Controla si el editor debe representar guías de sangría.",
-	"renderLineHighlight": "Controla si el editor debe representar el resaltado de línea actual",
+	"renderLineHighlight": "Controla cómo el editor debe presentar el resaltado de línea. Las posibilidades son \"ninguno\", \"margen\", \"línea\" y \"todo\".",
 	"renderWhitespace": "Controla cómo debe representar el editor los espacios en blanco. Las posibilidades son \"none\", \"boundary\" y \"all\". La opción \"boundary\" no representa los espacios individuales entre palabras.",
 	"roundedSelection": "Controla si las selecciones tienen esquinas redondeadas",
 	"rulers": "Columnas en las que mostrar reglas verticales",

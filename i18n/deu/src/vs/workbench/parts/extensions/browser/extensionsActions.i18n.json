@@ -42,6 +42,8 @@
 	"showOutdatedExtensions": "Veraltete Extensions anzeigen",
 	"showPopularExtensions": "Beliebte Extensions anzeigen",
 	"showRecommendedExtensions": "Empfohlene Extensions anzeigen",
+	"showRecommendedKeymapExtensions": "Empfohlene Tastenzuordnungen anzeigen",
+	"showRecommendedKeymapExtensionsShort": "Tastenzuordnungen",
 	"showWorkspaceRecommendedExtensions": "Für den Arbeitsbereich empfohlene Extensions anzeigen",
 	"toggleExtensionsViewlet": "Extensions anzeigen",
 	"uninstallAction": "Deinstallieren",

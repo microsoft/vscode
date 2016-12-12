@@ -65,7 +65,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

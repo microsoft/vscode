@@ -7,6 +7,7 @@
 	"lines.copyDown": "將行向下複製",
 	"lines.copyUp": "將行向上複製",
 	"lines.delete": "刪除行",
+	"lines.deleteAllLeft": "左邊全部刪除",
 	"lines.indent": "縮排行",
 	"lines.insertAfter": "在下方插入行",
 	"lines.insertBefore": "在上方插入行",

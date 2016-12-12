@@ -26,7 +26,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';

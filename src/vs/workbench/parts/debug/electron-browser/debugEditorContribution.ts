@@ -25,7 +25,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
-import { RemoveBreakpointAction, EditConditionalBreakpointAction, ToggleEnablementAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -73,7 +73,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (breakpoint) {
 			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
 			actions.push(this.instantiationService.createInstance(EditConditionalBreakpointAction, EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor, lineNumber));
-			actions.push(this.instantiationService.createInstance(ToggleEnablementAction, ToggleEnablementAction.ID, ToggleEnablementAction.LABEL));
+			if (breakpoint.enabled) {
+				actions.push(this.instantiationService.createInstance(DisableBreakpointAction, DisableBreakpointAction.ID, DisableBreakpointAction.LABEL));
+			} else {
+				actions.push(this.instantiationService.createInstance(EnableBreakpointAction, EnableBreakpointAction.ID, EnableBreakpointAction.LABEL));
+			}
 		} else {
 			actions.push(new Action(
 				'addBreakpoint',

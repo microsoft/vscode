@@ -30,7 +30,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';

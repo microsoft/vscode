@@ -14,7 +14,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';

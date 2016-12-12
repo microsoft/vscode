@@ -7,6 +7,7 @@
 	"lines.copyDown": "Копировать строку снизу",
 	"lines.copyUp": "Копировать строку сверху",
 	"lines.delete": "Удалить строку",
+	"lines.deleteAllLeft": "Удалить все слева",
 	"lines.indent": "Увеличить отступ",
 	"lines.insertAfter": "Вставить строку ниже",
 	"lines.insertBefore": "Вставить строку выше",

@@ -15,7 +15,7 @@ import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/work
 import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export const GOTO_LINE_PREFIX = ':';

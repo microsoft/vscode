@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { ITaskService, TaskDescription } from 'vs/workbench/parts/tasks/common/taskService';
 

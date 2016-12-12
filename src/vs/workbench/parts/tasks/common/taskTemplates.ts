@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 
-import { IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 
 export interface TaskEntry extends IPickOpenEntry {
 	sort?: string;
