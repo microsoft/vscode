@@ -21,7 +21,37 @@ import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IModel } from 'vs/editor/common/editorCommon';
+
+
+export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+
+	constructor(
+		@IModelService private modelService: IModelService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+	) {
+		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
+	}
+
+	public getId(): string {
+		return 'replace.preview.contentprovider';
+	}
+
+	public provideTextContent(uri: URI): TPromise<IModel> {
+		if (uri.fragment === 'preview') {
+			const fileResource = uri.with({ scheme: network.Schemas.file, fragment: '' });
+			return this.textModelResolverService.createModelReference(fileResource).then(ref => {
+				const textEditorModel = ref.object.textEditorModel;
+				const model = this.modelService.createModel(textEditorModel.getValue(), textEditorModel.getMode(), uri);
+				ref.dispose();
+				return model;
+			});
+		}
+		return null;
+	}
+}
 
 class EditorInputCache {
 
@@ -30,7 +60,6 @@ class EditorInputCache {
 	constructor(
 		private replaceService: ReplaceService,
 		private editorService: IWorkbenchEditorService,
-		private modelService: IModelService,
 		private textModelResolverService: ITextModelResolverService
 	) {
 		this.cache = new Map.LinkedMap<URI, TPromise<DiffEditorInput>>();
@@ -55,22 +84,24 @@ class EditorInputCache {
 	public refreshInput(fileMatch: FileMatch, reloadFromSource: boolean = false): void {
 		let editorInputPromise = this.cache.get(fileMatch.resource());
 		if (editorInputPromise) {
-			editorInputPromise.done(() => {
-				if (reloadFromSource) {
-					this.textModelResolverService.createModelReference(fileMatch.resource()).done(ref => {
-						const model = ref.object;
-						if (model.textEditorModel) {
-							let replaceResource = this.getReplaceResource(fileMatch.resource());
-							this.modelService.getModel(replaceResource).setValue(model.textEditorModel.getValue());
-							this.replaceService.replace(fileMatch, null, replaceResource);
-							ref.dispose();
+			editorInputPromise.then(replacePreviewInput => {
+				replacePreviewInput.modifiedInput.resolve()
+					.then(editorModel => {
+						const replaceResourceModel = (<ITextEditorModel>editorModel).textEditorModel;
+						if (reloadFromSource) {
+							this.textModelResolverService.createModelReference(fileMatch.resource()).done(ref => {
+								const model = ref.object;
+								if (model.textEditorModel) {
+									replaceResourceModel.setValue(model.textEditorModel.getValue());
+									this.replaceService.replace(fileMatch, null, replaceResourceModel.uri);
+								}
+								ref.dispose();
+							});
+						} else {
+							replaceResourceModel.undo();
+							this.replaceService.replace(fileMatch, null, replaceResourceModel.uri);
 						}
 					});
-				} else {
-					let replaceResource = this.getReplaceResource(fileMatch.resource());
-					this.modelService.getModel(replaceResource).undo();
-					this.replaceService.replace(fileMatch, null, replaceResource);
-				}
 			});
 		}
 	}
@@ -95,38 +126,24 @@ class EditorInputCache {
 	}
 
 	private createInput(fileMatch: FileMatch): TPromise<DiffEditorInput> {
-		return TPromise.join([this.createLeftInput(fileMatch),
-		this.createRightInput(fileMatch)]).then(inputs => {
-			const [left, right] = inputs;
-			let editorInput = new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
-			editorInput.onDispose(() => this.cleanInput(fileMatch.resource()));
-			return editorInput;
-		});
+		return TPromise.join([this.createLeftInput(fileMatch), this.createRightInput(fileMatch)])
+			.then(([left, right]) => {
+				let editorInput = new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
+				editorInput.onDispose(() => this.cleanInput(fileMatch.resource()));
+				return editorInput;
+			});
 	}
 
-	private createLeftInput(element: FileMatch): TPromise<IEditorInput> {
-		return this.editorService.createInput({ resource: element.resource() });
+	private createLeftInput(fileMatch: FileMatch): TPromise<IEditorInput> {
+		return this.editorService.createInput({ resource: fileMatch.resource() });
 	}
 
-	private createRightInput(element: FileMatch): TPromise<IEditorInput> {
-		return this.textModelResolverService.createModelReference(element.resource()).then(ref => {
-			const model = ref.object;
-			let textEditorModel = model.textEditorModel;
-			let replaceResource = this.getReplaceResource(element.resource());
-			this.modelService.createModel(textEditorModel.getValue(), textEditorModel.getMode(), replaceResource);
-			ref.dispose();
-
-			return this.editorService.createInput({ resource: replaceResource });
-		});
+	private createRightInput(fileMatch: FileMatch): TPromise<IEditorInput> {
+		return this.editorService.createInput({ resource: fileMatch.resource().with({ scheme: network.Schemas.internal, fragment: 'preview' }) });
 	}
 
 	private cleanInput(resourceUri: URI): void {
-		this.modelService.destroyModel(this.getReplaceResource(resourceUri));
 		this.cache.delete(resourceUri);
-	}
-
-	private getReplaceResource(resource: URI): URI {
-		return resource.with({ scheme: network.Schemas.internal, fragment: 'preview' });
 	}
 }
 
@@ -143,7 +160,7 @@ export class ReplaceService implements IReplaceService {
 		@IModelService private modelService: IModelService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
-		this.cache = new EditorInputCache(this, editorService, modelService, textModelResolverService);
+		this.cache = new EditorInputCache(this, editorService, textModelResolverService);
 	}
 
 	public replace(match: Match): TPromise<any>
