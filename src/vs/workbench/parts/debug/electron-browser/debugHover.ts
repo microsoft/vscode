@@ -308,9 +308,9 @@ class DebugHoverController extends DefaultController {
 		super();
 	}
 
-	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {
+	protected onLeftOrMiddleClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {
 		if (element.reference > 0) {
-			super.onLeftClick(tree, element, eventish, origin);
+			super.onLeftOrMiddleClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);
 			this.editor.focus();

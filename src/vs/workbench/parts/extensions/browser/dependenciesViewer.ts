@@ -164,9 +164,9 @@ export class Controller extends DefaultController {
 		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => this.openExtension(tree, true));
 	}
 
-	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
+	protected onLeftOrMiddleClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
 		let currentFoucssed = tree.getFocus();
-		if (super.onLeftClick(tree, element, event)) {
+		if (super.onLeftOrMiddleClick(tree, element, event)) {
 			if (element.dependent === null) {
 				if (currentFoucssed) {
 					tree.setFocus(currentFoucssed);
