@@ -424,8 +424,13 @@ export class DeleteAllRightAction extends EditorAction {
 
 		let rangesToDelete: Range[] = editor.getSelections().map((sel) => {
 			if (sel.isEmpty()) {
-				let maxColumn = model.getLineMaxColumn(sel.startLineNumber);
-				return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber, maxColumn);
+				const maxColumn = model.getLineMaxColumn(sel.startLineNumber);
+
+				if (sel.startColumn === maxColumn) {
+					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber + 1, 1);
+				} else {
+					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber, maxColumn);
+				}
 			}
 			return sel;
 		});
@@ -453,6 +458,7 @@ export class DeleteAllRightAction extends EditorAction {
 		});
 
 		editor.executeEdits(this.id, edits);
+		editor.pushUndoStop();
 	}
 }
 
