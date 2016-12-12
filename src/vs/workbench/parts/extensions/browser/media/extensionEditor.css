@@ -108,7 +108,6 @@
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
 	padding: 1px 6px;
-	line-height: 15px;
 }
 
 .extension-editor > .body {
