@@ -35,7 +35,7 @@ import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel'
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
-import { TextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
