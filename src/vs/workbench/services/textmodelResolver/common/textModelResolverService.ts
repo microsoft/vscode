@@ -23,8 +23,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -32,7 +31,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	createReferencedObject(key: string): TPromise<ITextEditorModel> {
 		const resource = URI.parse(key);
 
-		return this.resolveTextModelContent(this.modelService, key)
+		return this.resolveTextModelContent(key)
 			.then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 
@@ -67,15 +66,8 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		});
 	}
 
-	private resolveTextModelContent(modelService: IModelService, key: string): TPromise<IModel> {
+	private resolveTextModelContent(key: string): TPromise<IModel> {
 		const resource = URI.parse(key);
-		const model = modelService.getModel(resource);
-
-		if (model) {
-			// TODO@Joao this should never happen
-			return TPromise.as(model);
-		}
-
 		const providers = this.providers[resource.scheme] || [];
 		const factories = providers.map(p => () => p.provideTextContent(resource));
 
@@ -100,7 +92,8 @@ export class TextModelResolverService implements ITextModelResolverService {
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IModelService private modelService: IModelService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
@@ -131,6 +124,18 @@ export class TextModelResolverService implements ITextModelResolverService {
 		if (resource.scheme === UntitledEditorInput.SCHEMA) {
 			return this.untitledEditorService.createOrGet(resource).resolve()
 				.then(model => new ImmortalReference(model));
+		}
+
+		// InMemory Schema: go through model service cache
+		// TODO ImmortalReference is a hack
+		if (resource.scheme === 'inmemory') {
+			const cachedModel = this.modelService.getModel(resource);
+
+			if (!cachedModel) {
+				return TPromise.wrapError('Cant resolve inmemory resource');
+			}
+
+			return TPromise.as(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
 		}
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());
