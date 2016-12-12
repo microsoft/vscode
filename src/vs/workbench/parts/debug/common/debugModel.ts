@@ -819,7 +819,7 @@ export class Model implements debug.IModel {
 
 	public appendToRepl(output: string | debug.IExpression, severity: severity): void {
 		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-		if (previousOutput instanceof OutputElement && strings.endsWith(previousOutput.value, '\n') && previousOutput.value === output && output.trim()) {
+		if (previousOutput instanceof OutputElement && strings.endsWith(previousOutput.value, '\n') && severity === previousOutput.severity && previousOutput.value === output && output.trim()) {
 			// we got the same output (but not an empty string when trimmed) so we just increment the counter
 			previousOutput.counter++;
 		} else {
