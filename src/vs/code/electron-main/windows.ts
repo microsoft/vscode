@@ -472,7 +472,6 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-
 		// Emit events
 		this._onPathsOpen.fire(iPathsToOpen);
 
@@ -762,13 +761,14 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		if (!configuration.extensionDevelopmentPath) {
-			this.backupService.registerWindowForBackupsSync(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
-		}
-
 		// Only load when the window has not vetoed this
 		this.lifecycleService.unload(vscodeWindow, UnloadReason.LOAD).done(veto => {
 			if (!veto) {
+
+				// Register window for backups
+				if (!configuration.extensionDevelopmentPath) {
+					this.backupService.registerWindowForBackupsSync(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
+				}
 
 				// Load it
 				vscodeWindow.load(configuration);
