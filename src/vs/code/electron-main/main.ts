@@ -242,10 +242,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		// Propagate to clients
 		windowsMainService.ready(userEnv);
 
-		// Install Menu
-		const menu = instantiationService2.createInstance(VSCodeMenu);
-		menu.ready();
-
 		// Open our first window
 		if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
@@ -254,6 +250,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		} else {
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff, initialStartup: true }); // default: read paths from cli
 		}
+
+		// Install Menu
+		const menu = instantiationService2.createInstance(VSCodeMenu);
+		menu.ready();
 	});
 }
 
