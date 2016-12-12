@@ -282,7 +282,9 @@ export class DropDownMenuActionItem extends ActionItem {
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 
-	constructor(action: IAction, private menuActionGroups: IExtensionAction[][], private contextMenuService: IContextMenuService) {
+	constructor(action: IAction, private menuActionGroups: IExtensionAction[][],
+		@IContextMenuService private contextMenuService: IContextMenuService
+	) {
 		super(null, action, { icon: true, label: true });
 		for (const menuActions of menuActionGroups) {
 			this.disposables = [...this.disposables, ...menuActions];
@@ -312,11 +314,9 @@ export class DropDownMenuActionItem extends ActionItem {
 
 	private getActions(): IAction[] {
 		let actions = [];
-		for (const menuActions of this.menuActionGroups) {
-			const filtered = menuActions.filter(a => a.enabled);
-			if (filtered.length > 0) {
-				actions = [...actions, ...filtered, new Separator()];
-			}
+		const menuActionGroups = this.menuActionGroups.filter(group => group.some(action => action.enabled));
+		for (const menuActions of menuActionGroups) {
+			actions = [...actions, ...menuActions, new Separator()];
 		}
 		return actions.length ? actions.slice(0, actions.length - 1) : actions;
 	}
@@ -327,21 +327,6 @@ export class DropDownMenuActionItem extends ActionItem {
 	}
 }
 
-export class ManageExtensionActionItem extends DropDownMenuActionItem {
-	constructor(
-		action: IAction,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService) {
-		super(action, [
-			[instantiationService.createInstance(EnableForWorkspaceAction, localize('enableForWorkspaceAction.label', "Enable (Workspace)")),
-			instantiationService.createInstance(EnableGloballyAction, localize('enableAlwaysAction.label', "Enable")),
-			instantiationService.createInstance(DisableForWorkspaceAction, localize('disableForWorkspaceAction.label', "Disable (Workspace)")),
-			instantiationService.createInstance(DisableGloballyAction, localize('disableAlwaysAction.label', "Disable"))],
-			[instantiationService.createInstance(UninstallAction)]
-		], contextMenuService);
-	}
-}
-
 export class ManageExtensionAction extends Action {
 
 	static ID = 'extensions.manage';
@@ -349,7 +334,7 @@ export class ManageExtensionAction extends Action {
 	private static Class = 'extension-action manage';
 	private static NoExtensionClass = `${ManageExtensionAction.Class} no-extension`;
 
-	private _actionItem: EnableActionItem;
+	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
 	private disposables: IDisposable[] = [];
@@ -365,7 +350,19 @@ export class ManageExtensionAction extends Action {
 	) {
 		super(ManageExtensionAction.ID);
 
-		this._actionItem = this.instantiationService.createInstance(ManageExtensionActionItem, this);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [
+			[
+				instantiationService.createInstance(EnableForWorkspaceAction, localize('enableForWorkspaceAction.label', "Enable (Workspace)")),
+				instantiationService.createInstance(EnableGloballyAction, localize('enableAlwaysAction.label', "Enable (Always)"))
+			],
+			[
+				instantiationService.createInstance(DisableForWorkspaceAction, localize('disableForWorkspaceAction.label', "Disable (Workspace)")),
+				instantiationService.createInstance(DisableGloballyAction, localize('disableAlwaysAction.label', "Disable (Always)"))
+			],
+			[
+				instantiationService.createInstance(UninstallAction)
+			]
+		]);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
@@ -482,7 +479,7 @@ export class EnableAction extends Action {
 
 	private disposables: IDisposable[] = [];
 
-	private _actionItem: EnableActionItem;
+	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
 	private _extension: IExtension;
@@ -497,7 +494,12 @@ export class EnableAction extends Action {
 	) {
 		super(EnableAction.ID, localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
-		this._actionItem = this.instantiationService.createInstance(EnableActionItem, this);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [
+			[
+				instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL),
+				instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL)
+			]
+		]);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
@@ -612,7 +614,7 @@ export class DisableAction extends Action {
 	private static DisabledClass = `${DisableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
-	private _actionItem: DisableActionItem;
+	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
 	private _extension: IExtension;
@@ -625,7 +627,12 @@ export class DisableAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(DisableAction.ID, localize('disableAction', "Disable"), DisableAction.DisabledClass, false);
-		this._actionItem = this.instantiationService.createInstance(DisableActionItem, this);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [
+			[
+				instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL),
+				instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL)
+			]
+		]);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
@@ -651,24 +658,6 @@ export class DisableAction extends Action {
 	dispose(): void {
 		super.dispose();
 		this.disposables = dispose(this.disposables);
-	}
-}
-
-export class EnableActionItem extends DropDownMenuActionItem {
-	constructor(
-		action: IAction,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService) {
-		super(action, [[instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL), instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL)]], contextMenuService);
-	}
-}
-
-export class DisableActionItem extends DropDownMenuActionItem {
-	constructor(
-		action: IAction,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService) {
-		super(action, [[instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL), instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL)]], contextMenuService);
 	}
 }
 
