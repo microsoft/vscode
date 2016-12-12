@@ -624,7 +624,7 @@ export class EditorStatus implements IStatusbarItem {
 
 		// We only support text based editors
 		if (getEditorWidget(e)) {
-			const encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(e.input);
+			const encodingSupport: IEncodingSupport = asFileOrUntitledEditorInput(e.input);
 			if (encodingSupport && types.isFunction(encodingSupport.getEncoding)) {
 				const rawEncoding = encodingSupport.getEncoding();
 				const encodingInfo = SUPPORTED_ENCODINGS[rawEncoding];
@@ -1018,7 +1018,7 @@ export class ChangeEncodingAction extends Action {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		let encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
+		let encodingSupport: IEncodingSupport = asFileOrUntitledEditorInput(activeEditor.input);
 		if (!types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
@@ -1086,7 +1086,7 @@ export class ChangeEncodingAction extends Action {
 				}).then(encoding => {
 					if (encoding) {
 						activeEditor = this.editorService.getActiveEditor();
-						encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
+						encodingSupport = asFileOrUntitledEditorInput(activeEditor.input);
 						if (encodingSupport && types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding) && encodingSupport.getEncoding() !== encoding.id) {
 							encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 						}

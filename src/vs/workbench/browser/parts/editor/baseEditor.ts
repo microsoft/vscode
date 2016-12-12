@@ -225,7 +225,7 @@ class EditorRegistry implements IEditorRegistry {
 					const inputClass = inputDescriptors[j].ctor;
 
 					// Direct check on constructor type (ignores prototype chain)
-					if (!byInstanceOf && (<any>input).constructor === inputClass) {
+					if (!byInstanceOf && input.constructor === inputClass) {
 						matchingDescriptors.push(editor);
 						break;
 					}

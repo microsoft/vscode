@@ -895,7 +895,7 @@ export class ImportFileAction extends BaseFileAction {
 					const importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
 						importPromisesFactory.push(() => {
-							const sourceFile = URI.file((<any>file).path);
+							const sourceFile = URI.file(file.path);
 
 							return this.fileService.importFile(sourceFile, targetElement.resource).then((result: IImportResult) => {
 								if (result.stat) {

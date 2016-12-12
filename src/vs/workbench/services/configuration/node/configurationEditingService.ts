@@ -93,7 +93,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		});
 	}
 
-	private writeToBuffer(contents: string, operation: IConfigurationEditOperation, resource: URI, options: IConfigurationEditingOptions): TPromise<any> {
+	private writeToBuffer(contents: string, operation: IConfigurationEditOperation, resource: URI, options: IConfigurationEditingOptions): TPromise<void> {
 		const isDirtyBefore = this.textFileService.isDirty(resource);
 		const edit = this.getEdits(contents, operation)[0];
 		return this.textModelResolverService.createModelReference(resource).
@@ -120,7 +120,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return false;
 	}
 
-	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<any> {
+	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<void> {
 		// Apply all edits to the configuration file
 		const result = this.applyEdits(contents, operation);
 

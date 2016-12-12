@@ -1233,7 +1233,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		titleContainer.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			const position = this.findPosition(titleContainer.getHTMLElement());
 			const titleAreaControl = this.getTitleAreaControl(position);
-			if (!titleAreaControl.allowDragging(<any>e.target || e.srcElement)) {
+			if (!titleAreaControl.allowDragging((e.target || e.srcElement) as HTMLElement)) {
 				return; // return early if we are not in the drag zone of the title widget
 			}
 

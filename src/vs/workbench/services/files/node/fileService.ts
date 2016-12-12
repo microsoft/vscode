@@ -480,7 +480,7 @@ export class FileService implements IFileService {
 
 			const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
 
-			const content: IStreamContent = <any>model;
+			const content = model as IFileStat & IStreamContent;
 			content.value = reader;
 			content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
 
@@ -489,7 +489,7 @@ export class FileService implements IFileService {
 	}
 
 	private resolveFileContent(resource: uri, etag?: string, enc?: string): TPromise<IContent> {
-		return this.resolveFileStreamContent(resource, etag, enc).then((streamContent) => {
+		return this.resolveFileStreamContent(resource, etag, enc).then(streamContent => {
 			return new TPromise<IContent>((c, e) => {
 				let done = false;
 				const chunks: string[] = [];

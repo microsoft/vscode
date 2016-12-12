@@ -307,7 +307,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public getControl(): IDiffEditor {
-		return <any>super.getControl();
+		return super.getControl() as IDiffEditor;
 	}
 
 	public dispose(): void {
