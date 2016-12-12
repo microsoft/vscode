@@ -11,7 +11,7 @@ import { ExtensionEnablementService } from 'vs/platform/extensionManagement/comm
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { TestEnvironmentService, TestWorkspace } from 'vs/test/utils/servicesTestUtils';
 import { Emitter } from 'vs/base/common/event';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

@@ -12,7 +12,7 @@ import * as Types from 'vs/base/common/types';
 import * as TestUtils from 'vs/test/utils/servicesTestUtils';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 
 class MyPart extends Part {
 
