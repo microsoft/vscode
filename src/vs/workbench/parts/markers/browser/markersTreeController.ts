@@ -39,14 +39,14 @@ export class Controller extends treedefaults.DefaultController {
 	}
 
 	protected onLeftOrMiddleClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
-		let currentFoucssed = tree.getFocus();
+		let currentFocused = tree.getFocus();
 		if (super.onLeftOrMiddleClick(tree, element, event)) {
 			if (this.openFileAtElement(element, event.detail !== 2, event.ctrlKey || event.metaKey, event.detail === 2)) {
 				return true;
 			}
 			if (element instanceof MarkersModel) {
-				if (currentFoucssed) {
-					tree.setFocus(currentFoucssed);
+				if (currentFocused) {
+					tree.setFocus(currentFocused);
 				} else {
 					tree.focusFirst();
 				}
