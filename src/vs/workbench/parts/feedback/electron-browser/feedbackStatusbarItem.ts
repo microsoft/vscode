@@ -7,10 +7,10 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { FeedbackDropdown, IFeedback, IFeedbackService } from 'vs/workbench/parts/feedback/browser/feedback';
+import { FeedbackDropdown, IFeedback, IFeedbackService } from './feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 
 class TwitterFeedbackService implements IFeedbackService {
 

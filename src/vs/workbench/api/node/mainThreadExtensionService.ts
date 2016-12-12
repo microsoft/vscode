@@ -6,7 +6,7 @@
 
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import pkg from 'vs/platform/package';
+import pkg from 'vs/platform/node/package';
 import { localize } from 'vs/nls';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';

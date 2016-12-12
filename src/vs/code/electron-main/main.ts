@@ -53,8 +53,8 @@ import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
 

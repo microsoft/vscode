@@ -14,8 +14,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';

@@ -35,6 +35,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import product from 'vs/platform/node/product';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -98,6 +99,14 @@ class Extension implements IExtension {
 
 	get description(): string {
 		return this.gallery ? this.gallery.description : this.local.manifest.description;
+	}
+
+	get url(): string {
+		if (!product.extensionsGallery) {
+			return null;
+		}
+
+		return `${product.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
 	}
 
 	get iconUrl(): string {

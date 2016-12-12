@@ -5,9 +5,9 @@
 'use strict';
 
 import { Registry } from 'vs/platform/platform';
-import { GettingStarted } from 'vs/workbench/parts/welcome/browser/gettingStarted';
+import { GettingStarted } from './gettingStarted';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	GettingStarted
-);
+Registry
+	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(GettingStarted);

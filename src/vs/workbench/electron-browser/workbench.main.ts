@@ -90,13 +90,13 @@ import 'vs/workbench/parts/contentprovider/common/contentprovider.contribution';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
-import 'vs/workbench/parts/feedback/browser/feedback.contribution';
+import 'vs/workbench/parts/feedback/electron-browser/feedback.contribution';
 
-import 'vs/workbench/parts/welcome/browser/gettingStarted.contribution';
+import 'vs/workbench/parts/welcome/electron-browser/gettingStarted.contribution';
 
 import 'vs/workbench/parts/update/electron-browser/update.contribution';
 
-import 'vs/workbench/parts/nps/browser/nps.contribution';
+import 'vs/workbench/parts/nps/electron-browser/nps.contribution';
 
 import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 

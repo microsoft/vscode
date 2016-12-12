@@ -15,7 +15,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 

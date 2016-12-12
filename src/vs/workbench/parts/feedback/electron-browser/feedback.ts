@@ -12,7 +12,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';

@@ -19,8 +19,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { IRequestOptions, IRequestContext, download, asJson, asText } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import pkg from 'vs/platform/package';
-import product from 'vs/platform/product';
+import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 

@@ -11,7 +11,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import product from 'vs/platform/product';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { EditorInputAction } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -20,6 +19,7 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -245,7 +245,8 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		message: string,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.model = model;
 
@@ -261,7 +262,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 				if (!this.model.isDisposed()) {
 					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, paths.basename(resource.fsPath), resource.fsPath);
 					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, void 0);
-					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
+					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), this.environmentService.appNameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
 
 					return this.editorService.openEditor(conflictInput).then(() => {
 

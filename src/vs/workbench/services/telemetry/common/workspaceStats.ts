@@ -10,11 +10,10 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { ArraySet } from 'vs/base/common/set';
 import { IFileService } from 'vs/platform/files/common/files';
-import product from 'vs/platform/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOptions } from 'vs/workbench/common/options';
-
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SecondLevelDomainMatcher = /([^@:.]+\.[^@:.]+)(:\d+)?$/;
@@ -37,11 +36,53 @@ const SecondLevelDomainWhitelist = [
 
 type Tags = { [index: string]: boolean | number };
 
+function stripLowLevelDomains(domain: string): string {
+	let match = domain.match(SecondLevelDomainMatcher);
+	return match ? match[1] : null;
+}
+
+function extractDomain(url: string): string {
+	if (url.indexOf('://') === -1) {
+		let match = url.match(SshProtocolMatcher);
+		if (match) {
+			return stripLowLevelDomains(match[2]);
+		}
+	}
+	try {
+		let uri = URI.parse(url);
+		if (uri.authority) {
+			return stripLowLevelDomains(uri.authority);
+		}
+	} catch (e) {
+		// ignore invalid URIs
+	}
+	return null;
+}
+
+export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
+	let domains = new ArraySet<string>(), match;
+	while (match = RemoteMatcher.exec(text)) {
+		let domain = extractDomain(match[1]);
+		if (domain) {
+			domains.set(domain);
+		}
+	}
+
+	const whitemap = whitelist.reduce((map, key) => {
+		map[key] = true;
+		return map;
+	}, Object.create(null));
+
+	return domains.elements
+		.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
+}
+
 export class WorkspaceStats {
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 	}
 
@@ -60,7 +101,7 @@ export class WorkspaceStats {
 		const workspace = this.contextService.getWorkspace();
 		tags['workspace.empty'] = !workspace;
 
-		const folder = workspace ? workspace.resource : product.quality !== 'stable' && this.findFolder(workbenchOptions);
+		const folder = workspace ? workspace.resource : this.environmentService.appQuality !== 'stable' && this.findFolder(workbenchOptions);
 		if (folder && this.fileService) {
 			return this.fileService.resolveFile(folder).then(stats => {
 				let names = (stats.children || []).map(c => c.name);
@@ -155,55 +196,11 @@ export class WorkspaceStats {
 		}, error => errors.onUnexpectedError(error));
 	}
 
-	private stripLowLevelDomains(domain: string): string {
-		let match = domain.match(SecondLevelDomainMatcher);
-		return match ? match[1] : null;
-	}
-
-	private extractDomain(url: string): string {
-		if (url.indexOf('://') === -1) {
-			let match = url.match(SshProtocolMatcher);
-			if (match) {
-				return this.stripLowLevelDomains(match[2]);
-			}
-		}
-		try {
-			let uri = URI.parse(url);
-			if (uri.authority) {
-				return this.stripLowLevelDomains(uri.authority);
-			}
-		} catch (e) {
-			// ignore invalid URIs
-		}
-		return null;
-	}
-
-	/**
-	 * Public for testing.
-	 */
-	public getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
-		let domains = new ArraySet<string>(), match;
-		while (match = RemoteMatcher.exec(text)) {
-			let domain = this.extractDomain(match[1]);
-			if (domain) {
-				domains.set(domain);
-			}
-		}
-
-		const whitemap = whitelist.reduce((map, key) => {
-			map[key] = true;
-			return map;
-		}, Object.create(null));
-
-		return domains.elements
-			.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
-	}
-
 	private reportRemotes(workspaceUri: URI): void {
 		let uri = workspaceUri.with({ path: `${workspaceUri.path}/.git/config` });
 		this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => {
-				let domains = this.getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist);
+				let domains = getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist);
 				this.telemetryService.publicLog('workspace.remotes', { domains });
 			},
 			err => {

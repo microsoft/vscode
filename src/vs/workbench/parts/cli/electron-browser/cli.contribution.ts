@@ -20,7 +20,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 
 interface ILegacyUse {
 	file: string;

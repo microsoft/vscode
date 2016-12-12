@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface IResolvedKeybinding {

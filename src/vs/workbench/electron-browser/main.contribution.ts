@@ -7,7 +7,7 @@
 
 import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';

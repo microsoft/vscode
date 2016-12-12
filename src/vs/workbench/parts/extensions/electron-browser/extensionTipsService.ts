@@ -14,7 +14,7 @@ import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsSe
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
