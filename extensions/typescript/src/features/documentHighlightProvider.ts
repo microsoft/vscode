@@ -42,7 +42,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 					// Check to see if contents around first occurrence are string delimiters
 					const contents = resource.getText(new Range(firstOccurrence.start.line - 1, firstOccurrence.start.offset - 1 - 1, firstOccurrence.end.line - 1, firstOccurrence.end.offset - 1 + 1));
 					const stringDelimiters = ['"', '\'', '`'];
-					if (contents && contents.length && stringDelimiters.indexOf(contents[0]) >= 0 && contents[0] === contents[contents.length - 1]) {
+					if (contents && contents.length > 2 && stringDelimiters.indexOf(contents[0]) >= 0 && contents[0] === contents[contents.length - 1]) {
 						return [];
 					}
 				}
