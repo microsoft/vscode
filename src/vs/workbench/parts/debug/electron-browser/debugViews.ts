@@ -356,7 +356,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-breakpoints');
 		this.treeContainer = renderViewTree(container);
-		const actionProvider = new viewer.BreakpointsActionProvider(this.instantiationService);
+		const actionProvider = new viewer.BreakpointsActionProvider(this.instantiationService, this.debugService);
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),

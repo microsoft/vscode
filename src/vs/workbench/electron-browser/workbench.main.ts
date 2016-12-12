@@ -13,7 +13,6 @@ import 'vs/base/common/errors';
 import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
-import 'vs/editor/contrib/suggest/electron-browser/snippetCompletion';
 import 'vs/editor/browser/editor.all';
 
 // Menus/Actions

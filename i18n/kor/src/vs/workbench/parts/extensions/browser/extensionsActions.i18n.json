@@ -42,6 +42,8 @@
 	"showOutdatedExtensions": "만료된 확장 표시",
 	"showPopularExtensions": "자주 사용되는 확장 표시",
 	"showRecommendedExtensions": "권장되는 확장 표시",
+	"showRecommendedKeymapExtensions": "권장되는 키 맵 표시",
+	"showRecommendedKeymapExtensionsShort": "키 맵",
 	"showWorkspaceRecommendedExtensions": "작업 영역 권장 확장 표시",
 	"toggleExtensionsViewlet": "확장 표시",
 	"uninstallAction": "제거",

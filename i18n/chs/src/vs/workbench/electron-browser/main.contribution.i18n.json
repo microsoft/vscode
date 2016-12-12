@@ -10,6 +10,7 @@
 	"enablePreview": "控制打开的编辑器是否显示为预览。预览编辑器可以重新使用，直到将其保留(例如，双击或编辑)。",
 	"enablePreviewFromQuickOpen": "控制 Quick Open 中打开的编辑器是否显示为预览。预览编辑器可以重新使用，直到将其保留(例如，通过双击或编辑)。",
 	"file": "文件",
+	"fullScreenZenMode": "控制 zen 模式是否应将工作台自动转换到全屏模式。",
 	"help": "帮助",
 	"openDefaultSettings": "控制打开设置时是否打开显示所有默认设置的编辑器。",
 	"openFilesInNewWindow": "启用后，将在新窗口中打开文件，而不是重复使用现有实例。",

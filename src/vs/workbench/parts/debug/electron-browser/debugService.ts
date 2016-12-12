@@ -558,7 +558,8 @@ export class DebugService implements debug.IDebugService {
 						const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
 						if (compound) {
 							if (!compound.configurations) {
-								return TPromise.wrapError(new Error(nls.localize('compoundMustHaveConfigurationNames', "Compound must have \"configurationNames\" attribute set in order to start multiple configurations.")));
+								return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item'] },
+									"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 							}
 
 							return TPromise.join(compound.configurations.map(name => this.createProcess(name)));

@@ -11,6 +11,7 @@
 	"terminal.integrated.fontLigatures": "控制是否在终端中启用字体连字。",
 	"terminal.integrated.fontSize": "以像素为单位控制终端的字号，这是 editor.fontSize 的默认值。",
 	"terminal.integrated.lineHeight": "控制终端的行高，此数字乘以终端字号得到实际行高(以像素表示)。",
+	"terminal.integrated.scrollback": "控制终端保持在缓冲区的最大行数。",
 	"terminal.integrated.setLocaleVariables": "控制是否在终端启动时设置区域设置变量，在 OS X 上默认设置为 true，在其他平台上为 false。",
 	"terminal.integrated.shell.linux": "终端在 Linux 上使用的 shell 的路径。",
 	"terminal.integrated.shell.osx": "终端在 OS X 上使用的 shell 的路径。",

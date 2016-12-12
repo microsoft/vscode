@@ -12,7 +12,7 @@ import { IGitService, RefType, IRef } from 'vs/workbench/parts/git/common/git';
 import { ICommand, CommandQuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, IHighlight, IContext, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IMessageService } from 'vs/platform/message/common/message';
 
 class AbstractRefEntry extends QuickOpenEntry {
