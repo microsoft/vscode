@@ -7,7 +7,8 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as assert from 'assert';
 import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, onError, toResource } from 'vs/test/utils/servicesTestUtils';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { onError, toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
