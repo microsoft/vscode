@@ -221,6 +221,12 @@ export function registerContributions(): void {
 				enum: ['all', 'tracked', 'off'],
 				default: 'all',
 				description: nls.localize('countBadge', "Controls the git badge counter."),
+			},
+			'git.checkoutType': {
+				type: 'string',
+				enum: ['all', 'local', 'tags', 'remote'],
+				default: 'all',
+				description: nls.localize('checkoutType', "Controls what type of branches are listed."),
 			}
 		}
 	});
