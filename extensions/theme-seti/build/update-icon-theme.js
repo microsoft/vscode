@@ -200,9 +200,9 @@ exports.update = function () {
 				let def = '_' + match[2];
 				let colorId = match[3];
 				if (pattern[0] === '.') {
-					ext2Def[pattern.substr(1)] = def;
+					ext2Def[pattern.substr(1).toLowerCase()] = def;
 				} else {
-					fileName2Def[pattern] = def;
+					fileName2Def[pattern.toLowerCase()] = def;
 				}
 				def2ColorId[def] = colorId;
 			}
