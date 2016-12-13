@@ -68,6 +68,8 @@ export interface ITypescriptServiceClient {
 	error(message: string, data?: any): void;
 
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
+	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
+	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
