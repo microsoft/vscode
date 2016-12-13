@@ -119,8 +119,10 @@ class ExtensionStoragePath {
 		return this._ready;
 	}
 
-	get value(): string {
-		return this._value;
+	value(extension: IExtensionDescription): string {
+		if (this._value) {
+			return paths.join(this._value, extension.id);
+		}
 	}
 
 	private _getOrCreateWorkspaceStoragePath(): TPromise<string> {
@@ -272,7 +274,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
-				storagePath: paths.join(this._storagePath.value, extensionDescription.id),
+				storagePath: this._storagePath.value(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(extensionDescription.extensionFolderPath, relativePath), true); }
 			});
 		});
