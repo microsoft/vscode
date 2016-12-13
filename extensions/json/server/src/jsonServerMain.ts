@@ -29,11 +29,11 @@ interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
+	export const type: NotificationType<ISchemaAssociations, any> = { get method() { return 'json/schemaAssociations'; }, _: null };
 }
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
+	export const type: RequestType<string, string, any, any> = { get method() { return 'vscode/content'; }, _: null };
 }
 
 // Create a connection for the server

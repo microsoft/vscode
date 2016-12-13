@@ -37,10 +37,6 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: any;
-}
-
 export interface IResourceInput {
 
 	/**
@@ -136,6 +132,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns the display description of this input.
 	 */
 	getDescription(verbose?: boolean): string;
+
+	/**
+	 * Resolves the input.
+	 */
+	resolve(): TPromise<IEditorModel>;
 
 	/**
 	 * Returns if this input is dirty or not.

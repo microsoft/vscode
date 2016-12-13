@@ -15,7 +15,7 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
-var telemetryReporter: TelemetryReporter;
+var telemetryReporter: TelemetryReporter | null;
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -89,15 +89,17 @@ function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
 		getViewColumn(sideBySide),
 		`Preview '${path.basename(resource.fsPath)}'`);
 
-	telemetryReporter.sendTelemetryEvent('openPreview', {
-		where: sideBySide ? 'sideBySide' : 'inPlace',
-		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
-	});
+	if (telemetryReporter) {
+		telemetryReporter.sendTelemetryEvent('openPreview', {
+			where: sideBySide ? 'sideBySide' : 'inPlace',
+			how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
+		});
+	}
 
 	return thenable;
 }
 
-function getViewColumn(sideBySide): vscode.ViewColumn {
+function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
 	const active = vscode.window.activeTextEditor;
 	if (!active) {
 		return vscode.ViewColumn.One;
@@ -135,7 +137,7 @@ function showSource(mdUri: vscode.Uri) {
 	});
 }
 
-function getPackageInfo(context: vscode.ExtensionContext): IPackageInfo {
+function getPackageInfo(context: vscode.ExtensionContext): IPackageInfo | null {
 	let extensionPackage = require(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
@@ -169,7 +171,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		const mdnh = require('markdown-it-named-headers');
 		const md = require('markdown-it')({
 			html: true,
-			highlight: function (str, lang) {
+			highlight: (str: string, lang: string) => {
 				if (lang && hljs.getLanguage(lang)) {
 					try {
 						return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
@@ -181,11 +183,11 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return md;
 	}
 
-	private getMediaPath(mediaFile): string {
+	private getMediaPath(mediaFile: string): string {
 		return this._context.asAbsolutePath(path.join('media', mediaFile));
 	}
 
-	private isAbsolute(p): boolean {
+	private isAbsolute(p: string): boolean {
 		return path.normalize(p + '/') === path.normalize(path.resolve(p) + '/');
 	}
 
@@ -213,29 +215,47 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return href;
 	}
 
-	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string[] {
+	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
 		if (styles && Array.isArray(styles) && styles.length > 0) {
 			return styles.map((style) => {
 				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
-			});
+			}).join('\n');
 		}
-		return [];
+		return '';
+	}
+
+	private getSettingsOverrideStyles(): string {
+		const previewSettings = vscode.workspace.getConfiguration('markdown')['preview'];
+		if (!previewSettings) {
+			return '';
+		}
+		const {fontFamily, fontSize, lineHeight} = previewSettings;
+		return [
+			'<style>',
+			'body {',
+			fontFamily ? `font-family: ${fontFamily};` : '',
+			+fontSize > 0 ? `font-size: ${fontSize}px;` : '',
+			+lineHeight > 0 ? `line-height: ${lineHeight};` : '',
+			'}',
+			'</style>'].join('\n');
 	}
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		return vscode.workspace.openTextDocument(vscode.Uri.parse(uri.query)).then(document => {
-			const head = [].concat(
+			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
+			const head = ([] as Array<string>).concat(
 				'<!DOCTYPE html>',
 				'<html>',
 				'<head>',
 				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
+				this.getSettingsOverrideStyles(),
 				this.computeCustomStyleSheetIncludes(uri),
 				`<base href="${document.uri.toString(true)}">`,
 				'</head>',
-				'<body>'
+				`<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''}">`
 			).join('\n');
 			const body = this._renderer.render(this.getDocumentContentForPreview(document));
 

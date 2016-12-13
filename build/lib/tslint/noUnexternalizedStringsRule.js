@@ -89,8 +89,12 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
         if (functionName && this.ignores[functionName]) {
             return;
         }
+        var x = "foo";
         if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
-            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Unexternalized string found: " + node.getText()));
+            var s = node.getText();
+            var replacement = new Lint.Replacement(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s.substring(1, s.length - 1) + "', " + s + ")");
+            var fix = new Lint.Fix("Unexternalitzed string", [replacement]);
+            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Unexternalized string found: " + node.getText(), fix));
             return;
         }
         // We have a single quoted string outside a localize function name.
@@ -109,8 +113,8 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
                 for (var i = 0; i < keyArg.properties.length; i++) {
                     var property = keyArg.properties[i];
                     if (isPropertyAssignment(property)) {
-                        var name_1 = property.name.getText();
-                        if (name_1 === 'key') {
+                        var name = property.name.getText();
+                        if (name === 'key') {
                             var initializer = property.initializer;
                             if (isStringLiteral(initializer)) {
                                 this.recordKey(initializer, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);

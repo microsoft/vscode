@@ -13,6 +13,7 @@
 	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "ファイル",
 	"folders": "フォルダー",
+	"keybindingsReference": "キーボード ショートカットの参照",
 	"newWindow": "新しいウィンドウ",
 	"noFolderOpened": "このインスタンスで現在開いているフォルダーがないので、閉じられません。",
 	"openRecent": "最近開いた項目",

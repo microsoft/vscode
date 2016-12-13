@@ -53,7 +53,7 @@ function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: str
 	return newEnv;
 }
 
-export function fork(modulePath: string, args: string[], options: IForkOptions, callback: (error: any, cp: cp.ChildProcess) => void): void {
+export function fork(modulePath: string, args: string[], options: IForkOptions, callback: (error: any, cp: cp.ChildProcess | null) => void): void {
 
 	var callbackCalled = false;
 	var resolve = (result: cp.ChildProcess) => {

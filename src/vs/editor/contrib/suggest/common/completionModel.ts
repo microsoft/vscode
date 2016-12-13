@@ -122,7 +122,7 @@ export class CompletionModel {
 			// differnet word, but in practice not - that's why we cache
 			const wordLen = suggestion.overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
-				word = leadingLineContent.slice(-wordLen);
+				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
 
 			let match = false;

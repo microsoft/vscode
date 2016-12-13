@@ -357,6 +357,18 @@ declare module monaco {
         static readonly WinCtrl: number;
         static chord(firstPart: number, secondPart: number): number;
     }
+
+    export class Keybinding {
+        value: number;
+        constructor(keybinding: number);
+        equals(other: Keybinding): boolean;
+        hasCtrlCmd(): boolean;
+        hasShift(): boolean;
+        hasAlt(): boolean;
+        hasWinCtrl(): boolean;
+        isModifierKey(): boolean;
+        getKeyCode(): KeyCode;
+    }
     /**
      * MarkedString can be used to render human readable text. It is either a markdown string
      * or a code-block that provides a language and a code snippet. Note that
@@ -375,7 +387,7 @@ declare module monaco {
         readonly altKey: boolean;
         readonly metaKey: boolean;
         readonly keyCode: KeyCode;
-        asKeybinding(): number;
+        toKeybinding(): Keybinding;
         equals(keybinding: number): boolean;
         preventDefault(): void;
         stopPropagation(): void;
@@ -1088,9 +1100,10 @@ declare module monaco.editor {
         /**
          * The width reserved for line decorations (in px).
          * Line decorations are placed between line numbers and the editor content.
+         * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
          * Defaults to 10.
          */
-        lineDecorationsWidth?: number;
+        lineDecorationsWidth?: number | string;
         /**
          * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
          * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
@@ -1321,9 +1334,9 @@ declare module monaco.editor {
         renderIndentGuides?: boolean;
         /**
          * Enable rendering of current line highlight.
-         * Defaults to true.
+         * Defaults to all.
          */
-        renderLineHighlight?: boolean;
+        renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1365,6 +1378,11 @@ declare module monaco.editor {
          * Defaults to true.
          */
         ignoreTrimWhitespace?: boolean;
+        /**
+         * Render +/- indicators for added/deleted changes.
+         * Defaults to true.
+         */
+        renderIndicators?: boolean;
         /**
          * Original model should be editable?
          * Defaults to false.
@@ -1423,7 +1441,7 @@ declare module monaco.editor {
         readonly renderWhitespace: 'none' | 'boundary' | 'all';
         readonly renderControlCharacters: boolean;
         readonly renderIndentGuides: boolean;
-        readonly renderLineHighlight: boolean;
+        readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
         readonly scrollbar: InternalEditorScrollbarOptions;
         readonly fixedOverflowWidgets: boolean;
     }
@@ -1582,6 +1600,10 @@ declare module monaco.editor {
          */
         linesDecorationsClassName?: string;
         /**
+         * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+         */
+        marginClassName?: string;
+        /**
          * If set, the decoration will be rendered inline with the text with this CSS class name.
          * Please use this only for CSS rules that must impact the text. For example, use `className`
          * to have a background color decoration.
@@ -1631,6 +1653,10 @@ declare module monaco.editor {
          * Options associated with this decoration.
          */
         readonly options: IModelDecorationOptions;
+        /**
+         * A flag describing if this is a problem decoration (e.g. warning/error).
+         */
+        readonly isForValidation: boolean;
     }
 
     /**
@@ -1698,7 +1724,7 @@ declare module monaco.editor {
     }
 
     /**
-     * And identifier for a single edit operation.
+     * An identifier for a single edit operation.
      */
     export interface ISingleEditOperationIdentifier {
         /**
@@ -2099,12 +2125,6 @@ declare module monaco.editor {
     }
 
     /**
-     * A model that can track ranges.
-     */
-    export interface ITextModelWithTrackedRanges extends ITextModel {
-    }
-
-    /**
      * A model that can have decorations.
      */
     export interface ITextModelWithDecorations {
@@ -2212,7 +2232,7 @@ declare module monaco.editor {
     /**
      * A model.
      */
-    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations, IEditorModel {
         /**
          * An event emitted when the contents of the model have changed.
          * @event
@@ -2333,59 +2353,21 @@ declare module monaco.editor {
     }
 
     /**
-     * Decoration data associated with a model decorations changed event.
-     */
-    export interface IModelDecorationsChangedEventDecorationData {
-        /**
-         * The id of the decoration.
-         */
-        readonly id: string;
-        /**
-         * The owner id of the decoration.
-         */
-        readonly ownerId: number;
-        /**
-         * The range of the decoration.
-         */
-        readonly range: IRange;
-        /**
-         * A flag describing if this is a problem decoration (e.g. warning/error).
-         */
-        readonly isForValidation: boolean;
-        /**
-         * The options for this decoration.
-         */
-        readonly options: IModelDecorationOptions;
-    }
-
-    /**
      * An event describing that model decorations have changed.
      */
     export interface IModelDecorationsChangedEvent {
         /**
-         * A summary with ids of decorations that have changed.
+         * Lists of ids for added decorations.
          */
-        readonly ids: string[];
+        readonly addedDecorations: string[];
         /**
-         * Lists of details for added or changed decorations.
+         * Lists of ids for changed decorations.
          */
-        readonly addedOrChangedDecorations: IModelDecorationsChangedEventDecorationData[];
+        readonly changedDecorations: string[];
         /**
          * List of ids for removed decorations.
          */
         readonly removedDecorations: string[];
-        /**
-         * Details regarding old options.
-         */
-        readonly oldOptions: {
-            [decorationId: string]: IModelDecorationOptions;
-        };
-        /**
-         * Details regarding old ranges.
-         */
-        readonly oldRanges: {
-            [decorationId: string]: IRange;
-        };
     }
 
     /**
@@ -3401,8 +3383,6 @@ declare module monaco.editor {
         DeleteWordRight: string;
         DeleteWordStartRight: string;
         DeleteWordEndRight: string;
-        DeleteAllLeft: string;
-        DeleteAllRight: string;
         RemoveSecondaryCursors: string;
         CancelSelection: string;
         Cut: string;
@@ -3512,6 +3492,10 @@ declare module monaco.editor {
          * The dom node of the view zone
          */
         domNode: HTMLElement;
+        /**
+         * An optional dom node for the view zone that will be placed in the margin area.
+         */
+        marginDomNode?: HTMLElement;
         /**
          * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
          */
@@ -4356,7 +4340,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
     }
 
     /**
@@ -4374,7 +4358,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
         /**
          * The parameters of this signature.
          */

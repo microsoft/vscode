@@ -22,18 +22,18 @@ import { EventService } from 'vs/platform/event/common/eventService';
 import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { realpath } from 'vs/base/node/pfs';
+import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
-import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
+import { IInitData } from 'vs/workbench/services/timer/common/timerService';
+import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 
 import { webFrame } from 'electron';
 
+import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-const timers = (<any>window).MonacoEnvironment.timers;
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
@@ -48,7 +48,6 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
-
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
 	browser.setZoomLevel(webFrame.getZoomLevel());
@@ -58,12 +57,10 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
 	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
 	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
-	const untitledToRestore = configuration.untitledToRestore && configuration.untitledToRestore.length ? toInputs(configuration.untitledToRestore) : null;
 	const shellOptions: IOptions = {
 		filesToOpen,
 		filesToCreate,
-		filesToDiff,
-		untitledToRestore
+		filesToDiff
 	};
 
 	if (configuration.performance) {
@@ -78,11 +75,15 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	});
 }
 
-function toInputs(paths: IPath[]): IResourceInput[] {
+function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 	return paths.map(p => {
-		const input = <IResourceInput>{
-			resource: uri.file(p.filePath)
-		};
+		const input = <IResourceInput>{};
+
+		if (isUntitledFile) {
+			input.resource = uri.from({ scheme: 'untitled', path: p.filePath });
+		} else {
+			input.resource = uri.file(p.filePath);
+		}
 
 		if (p.lineNumber) {
 			input.options = {
@@ -114,13 +115,14 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 
 		const workspaceResource = uri.file(realWorkspacePath);
 		const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
-		const folderStat = fs.statSync(realWorkspacePath);
 
-		return <IWorkspace>{
-			'resource': workspaceResource,
-			'name': folderName,
-			'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-		};
+		return stat(realWorkspacePath).then(folderStat => {
+			return <IWorkspace>{
+				'resource': workspaceResource,
+				'name': folderName,
+				'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+			};
+		});
 	}, (error) => {
 		errors.onUnexpectedError(error);
 
@@ -133,22 +135,24 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.getWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return configurationService.initialize().then(() => {
-		timers.perfBeforeDOMContentLoaded = new Date();
+		timerService.beforeDOMContentLoaded = new Date();
 
 		return domContentLoaded().then(() => {
-			timers.perfAfterDOMContentLoaded = new Date();
+			timerService.afterDOMContentLoaded = new Date();
 
 			// Open Shell
-			timers.perfBeforeWorkbenchOpen = new Date();
+			timerService.beforeWorkbenchOpen = new Date();
 			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
 				eventService,
 				contextService,
-				environmentService
+				environmentService,
+				timerService
 			}, options);
 			shell.open();
 

@@ -54,7 +54,7 @@ interface IEditorsZones {
 }
 
 interface IDiffEditorWidgetStyle {
-	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalWhitespaces: editorCommon.IEditorWhitespace[], modifiedWhitespaces: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones;
+	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: editorCommon.IEditorWhitespace[], modifiedWhitespaces: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones;
 	setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	layout(): number;
 	dispose(): void;
@@ -194,6 +194,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _originalIsEditable: boolean;
 
 	private _renderSideBySide: boolean;
+	private _renderIndicators: boolean;
 	private _enableSplitViewResizing: boolean;
 	private _strategy: IDiffEditorWidgetStyle;
 
@@ -229,6 +230,12 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this._ignoreTrimWhitespace = true;
 		if (typeof options.ignoreTrimWhitespace !== 'undefined') {
 			this._ignoreTrimWhitespace = options.ignoreTrimWhitespace;
+		}
+
+		// renderIndicators
+		this._renderIndicators = true;
+		if (typeof options.renderIndicators !== 'undefined') {
+			this._renderIndicators = options.renderIndicators;
 		}
 
 		this._originalIsEditable = false;
@@ -307,6 +314,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	public get renderSideBySide(): boolean {
 		return this._renderSideBySide;
+	}
+
+	public get renderIndicators(): boolean {
+		return this._renderIndicators;
 	}
 
 	private static _getClassName(theme: string, renderSideBySide: boolean): string {
@@ -423,12 +434,25 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			}
 		}
 
+		let beginUpdateDecorations = false;
+
 		if (typeof newOptions.ignoreTrimWhitespace !== 'undefined') {
 			if (this._ignoreTrimWhitespace !== newOptions.ignoreTrimWhitespace) {
 				this._ignoreTrimWhitespace = newOptions.ignoreTrimWhitespace;
 				// Begin comparing
-				this._beginUpdateDecorations();
+				beginUpdateDecorations = true;
 			}
+		}
+
+		if (typeof newOptions.renderIndicators !== 'undefined') {
+			if (this._renderIndicators !== newOptions.renderIndicators) {
+				this._renderIndicators = newOptions.renderIndicators;
+				beginUpdateDecorations = true;
+			}
+		}
+
+		if (beginUpdateDecorations) {
+			this._beginUpdateDecorations();
 		}
 
 		if (typeof newOptions.originalEditable !== 'undefined') {
@@ -829,7 +853,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		let foreignOriginal = this._originalEditorState.getForeignViewZones(this.originalEditor.getWhitespaces());
 		let foreignModified = this._modifiedEditorState.getForeignViewZones(this.modifiedEditor.getWhitespaces());
 
-		let diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._ignoreTrimWhitespace, foreignOriginal, foreignModified, this.originalEditor, this.modifiedEditor);
+		let diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._ignoreTrimWhitespace, this._renderIndicators, foreignOriginal, foreignModified, this.originalEditor, this.modifiedEditor);
 
 		try {
 			this._currentlyChangingViewZones = true;
@@ -849,6 +873,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = false;
 		clonedOptions.fixedOverflowWidgets = true;
+		clonedOptions.lineDecorationsWidth = '2ch';
 		return clonedOptions;
 	}
 
@@ -1107,7 +1132,7 @@ class DiffEditorWidgetStyle {
 		this._dataSource = dataSource;
 	}
 
-	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalWhitespaces: editorCommon.IEditorWhitespace[], modifiedWhitespaces: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones {
+	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: editorCommon.IEditorWhitespace[], modifiedWhitespaces: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones {
 		// Get view zones
 		modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
@@ -1115,11 +1140,11 @@ class DiffEditorWidgetStyle {
 		originalWhitespaces = originalWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
 		});
-		let zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor);
+		let zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
 
 		// Get decorations & overview ruler zones
-		let originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, originalEditor, modifiedEditor);
-		let modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, originalEditor, modifiedEditor);
+		let originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
+		let modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
 
 		return {
 			original: {
@@ -1135,15 +1160,15 @@ class DiffEditorWidgetStyle {
 		};
 	}
 
-	_getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: editorCommon.IEditorWhitespace[], modifiedForeignVZ: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsZones {
+	_getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: editorCommon.IEditorWhitespace[], modifiedForeignVZ: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones {
 		return null;
 	}
 
-	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 		return null;
 	}
 
-	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 		return null;
 	}
 }
@@ -1479,7 +1504,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		return c.getViewZones();
 	}
 
-	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
@@ -1492,8 +1517,15 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			let lineChange = lineChanges[i];
 
 			if (isChangeOrDelete(lineChange)) {
-
-				result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, 'line-delete', true));
+				result.decorations.push({
+					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE),
+					options: {
+						className: 'line-delete',
+						linesDecorationsClassName: renderIndicators ? 'delete-sign' : undefined,
+						marginClassName: 'line-delete',
+						isWholeLine: true
+					}
+				});
 				if (!isChangeOrInsert(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, 'char-delete', true));
 				}
@@ -1539,7 +1571,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		return result;
 	}
 
-	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
@@ -1553,7 +1585,15 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 
 			if (isChangeOrInsert(lineChange)) {
 
-				result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'line-insert', true));
+				result.decorations.push({
+					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE),
+					options: {
+						className: 'line-insert',
+						linesDecorationsClassName: renderIndicators ? 'insert-sign' : undefined,
+						marginClassName: 'line-insert',
+						isWholeLine: true
+					}
+				});
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'char-insert', true));
 				}
@@ -1655,12 +1695,12 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 		// Nothing to do..
 	}
 
-	_getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: editorCommon.IEditorWhitespace[], modifiedForeignVZ: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsZones {
-		let computer = new InlineViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor);
+	_getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: editorCommon.IEditorWhitespace[], modifiedForeignVZ: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones {
+		let computer = new InlineViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor, renderIndicators);
 		return computer.getViewZones();
 	}
 
-	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 		let result: IEditorDiffDecorations = {
 			decorations: [],
 			overviewZones: []
@@ -1671,6 +1711,13 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 			// Add overview zones in the overview ruler
 			if (isChangeOrDelete(lineChange)) {
+				result.decorations.push({
+					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE),
+					options: {
+						marginClassName: 'line-delete',
+					}
+				});
+
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
@@ -1685,7 +1732,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 		return result;
 	}
 
-	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
@@ -1699,7 +1746,15 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 			// Add decorations & overview zones
 			if (isChangeOrInsert(lineChange)) {
-				result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'line-insert', true));
+				result.decorations.push({
+					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE),
+					options: {
+						className: 'line-insert',
+						linesDecorationsClassName: renderIndicators ? 'insert-sign' : undefined,
+						marginClassName: 'line-insert',
+						isWholeLine: true
+					}
+				});
 
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.modifiedStartLineNumber,
@@ -1756,25 +1811,31 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private originalModel: editorCommon.IModel;
 	private modifiedEditorConfiguration: editorCommon.InternalEditorOptions;
 	private modifiedEditorTabSize: number;
+	private renderIndicators: boolean;
 
-	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: editorCommon.IEditorWhitespace[], modifiedForeignVZ: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor) {
+	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: editorCommon.IEditorWhitespace[], modifiedForeignVZ: editorCommon.IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
 		this.originalModel = originalEditor.getModel();
 		this.modifiedEditorConfiguration = modifiedEditor.getConfiguration();
 		this.modifiedEditorTabSize = modifiedEditor.getModel().getOptions().tabSize;
+		this.renderIndicators = renderIndicators;
 	}
 
 	_produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
+		let marginDomNode = document.createElement('div');
+		marginDomNode.className = 'inline-added-margin-view-zone';
+		Configuration.applyFontInfoSlow(marginDomNode, this.modifiedEditorConfiguration.fontInfo);
+
 		return {
 			afterLineNumber: Math.max(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber),
 			heightInLines: lineChangeModifiedLength,
-			domNode: document.createElement('div')
+			domNode: document.createElement('div'),
+			marginDomNode: marginDomNode
 		};
 	}
 
 	_produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
 		let decorations: InlineDecoration[] = [];
-
 		if (lineChange.charChanges) {
 			for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
 				let charChange = lineChange.charChanges[j];
@@ -1788,8 +1849,18 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		}
 
 		let html: string[] = [];
+		let marginHTML: string[] = [];
+		let lineDecorationsWidth = this.modifiedEditorConfiguration.layoutInfo.decorationsWidth;
+		let lineHeight = this.modifiedEditorConfiguration.lineHeight;
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
 			html = html.concat(this.renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations));
+
+			if (this.renderIndicators) {
+				let index = lineNumber - lineChange.originalStartLineNumber;
+				marginHTML = marginHTML.concat([
+					`<div class="delete-sign" style="position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;"></div>`
+				]);
+			}
 		}
 
 		let domNode = document.createElement('div');
@@ -1797,11 +1868,17 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		domNode.innerHTML = html.join('');
 		Configuration.applyFontInfoSlow(domNode, this.modifiedEditorConfiguration.fontInfo);
 
+		let marginDomNode = document.createElement('div');
+		marginDomNode.className = 'inline-deleted-margin-view-zone';
+		marginDomNode.innerHTML = marginHTML.join('');
+		Configuration.applyFontInfoSlow(marginDomNode, this.modifiedEditorConfiguration.fontInfo);
+
 		return {
 			shouldNotShrink: true,
 			afterLineNumber: (lineChange.modifiedEndLineNumber === 0 ? lineChange.modifiedStartLineNumber : lineChange.modifiedStartLineNumber - 1),
 			heightInLines: lineChangeOriginalLength,
-			domNode: domNode
+			domNode: domNode,
+			marginDomNode: marginDomNode
 		};
 	}
 

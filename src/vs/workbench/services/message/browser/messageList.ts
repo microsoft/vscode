@@ -166,9 +166,7 @@ export class MessageList {
 
 		aria.alert(alertText);
 
-		return () => {
-			this.hideMessage(id);
-		};
+		return () => this.hideMessage(id);
 	}
 
 	private renderMessages(animate: boolean, delta: number): void {
@@ -188,7 +186,7 @@ export class MessageList {
 		}
 
 		// Render Messages as List Items
-		$(this.messageListContainer).ul({ 'class': 'message-list' }, (ul: Builder) => {
+		$(this.messageListContainer).ul({ 'class': 'message-list' }, ul => {
 			const messages = this.prepareMessages();
 			if (messages.length > 0) {
 				this._onMessagesShowing.fire();
@@ -226,15 +224,15 @@ export class MessageList {
 	}
 
 	private renderMessage(message: IMessageEntry, container: Builder, total: number, delta: number): void {
-		container.li({ class: 'message-list-entry message-list-entry-with-action' }, (li) => {
+		container.li({ class: 'message-list-entry message-list-entry-with-action' }, li => {
 
 			// Actions (if none provided, add one default action to hide message)
 			const messageActions = this.getMessageActions(message);
-			li.div({ class: 'actions-container' }, (actionContainer) => {
+			li.div({ class: 'actions-container' }, actionContainer => {
 				for (let i = 0; i < messageActions.length; i++) {
 					const action = messageActions[i];
-					actionContainer.div({ class: 'message-action' }, (div) => {
-						div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
+					actionContainer.div({ class: 'message-action' }, div => {
+						div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], e => {
 							if (e instanceof KeyboardEvent) {
 								const event = new StandardKeyboardEvent(e);
 								if (!event.equals(KeyCode.Enter) && !event.equals(KeyCode.Space)) {
@@ -249,9 +247,9 @@ export class MessageList {
 							}
 
 							(action.run() || TPromise.as(null))
-								.then<any>(null, error => this.showMessage(Severity.Error, error))
-								.done((r) => {
-									if (r === false) {
+								.then(null, error => this.showMessage(Severity.Error, error))
+								.done(r => {
+									if (typeof r === 'boolean' && r === false) {
 										return;
 									}
 
@@ -264,7 +262,7 @@ export class MessageList {
 
 			// Text
 			const text = message.text.substr(0, this.options.maxMessageLength);
-			li.div({ class: 'message-left-side' }, (div) => {
+			li.div({ class: 'message-left-side' }, div => {
 				div.addClass('message-overflow-ellipsis');
 
 				// Severity indicator
@@ -273,13 +271,13 @@ export class MessageList {
 				$().span({ class: 'message-left-side severity ' + ((sev === Severity.Error) ? 'app-error' : (sev === Severity.Warning) ? 'app-warning' : 'app-info'), text: label }).appendTo(div);
 
 				// Error message
-				const messageContentElement: HTMLElement = <any>htmlRenderer.renderHtml({
+				const messageContentElement = htmlRenderer.renderHtml({
 					tagName: 'span',
 					className: 'message-left-side',
 					formattedText: text
 				});
 
-				$(messageContentElement).title(messageContentElement.textContent).appendTo(div);
+				$(messageContentElement as HTMLElement).title(messageContentElement.textContent).appendTo(div);
 			});
 		});
 	}
@@ -327,13 +325,13 @@ export class MessageList {
 	}
 
 	private disposeMessages(messages: IMessageEntry[]): void {
-		messages.forEach((message) => {
+		messages.forEach(message => {
 			if (message.onHide) {
 				message.onHide();
 			}
 
 			if (message.actions) {
-				message.actions.forEach((action) => {
+				message.actions.forEach(action => {
 					action.dispose();
 				});
 			}

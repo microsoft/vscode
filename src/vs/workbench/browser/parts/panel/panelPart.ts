@@ -11,7 +11,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/platform';
-import { ActivityAction } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { ActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { Scope } from 'vs/workbench/browser/actionBarRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actionRegistry';
@@ -53,7 +53,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			partService,
 			keybindingService,
 			instantiationService,
-			(<PanelRegistry>Registry.as(PanelExtensions.Panels)),
+			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
 			'panel',
 			'panel',

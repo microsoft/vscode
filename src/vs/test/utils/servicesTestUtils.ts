@@ -14,14 +14,14 @@ import * as paths from 'vs/base/common/paths';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IBackupService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
@@ -30,12 +30,12 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
-import { TextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -48,6 +48,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -116,10 +117,11 @@ export class TestTextFileService extends TextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupService backupService: IBackupService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IWindowsService windowsService: IWindowsService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -164,6 +166,8 @@ export class TestTextFileService extends TextFileService {
 	public confirmSave(resources?: URI[]): ConfirmResult {
 		return this.confirmResult;
 	}
+
+	public showHotExitMessage(): void { }
 }
 
 export function workbenchInstantiationService(): IInstantiationService {
@@ -181,12 +185,12 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
-	instantiationService.stub(IBackupService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
+	instantiationService.stub(IWindowsService, new TestWindowsService());
 
 	return instantiationService;
 }
@@ -290,10 +294,6 @@ export class TestPartService implements IPartService {
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
 
-	public setRestoreSidebar(): void {
-
-	}
-
 	public toggleZenMode(): void { }
 }
 
@@ -310,7 +310,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -620,56 +620,28 @@ export const TestFileService = {
 
 	discardBackups: function () {
 		return TPromise.as(void 0);
-	},
-
-	isHotExitEnabled: function () {
-		return false;
 	}
 };
-
-export class TestBackupService implements IBackupService {
-	public _serviceBrand: any;
-
-	public isHotExitEnabled: boolean = false;
-
-	public backupBeforeShutdown(): TPromise<IBackupResult> {
-		return TPromise.as({ didBackup: false });
-	}
-
-	public cleanupBackupsBeforeShutdown(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public doBackup(resource: URI, content: string, immediate?: boolean): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-}
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
 
-	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		return TPromise.as([]);
-	}
-
-	public getWorkspaceBackupPathsSync(): string[] {
-		return [];
-	}
-
-	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
-		return null;
-	}
-
-	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
-	public getWorkspaceUntitledFileBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
-	public hasTextFileBackup(resource: URI): TPromise<boolean> {
+	public hasBackups(): TPromise<boolean> {
 		return TPromise.as(false);
+	}
+
+	public hasBackup(resource: URI): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
+	public loadBackupResource(resource: URI): TPromise<URI> {
+		return this.hasBackup(resource).then(hasBackup => {
+			if (hasBackup) {
+				return this.getBackupResource(resource);
+			}
+
+			return void 0;
+		});
 	}
 
 	public registerResourceForBackup(resource: URI): TPromise<void> {
@@ -688,6 +660,14 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
+	public getWorkspaceFileBackups(): TPromise<URI[]> {
+		return TPromise.as([]);
+	}
+
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.join('\n');
+	}
+
 	public discardResourceBackup(resource: URI): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -697,21 +677,101 @@ export class TestBackupFileService implements IBackupFileService {
 	}
 };
 
+export class TestWindowService implements IWindowService {
+
+	public _serviceBrand: any;
+
+	getCurrentWindowId(): number {
+		return 0;
+	}
+
+	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	reloadWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openDevTools(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleDevTools(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeFolder(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleFullScreen(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	setRepresentedFilename(fileName: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+		return TPromise.as(void 0);
+	}
+
+	focusWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	setDocumentEdited(flag: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleMenuBar(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	isMaximized(): TPromise<boolean> {
+		return TPromise.as(void 0);
+	}
+
+	maximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+}
+
 export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: any;
 
 	public willShutdown: boolean;
-	public quitRequested: boolean;
 
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
-	private _onShutdown = new Emitter<void>();
+	private _onShutdown = new Emitter<ShutdownReason>();
 
 	constructor() {
 	}
 
-	public fireShutdown(): void {
-		this._onShutdown.fire();
+	public fireShutdown(reason = ShutdownReason.QUIT): void {
+		this._onShutdown.fire(reason);
 	}
 
 	public fireWillShutdown(event: ShutdownEvent): void {
@@ -722,7 +782,7 @@ export class TestLifecycleService implements ILifecycleService {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<void> {
+	public get onShutdown(): Event<ShutdownReason> {
 		return this._onShutdown.event;
 	}
 }
@@ -740,4 +800,110 @@ export function onError(error: Error, done: () => void): void {
 
 export function toResource(path) {
 	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
+}
+
+export class TestWindowsService implements IWindowsService {
+
+	_serviceBrand: any;
+
+	onWindowOpen: Event<number>;
+	onWindowFocus: Event<number>;
+
+	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	reloadWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	openDevTools(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	toggleDevTools(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	// TODO@joao: rename, shouldn't this be closeWindow?
+	closeFolder(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	toggleFullScreen(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+		return TPromise.as(void 0);
+	}
+	focusWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	isMaximized(windowId: number): TPromise<boolean> {
+		return TPromise.as(void 0);
+	}
+	maximizeWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	unmaximizeWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	toggleMenuBar(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	quit(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	// Global methods
+	// TODO@joao: rename, shouldn't this be openWindow?
+	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	openNewWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	showWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
+		return TPromise.as(void 0);
+	}
+	getWindowCount(): TPromise<number> {
+		return TPromise.as(void 0);
+	}
+	log(severity: string, ...messages: string[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	// TODO@joao: what?
+	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	showItemInFolder(path: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	// This needs to be handled from browser process to prevent
+	// foreground ordering issues on Windows
+	openExternal(url: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	// TODO: this is a bit backwards
+	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 }

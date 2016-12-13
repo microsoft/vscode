@@ -6,10 +6,8 @@
 {
 	"copy": "复制",
 	"cut": "剪切",
-	"files": "文件",
-	"folders": "文件夹",
-	"openRecentPlaceHolder": "选择要打开的路径(在新窗口中按住 Ctrl 键打开)",
-	"openRecentPlaceHolderMac": "选择路径(在新窗口中按住 Cmd 键打开)",
+	"developer": "开发人员",
+	"file": "文件",
 	"paste": "粘贴",
 	"redo": "恢复",
 	"selectAll": "全选",

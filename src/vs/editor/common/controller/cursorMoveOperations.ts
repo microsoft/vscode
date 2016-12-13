@@ -241,6 +241,29 @@ export class MoveOperations {
 		return new SingleMoveOperationResult(tmp, true, CursorChangeReason.Explicit);
 	}
 
+	public static moveToBeginningOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleMoveOperationResult {
+		let lineNumber = cursor.position.lineNumber;
+		let minColumn = model.getLineMinColumn(lineNumber);
+		let firstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(lineNumber) || minColumn;
+
+		let column: number;
+
+		let relevantColumnNumber = cursor.position.column;
+		if (relevantColumnNumber === firstNonBlankColumn) {
+			column = minColumn;
+		} else {
+			column = firstNonBlankColumn;
+		}
+
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, lineNumber, column, 0, true, CursorChangeReason.Explicit);
+	}
+
+	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleMoveOperationResult {
+		let lineNumber = cursor.position.lineNumber;
+		let maxColumn = model.getLineMaxColumn(lineNumber);
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, lineNumber, maxColumn, 0, true, CursorChangeReason.Explicit);
+	}
+
 	public static moveToBeginningOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleMoveOperationResult {
 		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, 1, 1, 0, true, CursorChangeReason.Explicit);
 	}

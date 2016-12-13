@@ -98,20 +98,19 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
-			this.onReplElementsUpdated();
+			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
 		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
-	private onReplElementsUpdated(): void {
-		if (this.tree) {
+	private refreshReplElements(noDelay: boolean): void {
+		if (this.tree && this.isVisible()) {
 			if (this.refreshTimeoutHandle) {
 				return; // refresh already triggered
 			}
 
-			const elements = this.debugService.getModel().getReplElements();
-			const delay = elements.length > 0 ? Repl.REFRESH_DELAY : 0;
-
+			const delay = noDelay ? 0 : Repl.REFRESH_DELAY;
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
 				const previousScrollPosition = this.tree.getScrollPosition();
@@ -140,10 +139,10 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new ReplExpressionsDataSource(this.debugService),
+			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
-			controller: new ReplExpressionsController(this.debugService, this.contextMenuService, new ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
+			controller: this.instantiationService.createInstance(ReplExpressionsController, this.replInput, new ReplExpressionsActionProvider(this.instantiationService))
 		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {
@@ -177,7 +176,9 @@ export class Repl extends Panel implements IPrivateReplService {
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position, overwriteBefore) : TPromise.as([]);
+				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+				const focusedProcess = this.debugService.getViewModel().focusedProcess;
+				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
 					suggestions: suggestions
 				})));
@@ -269,7 +270,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme(),
-			renderLineHighlight: false,
+			renderLineHighlight: 'none',
 			fixedOverflowWidgets: true,
 			acceptSuggestionOnEnter: false
 		};

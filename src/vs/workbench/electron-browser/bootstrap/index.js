@@ -153,10 +153,15 @@ function main() {
 	createScript(rootUrl + '/vs/loader.js', function () {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
+		window.MonacoEnvironment = {};
+
+		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
-			recordStats: !!configuration.performance
+			recordStats: !!configuration.performance,
+			nodeCachedDataDir: configuration.nodeCachedDataDir,
+			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
 		});
 
 		if (nlsConfig.pseudo) {
@@ -166,14 +171,12 @@ function main() {
 		}
 
 		// Perf Counters
-		window.MonacoEnvironment = {};
 		const timers = window.MonacoEnvironment.timers = {
-			start: new Date(configuration.isInitialStartup ? configuration.perfStartTime : configuration.perfWindowLoadTime),
 			isInitialStartup: !!configuration.isInitialStartup,
 			hasAccessibilitySupport: !!configuration.accessibilitySupport,
-			perfStartTime: new Date(configuration.perfStartTime),
-			perfWindowLoadTime: new Date(configuration.perfWindowLoadTime),
-			perfBeforeLoadWorkbenchMain: new Date()
+			start: new Date(configuration.perfStartTime),
+			windowLoad: new Date(configuration.perfWindowLoadTime),
+			beforeLoadWorkbenchMain: new Date()
 		};
 
 		require([
@@ -181,7 +184,7 @@ function main() {
 			'vs/nls!vs/workbench/electron-browser/workbench.main',
 			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.perfAfterLoadWorkbenchMain = new Date();
+			timers.afterLoadWorkbenchMain = new Date();
 
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)

@@ -23,6 +23,14 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		this.updateTextDiffEditorModel();
 	}
 
+	get originalModel(): BaseTextEditorModel {
+		return this._originalModel as BaseTextEditorModel;
+	}
+
+	get modifiedModel(): BaseTextEditorModel {
+		return this._modifiedModel as BaseTextEditorModel;
+	}
+
 	public load(): TPromise<EditorModel> {
 		return super.load().then(() => {
 			this.updateTextDiffEditorModel();
@@ -37,15 +45,15 @@ export class TextDiffEditorModel extends DiffEditorModel {
 			// Create new
 			if (!this._textDiffEditorModel) {
 				this._textDiffEditorModel = {
-					original: (<BaseTextEditorModel>this.originalModel).textEditorModel,
-					modified: (<BaseTextEditorModel>this.modifiedModel).textEditorModel
+					original: this.originalModel.textEditorModel,
+					modified: this.modifiedModel.textEditorModel
 				};
 			}
 
 			// Update existing
 			else {
-				this._textDiffEditorModel.original = (<BaseTextEditorModel>this.originalModel).textEditorModel;
-				this._textDiffEditorModel.modified = (<BaseTextEditorModel>this.modifiedModel).textEditorModel;
+				this._textDiffEditorModel.original = this.originalModel.textEditorModel;
+				this._textDiffEditorModel.modified = this.modifiedModel.textEditorModel;
 			}
 		}
 	}

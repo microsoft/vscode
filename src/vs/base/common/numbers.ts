@@ -45,3 +45,12 @@ export function countToArray(fromOrTo: number, to?: number): number[] {
 
 	return result;
 }
+
+export const enum Constants {
+	/**
+	 * MAX SMI (SMall Integer) as defined in v8.
+	 * one bit is lost for boxing/unboxing flag.
+	 * one bit is lost for sign flag.
+	 */
+	MAX_SAFE_SMALL_INTEGER = 1 << 30,
+}

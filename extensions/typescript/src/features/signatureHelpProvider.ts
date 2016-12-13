@@ -19,14 +19,18 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 		this.client = client;
 	}
 
-	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp> {
+	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp | undefined | null> {
+		const filepath = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve(null);
+		}
 		let args: Proto.SignatureHelpRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
 		if (!args.file) {
-			return Promise.resolve<SignatureHelp>(null);
+			return Promise.resolve(null);
 		}
 		return this.client.execute('signatureHelp', args, token).then((response) => {
 			let info = response.body;
@@ -42,6 +46,9 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 			}
 
 			info.items.forEach((item, i) => {
+				if (!info) {
+					return;
+				}
 
 				// keep active parameter in bounds
 				if (i === info.selectedItemIndex && item.isVariadic) {

@@ -16,7 +16,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _readOnly: boolean;
-	private _renderLineHighlight: boolean;
+	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _layoutProvider: ILayoutProvider;
 	private _selectionIsEmpty: boolean;
 	private _primaryCursorIsInEditableRange: boolean;
@@ -134,6 +134,8 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return this._renderLineHighlight && this._selectionIsEmpty && this._primaryCursorIsInEditableRange;
+		return (this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all') &&
+			this._selectionIsEmpty &&
+			this._primaryCursorIsInEditableRange;
 	}
 }

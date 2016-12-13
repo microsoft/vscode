@@ -198,15 +198,17 @@ export class RunSelectedTextInTerminalAction extends Action {
 			terminalInstance = this.terminalService.createInstance();
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		let selection = editor.getSelection();
-		let text: string;
-		if (selection.isEmpty()) {
-			text = editor.getValue();
-		} else {
-			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		if (editor) {
+			let selection = editor.getSelection();
+			let text: string;
+			if (selection.isEmpty()) {
+				text = editor.getValue();
+			} else {
+				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			}
+			terminalInstance.sendText(text, true);
 		}
-		terminalInstance.sendText(text, true);
 		return TPromise.as(void 0);
 	}
 }

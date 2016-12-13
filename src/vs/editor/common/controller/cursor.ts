@@ -205,14 +205,6 @@ export class Cursor extends EventEmitter {
 		}, 'restoreState', null);
 	}
 
-	public setEditableRange(range: editorCommon.IRange): void {
-		this.model.setEditableRange(range);
-	}
-
-	public getEditableRange(): Range {
-		return this.model.getEditableRange();
-	}
-
 	public addTypingListener(character: string, callback: ITypingListener): void {
 		if (!this.typingListeners.hasOwnProperty(character)) {
 			this.typingListeners[character] = [];
@@ -248,8 +240,13 @@ export class Cursor extends EventEmitter {
 			this.emitCursorSelectionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
 		} else {
 			if (!this._isHandling) {
+				// Read the markers before entering `_onHandler`, since that would validate
+				// the position and ruin the markers
+				let selections: Selection[] = this.cursors.getAll().map((cursor) => {
+					return cursor.beginRecoverSelectionFromMarkers();
+				});
 				this._onHandler('recoverSelectionFromMarkers', (ctx: IMultipleCursorOperationContext) => {
-					var result = this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => oneCursor.recoverSelectionFromMarkers(oneCtx));
+					var result = this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => oneCursor.endRecoverSelectionFromMarkers(oneCtx, selections[cursorIndex]));
 					ctx.shouldPushStackElementBefore = false;
 					ctx.shouldPushStackElementAfter = false;
 					return result;
@@ -490,8 +487,8 @@ export class Cursor extends EventEmitter {
 			}
 
 			var l = ctx.selectionStartMarkers.length;
-			ctx.selectionStartMarkers[l] = this.model._addMarker(selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
-			ctx.positionMarkers[l] = this.model._addMarker(selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
+			ctx.selectionStartMarkers[l] = this.model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
+			ctx.positionMarkers[l] = this.model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
 			return l.toString();
 		};
 
@@ -1004,8 +1001,6 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.DeleteWordStartRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordStart, ctx);
 		this._handlers[H.DeleteWordEndRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordEnd, ctx);
 
-		this._handlers[H.DeleteAllLeft] = (ctx) => this._deleteAllLeft(ctx);
-		this._handlers[H.DeleteAllRight] = (ctx) => this._deleteAllRight(ctx);
 		this._handlers[H.Cut] = (ctx) => this._cut(ctx);
 
 		this._handlers[H.ExpandLineSelection] = (ctx) => this._expandLineSelection(ctx);
@@ -1511,14 +1506,6 @@ export class Cursor extends EventEmitter {
 
 	private _deleteWordRight(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
 		return this._applyEditForAll(ctx, (cursor) => WordOperations.deleteWordRight(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType));
-	}
-
-	private _deleteAllLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteAllLeft(cursor.config, cursor.model, cursor.modelState));
-	}
-
-	private _deleteAllRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteAllRight(cursor.config, cursor.model, cursor.modelState));
 	}
 
 	private _cut(ctx: IMultipleCursorOperationContext): boolean {

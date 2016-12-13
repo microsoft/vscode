@@ -8,8 +8,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { ITextEditorModel as IBaseTextEditorModel } from 'vs/platform/editor/common/editor';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
 export const ITextModelResolverService = createDecorator<ITextModelResolverService>('textModelResolverService');
 
@@ -17,14 +17,13 @@ export interface ITextModelResolverService {
 	_serviceBrand: any;
 
 	/**
-	 * Given a resource, tries to resolve a ITextEditorModel out of it. Will support many schemes like file://, untitled://,
-	 * inMemory:// and for anything else fall back to the model content provider registry.
+	 * Provided a resource URI, it will return a model reference
+	 * which should be disposed once not needed anymore.
 	 */
-	resolve(resource: URI): TPromise<ITextEditorModel>;
+	createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>>;
 
 	/**
-	 * For unknown resources, allows to register a content provider such as this service is able to resolve arbritrary
-	 * resources to ITextEditorModels.
+	 * Registers a specific `scheme` content provider.
 	 */
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
 }
@@ -37,7 +36,7 @@ export interface ITextModelContentProvider {
 	provideTextContent(resource: URI): TPromise<IModel>;
 }
 
-export interface ITextEditorModel extends IBaseTextEditorModel {
+export interface ITextEditorModel extends IEditorModel {
 
 	/**
 	 * Provides access to the underlying IModel.

@@ -13,7 +13,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
-import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 
 export class TreeExplorerViewlet extends Viewlet {
 
@@ -27,14 +26,15 @@ export class TreeExplorerViewlet extends Viewlet {
 	constructor(
 		viewletId: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IActivityService private activityService: IActivityService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(viewletId, telemetryService);
 
 		this.viewletState = new TreeExplorerViewletState();
 		this.viewletId = viewletId;
-		this.treeNodeProviderId = this.getTreeProviderName(viewletId);
+
+		const tokens = viewletId.split('.');
+		this.treeNodeProviderId = tokens[tokens.length - 1];
 	}
 
 	public getId(): string {
@@ -65,19 +65,34 @@ export class TreeExplorerViewlet extends Viewlet {
 	}
 
 	private addTreeView(): void {
-		// Hide header (root node) by default
-		const headerSize = 0;
+		const headerSize = 0; // Hide header (root node) by default
 
 		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, this.treeNodeProviderId, this.getActionRunner(), headerSize);
 		this.view.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 	}
 
-	private getTreeProviderName(viewletId: string): string {
-		const tokens = viewletId.split('.');
-		return tokens[tokens.length - 1];
+	public focus(): void {
+		super.focus();
+
+		if (this.view) {
+			this.view.focusBody();
+		}
+	}
+
+	public shutdown(): void {
+		if (this.view) {
+			this.view.shutdown();
+		}
+
+		super.shutdown();
 	}
 
 	public dispose(): void {
-		this.view = null;
+		if (this.view) {
+			this.view = null;
+			this.view.dispose();
+		}
+
+		super.dispose();
 	}
 }

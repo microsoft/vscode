@@ -5,12 +5,12 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
 import * as PConst from '../protocol.const';
-import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
+import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, FileLocationRequestArgs } from '../protocol';
 import * as Previewer from './previewer';
 
 class MyCompletionItem extends CompletionItem {
@@ -23,8 +23,10 @@ class MyCompletionItem extends CompletionItem {
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		if (entry.replacementSpan) {
-			let span = entry.replacementSpan;
-			this.textEdit = TextEdit.replace(new Range(span.start.line, span.start.offset, span.end.line, span.end.offset), entry.name);
+			let span: protocol.TextSpan = entry.replacementSpan;
+			// The indexing for the range returned by the server uses 1-based indexing.
+			// We convert to 0-based indexing.
+			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
 		}
 	}
 
@@ -85,11 +87,16 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
-		this.config.useCodeSnippetsOnMethodSuggest = config.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
+		// Use shared setting for js and ts
+		let typeScriptConfig = workspace.getConfiguration('typescript');
+		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
 		let filepath = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve<CompletionItem[]>([]);
+		}
 		let args: CompletionsRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
@@ -118,14 +125,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 			let completionItems: CompletionItem[] = [];
 			let body = msg.body;
+			if (body) {
+				for (let i = 0; i < body.length; i++) {
+					let element = body[i];
+					let item = new MyCompletionItem(element);
+					item.document = document;
+					item.position = position;
 
-			for (let i = 0; i < body.length; i++) {
-				let element = body[i];
-				let item = new MyCompletionItem(element);
-				item.document = document;
-				item.position = position;
-
-				completionItems.push(item);
+					completionItems.push(item);
+				}
 			}
 
 			return completionItems;
@@ -137,46 +145,79 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): any | Thenable<any> {
 		if (item instanceof MyCompletionItem) {
-
+			const filepath = this.client.asAbsolutePath(item.document.uri);
+			if (!filepath) {
+				return null;
+			}
 			let args: CompletionDetailsRequestArgs = {
-				file: this.client.asAbsolutePath(item.document.uri),
+				file: filepath,
 				line: item.position.line + 1,
 				offset: item.position.character + 1,
 				entryNames: [item.label]
 			};
 			return this.client.execute('completionEntryDetails', args, token).then((response) => {
-				let details = response.body;
-				let detail: CompletionEntryDetails = null;
-				if (details && details.length > 0) {
-					detail = details[0];
-					item.documentation = Previewer.plain(detail.documentation);
-					item.detail = Previewer.plain(detail.displayParts);
+				const details = response.body;
+				if (!details || !details.length || !details[0]) {
+					return item;
 				}
+				const detail = details[0];
+				item.documentation = Previewer.plain(detail.documentation);
+				item.detail = Previewer.plain(detail.displayParts);
 
-				if (detail && this.config.useCodeSnippetsOnMethodSuggest && item.kind === CompletionItemKind.Function) {
-					let codeSnippet = detail.name;
-					let suggestionArgumentNames: string[];
-
-					suggestionArgumentNames = detail.displayParts
-						.filter(part => part.kind === 'parameterName')
-						.map((part, i) => `\${${i + 1}:${part.text}}`);
-
-					if (suggestionArgumentNames.length > 0) {
-						codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
-					} else {
-						codeSnippet += '()';
-					}
-
-					item.insertText = new SnippetString(codeSnippet);
+				if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
+					return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
+						if (shouldCompleteFunction) {
+							item.insertText = this.snippetForFunctionCall(detail);
+						}
+						return item;
+					});
 				}
 
 				return item;
-
 			}, (err) => {
 				this.client.error(`'completionEntryDetails' request failed with error.`, err);
 				return item;
 			});
-
 		}
+	}
+
+	private isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
+		const args: FileLocationRequestArgs = {
+			file: filepath,
+			line: position.line + 1,
+			offset: position.character + 1
+		};
+		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
+		// Don't complete function calls inside of destructive assigments or imports
+		return this.client.execute('quickinfo', args).then(infoResponse => {
+			const info = infoResponse.body;
+			console.log(info && info.kind);
+			switch (info && info.kind) {
+				case 'var':
+				case 'let':
+				case 'const':
+				case 'alias':
+					return false;
+				default:
+					return true;
+			}
+		}, () => {
+			return true;
+		});
+	}
+
+	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
+		let codeSnippet = detail.name;
+		const suggestionArgumentNames: string[] = detail.displayParts
+			.filter(part => part.kind === 'parameterName')
+			.map((part, i) => `\${${i + 1}:${part.text}}`);
+
+		if (suggestionArgumentNames.length > 0) {
+			codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
+		} else {
+			codeSnippet += '()';
+		}
+
+		return new SnippetString(codeSnippet);
 	}
 }

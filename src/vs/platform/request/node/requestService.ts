@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { IRequestOptions, IRequestContext, request } from 'vs/base/node/request';
+import { IRequestOptions, IRequestContext, IRequestFunction, request } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/node/request';
 import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
@@ -42,7 +42,7 @@ export class RequestService implements IRequestService {
 		this.authorization = config.http && config.http.proxyAuthorization;
 	}
 
-	request(options: IRequestOptions): TPromise<IRequestContext> {
+	request(options: IRequestOptions, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
 		const { proxyUrl, strictSSL } = this;
 
 		options.agent = options.agent || getProxyAgent(options.url, { proxyUrl, strictSSL });
@@ -52,6 +52,6 @@ export class RequestService implements IRequestService {
 			options.headers = assign(options.headers || {}, { 'Proxy-Authorization': this.authorization });
 		}
 
-		return request(options);
+		return requestFn(options);
 	}
 }

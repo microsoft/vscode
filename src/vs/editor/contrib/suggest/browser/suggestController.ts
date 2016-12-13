@@ -17,9 +17,10 @@ import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEdit
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { Context as SuggestContext, snippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
 import { ICompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
@@ -76,14 +77,6 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	private static _codeSnippetForSuggestion({suggestion}: ICompletionItem): CodeSnippet {
-		switch (suggestion.snippetType) {
-			case 'textmate': return CodeSnippet.fromTextmate(suggestion.insertText);
-			case 'internal': return CodeSnippet.fromInternal(suggestion.insertText);
-			default: return CodeSnippet.none(suggestion.insertText);
-		}
-	}
-
 	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
 			const {suggestion, position} = item;
@@ -91,37 +84,25 @@ export class SuggestController implements IEditorContribution {
 
 			if (Array.isArray(suggestion.additionalTextEdits)) {
 				this.editor.pushUndoStop();
-				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 				this.editor.pushUndoStop();
 			}
 
-			const snippet = SuggestController._codeSnippetForSuggestion(item);
-
-			SnippetController.get(this.editor).run(
-				snippet,
-				suggestion.overwriteBefore + columnDelta,
-				suggestion.overwriteAfter
-			);
+			if (suggestion.snippetType === 'textmate') {
+				SnippetController.get(this.editor).insertSnippet(
+					suggestion.insertText,
+					suggestion.overwriteBefore + columnDelta,
+					suggestion.overwriteAfter);
+			} else {
+				SnippetController.get(this.editor).run(
+					CodeSnippet.fromInternal(suggestion.insertText),
+					suggestion.overwriteBefore + columnDelta,
+					suggestion.overwriteAfter
+				);
+			}
 
 			if (suggestion.command) {
 				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
-			}
-
-			if (item.support !== snippetSuggestSupport) {
-				this.telemetryService.publicLog('suggestSnippetInsert', {
-					hasPlaceholders: snippet.placeHolders.length > 0
-				});
-
-				// telemetry experiment to figure out which extensions use
-				// the internal snippet syntax today and which use the tm
-				// snippet syntax (by accident?)
-				if (suggestion._extensionId) {
-					this.telemetryService.publicLog('suggestSnippetInsert2', {
-						extension: suggestion._extensionId,
-						internalPlaceholders: snippet.placeHolders.length,
-						tmPlaceholders: CodeSnippet.fromTextmate(suggestion.insertText).placeHolders.length
-					});
-				}
 			}
 		}
 
@@ -143,6 +124,7 @@ export class SuggestController implements IEditorContribution {
 
 	cancelSuggestWidget(): void {
 		if (this.widget) {
+			this.model.cancel();
 			this.widget.hideDetailsOrHideWidget();
 		}
 	}

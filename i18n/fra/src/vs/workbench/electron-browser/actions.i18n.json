@@ -13,6 +13,7 @@
 	"diffLeftRightLabel": "{0} - {1}",
 	"files": "fichiers",
 	"folders": "dossiers",
+	"keybindingsReference": "Référence des raccourcis clavier",
 	"newWindow": "Nouvelle fenêtre",
 	"noFolderOpened": "Il n'existe actuellement aucun dossier ouvert à fermer dans cette instance.",
 	"openRecent": "Ouvrir les éléments récents",

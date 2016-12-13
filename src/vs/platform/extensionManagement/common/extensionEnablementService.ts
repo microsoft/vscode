@@ -93,12 +93,12 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		return TPromise.wrap(false);
 	}
 
-	private enableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
+	private enableExtension(identifier: string, scope: StorageScope, fireEvent = true): TPromise<boolean> {
 		let disabledExtensions = this.getDisabledExtensions(scope);
 		const index = disabledExtensions.indexOf(identifier);
 		if (index !== -1) {
 			disabledExtensions.splice(index, 1);
-			this.setDisabledExtensions(disabledExtensions, scope, identifier);
+			this.setDisabledExtensions(disabledExtensions, scope, identifier, fireEvent);
 			return TPromise.wrap(true);
 		}
 		return TPromise.wrap(false);
@@ -112,20 +112,22 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		return value ? distinct(value.split(',')) : [];
 	}
 
-	private setDisabledExtensions(disabledExtensions: string[], scope: StorageScope, extension: string): void {
+	private setDisabledExtensions(disabledExtensions: string[], scope: StorageScope, extension: string, fireEvent = true): void {
 		if (disabledExtensions.length) {
 			this.storageService.store(DISABLED_EXTENSIONS_STORAGE_PATH, disabledExtensions.join(','), scope);
 		} else {
 			this.storageService.remove(DISABLED_EXTENSIONS_STORAGE_PATH, scope);
 		}
-		this._onEnablementChanged.fire(extension);
+		if (fireEvent) {
+			this._onEnablementChanged.fire(extension);
+		}
 	}
 
 	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
 		if (!error) {
 			id = stripVersion(id);
-			this.enableExtension(id, StorageScope.WORKSPACE);
-			this.enableExtension(id, StorageScope.GLOBAL);
+			this.enableExtension(id, StorageScope.WORKSPACE, false);
+			this.enableExtension(id, StorageScope.GLOBAL, false);
 		}
 	}
 

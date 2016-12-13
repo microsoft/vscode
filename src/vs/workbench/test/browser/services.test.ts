@@ -100,31 +100,15 @@ class TestViewletService implements IViewletService {
 
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-	onDidExtletsLoadEmitter = new Emitter<void>();
-	onDidViewletToggleEmitter = new Emitter<void>();
 
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-	onDidExtViewletsLoad = this.onDidExtletsLoadEmitter.event;
-	onDidViewletToggle = this.onDidViewletToggleEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return TPromise.as(null);
 	}
 
-	public restoreViewlet(id: string): TPromise<IViewlet> {
-		return TPromise.as(null);
-	}
-
-	public toggleViewlet(id: string): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public getAllViewlets(): ViewletDescriptor[] {
-		return [];
-	}
-
-	public getAllViewletsToDisplay(): ViewletDescriptor[] {
+	public getViewlets(): ViewletDescriptor[] {
 		return [];
 	}
 
@@ -132,13 +116,16 @@ class TestViewletService implements IViewletService {
 		return activeViewlet;
 	}
 
-	public isViewletEnabled(id: string): boolean {
-		return true;
-	}
-
 	public dispose() {
 	}
 
+	public getDefaultViewletId(): string {
+		return 'workbench.view.explorer';
+	}
+
+	public getViewlet(id: string): ViewletDescriptor {
+		return null;
+	}
 }
 
 class TestPanelService implements IPanelService {

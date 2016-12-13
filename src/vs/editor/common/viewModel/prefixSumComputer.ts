@@ -64,8 +64,14 @@ export class PrefixSumComputer {
 			return;
 		}
 
-		this.values = this.values.slice(0, insertIndex).concat(values).concat(this.values.slice(insertIndex));
-		this.prefixSum = this.prefixSum.slice(0, insertIndex).concat(PrefixSumComputer._zeroArray(values.length)).concat(this.prefixSum.slice(insertIndex));
+		if (values.length === 1) {
+			// Fast path for one element
+			this.values.splice(insertIndex, 0, values[0]);
+			this.prefixSum.splice(insertIndex, 0, values[0]);
+		} else {
+			this.values = this.values.slice(0, insertIndex).concat(values).concat(this.values.slice(insertIndex));
+			this.prefixSum = this.prefixSum.slice(0, insertIndex).concat(PrefixSumComputer._zeroArray(values.length)).concat(this.prefixSum.slice(insertIndex));
+		}
 
 		if (insertIndex - 1 < this.prefixSumValidIndex) {
 			this.prefixSumValidIndex = insertIndex - 1;

@@ -10,16 +10,11 @@ import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
 import { IMessageService } from 'vs/platform/message/common/message';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-
-interface ILoaderChecksums {
-	[scriptSrc: string]: string;
-}
-
 
 interface IStorageData {
 	dontShowPrompt: boolean;

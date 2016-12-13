@@ -6,19 +6,23 @@
 
 import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
+import URI from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -38,7 +42,7 @@ import {
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Register String Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		StringEditor.ID,
 		nls.localize('textEditor', "Text Editor"),
@@ -53,7 +57,7 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 );
 
 // Register Text Diff Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		TextDiffEditor.ID,
 		nls.localize('textDiffEditor', "Text Diff Editor"),
@@ -66,7 +70,7 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 );
 
 // Register Binary Resource Diff Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		BinaryResourceDiffEditor.ID,
 		nls.localize('binaryDiffEditor', "Binary Diff Editor"),
@@ -78,12 +82,128 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 	]
 );
 
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	new EditorDescriptor(
+		SideBySideEditor.ID,
+		nls.localize('sideBySideEditor', "Side by Side Editor"),
+		'vs/workbench/browser/parts/editor/sideBySideEditor',
+		'SideBySideEditor'
+	),
+	[
+		new SyncDescriptor(SideBySideEditorInput)
+	]
+);
+
+interface ISerializedUntitledEditorInput {
+	resource: string;
+	modeId: string;
+}
+
+// Register Editor Input Factory
+class UntitledEditorInputFactory implements IEditorInputFactory {
+
+	constructor(
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private textFileService: ITextFileService
+	) {
+	}
+
+	public serialize(editorInput: EditorInput): string {
+		if (!this.textFileService.isHotExitEnabled) {
+			return null; // never restore untitled unless hot exit is enabled
+		}
+
+		const untitledEditorInput = <UntitledEditorInput>editorInput;
+
+		let resource = untitledEditorInput.getResource();
+		if (untitledEditorInput.hasAssociatedFilePath) {
+			resource = URI.file(resource.fsPath); // untitled with associated file path use the file schema
+		}
+
+		const serialized: ISerializedUntitledEditorInput = { resource: resource.toString(), modeId: untitledEditorInput.getModeId() };
+
+		return JSON.stringify(serialized);
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
+
+		return this.untitledEditorService.createOrGet(URI.parse(deserialized.resource), deserialized.modeId);
+	}
+}
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(UntitledEditorInput.ID, UntitledEditorInputFactory);
+
+interface ISerializedSideBySideEditorInput {
+	name: string;
+	description: string;
+
+	detailsSerialized: string;
+	masterSerialized: string;
+
+	detailsTypeId: string;
+	masterTypeId: string;
+}
+
+// Register Side by Side Editor Input Factory
+class SideBySideEditorInputFactory implements IEditorInputFactory {
+
+	public serialize(editorInput: EditorInput): string {
+		const input = <SideBySideEditorInput>editorInput;
+
+		if (input.details && input.master) {
+			const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
+			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
+
+			if (detailsInputFactory && masterInputFactory) {
+				const detailsSerialized = detailsInputFactory.serialize(input.details);
+				const masterSerialized = masterInputFactory.serialize(input.master);
+
+				if (detailsSerialized && masterSerialized) {
+					return JSON.stringify(<ISerializedSideBySideEditorInput>{
+						name: input.getName(),
+						description: input.getDescription(),
+						detailsSerialized,
+						masterSerialized,
+						detailsTypeId: input.details.getTypeId(),
+						masterTypeId: input.master.getTypeId()
+					});
+				}
+			}
+		}
+
+		return null;
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
+
+		const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
+		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
+
+		if (detailsInputFactory && masterInputFactory) {
+			const detailsInput = detailsInputFactory.deserialize(instantiationService, deserialized.detailsSerialized);
+			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
+
+			if (detailsInput && masterInput) {
+				return new SideBySideEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
+			}
+		}
+
+		return null;
+	}
+}
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
+
 // Register Editor Status
-const statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
+const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
 
 // Register Status Actions
-const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
@@ -127,7 +247,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 	}
 }
 
-const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(

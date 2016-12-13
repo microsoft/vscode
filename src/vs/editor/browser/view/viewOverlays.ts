@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { StyleMutator, FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo } from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IVisibleLineData, ViewLayer } from 'vs/editor/browser/view/viewLayer';
@@ -218,54 +218,26 @@ export class ContentViewOverlays extends ViewOverlays {
 
 export class MarginViewOverlays extends ViewOverlays {
 
-	private _glyphMarginLeft: number;
-	private _glyphMarginWidth: number;
-	private _scrollHeight: number;
 	private _contentLeft: number;
 	private _canUseTranslate3d: boolean;
 
 	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
 		super(context, layoutProvider);
 
-		this._glyphMarginLeft = context.configuration.editor.layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = context.configuration.editor.layoutInfo.glyphMarginWidth;
-		this._scrollHeight = layoutProvider.getScrollHeight();
 		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
 		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 
-		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
+		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS);
 		this.domNode.setWidth(1);
 
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
-	protected _extraDomNodeHTML(): string {
-		return [
-			'<div class="',
-			editorBrowser.ClassNames.GLYPH_MARGIN,
-			'" style="left:',
-			String(this._glyphMarginLeft),
-			'px;width:',
-			String(this._glyphMarginWidth),
-			'px;height:',
-			String(this._scrollHeight),
-			'px;"></div>'
-		].join('');
-	}
-
-	private _getGlyphMarginDomNode(): HTMLElement {
-		return <HTMLElement>this.domNode.domNode.children[0];
-	}
-
 	public onScrollChanged(e: IScrollEvent): boolean {
-		this._scrollHeight = e.scrollHeight;
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
 	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-		this._scrollHeight = this._layoutProvider.getScrollHeight();
 		this._contentLeft = layoutInfo.contentLeft;
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
@@ -283,23 +255,8 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-			this.domNode.setTransform(transform);
-			this.domNode.setTop(0);
-		} else {
-			this.domNode.setTransform('');
-			this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
-		}
 		let height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);
-
-		let glyphMargin = this._getGlyphMarginDomNode();
-		if (glyphMargin) {
-			StyleMutator.setHeight(glyphMargin, this._scrollHeight);
-			StyleMutator.setLeft(glyphMargin, this._glyphMarginLeft);
-			StyleMutator.setWidth(glyphMargin, this._glyphMarginWidth);
-		}
 	}
 }

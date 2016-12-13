@@ -30,7 +30,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -107,8 +107,9 @@ export class TabsTitleControl extends TitleControl {
 				DOM.EventHelper.stop(e);
 
 				const group = this.context;
-
-				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }); // untitled are always pinned
+				if (group) {
+					this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }).done(null, errors.onUnexpectedError); // untitled are always pinned
+				}
 			}
 		}));
 
@@ -411,7 +412,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			tab.blur();
 
-			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
+			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass((e.target || e.srcElement) as HTMLElement, 'monaco-action-bar', 'tab')) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
 		}));

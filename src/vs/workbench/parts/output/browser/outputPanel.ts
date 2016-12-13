@@ -27,6 +27,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class OutputPanel extends StringEditor {
 
@@ -46,10 +47,11 @@ export class OutputPanel extends StringEditor {
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, themeService, untitledEditorService);
+			messageService, configurationService, eventService, editorService, themeService, untitledEditorService, textFileService);
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
 	}
@@ -90,7 +92,7 @@ export class OutputPanel extends StringEditor {
 		options.rulers = [];
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
-		options.renderLineHighlight = false;
+		options.renderLineHighlight = 'none';
 
 		const channel = this.outputService.getActiveChannel();
 		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
@@ -98,7 +100,7 @@ export class OutputPanel extends StringEditor {
 		return options;
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => this.revealLastLine());
 	}
 

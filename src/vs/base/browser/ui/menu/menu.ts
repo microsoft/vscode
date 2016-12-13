@@ -11,7 +11,7 @@ import { $ } from 'vs/base/browser/builder';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
 
 export interface IMenuOptions {
 	context?: any;

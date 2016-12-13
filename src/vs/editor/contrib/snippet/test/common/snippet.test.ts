@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { CodeSnippet, ICodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
+import { CodeSnippet, ICodeSnippet, ISnippetVariableResolver } from 'vs/editor/contrib/snippet/common/snippet';
 
 suite('Editor Contrib - Snippets', () => {
 
@@ -247,6 +247,61 @@ suite('Editor Contrib - Snippets', () => {
 		assert.equal(first.occurences[0].startColumn, 1);
 		assert.equal(second.occurences.length, 1);
 		assert.equal(second.occurences[0].startColumn, 7);
+	});
+
+	test('variables, simple', () => {
+
+		const resolver: ISnippetVariableResolver = {
+			resolve(name) {
+				return name.split('').reverse().join('');
+			}
+		};
+
+		// simple
+		let snippet = CodeSnippet.fromTextmate('$FOO', resolver);
+		assert.equal(snippet.lines[0], 'OOF');
+		assert.equal(snippet.placeHolders.length, 1);
+		assert.equal(snippet.placeHolders[0].occurences[0].endColumn, 4);
+
+		snippet = CodeSnippet.fromTextmate('${FOO:BAR}', resolver);
+		assert.equal(snippet.lines[0], 'OOF');
+		assert.equal(snippet.placeHolders.length, 1);
+		assert.equal(snippet.placeHolders[0].occurences[0].endColumn, 4);
+
+		// placeholder
+		snippet = CodeSnippet.fromTextmate('${1:$FOO}bar$1', resolver);
+		assert.equal(snippet.lines[0], 'OOFbarOOF');
+		assert.equal(snippet.placeHolders.length, 2);
+		assert.equal(snippet.placeHolders[0].occurences.length, 2);
+		assert.equal(snippet.placeHolders[0].occurences[0].startColumn, 1);
+		assert.equal(snippet.placeHolders[0].occurences[0].endColumn, 4);
+		assert.equal(snippet.placeHolders[0].occurences[1].startColumn, 7);
+		assert.equal(snippet.placeHolders[0].occurences[1].endColumn, 10);
+		assert.equal(snippet.placeHolders[1].occurences.length, 1);
+
+		snippet = CodeSnippet.fromTextmate('${1:${FOO:abc}}bar$1', resolver);
+		assert.equal(snippet.lines[0], 'OOFbarOOF');
+	});
+
+	test('variables, evil resolver', () => {
+
+		let snippet = CodeSnippet.fromTextmate('$FOO', { resolve(): string { throw new Error(); } });
+		assert.equal(snippet.lines[0], 'FOO');
+	});
+
+	test('variables, default', () => {
+
+		let snippet = CodeSnippet.fromTextmate('$FOO', { resolve(): string { return undefined; } });
+		assert.equal(snippet.lines[0], 'FOO');
+
+		snippet = CodeSnippet.fromTextmate('$FOO', { resolve(): string { return ''; } });
+		assert.equal(snippet.lines[0], '');
+
+		snippet = CodeSnippet.fromTextmate('${FOO:BAR}', { resolve(): string { return undefined; } });
+		assert.equal(snippet.lines[0], 'BAR');
+
+		snippet = CodeSnippet.fromTextmate('${FOO:BAR}', { resolve(): string { return ''; } });
+		assert.equal(snippet.lines[0], 'BAR');
 	});
 });
 

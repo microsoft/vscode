@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -24,6 +24,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 /**
  * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
@@ -32,8 +33,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 export class StringEditor extends BaseTextEditor {
 
 	public static ID = 'workbench.editors.stringEditor';
-
-	private mapResourceToEditorViewState: { [resource: string]: IEditorViewState; };
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -45,18 +44,17 @@ export class StringEditor extends BaseTextEditor {
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
-
-		this.mapResourceToEditorViewState = Object.create(null);
+		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService, textFileService);
 
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
 
 	private onUntitledDirtyChange(resource: URI): void {
 		if (!this.untitledEditorService.isDirty(resource)) {
-			delete this.mapResourceToEditorViewState[resource.toString()]; // untitled file got reverted, so remove view state
+			this.clearTextEditorViewState([resource.toString()]); // untitled file got reverted, so remove view state
 		}
 	}
 
@@ -68,7 +66,7 @@ export class StringEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		const oldInput = this.getInput();
 		super.setInput(input, options);
 
@@ -88,9 +86,7 @@ export class StringEditor extends BaseTextEditor {
 		}
 
 		// Remember view settings if input changes
-		if (oldInput instanceof UntitledEditorInput) {
-			this.mapResourceToEditorViewState[oldInput.getResource().toString()] = this.getControl().saveViewState();
-		}
+		this.saveTextEditorViewState(oldInput);
 
 		// Different Input (Reload)
 		return input.resolve(true).then((resolvedModel: EditorModel) => {
@@ -107,7 +103,7 @@ export class StringEditor extends BaseTextEditor {
 
 			// Set Editor Model
 			const textEditor = this.getControl();
-			const textEditorModel = (<BaseTextEditorModel>resolvedModel).textEditorModel;
+			const textEditorModel = resolvedModel.textEditorModel;
 			textEditor.setModel(textEditorModel);
 
 			// Apply Options from TextOptions
@@ -129,7 +125,7 @@ export class StringEditor extends BaseTextEditor {
 
 	protected restoreViewState(input: EditorInput) {
 		if (input instanceof UntitledEditorInput) {
-			const viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
+			const viewState = this.loadTextEditorViewState(input.getResource().toString());
 			if (viewState) {
 				this.getControl().restoreViewState(viewState);
 			}
@@ -176,13 +172,32 @@ export class StringEditor extends BaseTextEditor {
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
-		if (this.input instanceof UntitledEditorInput) {
-			this.mapResourceToEditorViewState[(<UntitledEditorInput>this.input).getResource().toString()] = this.getControl().saveViewState();
-		}
+		this.saveTextEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
 
 		super.clearInput();
+	}
+
+	public shutdown(): void {
+
+		// Save View State
+		this.saveTextEditorViewState(this.input);
+
+		// Call Super
+		super.shutdown();
+	}
+
+	protected saveTextEditorViewState(input: EditorInput): void;
+	protected saveTextEditorViewState(key: string): void;
+	protected saveTextEditorViewState(arg1: EditorInput | string): void {
+		if (typeof arg1 === 'string') {
+			return super.saveTextEditorViewState(arg1);
+		}
+
+		if (arg1 instanceof UntitledEditorInput && !arg1.isDisposed()) {
+			return super.saveTextEditorViewState(arg1.getResource().toString());
+		}
 	}
 }

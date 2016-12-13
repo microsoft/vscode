@@ -39,7 +39,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
+import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -157,6 +157,10 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private onEditorsChanged(): void {
+		if (!this.autoReveal) {
+			return; // do not touch selection or focus if autoReveal === false
+		}
+
 		const activeInput = this.editorService.getActiveEditorInput();
 		let clearSelection = true;
 		let clearFocus = false;
@@ -251,7 +255,12 @@ export class ExplorerView extends CollapsibleViewletView {
 					this.shouldRefresh = false; // Reset flag
 				}
 
+				if (!this.autoReveal) {
+					return refreshPromise; // do not react to setVisible call if autoReveal === false
+				}
+
 				// Always select the current navigated file in explorer if input is file editor input
+				// unless autoReveal is set to false
 				const activeResource = this.getActiveEditorInputResource();
 				if (activeResource) {
 					return refreshPromise.then(() => {
@@ -653,7 +662,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		let targetsToExpand: URI[] = [];
 
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map(e => URI.parse(e));
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session

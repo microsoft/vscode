@@ -204,6 +204,39 @@ suite('ExtHostDocument', () => {
 		assertPositionAt(99, 3, 29);
 		assertPositionAt(Number.MAX_VALUE, 3, 29);
 	});
+
+	test('getWordRangeAtPosition', function () {
+		data = new ExtHostDocumentData(undefined, URI.file(''), [
+			'aaaa bbbb cccc abc'
+		], '\n', 'text', 1, false);
+
+		let range = data.getWordRangeAtPosition(new Position(0, 2));
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 0);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 4);
+
+		range = data.getWordRangeAtPosition(new Position(0, 2), /.*/);
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 0);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 4);
+
+		range = data.getWordRangeAtPosition(new Position(0, 2), /a+.+?c/);
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 0);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 11);
+
+		range = data.getWordRangeAtPosition(new Position(0, 17), /a+.+?c/);
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 15);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 18);
+
+		range = data.getWordRangeAtPosition(new Position(0, 11), /yy/);
+		assert.equal(range, undefined);
+	});
 });
 
 enum AssertDocumentLineMappingDirection {

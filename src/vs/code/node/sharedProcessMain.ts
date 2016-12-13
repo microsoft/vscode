@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';

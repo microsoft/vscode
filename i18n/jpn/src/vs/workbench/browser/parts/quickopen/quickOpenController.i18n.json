@@ -13,5 +13,5 @@
 	"noResultsFound1": "一致する項目はありません",
 	"pickHistory": "履歴から削除するエディター エントリを選ぶ",
 	"quickOpenInput": "'?' と入力すると、ここで実行できる処理に関するヘルプが表示されます",
-	"removeFromEditorHistory": "エディター履歴から削除する"
+	"removeFromEditorHistory": "履歴から削除"
 }

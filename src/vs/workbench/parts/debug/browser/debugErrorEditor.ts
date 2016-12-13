@@ -29,7 +29,7 @@ export class DebugErrorEditor extends BaseEditor {
 		this.container.style.height = `${dimension.height}px`;
 	}
 
-	public setInput(input: DebugErrorEditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: DebugErrorEditorInput, options?: EditorOptions): TPromise<void> {
 		this.container.textContent = input.value;
 		return super.setInput(input, options);
 	}

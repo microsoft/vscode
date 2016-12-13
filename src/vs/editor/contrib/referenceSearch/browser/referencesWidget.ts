@@ -10,7 +10,7 @@ import * as collections from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposables, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -108,16 +108,16 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
-		var addedOrChangedDecorations = event.addedOrChangedDecorations,
+		var changedDecorations = event.changedDecorations,
 			toRemove: string[] = [];
 
-		for (var i = 0, len = addedOrChangedDecorations.length; i < len; i++) {
-			var reference = collections.lookup(this._decorationSet, addedOrChangedDecorations[i].id);
+		for (var i = 0, len = changedDecorations.length; i < len; i++) {
+			var reference = collections.lookup(this._decorationSet, changedDecorations[i]);
 			if (!reference) {
 				continue;
 			}
 
-			var newRange = addedOrChangedDecorations[i].range,
+			var newRange = this.editor.getModel().getDecorationRange(changedDecorations[i]),
 				ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
@@ -137,7 +137,7 @@ class DecorationsManager implements IDisposable {
 
 			if (ignore) {
 				this._decorationIgnoreSet[reference.id] = reference;
-				toRemove.push(addedOrChangedDecorations[i].id);
+				toRemove.push(changedDecorations[i]);
 			} else {
 				reference.range = newRange;
 			}
@@ -494,6 +494,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _treeContainer: Builder;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
+	private _previewModelReference: IDisposable = EmptyDisposable;
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
@@ -661,7 +662,6 @@ export class ReferenceWidget extends PeekViewWidget {
 		}));
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
-				this._revealReference(element);
 				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
 			}
 		}));
@@ -715,24 +715,31 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		return TPromise.join([
-			this._textModelResolverService.resolve(reference.uri),
-			this._tree.reveal(reference)
-		]).then(values => {
+		const promise = this._textModelResolverService.createModelReference(reference.uri);
+
+		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+			const ref = values[0];
+
 			if (!this._model) {
+				ref.dispose();
 				// disposed
 				return;
 			}
 
+			this._previewModelReference.dispose();
+			this._previewModelReference = EmptyDisposable;
+
 			// show in editor
-			let [model] = values;
+			const model = ref.object;
 			if (model) {
+				this._previewModelReference = ref;
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
 				this._preview.revealRangeInCenter(sel);
 			} else {
 				this._preview.setModel(this._previewNotAvailableMessage);
+				ref.dispose();
 			}
 
 			// show in tree

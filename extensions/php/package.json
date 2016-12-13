@@ -19,7 +19,7 @@
 		"grammars": [{
 			"language": "php",
 			"scopeName": "text.html.php",
-			"path": "./syntaxes/php.json",
+			"path": "./syntaxes/php.tmLanguage.json",
 			"embeddedLanguages": {
 				"text.html": "html",
 				"source.php": "php",
@@ -66,6 +66,7 @@
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:php",
-		"watch": "gulp watch-extension:php"
+		"watch": "gulp watch-extension:php",
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-php grammars/php.cson ./syntaxes/php.tmLanguage.json"
 	}
 }

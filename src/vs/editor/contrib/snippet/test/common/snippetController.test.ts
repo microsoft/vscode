@@ -448,4 +448,77 @@ suite('SnippetController', () => {
 
 		}, ['af', '\taf']);
 	});
+
+	test('Multiple cursor and overwriteBefore/After, issue #11060', () => {
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 7, 1, 7),
+				new Selection(2, 4, 2, 4)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate('_foo');
+			controller.run(codeSnippet, 1, 0);
+			assert.equal(editor.getModel().getValue(), 'this._foo\nabc_foo');
+
+		}, ['this._', 'abc']);
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 7, 1, 7),
+				new Selection(2, 4, 2, 4)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate('XX');
+			controller.run(codeSnippet, 1, 0);
+			assert.equal(editor.getModel().getValue(), 'this.XX\nabcXX');
+
+		}, ['this._', 'abc']);
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 7, 1, 7),
+				new Selection(2, 4, 2, 4),
+				new Selection(3, 5, 3, 5)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate('_foo');
+			controller.run(codeSnippet, 1, 0);
+			assert.equal(editor.getModel().getValue(), 'this._foo\nabc_foo\ndef_foo');
+
+		}, ['this._', 'abc', 'def_']);
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 7, 1, 7),
+				new Selection(2, 4, 2, 4),
+				new Selection(3, 6, 3, 6)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate('._foo');
+			controller.run(codeSnippet, 2, 0);
+			assert.equal(editor.getModel().getValue(), 'this._foo\nabc._foo\ndef._foo');
+
+		}, ['this._', 'abc', 'def._']);
+
+	});
+
+	test('Multiple cursor and overwriteBefore/After, #16277', () => {
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 5, 1, 5),
+				new Selection(2, 5, 2, 5),
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate('document');
+			controller.run(codeSnippet, 3, 0);
+			assert.equal(editor.getModel().getValue(), '{document}\n{document && true}');
+
+		}, ['{foo}', '{foo && true}']);
+	});
 });

@@ -4,7 +4,8 @@
 		"target": "ES5",
 		"outDir": "out",
 		"noLib": true,
-		"sourceMap": true
+		"sourceMap": true,
+		"strictNullChecks": true
 	},
 	"exclude": [
 		"node_modules"

@@ -31,6 +31,10 @@ export interface IActionItem extends IEventEmitter {
 	dispose(): void;
 }
 
+export interface IBaseActionItemOptions {
+	draggable?: boolean;
+}
+
 export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public builder: Builder;
@@ -41,7 +45,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 	private gesture: Gesture;
 	private _actionRunner: IActionRunner;
 
-	constructor(context: any, action: IAction) {
+	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
 		super();
 
 		this._callOnDispose = [];
@@ -107,6 +111,11 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this.builder = $(container);
 		this.gesture = new Gesture(container);
 
+		const enableDragging = this.options && this.options.draggable;
+		if (enableDragging) {
+			container.draggable = true;
+		}
+
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
 		if (platform.isMacintosh) {
@@ -114,11 +123,15 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		}
 
 		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e);
+			if (!enableDragging) {
+				DOM.EventHelper.stop(e); // do not run when dragging is on because that would disable it
+			}
+
 			if (this._action.enabled) {
 				this.builder.addClass('active');
 			}
 		});
+
 		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
 			setTimeout(() => this.onClick(e), 50);
@@ -197,15 +210,16 @@ export class Separator extends Action {
 
 	public static ID = 'vs.actions.separator';
 
-	constructor(label?: string, order?) {
+	constructor(label?: string, order?: number) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
+		this.radio = false;
 		this.enabled = false;
 		this.order = order;
 	}
 }
 
-export interface IActionItemOptions {
+export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string;
@@ -218,7 +232,7 @@ export class ActionItem extends BaseActionItem {
 	private cssClass: string;
 
 	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
-		super(context, action);
+		super(context, action, options);
 
 		this.options = options;
 		this.options.icon = options.icon !== undefined ? options.icon : false;
@@ -306,6 +320,14 @@ export class ActionItem extends BaseActionItem {
 			this.$e.addClass('checked');
 		} else {
 			this.$e.removeClass('checked');
+		}
+	}
+
+	public _updateRadio(): void {
+		if (this.getAction().radio) {
+			this.$e.addClass('radio');
+		} else {
+			this.$e.removeClass('radio');
 		}
 	}
 }
@@ -626,15 +648,17 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		}
 	}
 
-	private doTrigger(event): void {
+	private doTrigger(event: StandardKeyboardEvent): void {
 		if (typeof this.focusedItem === 'undefined') {
 			return; //nothing to focus
 		}
 
 		// trigger action
-		let actionItem = (<BaseActionItem>this.items[this.focusedItem]);
-		const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-		this.run(actionItem._action, context).done();
+		let actionItem = this.items[this.focusedItem];
+		if (actionItem instanceof BaseActionItem) {
+			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
+			this.run(actionItem._action, context).done();
+		}
 	}
 
 	private cancel(): void {

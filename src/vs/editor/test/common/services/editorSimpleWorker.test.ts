@@ -87,6 +87,11 @@ suite('EditorSimpleWorker', () => {
 		assertPositionAt(Number.MAX_VALUE, 4, 30);
 	});
 
+	test('ICommonModel#validatePosition, issue #15882', function () {
+		let model = worker.addModel(['{"id": "0001","type": "donut","name": "Cake","image":{"url": "images/0001.jpg","width": 200,"height": 200},"thumbnail":{"url": "images/thumbnails/0001.jpg","width": 32,"height": 32}}']);
+		assert.equal(model.offsetAt({ lineNumber: 1, column: 2 }), 1);
+	});
+
 	test('MoreMinimal', function () {
 
 		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], []).then(edits => {

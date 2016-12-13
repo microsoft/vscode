@@ -27,7 +27,7 @@ declare module 'vscode' {
 	/**
 	 * A node provider for a tree explorer contribution.
 	 *
-	 * Providers are registered through (#workspace.registerTreeExplorerNodeProvider) with a
+	 * Providers are registered through (#window.registerTreeExplorerNodeProvider) with a
 	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
 	 * `contributes.explorer` section.
 	 *

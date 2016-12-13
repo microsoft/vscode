@@ -18,16 +18,20 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 		this.client = client;
 	}
 
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover> {
+	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined | null> {
+		const filepath = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve(null);
+		}
 		let args: Proto.FileLocationRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
 		if (!args.file) {
-			return Promise.resolve<Hover>(null);
+			return Promise.resolve(null);
 		}
-		return this.client.execute('quickinfo', args, token).then((response): Hover => {
+		return this.client.execute('quickinfo', args, token).then((response): Hover | undefined => {
 			let data = response.body;
 			if (data) {
 				return new Hover(

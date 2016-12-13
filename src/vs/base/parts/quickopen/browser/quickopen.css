@@ -80,8 +80,12 @@
 
 .quick-open-widget .quick-open-tree .results-group {
 	float: right;
-	opacity: 0.6;
 	margin-right: 18px;
+}
+
+.vs .quick-open-widget .quick-open-tree .results-group,
+.vs-dark .quick-open-widget .quick-open-tree .results-group {
+	opacity: 0.6;
 }
 
 .quick-open-widget .quick-open-tree .content.has-actions .results-group {
@@ -148,12 +152,20 @@
 	color: #0097FB;
 }
 
+.hc-black .quick-open-widget .quick-open-tree .results-group {
+	color: white;
+}
+
 .quick-open-widget .quick-open-tree .results-group-separator {
 	border-top-color: #CCCEDB;
 }
 
 .vs-dark .quick-open-widget .quick-open-tree .results-group-separator {
 	border-top-color: #3F3F46;
+}
+
+.hc-black .quick-open-widget .quick-open-tree .results-group-separator {
+	border-top-color: white;
 }
 
 .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {

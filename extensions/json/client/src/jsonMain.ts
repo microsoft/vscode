@@ -14,7 +14,7 @@ import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
+	export const type: RequestType<string, string, any, any> = { get method() { return 'vscode/content'; }, _: null };
 }
 
 export interface ISchemaAssociations {
@@ -22,7 +22,7 @@ export interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
+	export const type: NotificationType<ISchemaAssociations, any> = { get method() { return 'json/schemaAssociations'; }, _: null };
 }
 
 interface IPackageInfo {
@@ -68,25 +68,26 @@ export function activate(context: ExtensionContext) {
 
 		// Create the language client and start the client.
 		let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
-		client.onTelemetry(e => {
-			if (telemetryReporter) {
-				telemetryReporter.sendTelemetryEvent(e.key, e.data);
-			}
-		});
-
-		// handle content request
-		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
-			let uri = Uri.parse(uriPath);
-			return workspace.openTextDocument(uri).then(doc => {
-				return doc.getText();
-			}, error => {
-				return Promise.reject(error);
-			});
-		});
-
 		let disposable = client.start();
+		client.onReady().then(() => {
+			client.onTelemetry(e => {
+				if (telemetryReporter) {
+					telemetryReporter.sendTelemetryEvent(e.key, e.data);
+				}
+			});
 
-		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+			// handle content request
+			client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
+				let uri = Uri.parse(uriPath);
+				return workspace.openTextDocument(uri).then(doc => {
+					return doc.getText();
+				}, error => {
+					return Promise.reject(error);
+				});
+			});
+
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		});
 
 		// Push the disposable to the context's subscriptions so that the
 		// client can be deactivated on extension deactivation

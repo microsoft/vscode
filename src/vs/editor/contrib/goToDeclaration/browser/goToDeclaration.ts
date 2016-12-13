@@ -112,6 +112,8 @@ export class DefinitionAction extends EditorAction {
 			this._openReference(editorService, next, this._configuration.openToSide).then(editor => {
 				if (model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
+				} else {
+					model.dispose();
 				}
 			});
 		}
@@ -142,6 +144,8 @@ export class DefinitionAction extends EditorAction {
 					return this._openReference(editorService, reference, false);
 				}
 			});
+		} else {
+			model.dispose();
 		}
 	}
 }
@@ -319,7 +323,9 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			// Single result
 			else {
 				let result = results[0];
-				this.textModelResolverService.resolve(result.uri).then(model => {
+
+				this.textModelResolverService.createModelReference(result.uri).then(ref => {
+					const model = ref.object;
 					let hoverMessage: MarkedString;
 					if (model && model.textEditorModel) {
 						const editorModel = model.textEditorModel;
@@ -368,6 +374,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 							value: source
 						};
 					}
+
+					ref.dispose();
 
 					this.addDecoration({
 						startLineNumber: position.lineNumber,

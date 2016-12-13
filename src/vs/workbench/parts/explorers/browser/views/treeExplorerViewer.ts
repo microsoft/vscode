@@ -13,17 +13,14 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionRunner } from 'vs/base/common/actions';
 import { IActionProvider, ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeDataSource implements IDataSource {
 
 	constructor(
 		private treeNodeProviderId: string,
-		@ICustomTreeExplorerService private treeExplorerViewletService: ICustomTreeExplorerService,
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
 		@IProgressService private progressService: IProgressService
 	) {
 
@@ -38,7 +35,7 @@ export class TreeDataSource implements IDataSource {
 	}
 
 	public getChildren(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
-		const promise = this.treeExplorerViewletService.resolveChildren(this.treeNodeProviderId, node);
+		const promise = this.treeExplorerService.resolveChildren(this.treeNodeProviderId, node);
 
 		this.progressService.showWhile(promise, 800);
 
@@ -54,11 +51,7 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 	constructor(
 		state: TreeExplorerViewletState,
-		actionRunner: IActionRunner,
-		private container: HTMLElement,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IModeService private modeService: IModeService
+		actionRunner: IActionRunner
 	) {
 		super({
 			actionProvider: state.actionProvider,
@@ -89,7 +82,7 @@ export class TreeController extends DefaultController {
 
 	constructor(
 		private treeNodeProviderId: string,
-		@ICustomTreeExplorerService private treeExplorerViewletService: ICustomTreeExplorerService
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
@@ -98,7 +91,7 @@ export class TreeController extends DefaultController {
 		super.onLeftClick(tree, node, event, origin);
 
 		if (node.clickCommand) {
-			this.treeExplorerViewletService.executeCommand(this.treeNodeProviderId, node);
+			this.treeExplorerService.executeCommand(this.treeNodeProviderId, node);
 		}
 
 		return true;

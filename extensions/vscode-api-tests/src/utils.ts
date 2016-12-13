@@ -62,7 +62,7 @@ export function cleanUp(): Thenable<any> {
 			}
 		});
 
-		vscode.commands.executeCommand('workbench.action.closeAllEditors').then(null, reject);
+		vscode.commands.executeCommand('workbench.action.closeAllEditors').then(undefined, reject);
 
 	}).then(() => {
 		assert.equal(vscode.window.visibleTextEditors.length, 0);

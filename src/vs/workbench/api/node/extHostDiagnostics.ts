@@ -166,7 +166,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		let result = this._data[uri.toString()];
 		if (Array.isArray(result)) {
-			return Object.freeze(result.slice(0));
+			return <vscode.Diagnostic[]>Object.freeze(result.slice(0));
 		}
 	}
 

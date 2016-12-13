@@ -7,9 +7,10 @@
 import * as nls from 'vs/nls';
 import { merge } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -64,16 +65,17 @@ class ChangeRecorder {
 	}
 }
 
-class EditTask {
+class EditTask implements IDisposable {
 
 	private _initialSelections: Selection[];
 	private _endCursorSelection: Selection;
-	private _model: IModel;
+	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
+	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
 
-	constructor(model: IModel) {
+	constructor(modelReference: IReference<ITextEditorModel>) {
 		this._endCursorSelection = null;
-		this._model = model;
+		this._modelReference = modelReference;
 		this._edits = [];
 	}
 
@@ -138,14 +140,21 @@ class EditTask {
 	private static _editCompare(a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number {
 		return Range.compareRangesUsingStarts(a.range, b.range);
 	}
+
+	dispose() {
+		if (this._model) {
+			this._modelReference.dispose();
+			this._modelReference = null;
+		}
+	}
 }
 
 class SourceModelEditTask extends EditTask {
 
 	private _knownInitialSelections: Selection[];
 
-	constructor(model: IModel, initialSelections: Selection[]) {
-		super(model);
+	constructor(modelReference: IReference<ITextEditorModel>, initialSelections: Selection[]) {
+		super(modelReference);
 		this._knownInitialSelections = initialSelections;
 	}
 
@@ -154,7 +163,7 @@ class SourceModelEditTask extends EditTask {
 	}
 }
 
-class BulkEditModel {
+class BulkEditModel implements IDisposable {
 
 	private _textModelResolverService: ITextModelResolverService;
 	private _numberOfResourcesToModify: number = 0;
@@ -208,7 +217,9 @@ class BulkEditModel {
 		}
 
 		forEach(this._edits, entry => {
-			const promise = this._textModelResolverService.resolve(URI.parse(entry.key)).then(model => {
+			const promise = this._textModelResolverService.createModelReference(URI.parse(entry.key)).then(ref => {
+				const model = ref.object;
+
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${entry.key}`);
 				}
@@ -217,10 +228,10 @@ class BulkEditModel {
 				let task: EditTask;
 
 				if (this._sourceModel && textEditorModel.uri.toString() === this._sourceModel.toString()) {
-					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
+					this._sourceModelTask = new SourceModelEditTask(ref, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {
-					task = new EditTask(textEditorModel);
+					task = new EditTask(ref);
 				}
 
 				entry.value.forEach(edit => task.addEdit(edit));
@@ -250,6 +261,10 @@ class BulkEditModel {
 		if (this.progress) {
 			this.progress.worked(1);
 		}
+	}
+
+	dispose(): void {
+		this._tasks = dispose(this._tasks);
 	}
 }
 
@@ -314,7 +329,7 @@ export function createBulkEdit(eventService: IEventService, textModelResolverSer
 			selections = editor.getSelections();
 		}
 
-		let model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner);
+		const model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner);
 
 		return model.prepare().then(_ => {
 
@@ -324,7 +339,10 @@ export function createBulkEdit(eventService: IEventService, textModelResolverSer
 			}
 
 			recording.stop();
-			return model.apply();
+
+			const result = model.apply();
+			model.dispose();
+			return result;
 		});
 	}
 

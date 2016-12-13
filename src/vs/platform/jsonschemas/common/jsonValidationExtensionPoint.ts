@@ -18,10 +18,10 @@ interface IJSONValidationExtensionPoint {
 let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', [], {
 	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ fileMatch: '{{file.json}}', url: '{{url}}' }] }],
+	defaultSnippets: [{ body: [{ fileMatch: '${1:file.json}', url: '${2:url}' }] }],
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { fileMatch: '{{file.json}}', url: '{{url}}' } }],
+		defaultSnippets: [{ body: { fileMatch: '${1:file.json}', url: '${2:url}' } }],
 		properties: {
 			fileMatch: {
 				type: 'string',

@@ -561,7 +561,7 @@ export class QuickOpenWidget implements IModelProvider {
 			const entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
 			if (entryToFocus) {
 				this.tree.setFocus(entryToFocus);
-				this.tree.reveal(entryToFocus, 0).done(null, errors.onUnexpectedError);
+				this.tree.reveal(entryToFocus, 0.5).done(null, errors.onUnexpectedError);
 
 				return;
 			}
@@ -570,7 +570,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// Second check for auto focus of first entry
 		if (autoFocus.autoFocusFirstEntry) {
 			this.tree.focusFirst();
-			this.tree.reveal(this.tree.getFocus(), 0).done(null, errors.onUnexpectedError);
+			this.tree.reveal(this.tree.getFocus()).done(null, errors.onUnexpectedError);
 		}
 
 		// Third check for specific index option
@@ -796,6 +796,10 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public getProgressBar(): ProgressBar {
 		return this.progressBar;
+	}
+
+	public getInputBox(): InputBox {
+		return this.inputBox;
 	}
 
 	public setExtraClass(clazz: string): void {

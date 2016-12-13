@@ -275,13 +275,13 @@ export class FileService implements IFileService {
 
 					// Write fast if we do UTF 8 without BOM
 					if (!addBom && encodingToWrite === encoding.UTF8) {
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, value, encoding.UTF8);
+						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
 					}
 
 					// Otherwise use encoding lib
 					else {
 						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, encoded);
+						writeFilePromise = pfs.writeFile(absolutePath, encoded);
 					}
 
 					// 4.) set contents
@@ -480,7 +480,7 @@ export class FileService implements IFileService {
 
 			const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
 
-			const content: IStreamContent = <any>model;
+			const content = model as IFileStat & IStreamContent;
 			content.value = reader;
 			content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
 
@@ -489,7 +489,7 @@ export class FileService implements IFileService {
 	}
 
 	private resolveFileContent(resource: uri, etag?: string, enc?: string): TPromise<IContent> {
-		return this.resolveFileStreamContent(resource, etag, enc).then((streamContent) => {
+		return this.resolveFileStreamContent(resource, etag, enc).then(streamContent => {
 			return new TPromise<IContent>((c, e) => {
 				let done = false;
 				const chunks: string[] = [];
@@ -518,7 +518,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private getEncoding(resource: uri, preferredEncoding?: string): string {
+	public getEncoding(resource: uri, preferredEncoding?: string): string {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
@@ -660,7 +660,7 @@ export class FileService implements IFileService {
 			});
 
 			// Errors
-			watcher.on('error', (error) => {
+			watcher.on('error', (error: string) => {
 				this.options.errorLogger(error);
 			});
 		}

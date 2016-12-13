@@ -675,6 +675,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.setState(State.Details);
 		this.editor.focus();
+		this.telemetryService.publicLog('suggestWidget:toggleDetails');
 	}
 
 	private show(): void {
@@ -688,6 +689,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private hide(): void {
 		this.suggestWidgetVisible.reset();
+		this.suggestWidgetMultipleSuggestions.reset();
 		removeClass(this.element, 'visible');
 	}
 

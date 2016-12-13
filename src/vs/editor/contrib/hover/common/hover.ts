@@ -6,7 +6,7 @@
 'use strict';
 
 import { coalesce } from 'vs/base/common/arrays';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -31,7 +31,7 @@ export function getHover(model: IReadOnlyModel, position: Position): TPromise<Ho
 				}
 			}
 		}, err => {
-			onUnexpectedError(err);
+			onUnexpectedExternalError(err);
 		});
 	});
 

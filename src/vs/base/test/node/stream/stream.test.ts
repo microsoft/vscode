@@ -56,4 +56,27 @@ suite('Stream', () => {
 			done();
 		});
 	});
+
+	test('readToMatchingString - ANSI', function (done: () => void) {
+		var file = require.toUrl('./fixtures/file.css');
+
+		stream.readToMatchingString(file, '\n', 10, 100, (error: Error, result: string) => {
+			assert.equal(error, null);
+			// \r may be present on Windows
+			assert.equal(result.replace('\r', ''), '/*---------------------------------------------------------------------------------------------');
+
+			done();
+		});
+	});
+
+	test('readToMatchingString - empty', function (done: () => void) {
+		var file = require.toUrl('./fixtures/empty.txt');
+
+		stream.readToMatchingString(file, '\n', 10, 100, (error: Error, result: string) => {
+			assert.equal(error, null);
+			assert.equal(result, null);
+
+			done();
+		});
+	});
 });

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -30,7 +30,7 @@ export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 				symbols.push({ symbol, provider });
 			}
 		}
-	}, onUnexpectedError));
+	}, onUnexpectedExternalError));
 
 	return TPromise.join(promises).then(() => {
 		return symbols.sort((a, b) => {

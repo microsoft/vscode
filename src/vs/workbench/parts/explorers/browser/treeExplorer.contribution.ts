@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!../media/treeExplorer.contribution';
+import 'vs/css!./media/treeExplorer.contribution';
 
 import { localize } from 'vs/nls';
 import { join } from 'vs/base/common/paths';
@@ -12,16 +12,19 @@ import { createCSSRule } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/platform';
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
-import { CustomTreeExplorerService } from 'vs/workbench/parts/explorers/browser/customTreeExplorerService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
+import { TreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { toCustomExplorerViewletId, toCustomExplorerViewletCSSClass, isValidViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { toViewletId, toViewletCSSClass, isValidViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerSingleton(ICustomTreeExplorerService, CustomTreeExplorerService);
+registerSingleton(ITreeExplorerService, TreeExplorerService);
 
 const explorerSchema: IJSONSchema = {
 	description: localize('vscode.extension.contributes.explorer', 'Contributes custom tree explorer viewlet to the sidebar'),
@@ -42,16 +45,26 @@ const explorerSchema: IJSONSchema = {
 	}
 };
 
-export class ExplorerContribtion implements IWorkbenchContribution {
+export class OpenViewletAction extends ToggleViewletAction {
 
 	constructor(
-		@IMessageService private messageService: IMessageService
+		id: string,
+		label: string,
+		@IViewletService viewletService: IViewletService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
+		super(id, label, id, viewletService, editorService);
+	}
+}
+
+export class ExtensionExplorersContribtion implements IWorkbenchContribution {
+
+	constructor() {
 		this.init();
 	}
 
 	public getId(): string {
-		return 'vs.explorer';
+		return 'vs.explorers.extensionExplorers';
 	}
 
 	private init() {
@@ -60,28 +73,42 @@ export class ExplorerContribtion implements IWorkbenchContribution {
 				const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
 
 				if (!isValidViewletId(treeExplorerNodeProviderId)) {
-					return this.messageService.show(Severity.Error, localize('treeExplorer.invalidId', 'Tree Explorer extension {0} has invalid id and failed to activate.', treeLabel));
+					console.warn(`Tree Explorer extension '${treeLabel}' has invalid id and failed to activate.`);
+					continue;
 				}
 
-				const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
+				const viewletId = toViewletId(treeExplorerNodeProviderId);
+				const viewletCSSClass = toViewletCSSClass(treeExplorerNodeProviderId);
+
+				// Generate CSS to show the icon in the activity bar
 				if (icon) {
-					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId)}`;
+					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${viewletCSSClass}`;
 					const iconPath = join(extension.description.extensionFolderPath, icon);
-					createCSSRule(iconClass, getIconRule(iconPath));
+
+					createCSSRule(iconClass, `background-image: url('${iconPath}')`);
 				}
 
+				// Register action to open the viewlet
+				const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+				registry.registerWorkbenchAction(
+					new SyncActionDescriptor(OpenViewletAction, viewletId, localize('showViewlet', "Show {0}", treeLabel)),
+					'View: Show {0}',
+					localize('view', "View")
+				);
+
+				// Register as viewlet
 				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 					'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 					'TreeExplorerViewlet',
-					toCustomExplorerViewletId(treeExplorerNodeProviderId),
+					viewletId,
 					treeLabel,
-					toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId),
-					-1, // External viewlets are ordered by enabling sequence, so order here doesn't matter.
-					true
+					viewletCSSClass,
+					-1,
+					extension.description.id
 				));
 			}
 		});
 	}
 }
 
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(ExplorerContribtion);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionExplorersContribtion);

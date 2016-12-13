@@ -68,7 +68,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, modeId?: string, restoreResource?: URI): UntitledEditorInput;
+	createOrGet(resource?: URI, modeId?: string): UntitledEditorInput;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -154,7 +154,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			.map((i) => i.getResource());
 	}
 
-	public createOrGet(resource?: URI, modeId?: string, restoreResource?: URI): UntitledEditorInput {
+	public createOrGet(resource?: URI, modeId?: string): UntitledEditorInput {
 		let hasAssociatedFilePath = false;
 		if (resource) {
 			hasAssociatedFilePath = (resource.scheme === 'file');
@@ -171,26 +171,21 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		// Create new otherwise
-		return this.doCreate(resource, hasAssociatedFilePath, modeId, restoreResource);
+		return this.doCreate(resource, hasAssociatedFilePath, modeId);
 	}
 
-	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string, restoreResource?: URI): UntitledEditorInput {
+	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string): UntitledEditorInput {
 		if (!resource) {
 
 			// Create new taking a resource URI that is not already taken
 			let counter = Object.keys(UntitledEditorService.CACHE).length + 1;
 			do {
-				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: 'Untitled-' + counter });
+				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: `Untitled-${counter}` });
 				counter++;
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, restoreResource);
-		if (input.isDirty()) {
-			setTimeout(() => {
-				this._onDidChangeDirty.fire(resource);
-			}, 0 /* prevent race condition between creating input and emitting dirty event */);
-		}
+		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
 
 		const contentListener = input.onDidModelChangeContent(() => {
 			this._onDidChangeContent.fire(resource);

@@ -12,7 +12,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
 import { IFileStat, IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Event as BaseEvent, PropertyChangeEvent } from 'vs/base/common/events';
 
 
@@ -206,8 +206,10 @@ export interface IModelSaveOptions {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
-	onDidContentChange: Event<void>;
+	onDidContentChange: Event<StateChange>;
 	onDidStateChange: Event<StateChange>;
+
+	getVersionId(): number;
 
 	getResource(): URI;
 
@@ -223,7 +225,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(): TPromise<void>;
 
-	setConflictResolutionMode();
+	setConflictResolutionMode(): void;
 
 	getValue(): string;
 
@@ -296,8 +298,8 @@ export interface ITextFileService extends IDisposable {
 	 * @param resources can be null to save all.
 	 * @param includeUntitled to save all resources and optionally exclude untitled ones.
 	 */
-	saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[]): TPromise<ITextFileOperationResult>;
+	saveAll(includeUntitled?: boolean, reason?: SaveReason): TPromise<ITextFileOperationResult>;
+	saveAll(resources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult>;
 
 	/**
 	 * Reverts the provided resource.
@@ -323,6 +325,12 @@ export interface ITextFileService extends IDisposable {
 	confirmSave(resources?: URI[]): ConfirmResult;
 
 	/**
+	 * Brings up an informational message about how exit now being enabled by default. This message
+	 * is temporary and will eventually be removed.
+	 */
+	showHotExitMessage(): void;
+
+	/**
 	 * Convinient fast access to the current auto save mode.
 	 */
 	getAutoSaveMode(): AutoSaveMode;
@@ -331,4 +339,9 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	/**
+	 * Convinient fast access to the hot exit file setting.
+	 */
+	isHotExitEnabled: boolean;
 }

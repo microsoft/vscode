@@ -7,7 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import timer = require('vs/base/common/timer');
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -15,25 +14,25 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
-import { isMacintosh } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
+import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -201,7 +200,6 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
@@ -213,6 +211,8 @@ export abstract class BaseZoomAction extends Action {
 		if (typeof this.configurationService.lookup(BaseZoomAction.SETTING_KEY).workspace === 'number') {
 			target = ConfigurationTarget.WORKSPACE;
 		}
+
+		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
@@ -232,11 +232,10 @@ export class ZoomInAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService messageService: IMessageService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label, messageService, configurationService, configurationEditingService);
+		super(id, label, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -254,11 +253,10 @@ export class ZoomOutAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService messageService: IMessageService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label, messageService, configurationService, configurationEditingService);
+		super(id, label, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -276,11 +274,10 @@ export class ZoomResetAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService messageService: IMessageService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label, messageService, configurationService, configurationEditingService);
+		super(id, label, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -314,8 +311,6 @@ interface ILoaderEvent {
 	detail: string;
 }
 
-const timers = (<any>window).MonacoEnvironment.timers;
-
 export class ShowStartupPerformance extends Action {
 
 	public static ID = 'workbench.action.appPerf';
@@ -325,13 +320,13 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
+		@ITimerService private timerService: ITimerService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		const perfTable = this.environmentService.performance ? this.getPerformanceTable() : this.getFingerprintTable();
 
 		// Show dev tools
 		this.windowService.openDevTools();
@@ -339,87 +334,63 @@ export class ShowStartupPerformance extends Action {
 		// Print to console
 		setTimeout(() => {
 			(<any>console).group('Startup Performance Measurement');
-			const fingerprint: IStartupFingerprint = timers.fingerprint;
-			console.log(`CPUs: ${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})`);
-			console.log(`Total Memory: ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB`);
-			console.log(`Initial Startup: ${fingerprint.initialStartup}`);
-			console.log(`Screen Reader Active: ${fingerprint.hasAccessibilitySupport}`);
-			console.log(`Empty Workspace: ${fingerprint.emptyWorkbench}`);
-			(<any>console).table(perfTable);
+			const metrics: IStartupMetrics = this.timerService.startupMetrics;
+			console.log(`OS: ${metrics.platform} (${metrics.release})`);
+			console.log(`CPUs: ${metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})`);
+			console.log(`Memory (System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
+			console.log(`Memory (Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
+			console.log(`Initial Startup: ${metrics.initialStartup}`);
+			console.log(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
+			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
+
+			let nodeModuleLoadTime: number;
+			let nodeModuleLoadDetails: any[];
+			if (this.environmentService.performance) {
+				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
+				nodeModuleLoadTime = nodeModuleTimes.duration;
+				nodeModuleLoadDetails = nodeModuleTimes.table;
+			}
+
+			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
+
+			if (nodeModuleLoadDetails) {
+				(<any>console).groupCollapsed('node_modules Load Details');
+				(<any>console).table(nodeModuleLoadDetails);
+				(<any>console).groupEnd();
+			}
 			(<any>console).groupEnd();
 		}, 1000);
 
 		return TPromise.as(true);
 	}
 
-	private getFingerprintTable(): any[] {
+	private getStartupMetricsTable(nodeModuleLoadTime?: number): any[] {
 		const table: any[] = [];
-		const fingerprint: IStartupFingerprint = timers.fingerprint;
+		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
-		if (fingerprint.initialStartup) {
-			table.push({ Topic: '[main] initial start => begin to require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedMain });
+		if (metrics.initialStartup) {
+			table.push({ Topic: '[main] start => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
-		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedRequire });
-		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': fingerprint.timers.ellapsedExtensions });
-		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': fingerprint.timers.ellapsedViewletRestore });
-		table.push({ Topic: '[renderer] restoring editor view state', 'Took (ms)': fingerprint.timers.ellapsedEditorRestore });
-		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': fingerprint.timers.ellapsedWorkbench });
+
+		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
+		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedRequire });
+
+		if (nodeModuleLoadTime) {
+			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
+		}
+
+		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': metrics.timers.ellapsedExtensions });
+		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.ellapsedViewletRestore });
+		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.ellapsedEditorRestore });
+		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.ellapsedWorkbench });
 		table.push({ Topic: '------------------------------------------------------' });
-		if (fingerprint.initialStartup) {
-			table.push({ Topic: '[main] load window at', 'Start (ms)': fingerprint.timers.windowLoad });
-		}
-		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': fingerprint.timers.extensionsReady });
-		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': fingerprint.ellapsed });
+		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': metrics.timers.ellapsedExtensionsReady });
+		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': metrics.ellapsed });
 
 		return table;
 	}
 
-	private getPerformanceTable(): any[] {
-		const table: any[] = [];
-		table.push(...this.analyzeLoaderTimes());
-
-		const start = Math.round(timers.isInitialStartup ? timers.perfStartTime : timers.perfWindowLoadTime);
-
-		let lastEvent: timer.ITimerEvent;
-		const events = timer.getTimeKeeper().getCollectedEvents();
-		events.forEach((e) => {
-			if (e.topic === 'Startup') {
-				lastEvent = e;
-				const entry: any = {};
-
-				entry['Event'] = e.name;
-				entry['Took (ms)'] = e.stopTime.getTime() - e.startTime.getTime();
-				entry['Start (ms)'] = Math.max(e.startTime.getTime() - start, 0);
-				entry['End (ms)'] = e.stopTime.getTime() - start;
-
-				table.push(entry);
-			}
-		});
-
-		table.push({ Event: '------------------------------------------------------' });
-
-		if (timers.isInitialStartup) {
-			const loadWindow = Math.round(timers.perfWindowLoadTime);
-			const windowLoadEvent: any = {};
-			windowLoadEvent['Event'] = '[main] load window at';
-			windowLoadEvent['Start (ms)'] = loadWindow - start;
-			table.push(windowLoadEvent);
-		}
-
-		const totalExtensions: any = {};
-		totalExtensions['Event'] = '[main, renderer] start => extensions ready';
-		totalExtensions['Took (ms)'] = timers.perfAfterExtensionLoad - start;
-		table.push(totalExtensions);
-
-		const totalWorkbench: any = {};
-		totalWorkbench['Event'] = '[main, renderer] start => workbench ready';
-		totalWorkbench['Took (ms)'] = timers.workbenchStarted - start;
-		table.push(totalWorkbench);
-
-		return table;
-	}
-
-	private analyzeLoaderTimes(): any[] {
+	private analyzeNodeModulesLoadTimes(): { table: any[], duration: number } {
 		const stats = <ILoaderEvent[]>(<any>require).getStats();
 		const result = [];
 
@@ -429,28 +400,29 @@ export class ShowStartupPerformance extends Action {
 			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
 				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
 					const entry: any = {};
+					const dur = (stats[i].timestamp - stats[i - 1].timestamp);
 					entry['Event'] = 'nodeRequire ' + stats[i].detail;
-					entry['Took (ms)'] = (stats[i].timestamp - stats[i - 1].timestamp);
-					total += (stats[i].timestamp - stats[i - 1].timestamp);
-					entry['Start (ms)'] = '**' + stats[i - 1].timestamp;
-					entry['End (ms)'] = '**' + stats[i - 1].timestamp;
+					entry['Took (ms)'] = dur.toFixed(2);
+					total += dur;
+					entry['Start (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
+					entry['End (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
 					result.push(entry);
 				}
 			}
 		}
 
 		if (total > 0) {
+			result.push({ Event: '------------------------------------------------------' });
+
 			const entry: any = {};
-			entry['Event'] = '[renderer] total require() node modules';
-			entry['Took (ms)'] = total;
+			entry['Event'] = '[renderer] total require() node_modules';
+			entry['Took (ms)'] = total.toFixed(2);
 			entry['Start (ms)'] = '**';
 			entry['End (ms)'] = '**';
 			result.push(entry);
-
-			result.push({ Event: '------------------------------------------------------' });
 		}
 
-		return result;
+		return { table: result, duration: Math.round(total) };
 	}
 }
 
@@ -462,14 +434,12 @@ export class ReloadWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IPartService private partService: IPartService
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<boolean> {
-		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
 		return this.windowService.reloadWindow().then(() => true);
 	}
 }
@@ -503,11 +473,11 @@ export class OpenRecentAction extends Action {
 				label: paths.basename(path),
 				description: paths.dirname(path),
 				separator,
-				run: (context) => runPick(path, context)
+				run: context => runPick(path, context)
 			};
 		}
 
-		const runPick = (path: string, context) => {
+		const runPick = (path: string, context: IEntryRunContext) => {
 			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			this.windowsService.windowOpen([path], newWindow);
 		};
@@ -562,10 +532,8 @@ export class ReportIssueAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
 		@IIntegrityService private integrityService: IIntegrityService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super(id, label);
 	}
@@ -611,7 +579,28 @@ Steps to Reproduce:
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return tableHeader + '\n' + table;
+		return `${tableHeader}\n${table}`;
+	}
+}
+
+export class KeybindingsReferenceAction extends Action {
+
+	public static ID = 'workbench.action.keybindingsReference';
+	public static LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
+
+	private static URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
+	public static AVAILABLE = !!KeybindingsReferenceAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(KeybindingsReferenceAction.URL);
+		return null;
 	}
 }
 

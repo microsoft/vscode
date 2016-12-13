@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IRawAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -72,17 +72,19 @@ export class Adapter {
 		return this.rawAdapter.variables;
 	}
 
-	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
-		if (secondRawAdapter.program) {
-			secondRawAdapter.program = paths.join(extensionDescription.extensionFolderPath, secondRawAdapter.program);
-		}
-		if (secondRawAdapter.runtime) {
-			secondRawAdapter.runtime = paths.join(extensionDescription.extensionFolderPath, secondRawAdapter.runtime);
-		}
-		objects.mixin(this.rawAdapter, secondRawAdapter, true);
+	public get configurationSnippets(): IJSONSchemaSnippet[] {
+		return this.rawAdapter.configurationSnippets;
 	}
 
-	public getInitialConfigFileContent(): TPromise<string> {
+	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
+		// Give priority to built in debug adapters
+		if (extensionDescription.isBuiltin) {
+			this.extensionDescription = extensionDescription;
+		}
+		objects.mixin(this.rawAdapter, secondRawAdapter, extensionDescription.isBuiltin);
+	}
+
+	public getInitialConfigurationContent(): TPromise<string> {
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		if (typeof this.rawAdapter.initialConfigurations === 'string') {
 			// Contributed initialConfigurations is a command that needs to be invoked
@@ -103,7 +105,7 @@ export class Adapter {
 				configurations: this.rawAdapter.initialConfigurations || []
 			},
 			null,
-			editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t'
+			editorConfig.editor && editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t'
 		));
 	};
 
@@ -150,16 +152,6 @@ export class Adapter {
 				description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
 			};
 
-			const warnRelativePaths = (attribute: IJSONSchema) => {
-				if (attribute) {
-					attribute.pattern = '^\\${.*}.*|' + paths.isAbsoluteRegex.source;
-					attribute.errorMessage = nls.localize('relativePathsNotConverted', "Relative paths will no longer be automatically converted to absolute ones. Consider using ${workspaceRoot} as a prefix.");
-				}
-			};
-			warnRelativePaths(properties['outDir']);
-			warnRelativePaths(properties['program']);
-			warnRelativePaths(properties['cwd']);
-
 			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {
 				type: 'object',
@@ -182,16 +174,17 @@ export class Adapter {
 	}
 
 	private getAttributeBasedOnPlatform(key: string): any {
+		let result: any;
 		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && this.rawAdapter.winx86) {
-			return this.rawAdapter.winx86[key];
+			result = this.rawAdapter.winx86[key];
 		} else if (platform.isWindows && this.rawAdapter.win) {
-			return this.rawAdapter.win[key];
+			result = this.rawAdapter.win[key];
 		} else if (platform.isMacintosh && this.rawAdapter.osx) {
-			return this.rawAdapter.osx[key];
+			result = this.rawAdapter.osx[key];
 		} else if (platform.isLinux && this.rawAdapter.linux) {
-			return this.rawAdapter.linux[key];
+			result = this.rawAdapter.linux[key];
 		}
 
-		return this.rawAdapter[key];
+		return result || this.rawAdapter[key];
 	}
 }

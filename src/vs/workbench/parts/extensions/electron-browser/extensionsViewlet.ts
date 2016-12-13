@@ -31,20 +31,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
-	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
-	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction
+	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
+	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
-import { OpenGlobalSettingsAction } from 'vs/workbench/parts/settings/browser/openSettingsActions';
+import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface SearchInputEvent extends Event {
@@ -170,6 +170,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
@@ -178,6 +179,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
 				new Separator(),
+				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
 				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL)
 			];
@@ -263,6 +265,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		if (/@recommended:workspace/i.test(query.value)) {
 			return this.getWorkspaceRecommendationsModel(query, options);
+		} else if (/@recommended:keymaps/i.test(query.value)) {
+			return this.getKeymapRecommendationsModel(query, options);
 		} else if (/@recommended/i.test(query.value)) {
 			return this.getRecommendationsModel(query, options);
 		}
@@ -314,6 +318,20 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 					.then(result => new PagedModel(result));
 			});
+	}
+
+	private getKeymapRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
+		const names = this.tipsService.getKeymapRecommendations()
+			.filter(name => name.toLowerCase().indexOf(value) > -1);
+		this.telemetryService.publicLog('extensionKeymapRecommendations:open', { count: names.length });
+
+		if (!names.length) {
+			return TPromise.as(new PagedModel([]));
+		}
+
+		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+			.then(result => new PagedModel(result));
 	}
 
 	private openExtension(extension: IExtension): void {
@@ -404,7 +422,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 	private disposables: IDisposable[];
 
 	constructor(
-		@IActivityService private activityService: IActivityService,
+		@IActivityBarService private activityBarService: IActivityBarService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
@@ -416,16 +434,16 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	private onServiceChange(): void {
 		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
-			this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			this.activityBarService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
 			return;
 		}
 
 		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
 		if (outdated > 0) {
 			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+			this.activityBarService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
 		} else {
-			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+			this.activityBarService.showActivity(VIEWLET_ID, null, 'extensions-badge');
 		}
 	}
 

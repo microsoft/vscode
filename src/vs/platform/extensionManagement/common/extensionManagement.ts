@@ -119,14 +119,18 @@ export interface IGalleryExtensionProperties {
 	engine?: string;
 }
 
+export interface IGalleryExtensionAsset {
+	uri: string;
+	fallbackUri: string;
+}
+
 export interface IGalleryExtensionAssets {
-	manifest: string;
-	readme: string;
-	changelog: string;
-	download: string;
-	icon: string;
-	iconFallback: string;
-	license: string;
+	manifest: IGalleryExtensionAsset;
+	readme: IGalleryExtensionAsset;
+	changelog: IGalleryExtensionAsset;
+	download: IGalleryExtensionAsset;
+	icon: IGalleryExtensionAsset;
+	license: IGalleryExtensionAsset;
 }
 
 export interface IGalleryExtension {
@@ -203,6 +207,7 @@ export interface IExtensionGalleryService {
 	download(extension: IGalleryExtension): TPromise<string>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
+	getChangelog(extension: IGalleryMetadata): TPromise<string>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]>;
 }
@@ -286,7 +291,9 @@ export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
+	getKeymapRecommendations(): string[];
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsChannelId = 'extensions';
+export const PreferencesLabel = localize('preferences', "Preferences");

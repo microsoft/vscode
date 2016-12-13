@@ -146,7 +146,7 @@
 			<key>name</key>
 			<string>Classes</string>
 			<key>scope</key>
-			<string>support.class, entity.name.class, entity.name.type.class</string>
+			<string>support.class, entity.name.class, entity.name.type</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
@@ -350,7 +350,7 @@
 			<key>name</key>
 			<string>Code</string>
 			<key>scope</key>
-			<string>markup.raw.inline</string>
+			<string>markup.inline.raw</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>

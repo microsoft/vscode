@@ -78,35 +78,38 @@ suite('Workbench - TextModelResolverService', () => {
 		});
 	});
 
-	test('resolve file', function (done) {
+	test('resolve file', function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-		model.load().then(() => {
-			accessor.textModelResolverServie.resolve(model.getResource()).then(model => {
-				const editorModel = model.textEditorModel as IModel;
+
+		return model.load().then(() => {
+			return accessor.textModelResolverServie.createModelReference(model.getResource()).then(ref => {
+				const model = ref.object;
+				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
 				assert.equal(editorModel.getValue(), 'Hello Html');
-
-				done();
+				ref.dispose();
 			});
 		});
 	});
 
-	test('resolve untitled', function (done) {
+	test('resolve untitled', function () {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
-		input.resolve().then(() => {
-			accessor.textModelResolverServie.resolve(input.getResource()).then(model => {
-				const editorModel = model.textEditorModel as IModel;
+		return input.resolve().then(() => {
+			return accessor.textModelResolverServie.createModelReference(input.getResource()).then(ref => {
+				const model = ref.object;
+				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
+				ref.dispose();
 
 				input.dispose();
-
-				done();
 			});
 		});
 	});
+
+	// TODO: add reference tests!
 });

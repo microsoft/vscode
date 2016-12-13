@@ -87,35 +87,43 @@
 
 /* Dark theme */
 
-.monaco-editor.vs-dark .debug-hover-widget {
+.monaco-editor.vs-dark .debug-hover-widget,
+.monaco-editor.hc-black .debug-hover-widget {
 	background-color: #2D2D30;
 	border-color: #555;
 }
 
-.monaco-editor.vs-dark .debug-hover-widget .value {
+.monaco-editor.vs-dark .debug-hover-widget .value,
+.monaco-editor.hc-black .debug-hover-widget .value {
 	color: rgba(204, 204, 204, 0.6);
 }
 
-.monaco-editor.vs-dark .debug-hover-widget .error {
+.monaco-editor.vs-dark .debug-hover-widget .error,
+.monaco-editor.hc-black .debug-hover-widget .error {
 	color: #F48771;
 }
 
-.monaco-editor.vs-dark .debug-hover-widget .value.number {
+.monaco-editor.vs-dark .debug-hover-widget .value.number,
+.monaco-editor.hc-black .debug-hover-widget .value.number {
 	color: #B5CEA8;
 }
 
-.monaco-editor.vs-dark .debug-hover-widget .value.boolean {
+.monaco-editor.vs-dark .debug-hover-widget .value.boolean,
+.monaco-editor.hc-black .debug-hover-widget .value.boolean {
 	color: #4E94CE;
 }
 
-.monaco-editor.vs-dark .debug-hover-widget .value.string {
+.monaco-editor.vs-dark .debug-hover-widget .value.string,
+.monaco-editor.hc-black .debug-hover-widget .value.string {
 	color: #CE9178;
 }
 
-.monaco-editor.vs-dark .debug-hover-widget {
+.monaco-editor.vs-dark .debug-hover-widget,
+.monaco-editor.hc-black .debug-hover-widget {
 	border-color: #555;
 }
 
-.monaco-editor.vs-dark .debugHoverHighlight {
+.monaco-editor.vs-dark .debugHoverHighlight,
+.monaco-editor.hc-theme .debugHoverHighlight {
 	background-color: rgba(38, 79, 120, 0.25);
 }

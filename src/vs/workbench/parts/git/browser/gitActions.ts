@@ -26,7 +26,7 @@ import { IMessageService, IConfirmation, IChoiceService } from 'vs/platform/mess
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBranch, GitErrorCodes, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -640,7 +640,7 @@ export class CheckoutAction extends GitAction {
 
 		var result = this.gitService.checkout(this.branch.name).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stage your work first.")));
+				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stash your work first.")));
 			}
 
 			return Promise.wrapError(err);
@@ -935,7 +935,7 @@ export class PullAction extends GitAction {
 	protected pull(rebase = false): Promise {
 		return this.gitService.pull(rebase).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stage your work first."), { severity: Severity.Warning }));
+				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stash your work first."), { severity: Severity.Warning }));
 			} else if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
 			}
@@ -1243,14 +1243,7 @@ export class UndoLastCommitAction extends GitAction {
 		const model = this.gitService.getModel();
 		const HEAD = model.getHEAD();
 
-		if (!HEAD || !HEAD.commit) {
-			return false;
-		}
-
-		const status = model.getStatus();
-
-		return status.getIndexStatus().all().length === 0
-			&& status.getWorkingTreeStatus().all().length === 0;
+		return !!(HEAD && HEAD.commit);
 	}
 
 	public run(): Promise {

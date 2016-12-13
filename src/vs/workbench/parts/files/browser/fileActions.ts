@@ -18,7 +18,6 @@ import strings = require('vs/base/common/strings');
 import { Event, EventType as CommonEventType } from 'vs/base/common/events';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
@@ -39,7 +38,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IQuickOpenService, IFilePickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
@@ -47,9 +46,9 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Selection } from 'vs/editor/common/core/selection';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export interface IEditableData {
 	action: IAction;
@@ -896,7 +895,7 @@ export class ImportFileAction extends BaseFileAction {
 					const importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
 						importPromisesFactory.push(() => {
-							const sourceFile = URI.file((<any>file).path);
+							const sourceFile = URI.file(file.path);
 
 							return this.fileService.importFile(sourceFile, targetElement.resource).then((result: IImportResult) => {
 								if (result.stat) {
@@ -1430,10 +1429,11 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 				let selectionOfSource: Selection;
 				const activeEditor = this.editorService.getActiveEditor();
-				if (activeEditor instanceof BaseTextEditor) {
+				const editor = getCodeEditor(activeEditor);
+				if (editor) {
 					const activeResource = getUntitledOrFileResource(activeEditor.input, true);
 					if (activeResource && activeResource.toString() === source.toString()) {
-						selectionOfSource = <Selection>activeEditor.getSelection();
+						selectionOfSource = <Selection>editor.getSelection();
 					}
 				}
 
@@ -1647,7 +1647,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		}
 
 		const editorGroup = editorIdentifier.group;
-		const resourcesToSave = [];
+		const resourcesToSave: URI[] = [];
 		editorGroup.getEditors().forEach(editor => {
 			const resource = getUntitledOrFileResource(editor, true);
 			if (resource) {
@@ -1859,7 +1859,7 @@ export class RefreshExplorerView extends Action {
 	}
 }
 
-export function keybindingForAction(id: string, keybindingService?: IKeybindingService): Keybinding {
+export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
 	switch (id) {
 		case GlobalNewUntitledFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);

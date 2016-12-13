@@ -12,9 +12,9 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDocuments, ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
-import { Selection, Range, Position, EditorOptions, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind } from './extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
-import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/workbench/api/node/mainThreadEditorsTracker';
+import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind, TextEditorLineNumbersStyle } from './extHostTypes';
+import { ISingleEditOperation, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorAddData, ITextEditorPositionData } from './extHost.protocol';
 import * as vscode from 'vscode';
@@ -293,6 +293,180 @@ function deprecated(name: string, message: string = 'Refer to the documentation 
 	};
 }
 
+export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
+
+	private _proxy: MainThreadEditorsShape;
+	private _id: string;
+
+	private _tabSize: number;
+	private _insertSpaces: boolean;
+	private _cursorStyle: TextEditorCursorStyle;
+	private _lineNumbers: TextEditorLineNumbersStyle;
+
+	constructor(proxy: MainThreadEditorsShape, id: string, source: IResolvedTextEditorConfiguration) {
+		this._proxy = proxy;
+		this._id = id;
+		this._accept(source);
+	}
+
+	public _accept(source: IResolvedTextEditorConfiguration): void {
+		this._tabSize = source.tabSize;
+		this._insertSpaces = source.insertSpaces;
+		this._cursorStyle = source.cursorStyle;
+		this._lineNumbers = source.lineNumbers;
+	}
+
+	public get tabSize(): number | string {
+		return this._tabSize;
+	}
+
+	private _validateTabSize(value: number | string): number | 'auto' | null {
+		if (value === 'auto') {
+			return 'auto';
+		}
+		if (typeof value === 'number') {
+			let r = Math.floor(value);
+			return (r > 0 ? r : null);
+		}
+		if (typeof value === 'string') {
+			let r = parseInt(value, 10);
+			if (isNaN(r)) {
+				return null;
+			}
+			return (r > 0 ? r : null);
+		}
+		return null;
+	}
+
+	public set tabSize(value: number | string) {
+		let tabSize = this._validateTabSize(value);
+		if (tabSize === null) {
+			// ignore invalid call
+			return;
+		}
+		if (typeof tabSize === 'number') {
+			if (this._tabSize === tabSize) {
+				// nothing to do
+				return;
+			}
+			// reflect the new tabSize value immediately
+			this._tabSize = tabSize;
+		}
+		warnOnError(this._proxy.$trySetOptions(this._id, {
+			tabSize: tabSize
+		}));
+	}
+
+	public get insertSpaces(): boolean | string {
+		return this._insertSpaces;
+	}
+
+	private _validateInsertSpaces(value: boolean | string): boolean | 'auto' {
+		if (value === 'auto') {
+			return 'auto';
+		}
+		return (value === 'false' ? false : Boolean(value));
+	}
+
+	public set insertSpaces(value: boolean | string) {
+		let insertSpaces = this._validateInsertSpaces(value);
+		if (typeof insertSpaces === 'boolean') {
+			if (this._insertSpaces === insertSpaces) {
+				// nothing to do
+				return;
+			}
+			// reflect the new insertSpaces value immediately
+			this._insertSpaces = insertSpaces;
+		}
+		warnOnError(this._proxy.$trySetOptions(this._id, {
+			insertSpaces: insertSpaces
+		}));
+	}
+
+	public get cursorStyle(): TextEditorCursorStyle {
+		return this._cursorStyle;
+	}
+
+	public set cursorStyle(value: TextEditorCursorStyle) {
+		if (this._cursorStyle === value) {
+			// nothing to do
+			return;
+		}
+		this._cursorStyle = value;
+		warnOnError(this._proxy.$trySetOptions(this._id, {
+			cursorStyle: value
+		}));
+	}
+
+	public get lineNumbers(): TextEditorLineNumbersStyle {
+		return this._lineNumbers;
+	}
+
+	public set lineNumbers(value: TextEditorLineNumbersStyle) {
+		if (this._lineNumbers === value) {
+			// nothing to do
+			return;
+		}
+		this._lineNumbers = value;
+		warnOnError(this._proxy.$trySetOptions(this._id, {
+			lineNumbers: value
+		}));
+	}
+
+	public assign(newOptions: vscode.TextEditorOptions) {
+		let bulkConfigurationUpdate: ITextEditorConfigurationUpdate = {};
+		let hasUpdate = false;
+
+		if (typeof newOptions.tabSize !== 'undefined') {
+			let tabSize = this._validateTabSize(newOptions.tabSize);
+			if (tabSize === 'auto') {
+				hasUpdate = true;
+				bulkConfigurationUpdate.tabSize = tabSize;
+			} else if (typeof tabSize === 'number' && this._tabSize !== tabSize) {
+				// reflect the new tabSize value immediately
+				this._tabSize = tabSize;
+				hasUpdate = true;
+				bulkConfigurationUpdate.tabSize = tabSize;
+			}
+		}
+
+		if (typeof newOptions.insertSpaces !== 'undefined') {
+			let insertSpaces = this._validateInsertSpaces(newOptions.insertSpaces);
+			if (insertSpaces === 'auto') {
+				hasUpdate = true;
+				bulkConfigurationUpdate.insertSpaces = insertSpaces;
+			} else if (this._insertSpaces !== insertSpaces) {
+				// reflect the new insertSpaces value immediately
+				this._insertSpaces = insertSpaces;
+				hasUpdate = true;
+				bulkConfigurationUpdate.insertSpaces = insertSpaces;
+			}
+		}
+
+		if (typeof newOptions.cursorStyle !== 'undefined') {
+			if (this._cursorStyle !== newOptions.cursorStyle) {
+				this._cursorStyle = newOptions.cursorStyle;
+				hasUpdate = true;
+				bulkConfigurationUpdate.cursorStyle = newOptions.cursorStyle;
+			}
+		}
+
+		if (typeof newOptions.lineNumbers !== 'undefined') {
+			if (this._lineNumbers !== newOptions.lineNumbers) {
+				this._lineNumbers = newOptions.lineNumbers;
+				hasUpdate = true;
+				bulkConfigurationUpdate.lineNumbers = newOptions.lineNumbers;
+			}
+		}
+
+		if (hasUpdate) {
+			warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
+		}
+	}
+
+
+}
+
 class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _proxy: MainThreadEditorsShape;
@@ -300,15 +474,15 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _documentData: ExtHostDocumentData;
 	private _selections: Selection[];
-	private _options: vscode.TextEditorOptions;
+	private _options: ExtHostTextEditorOptions;
 	private _viewColumn: vscode.ViewColumn;
 
-	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions, viewColumn: vscode.ViewColumn) {
+	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: IResolvedTextEditorConfiguration, viewColumn: vscode.ViewColumn) {
 		this._proxy = proxy;
 		this._id = id;
 		this._documentData = document;
 		this._selections = selections;
-		this._options = options;
+		this._options = new ExtHostTextEditorOptions(this._proxy, this._id, options);
 		this._viewColumn = viewColumn;
 	}
 
@@ -341,14 +515,11 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	set options(value: vscode.TextEditorOptions) {
-		this._options = value;
-		this._runOnProxy(() => {
-			return this._proxy.$trySetOptions(this._id, this._options);
-		}, true);
+		this._options.assign(value);
 	}
 
-	_acceptOptions(options: EditorOptions): void {
-		this._options = options;
+	_acceptOptions(options: IResolvedTextEditorConfiguration): void {
+		this._options._accept(options);
 	}
 
 	// ---- view column
@@ -459,4 +630,10 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			console.warn(err);
 		});
 	}
+}
+
+function warnOnError(promise: TPromise<any>): void {
+	promise.then(null, (err) => {
+		console.warn(err);
+	});
 }

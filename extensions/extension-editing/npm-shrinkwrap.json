@@ -2,10 +2,5 @@
 	"name": "extension-editing",
 	"version": "0.0.1",
 	"dependencies": {
-		"typescript": {
-			"version": "1.8.10",
-			"from": "typescript@>=1.8.10 <2.0.0",
-			"resolved": "https://registry.npmjs.org/typescript/-/typescript-1.8.10.tgz"
-		}
 	}
 }

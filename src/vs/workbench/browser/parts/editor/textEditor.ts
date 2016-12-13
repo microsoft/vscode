@@ -8,11 +8,13 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
+import errors = require('vs/base/common/errors');
+import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditor, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -24,7 +26,17 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { Selection } from 'vs/editor/common/core/selection';
+import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { Scope } from 'vs/workbench/common/memento';
+
+const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+
+interface ITextEditorViewState {
+	0?: IEditorViewState;
+	1?: IEditorViewState;
+	2?: IEditorViewState;
+}
 
 /**
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
@@ -34,6 +46,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	private editorControl: IEditor;
 	private _editorContainer: Builder;
 	private hasPendingConfigurationChange: boolean;
+	private pendingAutoSave: TPromise<void>;
 
 	constructor(
 		id: string,
@@ -45,7 +58,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEventService private _eventService: IEventService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super(id, telemetryService);
 
@@ -130,8 +144,47 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this._editorContainer = parent;
 		this.editorControl = this.createEditorControl(parent);
 
+		// Application & Editor focus change
+		if (this.editorControl instanceof EventEmitter) {
+			this.toUnbind.push(this.editorControl.addListener2(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
+		}
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+
 		// Configuration
 		this.applyConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>());
+	}
+
+	private onEditorFocusLost(): void {
+		if (this.pendingAutoSave) {
+			return; // save is already triggered
+		}
+
+		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && this.textFileService.isDirty()) {
+			this.saveAll(SaveReason.FOCUS_CHANGE);
+		}
+	}
+
+	private onWindowFocusLost(): void {
+		if (this.pendingAutoSave) {
+			return; // save is already triggered
+		}
+
+		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && this.textFileService.isDirty()) {
+			this.saveAll(SaveReason.WINDOW_CHANGE);
+		}
+	}
+
+	private saveAll(reason: SaveReason): void {
+		this.pendingAutoSave = this.textFileService.saveAll(void 0, reason).then(() => {
+			this.pendingAutoSave = void 0;
+
+			return void 0;
+		}, error => {
+			this.pendingAutoSave = void 0;
+			errors.onUnexpectedError(error);
+
+			return void 0;
+		});
 	}
 
 	/**
@@ -139,11 +192,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 * provide their own editor control that should be used (e.g. a DiffEditor).
 	 */
 	public createEditorControl(parent: Builder): IEditor {
+
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
 		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => {
 			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
 		});
@@ -176,8 +230,55 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this.editorControl;
 	}
 
-	public getSelection(): Selection {
-		return this.editorControl.getSelection();
+	/**
+	 * Saves the text editor view state under the given key.
+	 */
+	protected saveTextEditorViewState(key: string): void {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		let textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (!textEditorViewStateMemento) {
+			textEditorViewStateMemento = Object.create(null);
+			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
+		}
+
+		const editorViewState = this.getControl().saveViewState();
+
+		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		if (!fileViewState) {
+			fileViewState = Object.create(null);
+			textEditorViewStateMemento[key] = fileViewState;
+		}
+
+		if (typeof this.position === 'number') {
+			fileViewState[this.position] = editorViewState;
+		}
+	}
+
+	/**
+	 * Clears the text editor view state under the given key.
+	 */
+	protected clearTextEditorViewState(keys: string[]): void {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			keys.forEach(key => delete textEditorViewStateMemento[key]);
+		}
+	}
+
+	/**
+	 * Loads the text editor view state for the given key and returns it.
+	 */
+	protected loadTextEditorViewState(key: string): IEditorViewState {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			if (fileViewState) {
+				return fileViewState[this.position];
+			}
+		}
+
+		return null;
 	}
 
 	public dispose(): void {

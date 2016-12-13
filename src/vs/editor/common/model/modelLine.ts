@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IReadOnlyLineMarker } from 'vs/editor/common/editorCommon';
 import { IState } from 'vs/editor/common/modes';
 import { TokensBinaryEncoding, DEFLATED_TOKENS_EMPTY_TEXT, DEFLATED_TOKENS_NON_EMPTY_TEXT, TokensBinaryEncodingValues, TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -19,24 +19,89 @@ export interface ILineEdit {
 	forceMoveMarkers: boolean;
 }
 
-export interface ILineMarker extends IReadOnlyLineMarker {
-	id: string;
-	column: number;
-	stickToPreviousCharacter: boolean;
+export class LineMarker {
+	_lineMarkerBrand: void;
 
-	oldLineNumber: number;
-	oldColumn: number;
+	public readonly id: string;
+	public readonly internalDecorationId: number;
 
-	line: ModelLine;
+	public stickToPreviousCharacter: boolean;
+	public position: Position;
+
+	constructor(id: string, internalDecorationId: number, position: Position, stickToPreviousCharacter: boolean) {
+		this.id = id;
+		this.internalDecorationId = internalDecorationId;
+		this.position = position;
+		this.stickToPreviousCharacter = stickToPreviousCharacter;
+	}
+
+	public toString(): string {
+		return '{\'' + this.id + '\';' + this.position.toString() + ',' + this.stickToPreviousCharacter + '}';
+	}
+
+	public updateLineNumber(markersTracker: MarkersTracker, lineNumber: number): void {
+		if (this.position.lineNumber === lineNumber) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = new Position(lineNumber, this.position.column);
+	}
+
+	public updateColumn(markersTracker: MarkersTracker, column: number): void {
+		if (this.position.column === column) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = new Position(this.position.lineNumber, column);
+	}
+
+	public updatePosition(markersTracker: MarkersTracker, position: Position): void {
+		if (this.position.lineNumber === position.lineNumber && this.position.column === position.column) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = position;
+	}
+
+	public setPosition(position: Position) {
+		this.position = position;
+	}
+
+
+	public static compareMarkers(a: LineMarker, b: LineMarker): number {
+		if (a.position.column === b.position.column) {
+			return (a.stickToPreviousCharacter ? 0 : 1) - (b.stickToPreviousCharacter ? 0 : 1);
+		}
+		return a.position.column - b.position.column;
+	}
 }
 
-export interface IChangedMarkers {
-	[markerId: string]: boolean;
+export class MarkersTracker {
+	_changedDecorationsBrand: void;
+
+	private _changedDecorations: number[];
+	private _changedDecorationsLen: number;
+
+	constructor() {
+		this._changedDecorations = [];
+		this._changedDecorationsLen = 0;
+	}
+
+	public addChangedMarker(marker: LineMarker): void {
+		let internalDecorationId = marker.internalDecorationId;
+		if (internalDecorationId !== 0) {
+			this._changedDecorations[this._changedDecorationsLen++] = internalDecorationId;
+		}
+	}
+
+	public getDecorationIds(): number[] {
+		return this._changedDecorations;
+	}
 }
 
 export interface ITextWithMarkers {
 	text: string;
-	markers: ILineMarker[];
+	markers: LineMarker[];
 }
 
 interface ITokensAdjuster {
@@ -141,7 +206,7 @@ export class ModelLine {
 	private _state: IState;
 	private _modeTransitions: ModeTransition[];
 	private _lineTokens: number[];
-	private _markers: ILineMarker[];
+	private _markers: LineMarker[];
 
 	constructor(lineNumber: number, text: string, tabSize: number) {
 		this._lineNumber = lineNumber | 0;
@@ -317,7 +382,7 @@ export class ModelLine {
 	// 	return '[' + markers.map(printMarker).join(', ') + ']';
 	// }
 
-	private _createMarkersAdjuster(changedMarkers: IChangedMarkers): IMarkersAdjuster {
+	private _createMarkersAdjuster(markersTracker: MarkersTracker): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
@@ -325,7 +390,7 @@ export class ModelLine {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
 
-		this._markers.sort(ModelLine._compareMarkers);
+		this._markers.sort(LineMarker.compareMarkers);
 
 		var markers = this._markers;
 		var markersLength = markers.length;
@@ -335,10 +400,10 @@ export class ModelLine {
 		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
 		let adjustMarkerBeforeColumn = (toColumn: number, moveSemantics: MarkerMoveSemantics) => {
-			if (marker.column < toColumn) {
+			if (marker.position.column < toColumn) {
 				return true;
 			}
-			if (marker.column > toColumn) {
+			if (marker.position.column > toColumn) {
 				return false;
 			}
 			if (moveSemantics === MarkerMoveSemantics.ForceMove) {
@@ -357,13 +422,8 @@ export class ModelLine {
 
 			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (delta !== 0) {
-					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
-					if (marker.column !== newColumn) {
-						changedMarkers[marker.id] = true;
-						marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
-						marker.oldColumn = marker.oldColumn || marker.column;
-						marker.column = newColumn;
-					}
+					let newColumn = Math.max(minimumAllowedColumn, marker.position.column + delta);
+					marker.updateColumn(markersTracker, newColumn);
 				}
 
 				markersIndex++;
@@ -381,12 +441,7 @@ export class ModelLine {
 			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 
 			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
-				if (marker.column !== newColumn) {
-					changedMarkers[marker.id] = true;
-					marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
-					marker.oldColumn = marker.oldColumn || marker.column;
-					marker.column = newColumn;
-				}
+				marker.updateColumn(markersTracker, newColumn);
 
 				markersIndex++;
 				if (markersIndex < markersLength) {
@@ -410,12 +465,12 @@ export class ModelLine {
 		};
 	}
 
-	public applyEdits(changedMarkers: IChangedMarkers, edits: ILineEdit[], tabSize: number): number {
+	public applyEdits(markersTracker: MarkersTracker, edits: ILineEdit[], tabSize: number): number {
 		let deltaColumn = 0;
 		let resultText = this._text;
 
 		let tokensAdjuster = this._createTokensAdjuster();
-		let markersAdjuster = this._createMarkersAdjuster(changedMarkers);
+		let markersAdjuster = this._createMarkersAdjuster(markersTracker);
 
 		for (let i = 0, len = edits.length; i < len; i++) {
 			let edit = edits[i];
@@ -466,22 +521,22 @@ export class ModelLine {
 		return deltaColumn;
 	}
 
-	public split(changedMarkers: IChangedMarkers, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
+	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this._text.substring(0, splitColumn - 1);
 		var otherText = this._text.substring(splitColumn - 1);
 
-		var otherMarkers: ILineMarker[] = null;
+		var otherMarkers: LineMarker[] = null;
 
 		if (this._markers) {
-			this._markers.sort(ModelLine._compareMarkers);
+			this._markers.sort(LineMarker.compareMarkers);
 			for (let i = 0, len = this._markers.length; i < len; i++) {
 				let marker = this._markers[i];
 
 				if (
-					marker.column > splitColumn
+					marker.position.column > splitColumn
 					|| (
-						marker.column === splitColumn
+						marker.position.column === splitColumn
 						&& (
 							forceMoveMarkers
 							|| !marker.stickToPreviousCharacter
@@ -499,10 +554,7 @@ export class ModelLine {
 				for (let i = 0, len = otherMarkers.length; i < len; i++) {
 					let marker = otherMarkers[i];
 
-					changedMarkers[marker.id] = true;
-					marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
-					marker.oldColumn = marker.oldColumn || marker.column;
-					marker.column -= splitColumn - 1;
+					marker.updateColumn(markersTracker, marker.position.column - (splitColumn - 1));
 				}
 			}
 		}
@@ -516,7 +568,7 @@ export class ModelLine {
 		return otherLine;
 	}
 
-	public append(changedMarkers: IChangedMarkers, other: ModelLine, tabSize: number): void {
+	public append(markersTracker: MarkersTracker, other: ModelLine, tabSize: number): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this._text.length;
@@ -559,18 +611,14 @@ export class ModelLine {
 			for (let i = 0, len = otherMarkers.length; i < len; i++) {
 				let marker = otherMarkers[i];
 
-				changedMarkers[marker.id] = true;
-				marker.oldLineNumber = marker.oldLineNumber || other.lineNumber;
-				marker.oldColumn = marker.oldColumn || marker.column;
-				marker.column += thisTextLength;
+				marker.updatePosition(markersTracker, new Position(this._lineNumber, marker.position.column + thisTextLength));
 			}
 
 			this.addMarkers(otherMarkers);
 		}
 	}
 
-	public addMarker(marker: ILineMarker): void {
-		marker.line = this;
+	public addMarker(marker: LineMarker): void {
 		if (!this._markers) {
 			this._markers = [marker];
 		} else {
@@ -578,16 +626,9 @@ export class ModelLine {
 		}
 	}
 
-	public addMarkers(markers: ILineMarker[]): void {
+	public addMarkers(markers: LineMarker[]): void {
 		if (markers.length === 0) {
 			return;
-		}
-
-		var i: number,
-			len: number;
-
-		for (i = 0, len = markers.length; i < len; i++) {
-			markers[i].line = this;
 		}
 
 		if (!this._markers) {
@@ -597,24 +638,21 @@ export class ModelLine {
 		}
 	}
 
-	private static _compareMarkers(a: ILineMarker, b: ILineMarker): number {
-		if (a.column === b.column) {
-			return (a.stickToPreviousCharacter ? 0 : 1) - (b.stickToPreviousCharacter ? 0 : 1);
-		}
-		return a.column - b.column;
-	}
-
-	public removeMarker(marker: ILineMarker): void {
+	public removeMarker(marker: LineMarker): void {
 		if (!this._markers) {
 			return;
 		}
+
 		let index = this._indexOfMarkerId(marker.id);
-		if (index >= 0) {
-			marker.line = null;
-			this._markers.splice(index, 1);
+		if (index < 0) {
+			return;
 		}
-		if (this._markers.length === 0) {
+
+		if (this._markers.length === 1) {
+			// was last marker on line
 			this._markers = null;
+		} else {
+			this._markers.splice(index, 1);
 		}
 	}
 
@@ -626,7 +664,6 @@ export class ModelLine {
 			let marker = this._markers[i];
 
 			if (deleteMarkers[marker.id]) {
-				marker.line = null;
 				this._markers.splice(i, 1);
 				len--;
 				i--;
@@ -637,52 +674,33 @@ export class ModelLine {
 		}
 	}
 
-	public getMarkers(): ILineMarker[] {
+	public getMarkers(): LineMarker[] {
 		if (!this._markers) {
 			return [];
 		}
 		return this._markers.slice(0);
 	}
 
-	public updateLineNumber(changedMarkers: IChangedMarkers, newLineNumber: number): void {
+	public updateLineNumber(markersTracker: MarkersTracker, newLineNumber: number): void {
+		if (this._lineNumber === newLineNumber) {
+			return;
+		}
 		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number,
-				marker: ILineMarker;
-
-			for (i = 0, len = markers.length; i < len; i++) {
-				marker = markers[i];
-
-				changedMarkers[marker.id] = true;
-				marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
+			let markers = this._markers;
+			for (let i = 0, len = markers.length; i < len; i++) {
+				let marker = markers[i];
+				marker.updateLineNumber(markersTracker, newLineNumber);
 			}
 		}
 
 		this._lineNumber = newLineNumber;
 	}
 
-	public deleteLine(changedMarkers: IChangedMarkers, setMarkersColumn: number, setMarkersOldLineNumber: number): ILineMarker[] {
-		// console.log('--> deleteLine: ');
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number,
-				marker: ILineMarker;
-
-			// Mark all these markers as changed
-			for (i = 0, len = markers.length; i < len; i++) {
-				marker = markers[i];
-
-				changedMarkers[marker.id] = true;
-				marker.oldColumn = marker.oldColumn || marker.column;
-				marker.oldLineNumber = marker.oldLineNumber || setMarkersOldLineNumber;
-				marker.column = setMarkersColumn;
-			}
-
-			return markers;
+	public deleteLine(): LineMarker[] {
+		if (!this._markers) {
+			return [];
 		}
-		return [];
+		return this._markers;
 	}
 
 	private _indexOfMarkerId(markerId: string): number {

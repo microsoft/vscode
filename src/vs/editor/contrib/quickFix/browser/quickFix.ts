@@ -97,7 +97,7 @@ export class QuickFixController implements IEditorContribution {
 		if (kb) {
 			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", this._keybindingService.getLabelFor(kb));
 		} else {
-			title = nls.localize('quickFix', "Show Fixes", this._keybindingService.getLabelFor(kb));
+			title = nls.localize('quickFix', "Show Fixes");
 		}
 		this._lightBulbWidget.getDomNode().title = title;
 	}

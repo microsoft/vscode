@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 // debuggers extension point
@@ -44,19 +44,6 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			label: {
 				description: nls.localize('vscode.extension.contributes.debuggers.label', "Display name for this debug adapter."),
 				type: 'string'
-			},
-			enableBreakpointsFor: {
-				description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor', "Allow breakpoints for these languages."),
-				type: 'object',
-				properties: {
-					languageIds: {
-						description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor.languageIds', "List of languages."),
-						type: 'array',
-						items: {
-							type: 'string'
-						}
-					}
-				}
 			},
 			program: {
 				description: nls.localize('vscode.extension.contributes.debuggers.program', "Path to the debug adapter program. Path is either absolute or relative to the extension folder."),
@@ -81,6 +68,10 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			initialConfigurations: {
 				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
 				type: ['array', 'string'],
+			},
+			configurationSnippets: {
+				description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
+				type: 'array'
 			},
 			configurationAttributes: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
@@ -140,11 +131,13 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 // debug general schema
 
 export const schemaId = 'vscode://schemas/launch';
+const defaultCompound: debug.ICompound = { name: 'Compound', configurations: [] };
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch"),
 	required: ['version', 'configurations'],
+	default: { version: '0.2.0', configurations: [], compounds: [] },
 	properties: {
 		version: {
 			type: 'string',
@@ -155,15 +148,37 @@ const schema: IJSONSchema = {
 			type: 'array',
 			description: nls.localize('app.launch.json.configurations', "List of configurations. Add new configurations or edit existing ones by using IntelliSense."),
 			items: {
+				defaultSnippets: [],
 				'type': 'object',
 				oneOf: []
 			}
 		},
-		// TODO@Isidor remove support for this in December
-		debugServer: {
-			type: 'number',
-			description: nls.localize('app.launch.json.debugServer', "DEPRECATED: please move debugServer inside a configuration.")
-		},
+		compounds: {
+			type: 'array',
+			description: nls.localize('app.launch.json.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
+			items: {
+				type: 'object',
+				required: ['name', 'configurations'],
+				properties: {
+					name: {
+						type: 'string',
+						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+					},
+					configurations: {
+						type: 'array',
+						default: [],
+						items: {
+							type: 'string'
+						},
+						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+					}
+				},
+				default: defaultCompound
+			},
+			default: [
+				defaultCompound
+			]
+		}
 	}
 };
 
@@ -211,12 +226,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				});
 			});
 
-			// update the schema to include all attributes and types from extensions.
-			// debug.schema.properties['configurations'].items.properties.type.enum = this.adapters.map(adapter => adapter.type);
+			// update the schema to include all attributes, snippets and types from extensions.
 			this.adapters.forEach(adapter => {
+				const items = (<IJSONSchema>schema.properties['configurations'].items);
 				const schemaAttributes = adapter.getSchemaAttributes();
 				if (schemaAttributes) {
-					(<IJSONSchema>schema.properties['configurations'].items).oneOf.push(...schemaAttributes);
+					items.oneOf.push(...schemaAttributes);
+				}
+				const configurationSnippets = adapter.configurationSnippets;
+				if (configurationSnippets) {
+					items.defaultSnippets.push(...configurationSnippets);
 				}
 			});
 		});
@@ -234,6 +253,15 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, type)).pop();
 	}
 
+	public getCompound(name: string): debug.ICompound {
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
+		if (!config || !config.compounds) {
+			return null;
+		}
+
+		return config.compounds.filter(compound => compound.name === name).pop();
+	}
+
 	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
 		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
 
@@ -249,28 +277,20 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 			result = filtered.length === 1 ? filtered[0] : config.configurations[0];
 			result = objects.deepClone(result);
-			if (config && result && config.debugServer) {
-				result.debugServer = config.debugServer;
-			}
 		}
 
 		if (result) {
 			// Set operating system specific properties #1873
-			if (isWindows && result.windows) {
-				Object.keys(result.windows).forEach(key => {
-					result[key] = result.windows[key];
-				});
-			}
-			if (isMacintosh && result.osx) {
-				Object.keys(result.osx).forEach(key => {
-					result[key] = result.osx[key];
-				});
-			}
-			if (isLinux && result.linux) {
-				Object.keys(result.linux).forEach(key => {
-					result[key] = result.linux[key];
-				});
-			}
+			const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
+				if (flag && osConfig) {
+					Object.keys(osConfig).forEach(key => {
+						result[key] = osConfig[key];
+					});
+				}
+			};
+			setOSProperties(isWindows, result.windows);
+			setOSProperties(isMacintosh, result.osx);
+			setOSProperties(isLinux, result.linux);
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			Object.keys(result).forEach(key => {
@@ -280,6 +300,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			const adapter = this.getAdapter(result.type);
 			return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 		}
+		return TPromise.as(null);
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -288,7 +309,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
 			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(adapter => adapter ? adapter.getInitialConfigFileContent() : null)
+				.then(adapter => adapter ? adapter.getInitialConfigurationContent() : null)
 				.then(content => {
 					if (!content) {
 						return false;

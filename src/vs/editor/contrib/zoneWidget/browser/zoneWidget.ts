@@ -7,6 +7,7 @@
 
 import 'vs/css!./zoneWidget';
 import { Disposables } from 'vs/base/common/lifecycle';
+import { Widget } from 'vs/base/browser/ui/widget';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
@@ -89,7 +90,7 @@ export class OverlayWidgetDelegate implements IOverlayWidget {
 
 }
 
-export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
+export abstract class ZoneWidget extends Widget implements IHorizontalSashLayoutProvider {
 
 	private _overlayWidget: OverlayWidgetDelegate = null;
 	private _resizeSash: Sash;
@@ -104,6 +105,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	public options: IOptions;
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
+		super();
 		this.editor = editor;
 		this.options = objects.mixin(objects.clone(defaultOptions), options);
 		this.domNode = document.createElement('div');
@@ -183,6 +185,19 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this._showImpl(range, heightInLines);
 		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: {} }]);
+	}
+
+	public hide(): void {
+		if (this._viewZone) {
+			this.editor.changeViewZones(accessor => {
+				accessor.removeZone(this._viewZone.id);
+			});
+			this._viewZone = null;
+		}
+		if (this._overlayWidget) {
+			this.editor.removeOverlayWidget(this._overlayWidget);
+			this._overlayWidget = null;
+		}
 	}
 
 	private _decoratingElementsHeight(): number {

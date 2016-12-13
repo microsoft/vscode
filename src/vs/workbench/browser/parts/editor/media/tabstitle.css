@@ -13,25 +13,8 @@
 	background: #252526;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	display: block;
-	content: '';
-	position: absolute;
-	top: 34px;
-	width: 100%;
-	z-index: 1; /* on top of tabs */
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #DDDDDD;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #403F3F;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #6FC3DF;
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
+	border-bottom: 1px solid #6FC3DF;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs > .monaco-scrollable-element {
@@ -72,14 +55,6 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active {
-	z-index: 2; /* on top of the horizontal border of the title */
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo.dragged-over > .container > .title .tabs-container > .tab.active {
-	z-index: auto;
-}
-
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
 	background-color: #ECECEC;
 }
@@ -89,19 +64,19 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #DDDDDD;
+	border-left-color: #F3F3F3;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #DDDDDD;
+	border-right-color: #F3F3F3;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #403F3F;
+	border-left-color: #252526;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #403F3F;
+	border-right-color: #252526;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child,
@@ -109,13 +84,23 @@
 	border-left-color: transparent;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(:first-child) {
 	border-left-color: #6FC3DF;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active  {
-	outline: 2px solid #f38518;
-	outline-offset: -1px;
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:last-child {
+	border-right-color: #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {
+	outline: 1px solid #f38518;
+	outline-offset: -5px;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover  {
+	outline: 1px dashed #f38518;
+	outline-offset: -5px;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
@@ -132,7 +117,7 @@
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
 	background: none !important;
 	outline: 2px dashed #f38518;
-	outline-offset: -2px;
+	outline-offset: -5px;
 }
 
 /* Tab Label */
@@ -217,6 +202,13 @@
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
 	background: url('close-inverse.svg') center center no-repeat;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active > .tab-close .action-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover > .tab-close .action-label {
+	opacity: 1 !important;
 }
 
 /* No Tab Close Button */

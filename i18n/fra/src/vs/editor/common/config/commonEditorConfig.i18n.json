@@ -33,7 +33,7 @@
 	"quickSuggestionsDelay": "Contrôle le délai en ms au bout duquel les suggestions rapides s'affichent",
 	"renderControlCharacters": "Contrôle si l'éditeur doit afficher les caractères de contrôle",
 	"renderIndentGuides": "Contrôle si l'éditeur doit afficher les repères de mise en retrait",
-	"renderLineHighlight": "Contrôle si l'éditeur doit afficher la surbrillance de la ligne active",
+	"renderLineHighlight": "Contrôle la façon dont l'éditeur doit afficher la surbrillance de la ligne active. Les différentes possibilités sont 'none', 'gutter', 'line' et 'all'.",
 	"renderWhitespace": "Contrôle la façon dont l'éditeur affiche les espaces blancs. Il existe trois options possibles : 'none', 'boundary' et 'all'. L'option 'boundary' n'affiche pas les espaces uniques qui séparent les mots.",
 	"roundedSelection": "Contrôle si les sélections ont des angles arrondis",
 	"rulers": "Colonnes où afficher les règles verticales",

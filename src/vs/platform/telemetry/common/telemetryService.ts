@@ -100,8 +100,8 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	publicLog(eventName: string, data?: any): TPromise<any> {
-		// don't send events when the user is optout unless the event is the opt{in|out} signal
-		if (!this._userOptIn && eventName !== 'optInStatus') {
+		// don't send events when the user is optout
+		if (!this._userOptIn) {
 			return TPromise.as(undefined);
 		}
 

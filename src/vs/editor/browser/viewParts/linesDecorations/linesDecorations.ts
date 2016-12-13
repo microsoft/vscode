@@ -14,7 +14,6 @@ import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
 export class LinesDecorationsOverlay extends DedupOverlay {
 
 	private _context: ViewContext;
-	private _lineHeight: number;
 
 	private _decorationsLeft: number;
 	private _decorationsWidth: number;
@@ -23,7 +22,6 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._decorationsLeft = 0;
 		this._decorationsWidth = 0;
 		this._renderResult = null;
@@ -63,9 +61,6 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
@@ -87,26 +82,22 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		let r: DecorationToRender[] = [];
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let d = decorations[i];
-			if (d.options.linesDecorationsClassName) {
-				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, d.options.linesDecorationsClassName));
+			let linesDecorationsClassName = d.source.options.linesDecorationsClassName;
+			if (linesDecorationsClassName) {
+				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName));
 			}
 		}
 		return r;
 	}
 
 	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
-
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
 
-		let lineHeight = this._lineHeight.toString();
 		let left = this._decorationsLeft.toString();
 		let width = this._decorationsWidth.toString();
-		let common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
+		let common = '" style="left:' + left + 'px;width:' + width + 'px;"></div>';
 
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -126,10 +117,6 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		if (!this._renderResult) {
 			return '';
 		}
-		let lineIndex = lineNumber - startLineNumber;
-		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
-		}
-		return this._renderResult[lineIndex];
+		return this._renderResult[lineNumber - startLineNumber];
 	}
 }

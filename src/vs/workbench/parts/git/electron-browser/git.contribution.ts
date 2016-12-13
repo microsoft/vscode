@@ -10,15 +10,20 @@ import { IGitService } from 'vs/workbench/parts/git/common/git';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actionRegistry';
 import { CloneAction } from './gitActions';
+import { GitContentProvider } from '../common/gitContentProvider';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
 registerContributions();
 
 // Register Service
 registerSingleton(IGitService, ElectronGitService);
 
-const workbenchActionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 const category = localize('git', "Git");
 
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloneAction, CloneAction.ID, CloneAction.LABEL), 'Git: Clone', category);
+Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
+	.registerWorkbenchAction(new SyncActionDescriptor(CloneAction, CloneAction.ID, CloneAction.LABEL), 'Git: Clone', category);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(GitContentProvider);

@@ -16,11 +16,11 @@ export interface IConfigFile {
 	parseError?: any;
 }
 
-export function newConfigFile(value: string): IConfigFile {
+export function newConfigFile(value: string, fileName: string): IConfigFile {
 	try {
 		const contents = json.parse(value) || {};
 		return {
-			contents: toValuesTree(contents),
+			contents: toValuesTree(contents, message => console.error(`Conflict in settings file ${fileName}: ${message}`)),
 			raw: contents
 		};
 	} catch (e) {

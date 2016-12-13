@@ -219,3 +219,8 @@
 .hc-black .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: inherit;
 }
+
+.hc-black .monaco-editor .debug-top-stack-frame-line {
+	background: rgba(255, 246, 0, .87);
+	mix-blend-mode: lighten; /* Preserves text selection's contrast */
+}

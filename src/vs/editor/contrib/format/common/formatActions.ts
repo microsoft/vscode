@@ -232,13 +232,19 @@ export class FormatSelectionAction extends AbstractFormatAction {
 CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor) {
-		const model = editor.getModel();
-		const editorSelection = editor.getSelection();
-		const {tabSize, insertSpaces } = model.getOptions();
-		if (editorSelection.isEmpty()) {
-			return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
-		} else {
-			return getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces });
-		}
+		return new class extends AbstractFormatAction {
+			constructor() {
+				super(<any>{});
+			}
+			_getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+				const model = editor.getModel();
+				const editorSelection = editor.getSelection();
+				const {tabSize, insertSpaces } = model.getOptions();
+
+				return editorSelection.isEmpty()
+					? getDocumentFormattingEdits(model, { tabSize, insertSpaces })
+					: getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces });
+			}
+		}().run(accessor, editor);
 	}
 });

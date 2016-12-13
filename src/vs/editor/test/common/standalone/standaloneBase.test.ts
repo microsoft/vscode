@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity } from 'vs/editor/common/standalone/standaloneBase';
 import { KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import RuntimeSeverity from 'vs/base/common/severity';
 
 suite('StandaloneBase', () => {
@@ -139,7 +139,7 @@ suite('KeyCode', () => {
 	});
 
 	test('getUserSettingsKeybindingRegex', () => {
-		let regex = new RegExp(Keybinding.getUserSettingsKeybindingRegex());
+		let regex = new RegExp(KeybindingLabels.getUserSettingsKeybindingRegex());
 
 		function testIsGood(userSettingsLabel: string, message: string = userSettingsLabel): void {
 			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
@@ -157,7 +157,7 @@ suite('KeyCode', () => {
 			if (ignore[keyCode]) {
 				continue;
 			}
-			let userSettings = Keybinding.toUserSettingsLabel(keyCode);
+			let userSettings = KeybindingLabels.toUserSettingsLabel(keyCode);
 			testIsGood(userSettings, keyCode + ' - ' + StandaloneKeyCode[keyCode] + ' - ' + userSettings);
 		}
 

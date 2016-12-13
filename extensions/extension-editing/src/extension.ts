@@ -83,7 +83,7 @@ namespace ast {
 			let end = Number.MAX_VALUE;
 
 			for (let name of dottedName.split('.')) {
-				let idx: number;
+				let idx: number = -1;
 				while ((idx = identifiers.indexOf(name, idx + 1)) >= 0) {
 					let myStart = spans[2 * idx];
 					let myEnd = spans[2 * idx + 1];

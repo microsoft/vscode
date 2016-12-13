@@ -105,7 +105,9 @@ function main() {
 				});
 			}
 
-			var remappedCoverage = i_remap(global.__coverage__).getFinalCoverage();
+			let remapIgnores = /\b((winjs\.base)|(marked)|(raw\.marked)|(nls)|(css))\.js$/;
+
+			var remappedCoverage = i_remap(global.__coverage__, { exclude: remapIgnores }).getFinalCoverage();
 
 			// The remapped coverage comes out with broken paths
 			var toUpperDriveLetter = function(str) {

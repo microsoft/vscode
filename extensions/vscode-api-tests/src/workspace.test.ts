@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit } from 'vscode';
+import { workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit, Disposable } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp, pathEquals } from './utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
@@ -48,11 +48,13 @@ suite('workspace-namespace', () => {
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(workspace.textDocuments));
-		assert.throws(() => workspace.textDocuments = null);
+		assert.throws(() => (<any>workspace).textDocuments = null);
 	});
 
 	test('rootPath', () => {
-		assert.ok(pathEquals(workspace.rootPath, join(__dirname, '../testWorkspace')));
+		if (workspace.rootPath) {
+			assert.ok(pathEquals(workspace.rootPath, join(__dirname, '../testWorkspace')));
+		}
 		assert.throws(() => workspace.rootPath = 'farboo');
 	});
 
@@ -64,23 +66,22 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, illegal path', done => {
-		workspace.openTextDocument('funkydonky.txt').then(doc => {
-			done(new Error('missing error'));
+	test('openTextDocument, illegal path', () => {
+		return workspace.openTextDocument('funkydonky.txt').then(doc => {
+			throw new Error('missing error');
 		}, err => {
-			done();
+			// good!
 		});
 	});
 
-	test('openTextDocument, untitled is dirty', function (done) {
+	test('openTextDocument, untitled is dirty', function () {
 		if (process.platform === 'win32') {
-			return done(); // TODO@Joh this test fails on windows
+			return; // TODO@Joh this test fails on windows
 		}
 
-		workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
+		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
-			done();
 		});
 	});
 
@@ -137,7 +138,7 @@ suite('workspace-namespace', () => {
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
 		return createRandomFile().then(file => {
-			let disposables = [];
+			let disposables: Disposable[] = [];
 
 			let onDidOpenTextDocument = false;
 			disposables.push(workspace.onDidOpenTextDocument(e => {
@@ -370,7 +371,7 @@ suite('workspace-namespace', () => {
 	});
 
 	test('findFiles', () => {
-		return workspace.findFiles('*.js', null).then((res) => {
+		return workspace.findFiles('*.js').then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(workspace.asRelativePath(res[0])), 'far.js');
 		});

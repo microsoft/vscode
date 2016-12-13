@@ -6,9 +6,9 @@
 {
 	"workbench.action.terminal.clear": "지우기",
 	"workbench.action.terminal.copySelection": "선택 영역 복사",
-	"workbench.action.terminal.focus": "터미널로 포커스 이동",
-	"workbench.action.terminal.focusNext": "다음 터미널로 포커스 이동",
-	"workbench.action.terminal.focusPrevious": "이전 터미널로 포커스 이동",
+	"workbench.action.terminal.focus": "터미널에 포커스",
+	"workbench.action.terminal.focusNext": "다음 터미널에 포커스",
+	"workbench.action.terminal.focusPrevious": "이전 터미널에 포커스",
 	"workbench.action.terminal.kill": "활성 터미널 인스턴스 종료",
 	"workbench.action.terminal.kill.short": "터미널 종료",
 	"workbench.action.terminal.new": "새 통합 터미널 만들기",

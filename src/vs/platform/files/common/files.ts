@@ -127,6 +127,11 @@ export interface IFileService {
 	updateOptions(options: any): void;
 
 	/**
+	 * Returns the preferred encoding to use for a given resource.
+	 */
+	getEncoding(resource: URI): string;
+
+	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
@@ -458,6 +463,8 @@ export const AutoSaveConfiguration = {
 	ON_FOCUS_CHANGE: 'onFocusChange',
 	ON_WINDOW_CHANGE: 'onWindowChange'
 };
+
+export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
 
 export interface IFilesConfiguration {
 	files: {

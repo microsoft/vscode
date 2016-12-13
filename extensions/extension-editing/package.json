@@ -13,12 +13,8 @@
 	],
 	"main": "./out/extension",
 	"scripts": {
-		"postinstall": "node ./postinstall",
 		"compile": "gulp compile-extension:extension-editing",
 		"watch": "gulp watch-extension:extension-editing"
-	},
-	"dependencies": {
-		"typescript": "^1.8.10"
 	},
 	"contributes": {
 		"jsonValidation": [

@@ -5,9 +5,10 @@
 'use strict';
 
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
@@ -43,12 +44,22 @@ export interface IKeybindingItem {
 	weight2: number;
 }
 
+export enum KeybindingSource {
+	Default = 1,
+	User
+}
+
+export interface IKeybindingEvent {
+	source: KeybindingSource;
+	keybindings?: IUserFriendlyKeybinding[];
+}
+
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
 	_serviceBrand: any;
 
-	onDidUpdateKeybindings: Event<void>;
+	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
 	getLabelFor(keybinding: Keybinding): string;
 	getAriaLabelFor(keybinding: Keybinding): string;
@@ -58,5 +69,6 @@ export interface IKeybindingService {
 	getDefaultKeybindings(): string;
 	lookupKeybindings(commandId: string): Keybinding[];
 	customKeybindingsCount(): number;
+	resolve(keybinding: Keybinding, target: IContextKeyServiceTarget): IResolveResult;
 }
 

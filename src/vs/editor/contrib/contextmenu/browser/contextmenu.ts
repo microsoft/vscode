@@ -6,8 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -127,7 +126,7 @@ export class ContextMenuController implements IEditorContribution {
 		const result: IAction[] = [];
 
 		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		const groups = contextMenu.getActions();
+		const groups = contextMenu.getActions(this._editor.getModel().uri);
 		contextMenu.dispose();
 
 		for (let group of groups) {

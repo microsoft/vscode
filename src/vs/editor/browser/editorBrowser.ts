@@ -65,7 +65,6 @@ export interface IView extends IDisposable {
 
 	change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
-	renderOnce(callback: () => any): any;
 
 	render(now: boolean, everything: boolean): void;
 	setAriaActiveDescendant(id: string): void;
@@ -154,6 +153,7 @@ export const ClassNames = {
 	OVERFLOWING_CONTENT_WIDGETS: 'overflowingContentWidgets',
 	OVERLAY_WIDGETS: 'overlayWidgets',
 	MARGIN_VIEW_OVERLAYS: 'margin-view-overlays',
+	MARGIN: 'margin',
 	LINE_NUMBERS: 'line-numbers',
 	GLYPH_MARGIN: 'glyph-margin',
 	SCROLL_DECORATION: 'scroll-decoration',
@@ -211,6 +211,10 @@ export interface IViewZone {
 	 * The dom node of the view zone
 	 */
 	domNode: HTMLElement;
+	/**
+	 * An optional dom node for the view zone that will be placed in the margin area.
+	 */
+	marginDomNode?: HTMLElement;
 	/**
 	 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
 	 */

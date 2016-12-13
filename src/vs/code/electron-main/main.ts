@@ -15,7 +15,7 @@ import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windo
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
+import { LifecycleService, ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
@@ -27,6 +27,7 @@ import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient, ILaunchService } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -35,7 +36,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { BackupMainService } from 'vs/platform/backup/node/backupMainService';
+import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
+import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -51,14 +53,14 @@ import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
 
-function quit(accessor: ServicesAccessor, error?: Error);
-function quit(accessor: ServicesAccessor, message?: string);
-function quit(accessor: ServicesAccessor, arg?: any) {
+function quit(accessor: ServicesAccessor, error?: Error): void;
+function quit(accessor: ServicesAccessor, message?: string): void;
+function quit(accessor: ServicesAccessor, arg?: any): void {
 	const logService = accessor.get(ILogService);
 
 	let exitCode = 0;
@@ -137,7 +139,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		debugPort: environmentService.isBuilt ? null : 5871
 	};
 
-	let sharedProcessDisposable;
+	let sharedProcessDisposable: IDisposable;
 
 	const sharedProcess = spawnSharedProcess(initData, options).then(disposable => {
 		sharedProcessDisposable = disposable;
@@ -154,7 +156,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	services.set(IWindowsService, new SyncDescriptor(WindowsService));
 	services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
-	if (environmentService.isBuilt && !environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
+	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
 		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 		const appender = new TelemetryAppenderClient(channel);
 		const commonProperties = resolveCommonProperties(product.commit, pkg.version);
@@ -184,6 +186,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const urlService = accessor.get(IURLService);
 		const urlChannel = instantiationService2.createInstance(URLChannel, urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
+
+		const backupService = accessor.get(IBackupMainService);
+		const backupChannel = instantiationService2.createInstance(BackupChannel, backupService);
+		electronIpcServer.registerChannel('backup', backupChannel);
 
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
@@ -236,10 +242,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		// Propagate to clients
 		windowsMainService.ready(userEnv);
 
-		// Install Menu
-		const menu = instantiationService2.createInstance(VSCodeMenu);
-		menu.ready();
-
 		// Open our first window
 		if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
@@ -248,6 +250,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		} else {
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff, initialStartup: true }); // default: read paths from cli
 		}
+
+		// Install Menu
+		const menu = instantiationService2.createInstance(VSCodeMenu);
+		menu.ready();
 	});
 }
 
@@ -413,12 +419,16 @@ function getShellEnvironment(): TPromise<platform.IProcessEnvironment> {
 }
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
-	const paths = [environmentService.appSettingsHome, environmentService.userProductHome, environmentService.extensionsPath];
-
+	const paths = [
+		environmentService.appSettingsHome,
+		environmentService.userProductHome,
+		environmentService.extensionsPath,
+		environmentService.nodeCachedDataDir
+	];
 	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
 }
 
-function createServices(args): IInstantiationService {
+function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));

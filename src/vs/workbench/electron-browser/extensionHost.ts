@@ -21,6 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
+import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +31,7 @@ import { WatchDog } from 'vs/base/common/watchDog';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
-import { IWorkspaceConfigurationService, getWorkspaceConfigurationTree } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -78,14 +79,14 @@ export class ExtensionHostProcessWorker {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
+		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
 		this.isExtensionDevelopmentDebugging = !!environmentService.debugExtensionHost.break;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
 
 		this.unsentMessages = [];
 		this.extensionHostProcessReady = false;
 		lifecycleService.onWillShutdown(this._onWillShutdown, this);
-		lifecycleService.onShutdown(() => this.terminate());
+		lifecycleService.onShutdown(reason => this.terminate());
 	}
 
 	public start(extensionService: MainProcessExtensionService): void {
@@ -123,7 +124,7 @@ export class ExtensionHostProcessWorker {
 				this.extHostWatchDog.start();
 				this.extHostWatchDog.onAlert(() => {
 
-					this.extHostWatchDog.stop();
+					this.extHostWatchDog.reset();
 
 					// log the identifiers of those extensions that
 					// have code and are loaded in the extension host
@@ -134,7 +135,7 @@ export class ExtensionHostProcessWorker {
 								ids.push(ext.id);
 							}
 						}
-						this.telemetryService.publicLog('extHostUnresponsive', { extensionIds: ids });
+						this.telemetryService.publicLog('extHostUnresponsive2', { extensionIds: ids });
 					});
 				});
 			});
@@ -189,15 +190,15 @@ export class ExtensionHostProcessWorker {
 			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
-					c(void 0);
+					return c(void 0);
 				}
 				if (port !== extensionHostPort) {
-					console.warn('%c[Extension Host] %cProvided debugging port ' + extensionHostPort + ' is not free, using ' + port + ' instead.', 'color: blue', 'color: black');
+					console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
 				}
 				if (this.isExtensionDevelopmentDebugging) {
-					console.warn('%c[Extension Host] %cSTOPPED on first line for debugging on port ' + port, 'color: blue', 'color: black');
+					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
 				} else {
-					console.info('%c[Extension Host] %cdebugger listening on port ' + port, 'color: blue', 'color: black');
+					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
 				}
 				return c(port);
 			});
@@ -249,18 +250,19 @@ export class ExtensionHostProcessWorker {
 			let initData: IInitData = {
 				parentPid: process.pid,
 				environment: {
-					isBuilt: this.environmentService.isBuilt,
 					appSettingsHome: this.environmentService.appSettingsHome,
 					disableExtensions: this.environmentService.disableExtensions,
 					userExtensionsHome: this.environmentService.extensionsPath,
 					extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
-					extensionTestsPath: this.environmentService.extensionTestsPath
+					extensionTestsPath: this.environmentService.extensionTestsPath,
+					// globally disable proposed api when built and not insiders developing extensions
+					enableProposedApi: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0)
 				},
 				contextService: {
 					workspace: this.contextService.getWorkspace()
 				},
 				extensions: extensionDescriptions,
-				configuration: getWorkspaceConfigurationTree(this.configurationService),
+				configuration: this.configurationService.values(),
 				telemetryInfo
 			};
 			this.extensionHostProcessQueuedSender.send(stringify(initData));

@@ -257,18 +257,13 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 		this._scrollDomNodeIsAbove = false;
 
 		this._renderer = new ViewLayerRenderer<T>(
-			() => this._createLine(),
-			() => this._extraDomNodeHTML()
+			() => this._createLine()
 		);
 	}
 
 	public dispose(): void {
 		super.dispose();
 		this._linesCollection = null;
-	}
-
-	protected _extraDomNodeHTML(): string {
-		return '';
 	}
 
 	// ---- begin view event handlers
@@ -381,11 +376,9 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 class ViewLayerRenderer<T extends IVisibleLineData> {
 
 	private _createLine: () => T;
-	private _extraDomNodeHTML: () => string;
 
-	constructor(createLine: () => T, extraDomNodeHTML: () => string) {
+	constructor(createLine: () => T) {
 		this._createLine = createLine;
-		this._extraDomNodeHTML = extraDomNodeHTML;
 	}
 
 	public renderWithManyUpdates(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
@@ -594,7 +587,7 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string[], wasNew: boolean[]): void {
 		let lastChild = <HTMLElement>ctx.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
-			ctx.domNode.innerHTML = this._extraDomNodeHTML() + newLinesHTML.join('');
+			ctx.domNode.innerHTML = newLinesHTML.join('');
 		} else {
 			lastChild.insertAdjacentHTML('afterend', newLinesHTML.join(''));
 		}

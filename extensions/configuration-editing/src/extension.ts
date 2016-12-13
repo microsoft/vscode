@@ -44,16 +44,29 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 	});
 }
 
-function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
+function newCompletionItem(text: string, range: vscode.Range) {
+	const item = new vscode.CompletionItem(JSON.stringify(text));
+	item.kind = vscode.CompletionItemKind.Value;
+	item.textEdit = {
+		range,
+		newText: item.label
+	};
+	return item;
+}
+
+function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined) {
 	if (!editor || path.basename(editor.document.fileName) !== 'launch.json') {
 		return;
 	}
 
-	const ranges = [];
+	const ranges: vscode.Range[] = [];
 	let addPropertyAndValue = false;
+	let depthInArray = 0;
 	visit(editor.document.getText(), {
 		onObjectProperty: (property, offset, length) => {
-			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'configurations';
+			// Decorate attributes which are unlikely to be edited by the user.
+			// Only decorate "configurations" if it is not inside an array (compounds have a configurations property which should not be decorated).
+			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'compounds' || (property === 'configurations' && depthInArray === 0);
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
@@ -62,19 +75,15 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
+		},
+		onArrayBegin: (offset: number, length: number) => {
+			depthInArray++;
+		},
+		onArrayEnd: (offset: number, length: number) => {
+			depthInArray--;
 		}
 	});
 
 	editor.setDecorations(decoration, ranges);
 }
 
-function newCompletionItem(text: string, range: vscode.Range, documentation?: string) {
-	const item = new vscode.CompletionItem(JSON.stringify(text));
-	item.kind = vscode.CompletionItemKind.Value;
-	item.documentation = documentation;
-	item.textEdit = {
-		range,
-		newText: item.label
-	};
-	return item;
-}

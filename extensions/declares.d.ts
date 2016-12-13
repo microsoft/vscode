@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../src/typings/mocha.d.ts" />
 /// <reference path="../src/typings/thenable.d.ts" />
 
 // Declaring the following because the code gets compiled with es5, which lack definitions for console and timers.

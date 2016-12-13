@@ -5,7 +5,7 @@
 'use strict';
 
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -33,7 +33,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 						return data;
 					}
 				}, err => {
-					onUnexpectedError(err);
+					onUnexpectedExternalError(err);
 				});
 			}
 		};
@@ -100,7 +100,7 @@ class WordHighlighter {
 
 		// Cancel any renderDecorationsTimer
 		if (this.renderDecorationsTimer !== -1) {
-			window.clearTimeout(this.renderDecorationsTimer);
+			clearTimeout(this.renderDecorationsTimer);
 			this.renderDecorationsTimer = -1;
 		}
 
@@ -190,7 +190,7 @@ class WordHighlighter {
 			if (this.workerRequestCompleted && this.renderDecorationsTimer !== -1) {
 				// case b)
 				// Delay the firing of renderDecorationsTimer by an extra 250 ms
-				window.clearTimeout(this.renderDecorationsTimer);
+				clearTimeout(this.renderDecorationsTimer);
 				this.renderDecorationsTimer = -1;
 				this._beginRenderDecorations();
 			}
@@ -226,7 +226,7 @@ class WordHighlighter {
 			this.renderDecorations();
 		} else {
 			// Asyncrhonous
-			this.renderDecorationsTimer = window.setTimeout(() => {
+			this.renderDecorationsTimer = setTimeout(() => {
 				this.renderDecorations();
 			}, (minimumRenderTime - currentTime));
 		}

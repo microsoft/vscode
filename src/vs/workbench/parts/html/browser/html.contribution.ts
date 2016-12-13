@@ -60,8 +60,13 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 		return;
 	}
 
-	return accessor.get(ITextModelResolverService).resolve(params.resource).then(model => {
+	const textModelResolverService = accessor.get(ITextModelResolverService);
+
+	return textModelResolverService.createModelReference(params.resource).then(ref => {
+		const model = ref.object;
 		const contents = model.textEditorModel.getValue();
+		ref.dispose();
+
 		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
 	});
 

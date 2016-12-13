@@ -14,7 +14,6 @@ import { UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, Confi
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -28,10 +27,10 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
-	private restoreResource: URI;
-	private hasAssociatedFilePath: boolean;
+	private _hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
+	private modelResolve: TPromise<UntitledEditorModel>;
 
 	private _onDidModelChangeContent: Emitter<void>;
 	private _onDidModelChangeEncoding: Emitter<void>;
@@ -42,20 +41,22 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		modeId: string,
-		restoreResource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
+
 		this.resource = resource;
-		this.restoreResource = restoreResource;
-		this.hasAssociatedFilePath = hasAssociatedFilePath;
+		this._hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
 		this._onDidModelChangeContent = new Emitter<void>();
 		this._onDidModelChangeEncoding = new Emitter<void>();
+	}
+
+	public get hasAssociatedFilePath(): boolean {
+		return this._hasAssociatedFilePath;
 	}
 
 	public get onDidModelChangeContent(): Event<void> {
@@ -74,6 +75,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return this.resource;
 	}
 
+	public getModeId(): string {
+		if (this.cachedModel) {
+			return this.cachedModel.getModeId();
+		}
+
+		return this.modeId;
+	}
+
 	public getName(): string {
 		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
 	}
@@ -87,8 +96,13 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return this.cachedModel.isDirty();
 		}
 
-		// untitled files with an associated path or restore resource are always dirty
-		return this.hasAssociatedFilePath || !!this.restoreResource;
+		// A disposed input is never dirty, even if it was restored from backup
+		if (this.isDisposed()) {
+			return false;
+		}
+
+		// untitled files with an associated path or associated resource
+		return this.hasAssociatedFilePath;
 	}
 
 	public confirmSave(): ConfirmResult {
@@ -130,14 +144,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return null;
 	}
 
-	public getValue(): string {
-		if (this.cachedModel) {
-			return this.cachedModel.getValue();
-		}
-
-		return null;
-	}
-
 	public setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
@@ -146,31 +152,20 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public resolve(refresh?: boolean): TPromise<UntitledEditorModel> {
 
-		// Use Cached Model
-		if (this.cachedModel) {
-			return TPromise.as(this.cachedModel);
+		// Join a model resolve if we have had one before
+		if (this.modelResolve) {
+			return this.modelResolve;
 		}
 
-		// Otherwise Create Model and load, restoring from backup if necessary
-		let restorePromise: TPromise<string>;
-		if (this.restoreResource) {
-			restorePromise = this.textFileService.resolveTextContent(this.restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
-		} else {
-			restorePromise = TPromise.as('');
-		}
+		// Otherwise Create Model and load
+		this.cachedModel = this.createModel();
+		this.modelResolve = this.cachedModel.load();
 
-		return restorePromise.then(content => {
-			const model = this.createModel(content);
-			return model.load().then((resolvedModel: UntitledEditorModel) => {
-				this.cachedModel = resolvedModel;
-
-				return this.cachedModel;
-			});
-		});
+		return this.modelResolve;
 	}
 
-	private createModel(content: string): UntitledEditorModel {
-		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
+	private createModel(): UntitledEditorModel {
+		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
@@ -207,6 +202,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
+		this.modelResolve = void 0;
 
 		super.dispose();
 	}

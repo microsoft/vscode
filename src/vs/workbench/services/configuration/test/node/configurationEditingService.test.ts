@@ -35,8 +35,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -60,10 +61,11 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupService backupService: IBackupService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IWindowsService windowsService: IWindowsService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService);
 	}
 
 	public isDirty(resource?: URI): boolean {
@@ -103,7 +105,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 
 		return configurationService.initialize().then(() => {
 			return {
-				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, textFileService),
+				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, null, textFileService),
 				configurationService
 			};
 		});

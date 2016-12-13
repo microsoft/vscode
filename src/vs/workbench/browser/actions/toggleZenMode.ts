@@ -32,5 +32,5 @@ class ToggleZenMode extends Action {
 	}
 }
 
-let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleZenMode, ToggleZenMode.ID, ToggleZenMode.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z) }), 'View: Toggle Zen Mode', nls.localize('view', "View"));

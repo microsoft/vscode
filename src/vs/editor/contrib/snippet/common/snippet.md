@@ -12,13 +12,22 @@ Placeholders are tabstops with values, like `${1:foo}`. The placeholder text wil
 Variables
 --
 
-With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn’t set its *default* or the empty string is inserted. When a varibale is unknown (that is, its name isn’t defined) the name of the variable is inserted and it is transformed into a placeholder.
+With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn’t set its *default* or the empty string is inserted. When a varibale is unknown (that is, its name isn’t defined) the name of the variable is inserted and it is transformed into a placeholder. The following variables can be used:
+
+* `TM_SELECTED_TEXT` The currently selected text or the empty string
+* `TM_CURRENT_LINE` The contents of the current line
+* `TM_CURRENT_WORD` The contents of the word under cursor or the empty string
+* `TM_LINE_INDEX` The zero-index based line number
+* `TM_LINE_NUMBER` The one-index based line number
+* `TM_FILENAME` The filename of the current document
+* `TM_DIRECTORY` The direcorty of the current document
+* `TM_FILEPATH` The full file path of the current document
 
 
 Grammar
 --
 
-Below is the EBNF for snippets. The `$`-character can be escaped  using backslash, like `\$`.
+Below is the EBNF for snippets. With `\` (backslash) you can escape `$`, `}` and `\`.
 
 ```
 any         ::= tabstop | placeholder | variable | text
