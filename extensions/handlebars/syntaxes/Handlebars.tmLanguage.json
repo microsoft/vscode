@@ -327,7 +327,7 @@
 			]
 		},
 		"end_block": {
-			"begin": "(\\{\\{~?/)([a-zA-Z0-9_\\.-]+)\\s*",
+			"begin": "(\\{\\{~?/)([a-zA-Z0-9/_\\.-]+)\\s*",
 			"end": "(~?\\}\\})",
 			"name": "meta.function.block.end.handlebars",
 			"endCaptures": {
@@ -428,7 +428,7 @@
 			]
 		},
 		"block_helper": {
-			"begin": "(\\{\\{~?\\#)([-a-zA-Z0-9_\\./]+)\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*",
+			"begin": "(\\{\\{~?\\#)([-a-zA-Z0-9_\\./>]+)\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*",
 			"end": "(~?\\}\\})",
 			"name": "meta.function.block.start.handlebars",
 			"endCaptures": {
@@ -522,7 +522,7 @@
 			"match": "\\\\\""
 		},
 		"partial_and_var": {
-			"begin": "(\\{\\{~?\\{*(>|!<)*)\\s*(@?[-a-zA-Z0-9_\\./]+)*",
+			"begin": "(\\{\\{~?\\{*(>|!<)*)\\s*(@?[-a-zA-Z0-9$_\\./]+)*",
 			"end": "(~?\\}\\}\\}*)",
 			"name": "meta.function.inline.other.handlebars",
 			"beginCaptures": {
@@ -558,7 +558,7 @@
 			"name": "entity.other.attribute-name.handlebars"
 		},
 		"handlebars_attribute_value": {
-			"begin": "([-a-zA-Z0-9_\\./]+)\\b\\s*",
+			"begin": "([-a-zA-Z0-9_\\./]+)\\b",
 			"captures": {
 				"1": {
 					"name": "variable.parameter.handlebars"
@@ -850,5 +850,5 @@
 		"tmpl"
 	],
 	"uuid": "70E91676-DE0A-4266-A2B9-3AD2E535E484",
-	"version": "https://github.com/daaain/Handlebars/commit/bdaec7aaf5eaac45d1878096110d1db7975fb100"
+	"version": "https://github.com/daaain/Handlebars/commit/4e8244410815da73f93375532939d48bd5a9bb93"
 }
