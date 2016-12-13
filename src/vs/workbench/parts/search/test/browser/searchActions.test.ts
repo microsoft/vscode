@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { TestInstantiationService, stubFunction } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService, stubFunction } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { ArrayNavigator } from 'vs/base/common/iterator';
@@ -24,7 +24,8 @@ suite('Search Actions', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		instantiationService.stub(IKeybindingService);
+		instantiationService.stub(IKeybindingService, {});
+		instantiationService.stub(IKeybindingService, 'getLabelFor', () => '');
 		counter = 0;
 	});
 

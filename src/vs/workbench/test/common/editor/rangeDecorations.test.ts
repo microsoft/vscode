@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import URI from 'vs/base/common/uri';
 import { createMockModelService, TestEditorService, workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { Model } from 'vs/editor/common/model/model';
@@ -37,7 +38,7 @@ suite('Editor - Range decorations', () => {
 	setup(() => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
-		modeService = instantiationService.stub(IModeService);
+		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 		modelService = <IModelService>instantiationService.stub(IModelService, createMockModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));

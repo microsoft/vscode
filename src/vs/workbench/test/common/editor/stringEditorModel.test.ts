@@ -6,10 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 
 suite('Workbench - StringEditorModel', () => {
@@ -18,7 +19,7 @@ suite('Workbench - StringEditorModel', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModeService);
+		instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
 	test('StringEditorModel', function (done) {

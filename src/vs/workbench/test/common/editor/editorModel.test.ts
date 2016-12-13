@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -14,6 +14,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 
 class MyEditorModel extends EditorModel { }
@@ -26,7 +27,7 @@ suite('Workbench - EditorModel', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		modeService = instantiationService.stub(IModeService);
+		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
 	test('EditorModel', function (done) {
