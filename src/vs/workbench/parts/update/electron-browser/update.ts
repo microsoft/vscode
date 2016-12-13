@@ -45,7 +45,7 @@ const NotNowAction = new Action(
 	() => TPromise.as(true)
 );
 
-let releaseNotesCache: Object = {};
+const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
 export function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
 	const requestService = accessor.get(IRequestService);
@@ -60,17 +60,6 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 	const baseUrl = 'https://code.visualstudio.com/raw';
 	const url = `${baseUrl}/v${versionLabel}.md`;
 	const unassigned = nls.localize('unassigned', "unassigned");
-
-	const storeReleaseNotes = (text: string): TPromise<string> => {
-		releaseNotesCache[version] = text;
-		return new TPromise<string>((c, e) => c(releaseNotesCache[version]));
-	};
-
-	const getReleaseNotes = (): TPromise<string> => {
-		return new TPromise<string>((c, e) => {
-			c(releaseNotesCache[version]);
-		});
-	};
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
@@ -104,14 +93,13 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 			.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 	};
 
-	if (releaseNotesCache[version]) {
-		return getReleaseNotes()
-			.then(text => patchKeybindings(text));
-	} else {
-		return requestService.request({ url })
+	if (!releaseNotesCache[version]) {
+		releaseNotesCache[version] = requestService.request({ url })
 			.then(asText)
-			.then(text => storeReleaseNotes(patchKeybindings(text)));
+			.then(text => patchKeybindings(text));
 	}
+
+	return releaseNotesCache[version];
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
