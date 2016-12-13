@@ -27,22 +27,39 @@ interface MarkdownIt {
 	parse(text: string): IToken[];
 }
 
-function createMarkdownIt(): MarkdownIt {
-	const hljs = require('highlight.js');
-	const mdnh = require('markdown-it-named-headers');
-	const md = require('markdown-it')({
-		html: true,
-		highlight: (str: string, lang: string) => {
-			if (lang && hljs.getLanguage(lang)) {
-				try {
-					return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-				} catch (error) { }
-			}
-			return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-		}
-	}).use(mdnh, {});
+class MarkdownEngine {
 
-	return md;
+	private _markdownIt: MarkdownIt | undefined;
+
+	private get markdownIt(): MarkdownIt {
+		if (!this._markdownIt) {
+			const hljs = require('highlight.js');
+			const mdnh = require('markdown-it-named-headers');
+			const md = require('markdown-it')({
+				html: true,
+				highlight: (str: string, lang: string) => {
+					if (lang && hljs.getLanguage(lang)) {
+						try {
+							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+						} catch (error) { }
+					}
+					return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
+				}
+			}).use(mdnh, {});
+
+			this._markdownIt = md as MarkdownIt;
+		}
+
+		return this._markdownIt;
+	}
+
+	render(text: string): string {
+		return this.markdownIt.render(text);
+	}
+
+	parse(text: string): IToken[] {
+		return this.markdownIt.parse(text);
+	}
 }
 
 const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
@@ -52,12 +69,12 @@ export function activate(context: vscode.ExtensionContext) {
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
-	const markdownIt = createMarkdownIt();
+	const engine = new MarkdownEngine();
 
-	const contentProvider = new MDDocumentContentProvider(markdownIt, context);
+	const contentProvider = new MDDocumentContentProvider(engine, context);
 	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
 
-	const symbolsProvider = new MDDocumentSymbolProvider(markdownIt);
+	const symbolsProvider = new MDDocumentSymbolProvider(engine);
 	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
 
 	let d1 = vscode.commands.registerCommand('markdown.showPreview', showPreview);
@@ -188,12 +205,10 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _context: vscode.ExtensionContext;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean;
-	private _markdownIt: MarkdownIt;
 
-	constructor(markdownIt: MarkdownIt, context: vscode.ExtensionContext) {
+	constructor(private engine: MarkdownEngine, context: vscode.ExtensionContext) {
 		this._context = context;
 		this._waiting = false;
-		this._markdownIt = markdownIt;
 	}
 
 	private getMediaPath(mediaFile: string): string {
@@ -274,7 +289,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
 			const text = document.getText();
 			const contents = previewFrontMatter === 'hide' ? text.replace(FrontMatterRegex, '') : text;
-			const body = this._markdownIt.render(contents);
+			const body = this.engine.render(contents);
 
 			const tail = [
 				'</body>',
@@ -302,7 +317,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 
 class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
-	constructor(private markdownIt: MarkdownIt) { }
+	constructor(private engine: MarkdownEngine) { }
 
 	provideDocumentSymbols(document: vscode.TextDocument): vscode.ProviderResult<vscode.SymbolInformation[]> {
 		let offset = 0;
@@ -316,7 +331,7 @@ class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 			text = text.substr(frontMatter.length);
 		}
 
-		const tokens = this.markdownIt.parse(text);
+		const tokens = this.engine.parse(text);
 		const headings = tokens.filter(token => token.type === 'heading_open');
 
 		const symbols = headings.map(heading => {
