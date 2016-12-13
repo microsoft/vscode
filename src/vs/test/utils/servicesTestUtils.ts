@@ -48,7 +48,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -625,6 +625,11 @@ export const TestFileService = {
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
+
+	public hasBackups(): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
 	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -671,6 +676,87 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 };
+
+export class TestWindowService implements IWindowService {
+
+	public _serviceBrand: any;
+
+	getCurrentWindowId(): number {
+		return 0;
+	}
+
+	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	reloadWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openDevTools(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleDevTools(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeFolder(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleFullScreen(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	setRepresentedFilename(fileName: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+		return TPromise.as(void 0);
+	}
+
+	focusWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	setDocumentEdited(flag: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleMenuBar(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	isMaximized(): TPromise<boolean> {
+		return TPromise.as(void 0);
+	}
+
+	maximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+}
 
 export class TestLifecycleService implements ILifecycleService {
 

@@ -17,6 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -25,6 +26,7 @@ export interface IBackupFilesModel {
 	has(resource: Uri, versionId?: number): boolean;
 	get(): Uri[];
 	remove(resource: Uri): void;
+	count(): number;
 	clear(): void;
 }
 
@@ -53,6 +55,10 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 	public add(resource: Uri, versionId = 0): void {
 		this.cache[resource.toString()] = versionId;
+	}
+
+	public count(): number {
+		return Object.keys(this.cache).length;
 	}
 
 	public has(resource: Uri, versionId?: number): boolean {
@@ -91,12 +97,12 @@ export class BackupFileService implements IBackupFileService {
 	private ready: TPromise<IBackupFilesModel>;
 
 	constructor(
-		windowId: number,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService,
+		@IWindowService windowService: IWindowService,
 		@IBackupService private backupService: IBackupService
 	) {
-		this.ready = this.init(windowId);
+		this.ready = this.init(windowService.getCurrentWindowId());
 	}
 
 	private get backupEnabled(): boolean {
@@ -112,7 +118,14 @@ export class BackupFileService implements IBackupFileService {
 
 		return this.backupService.getBackupPath(windowId).then(backupPath => {
 			this.backupWorkspacePath = backupPath;
+
 			return model.resolve(this.backupWorkspacePath);
+		});
+	}
+
+	public hasBackups(): TPromise<boolean> {
+		return this.ready.then(model => {
+			return model.count() > 0;
 		});
 	}
 
