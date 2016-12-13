@@ -149,6 +149,7 @@ export class Workbench implements IPartService {
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
+	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -387,7 +388,13 @@ export class Workbench implements IPartService {
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
 		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
-			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
+			return this.backupFileService.hasBackups().then(hasBackups => {
+				if (hasBackups) {
+					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
+				}
+
+				return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
+			});
 		}
 
 		return TPromise.as([]);
@@ -462,8 +469,8 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
 		// Backup File Service
-		const workspace = this.contextService.getWorkspace();
-		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.windowService.getCurrentWindowId()));
+		this.backupFileService = this.instantiationService.createInstance(BackupFileService);
+		serviceCollection.set(IBackupFileService, this.backupFileService);
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, new SyncDescriptor(TextFileService));
@@ -479,6 +486,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
 		// Configuration Resolver
+		const workspace = this.contextService.getWorkspace();
 		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, workspace ? workspace.resource : null, process.env));
 
 		// Quick open service (quick open controller)
