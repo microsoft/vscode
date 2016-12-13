@@ -711,7 +711,7 @@ export class Controller extends treedefaults.DefaultController {
 		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.PageDown, this.onPageDown.bind(this));
 	}
 
-	protected onLeftOrMiddleClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		// Status group should never get selected nor expanded/collapsed
 		if (element instanceof gitmodel.StatusGroup) {
 			event.preventDefault();
@@ -756,7 +756,7 @@ export class Controller extends treedefaults.DefaultController {
 			return;
 		}
 
-		return super.onLeftOrMiddleClick(tree, element, event);
+		return super.onLeftClick(tree, element, event);
 	}
 
 	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {

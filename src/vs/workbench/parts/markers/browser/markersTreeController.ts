@@ -38,9 +38,9 @@ export class Controller extends treedefaults.DefaultController {
 		this.contextMenu = menuService.createMenu(MenuId.ProblemsPanelContext, contextKeyService);
 	}
 
-	protected onLeftOrMiddleClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		let currentFocused = tree.getFocus();
-		if (super.onLeftOrMiddleClick(tree, element, event)) {
+		if (super.onLeftClick(tree, element, event)) {
 			if (this.openFileAtElement(element, event.detail !== 2, event.ctrlKey || event.metaKey, event.detail === 2)) {
 				return true;
 			}

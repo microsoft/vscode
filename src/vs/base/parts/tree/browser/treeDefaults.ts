@@ -164,8 +164,8 @@ export class DefaultController implements _.IController {
 				}
 			}
 
-			// Propagate to onLeftOrMiddleClick now
-			return this.onLeftOrMiddleClick(tree, element, event, origin);
+			// Propagate to onLeftClick now
+			return this.onLeftClick(tree, element, event, origin);
 		}
 
 		return false;
@@ -189,10 +189,10 @@ export class DefaultController implements _.IController {
 			return false; // Already handled by onMouseDown
 		}
 
-		return this.onLeftOrMiddleClick(tree, element, event);
+		return this.onLeftClick(tree, element, event);
 	}
 
-	protected onLeftOrMiddleClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		var payload = { origin: origin, originalEvent: eventish };
 
 		if (tree.getInput() === element) {
@@ -240,7 +240,7 @@ export class DefaultController implements _.IController {
 			return false; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
-		return this.onLeftOrMiddleClick(tree, element, event, 'touch');
+		return this.onLeftClick(tree, element, event, 'touch');
 	}
 
 	public onKeyDown(tree: _.ITree, event: IKeyboardEvent): boolean {

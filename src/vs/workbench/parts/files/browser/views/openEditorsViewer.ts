@@ -225,7 +225,7 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onClick(tree, element, event);
 	}
 
-	protected onLeftOrMiddleClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
