@@ -285,7 +285,7 @@ export class RestartFrameAction extends AbstractDebugAction {
 	static LABEL = nls.localize('restartFrame', "Restart Frame");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action restart-frame', debugService, keybindingService);
+		super(id, label, undefined, debugService, keybindingService);
 	}
 
 	public run(frame: IStackFrame): TPromise<any> {
