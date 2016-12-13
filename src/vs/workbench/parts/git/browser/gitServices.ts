@@ -418,6 +418,10 @@ export class GitService extends EventEmitter
 			this.transition(ServiceState.OK);
 		}
 	}
+	get checkoutType(): string {
+		const { checkoutType } = this.configurationService.getConfiguration<IGitConfiguration>('git');
+		return checkoutType;
+	}
 
 	get onOutput(): Event<string> { return this.raw.onOutput; }
 
