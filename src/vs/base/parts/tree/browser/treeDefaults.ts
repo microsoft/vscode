@@ -153,7 +153,7 @@ export class DefaultController implements _.IController {
 	}
 
 	public onMouseDown(tree: _.ITree, element: any, event: mouse.IMouseEvent, origin: string = 'mouse'): boolean {
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
+		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			if (event.target) {
 				if (event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 					return false; // Ignore event if target is a form input field (avoids browser specific issues)
@@ -181,15 +181,11 @@ export class DefaultController implements _.IController {
 			return false;
 		}
 
-		if (event.middleButton) {
-			return false; // Give contents of the item a chance to handle this (e.g. open link in new tab)
-		}
-
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
+		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			return false; // Already handled by onMouseDown
 		}
 
