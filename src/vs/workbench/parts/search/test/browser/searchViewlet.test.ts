@@ -10,7 +10,9 @@ import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { SearchSorter, SearchDataSource } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { IFileMatch, ILineMatch } from 'vs/platform/search/common/search';
-import { createMockModelService } from 'vs/workbench/test/workbenchTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 suite('Search - Viewlet', () => {
@@ -18,7 +20,7 @@ suite('Search - Viewlet', () => {
 
 	setup(() => {
 		instantiation = new TestInstantiationService();
-		instantiation.stub(IModelService, createMockModelService(instantiation));
+		instantiation.stub(IModelService, stubModelService(instantiation));
 	});
 
 	test('Data Source', function () {
@@ -68,5 +70,10 @@ suite('Search - Viewlet', () => {
 			lineMatches: lineMatches
 		};
 		return instantiation.createInstance(FileMatch, null, searchResult, rawMatch);
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });
