@@ -9,6 +9,7 @@
 	"emptySettingsHeader": "既定の設定を上書きするには、このファイル内に設定を挿入します",
 	"emptySettingsHeader1": "既定の設定とユーザー設定を上書きするには、このファイル内に設定を挿入します",
 	"fail.createSettings": "'{0}' ({1}) を作成できません。",
+	"keybindingsEditorName": "既定のキーボード ショートカット",
 	"neverShowAgain": "今後は表示しない",
 	"openFolderFirst": "ワークスペースの設定を作成するには、まずフォルダーを開いてください",
 	"openWorkspaceSettings": "ワークスペース設定を開く",
