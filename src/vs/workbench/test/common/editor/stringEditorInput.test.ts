@@ -10,7 +10,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import URI from 'vs/base/common/uri';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { TestEditorService } from 'vs/workbench/test/workbenchTestUtils';
+import { TestEditorService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';

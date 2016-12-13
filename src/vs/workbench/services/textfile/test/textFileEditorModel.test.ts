@@ -12,7 +12,7 @@ import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IEventService } from 'vs/platform/event/common/event';
 import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/workbench/test/workbenchTestUtils';
+import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';

@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import { join, basename } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestUtils';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';

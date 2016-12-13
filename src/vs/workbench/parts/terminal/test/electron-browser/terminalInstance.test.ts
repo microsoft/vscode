@@ -12,7 +12,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestMessageService } from 'vs/workbench/test/workbenchTestUtils';
+import { TestMessageService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('Workbench - TerminalInstance', () => {
 

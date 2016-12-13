@@ -22,7 +22,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TestWindowService } from 'vs/workbench/test/workbenchTestUtils';
+import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 class TestEnvironmentService extends EnvironmentService {
 
 	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {

@@ -20,7 +20,7 @@ import { QuickOpenHandler, IQuickOpenRegistry, Extensions } from 'vs/workbench/b
 import { Registry } from 'vs/platform/platform';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestEditorService, TestEditorGroupService } from 'vs/workbench/test/workbenchTestUtils';
+import { TestEnvironmentService, TestEditorService, TestEditorGroupService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as Timer from 'vs/base/common/timer';
 import { TPromise } from 'vs/base/common/winjs.base';

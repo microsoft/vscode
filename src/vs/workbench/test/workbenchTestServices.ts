@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
@@ -34,6 +35,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -48,6 +50,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+
+export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
+	return instantiationService.createInstance(FileEditorInput, resource, void 0);
+}
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
@@ -172,7 +178,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IModeService, ModeServiceImpl);
 	instantiationService.stub(IHistoryService, HistoryService);
 	instantiationService.stub(IHistoryService, 'getHistory', []);
-	instantiationService.createInstance(ModelServiceImpl);
+	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
