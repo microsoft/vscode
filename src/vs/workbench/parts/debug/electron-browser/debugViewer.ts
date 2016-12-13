@@ -76,7 +76,8 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
-		container.textContent = value.replace(/[\n\r\t]/g, char => '\\' + char);
+		const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+		container.textContent = value.replace(/[\n\r\t]/g, char => map[char]);
 	} else {
 		container.textContent = value;
 	}
