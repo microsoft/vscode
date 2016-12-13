@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DeferredPPromise } from 'vs/test/utils/promiseTestUtils';
+import { DeferredPPromise } from 'vs/base/test/common/promiseTestUtils';
 import { PPromise } from 'vs/base/common/winjs.base';
 import { nullEvent } from 'vs/base/common/timer';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
