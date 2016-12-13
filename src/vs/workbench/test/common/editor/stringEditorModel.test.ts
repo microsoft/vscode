@@ -11,7 +11,9 @@ import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel'
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 
 suite('Workbench - StringEditorModel', () => {
 
@@ -23,7 +25,7 @@ suite('Workbench - StringEditorModel', () => {
 	});
 
 	test('StringEditorModel', function (done) {
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
@@ -45,7 +47,7 @@ suite('Workbench - StringEditorModel', () => {
 	});
 
 	test('StringEditorModel - setValue, clearValue, append, trim', function (done) {
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
@@ -79,4 +81,9 @@ suite('Workbench - StringEditorModel', () => {
 			done();
 		});
 	});
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 });

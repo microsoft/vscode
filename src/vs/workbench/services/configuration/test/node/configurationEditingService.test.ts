@@ -17,7 +17,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
-import { TestEventService, workbenchInstantiationService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { TestEventService, workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestUtils';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';

@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { Build, Builder } from 'vs/base/browser/builder';
 import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
-import * as TestUtils from 'vs/test/utils/servicesTestUtils';
+import * as TestUtils from 'vs/workbench/test/workbenchTestUtils';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
