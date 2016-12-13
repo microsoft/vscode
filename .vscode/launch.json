@@ -10,14 +10,16 @@
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
-				"3999"
+				"999999"
 			],
 			"cwd": "${workspaceRoot}",
 			"env": {
 				"ELECTRON_RUN_AS_NODE": "true"
 			},
 			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		},
 		{
 			"type": "node",
@@ -36,7 +38,9 @@
 			"name": "Attach to Extension Host",
 			"port": 5870,
 			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		},
 		{
 			"type": "node",
@@ -44,7 +48,9 @@
 			"name": "Attach to Shared Process",
 			"port": 5871,
 			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		},
 		{
 			"type": "node",
@@ -52,7 +58,9 @@
 			"name": "Attach to CLI Process",
 			"port": 5874,
 			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		},
 		{
 			"type": "extensionHost",
@@ -65,7 +73,9 @@
 				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-api-tests/out"
 			],
 			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		},
 		{
 			"type": "extensionHost",
@@ -78,7 +88,9 @@
 				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
 			],
 			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		},
 		{
 			"type": "chrome",
