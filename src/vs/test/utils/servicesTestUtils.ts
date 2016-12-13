@@ -38,6 +38,7 @@ import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/work
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { RawText } from 'vs/editor/common/model/textModel';
@@ -46,6 +47,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -180,7 +182,8 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWorkbenchEditorService, new TestEditorService(function () { }));
 	instantiationService.stub(IPartService, new TestPartService());
 	instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
-	instantiationService.stub(IModeService);
+	instantiationService.stub(IModeService, ModeServiceImpl);
+	instantiationService.stub(IHistoryService, HistoryService);
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
