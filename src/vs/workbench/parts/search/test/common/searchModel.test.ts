@@ -6,14 +6,14 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DeferredPPromise } from 'vs/test/utils/promiseTestUtils';
 import { PPromise } from 'vs/base/common/winjs.base';
 import { nullEvent } from 'vs/base/common/timer';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
 import { IFileMatch, ILineMatch, ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats } from 'vs/platform/search/common/search';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -37,8 +37,10 @@ suite('SearchModel', () => {
 	setup(() => {
 		restoreStubs = [];
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ITelemetryService);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(ISearchService, {});
+		instantiationService.stub(ISearchService, 'search', PPromise.as({ results: [] }));
 	});
 
 	teardown(() => {
