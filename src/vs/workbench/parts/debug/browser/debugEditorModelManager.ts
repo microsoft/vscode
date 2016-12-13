@@ -38,7 +38,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		@IModelService private modelService: IModelService,
 		@IDebugService private debugService: IDebugService
 	) {
-		this.modelData = {};
+		this.modelData = Object.create(null);
 		this.toDispose = [];
 		this.registerListeners();
 	}
@@ -48,14 +48,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		for (let modelUrlStr in this.modelData) {
-			if (this.modelData.hasOwnProperty(modelUrlStr)) {
-				const modelData = this.modelData[modelUrlStr];
-				lifecycle.dispose(modelData.toDispose);
-				modelData.model.deltaDecorations(modelData.breakpointDecorationIds, []);
-				modelData.model.deltaDecorations(modelData.currentStackDecorations, []);
-			}
-		}
+		Object.keys(this.modelData).forEach(modelUriStr => {
+			lifecycle.dispose(this.modelData[modelUriStr].toDispose);
+			this.modelData[modelUriStr].model.deltaDecorations(this.modelData[modelUriStr].breakpointDecorationIds, []);
+			this.modelData[modelUriStr].model.deltaDecorations(this.modelData[modelUriStr].currentStackDecorations, []);
+		});
 		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		this.modelData = null;
@@ -97,12 +94,10 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onModelRemoved(model: IModel): void {
-		const modelUrlStr = model.uri.toString();
-		if (this.modelData.hasOwnProperty(modelUrlStr)) {
-			const modelData = this.modelData[modelUrlStr];
-			delete this.modelData[modelUrlStr];
-
-			lifecycle.dispose(modelData.toDispose);
+		const modelUriStr = model.uri.toString();
+		if (this.modelData[modelUriStr]) {
+			lifecycle.dispose(this.modelData[modelUriStr].toDispose);
+			delete this.modelData[modelUriStr];
 		}
 	}
 
@@ -179,7 +174,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			// I have no decorations
 			return;
 		}
-		if (!e.changedDecorations.some(decorationId => modelData.breakpointDecorationsAsMap.hasOwnProperty(decorationId))) {
+		if (!e.changedDecorations.some(decorationId => modelData.breakpointDecorationsAsMap[decorationId])) {
 			// nothing to do, my decorations did not change.
 			return;
 		}
@@ -220,7 +215,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onBreakpointsChange(): void {
-		const breakpointsMap: { [key: string]: IBreakpoint[] } = {};
+		const breakpointsMap: { [key: string]: IBreakpoint[] } = Object.create(null);
 		this.debugService.getModel().getBreakpoints().forEach(bp => {
 			const uriStr = bp.uri.toString();
 			if (breakpointsMap[uriStr]) {
@@ -231,12 +226,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		});
 
 		Object.keys(breakpointsMap).forEach(modelUriStr => {
-			if (this.modelData.hasOwnProperty(modelUriStr)) {
+			if (this.modelData[modelUriStr]) {
 				this.updateBreakpoints(this.modelData[modelUriStr], breakpointsMap[modelUriStr]);
 			}
 		});
 		Object.keys(this.modelData).forEach(modelUriStr => {
-			if (!breakpointsMap.hasOwnProperty(modelUriStr)) {
+			if (!breakpointsMap[modelUriStr]) {
 				this.updateBreakpoints(this.modelData[modelUriStr], []);
 			}
 		});
