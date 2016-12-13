@@ -6,5 +6,6 @@
 {
 	"openGlobalKeybindings": "キーボード ショートカットを開く",
 	"openGlobalSettings": "ユーザー設定を開く",
-	"openWorkspaceSettings": "ワークスペース設定を開く"
+	"openWorkspaceSettings": "ワークスペース設定を開く",
+	"startSearchDefaultSettings": "既定の設定検索にフォーカス"
 }

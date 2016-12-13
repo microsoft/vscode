@@ -9,7 +9,7 @@
 	"terminal.integrated.cursorBlinking": "端末のカーソルを点滅させるかどうかを制御します。",
 	"terminal.integrated.fontFamily": "端末のフォント ファミリを制御します。既定値は editor.fontFamily になります。",
 	"terminal.integrated.fontLigatures": "端末でフォントの合字が有効かどうかを制御します。",
-	"terminal.integrated.fontSize": "端末のフォント サイズをピクセル単位で制御します。既定では editor.fontSize の値になります。",
+	"terminal.integrated.fontSize": "端末のフォント サイズをピクセル単位で制御します。",
 	"terminal.integrated.lineHeight": "端末の行の高さを制御します。この数値に端末のフォント サイズを乗算すると、実際の行の高さ (ピクセル単位) になります。",
 	"terminal.integrated.scrollback": "端末がそのバッファーに保持できる最大行数を制御します。",
 	"terminal.integrated.setLocaleVariables": "端末の開始時にロケール変数を設定するかどうかを制御します。OS X では既定で true になり、その他のプラットフォームでは false です。",
