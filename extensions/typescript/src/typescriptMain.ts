@@ -287,7 +287,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[];
 	private languagePerId: Map<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[], storagePath: string, globalState: Memento) {
+	constructor(descriptions: LanguageDescription[], storagePath: string | undefined, globalState: Memento) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
