@@ -11,7 +11,9 @@ import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/co
 import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { IFileMatch } from 'vs/platform/search/common/search';
-import { createMockModelService } from 'vs/workbench/test/workbenchTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -23,7 +25,7 @@ suite('Search Actions', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
 		instantiationService.stub(IKeybindingService, 'getLabelFor', () => '');
 		counter = 0;
@@ -136,5 +138,10 @@ suite('Search Actions', () => {
 
 	function aTree(elements: FileMatchOrMatch[]): any {
 		return stubFunction(Tree, 'getNavigator', () => { return new ArrayNavigator(elements); });
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });
