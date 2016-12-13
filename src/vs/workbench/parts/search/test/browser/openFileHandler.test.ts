@@ -9,7 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CacheState } from 'vs/workbench/parts/search/browser/openFileHandler';
-import { DeferredTPromise } from 'vs/test/utils/promiseTestUtils';
+import { DeferredTPromise } from 'vs/base/test/common/promiseTestUtils';
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 
 suite('CacheState', () => {
