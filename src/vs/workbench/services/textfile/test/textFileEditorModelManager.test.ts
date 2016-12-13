@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { join, basename } from 'vs/base/common/paths';
-import { workbenchInstantiationService, TestEditorGroupService, createFileInput } from 'vs/workbench/test/workbenchTestUtils';
+import { workbenchInstantiationService, TestEditorGroupService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
 import { onError } from 'vs/base/test/common/utils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';

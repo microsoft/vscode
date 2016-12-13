@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'vs/base/common/paths';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestUtils';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 
 class ServiceAccessor {
