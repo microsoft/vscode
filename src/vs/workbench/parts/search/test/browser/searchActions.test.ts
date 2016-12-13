@@ -11,7 +11,7 @@ import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/co
 import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { IFileMatch } from 'vs/platform/search/common/search';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { createMockModelService } from 'vs/workbench/test/workbenchTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';

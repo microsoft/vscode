@@ -15,7 +15,9 @@ import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput'
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel { }
@@ -49,7 +51,7 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('BaseTextEditorModel', function (done) {
-		let modelService = createMockModelService(instantiationService);
+		let modelService = stubModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);
 		m.load().then((model: any) => {
@@ -64,7 +66,7 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('TextDiffEditorModel', function (done) {
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'text/plain', false);
 		let otherInput = instantiationService.createInstance(StringEditorInput, 'name2', 'description', 'value2', 'text/plain', false);
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
@@ -88,4 +90,9 @@ suite('Workbench - EditorModel', () => {
 			done();
 		});
 	});
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 });

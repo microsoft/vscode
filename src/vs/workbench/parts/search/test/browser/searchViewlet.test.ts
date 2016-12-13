@@ -10,7 +10,7 @@ import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { SearchSorter, SearchDataSource } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { IFileMatch, ILineMatch } from 'vs/platform/search/common/search';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { createMockModelService } from 'vs/workbench/test/workbenchTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 suite('Search - Viewlet', () => {

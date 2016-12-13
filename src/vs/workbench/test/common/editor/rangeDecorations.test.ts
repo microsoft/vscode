@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import URI from 'vs/base/common/uri';
-import { createMockModelService, TestEditorService, workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
+import { TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
@@ -21,6 +21,9 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { Cursor } from 'vs/editor/common/controller/cursor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 
 suite('Editor - Range decorations', () => {
 
@@ -39,7 +42,7 @@ suite('Editor - Range decorations', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
-		modelService = <IModelService>instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		modelService = <IModelService>instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
 		codeEditor = mockCodeEditor([], { model });
@@ -165,5 +168,10 @@ suite('Editor - Range decorations', () => {
 
 		rangeHighlights.sort(Range.compareRangesUsingStarts);
 		return rangeHighlights;
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

@@ -12,7 +12,9 @@ import URI from 'vs/base/common/uri';
 import { IFileMatch, ILineMatch } from 'vs/platform/search/common/search';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 
@@ -23,7 +25,7 @@ suite('SearchResult', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stubPromise(IReplaceService, {});
 		instantiationService.stubPromise(IReplaceService, 'replace', null);
 	});
@@ -374,5 +376,10 @@ suite('SearchResult', () => {
 
 	function aLineMatch(preview: string, lineNumber: number = 1, offsetAndLengths: number[][] = [[0, 1]]): ILineMatch {
 		return { preview, lineNumber, offsetAndLengths };
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });
