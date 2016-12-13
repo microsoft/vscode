@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { clipboard } from 'electron';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
 
 export class CopyValueAction extends Action {
 	static ID = 'workbench.debug.viewlet.action.copyValue';
@@ -38,6 +38,16 @@ export class CopyAction extends Action {
 
 	public run(): TPromise<any> {
 		clipboard.writeText(window.getSelection().toString());
+		return TPromise.as(null);
+	}
+}
+
+export class CopyStackTraceAction extends Action {
+	static ID = 'workbench.action.debug.copyStackTrace';
+	static LABEL = nls.localize('copyStackTrace', "Copy Stack Trace");
+
+	public run(frame: IStackFrame): TPromise<any> {
+		clipboard.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join('\n'));
 		return TPromise.as(null);
 	}
 }

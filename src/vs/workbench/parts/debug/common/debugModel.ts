@@ -347,6 +347,10 @@ export class StackFrame implements debug.IStackFrame {
 	public restart(): TPromise<any> {
 		return this.thread.process.session.restartFrame({ frameId: this.frameId });
 	}
+
+	public toString(): string {
+		return `${this.name} (${this.source.name}:${this.lineNumber})`;
+	}
 }
 
 export class Thread implements debug.IThread {

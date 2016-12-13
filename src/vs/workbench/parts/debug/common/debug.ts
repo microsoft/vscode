@@ -171,6 +171,7 @@ export interface IStackFrame extends ITreeElement {
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	restart(): TPromise<any>;
+	toString(): string;
 }
 
 export interface IEnablement extends ITreeElement {
