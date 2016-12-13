@@ -338,7 +338,13 @@ class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber + offset);
 			const location = new vscode.Location(document.uri, line.range);
-			const text = line.text.replace(/^\s*#+\s*/, '');
+
+			// # Header        => 'Header'
+			// ## Header ##    => 'Header'
+			// ## Header ####  => 'Header'
+			// Header ##       => 'Header ##'
+			// =========
+			const text = line.text.replace(/^\s*(#)+\s*(.*?)\s*\1*$/, '$2');
 
 			return new vscode.SymbolInformation(text, vscode.SymbolKind.Module, '', location);
 		});
