@@ -277,7 +277,10 @@ export class DebugService implements debug.IDebugService {
 
 							return this.editorService.openEditor({
 								resource: stackFrameToFocus.source.uri,
-								options: { selection: { startLineNumber: stackFrameToFocus.lineNumber, startColumn: 1 } }
+								options: {
+									selection: { startLineNumber: stackFrameToFocus.lineNumber, startColumn: 1 },
+									revealIfVisible: true
+								}
 							});
 						} else {
 							this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
