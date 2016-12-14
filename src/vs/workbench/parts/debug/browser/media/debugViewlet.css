@@ -52,11 +52,14 @@
 	margin-top: 7px;
 }
 
+.monaco-workbench.mac > .part > .title > .title-actions .start-debug-action-item {
+	border-radius: 4px;
+}
+
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
 	border-color: #3c3c3c;
 }
-
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	height: 20px;
