@@ -28,6 +28,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
@@ -186,6 +187,7 @@ export class BaseDebugController extends DefaultController {
 		private actionProvider: IActionProvider,
 		menuId: MenuId,
 		@debug.IDebugService protected debugService: debug.IDebugService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
@@ -314,12 +316,18 @@ export class CallStackController extends BaseDebugController {
 			process = element;
 		}
 
-		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
-
-		if (stackFrame) {
-			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-		}
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).then(() => {
+			if (stackFrame) {
+				const sideBySide = (event && (event.ctrlKey || event.metaKey));
+				return this.editorService.openEditor({
+					resource: stackFrame.source.uri,
+					options: {
+						preserveFocus,
+						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 }
+					}
+				}, sideBySide);
+			}
+		}, errors.onUnexpectedError);
 	}
 }
 
@@ -1311,8 +1319,15 @@ export class BreakpointsController extends BaseDebugController {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
+
+		return false;
+	}
+
+	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
 		if (element instanceof Breakpoint) {
 			this.openBreakpointSource(element, event, false);
+			return true;
 		}
 
 		return super.onEnter(tree, event);
@@ -1343,6 +1358,12 @@ export class BreakpointsController extends BaseDebugController {
 
 	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
-		this.debugService.openOrRevealSource(breakpoint.uri, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor({
+			resource: breakpoint.uri,
+			options: {
+				preserveFocus,
+				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 }
+			}
+		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}
 }

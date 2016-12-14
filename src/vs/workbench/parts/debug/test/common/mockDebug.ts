@@ -7,7 +7,6 @@ import uri from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
 	public _serviceBrand: any;
@@ -86,10 +85,6 @@ export class MockDebugService implements debug.IDebugService {
 
 	public getViewModel(): debug.IViewModel {
 		return null;
-	}
-
-	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
-		return TPromise.as(null);
 	}
 }
 
