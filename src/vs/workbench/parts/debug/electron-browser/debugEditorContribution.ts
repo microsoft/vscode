@@ -280,21 +280,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private addLaunchConfiguration(): void {
-		let depthInArray = 0;
 		let configurationsPosition: IPosition;
 		const model = this.editor.getModel();
 
 		visit(model.getValue(), {
 			onObjectProperty: (property, offset, length) => {
-				if (property === 'configurations' && depthInArray === 0) {
+				if (property === 'configurations') {
 					configurationsPosition = model.getPositionAt(offset);
 				}
-			},
-			onArrayBegin: (offset: number, length: number) => {
-				depthInArray++;
-			},
-			onArrayEnd: (offset: number, length: number) => {
-				depthInArray--;
 			}
 		});
 		if (!configurationsPosition) {
