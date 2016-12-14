@@ -212,7 +212,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public parseBackupContent(rawText: IRawTextContent): string {
-		return rawText.value.lines.slice(1).join('\n'); // The first line of a backup text file is the file name
+		return rawText.value.lines.slice(1).join(rawText.value.EOL); // The first line of a backup text file is the file name
 	}
 
 	protected getBackupResource(resource: Uri): Uri {
