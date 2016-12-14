@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -18,13 +17,12 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -32,16 +30,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
-import { DebugStringEditorInput, DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
@@ -84,7 +78,6 @@ export class DebugService implements debug.IDebugService {
 		@ITextFileService private textFileService: ITextFileService,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
-		@IFileService private fileService: IFileService,
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
@@ -92,7 +85,6 @@ export class DebugService implements debug.IDebugService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -283,7 +275,10 @@ export class DebugService implements debug.IDebugService {
 							this.windowService.getWindow().focus();
 							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
-							return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
+							return this.editorService.openEditor({
+								resource: stackFrameToFocus.source.uri,
+								options: { selection: { startLineNumber: stackFrameToFocus.lineNumber, startColumn: 1 } }
+							});
 						} else {
 							this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 						}
@@ -859,74 +854,6 @@ export class DebugService implements debug.IDebugService {
 		return this.viewModel;
 	}
 
-	public openOrRevealSource(sourceOrUri: Source | uri, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
-		const visibleEditors = this.editorService.getVisibleEditors();
-		const uri = sourceOrUri instanceof Source ? sourceOrUri.uri : sourceOrUri;
-		const source = sourceOrUri instanceof Source ? sourceOrUri : null;
-		for (let i = 0; i < visibleEditors.length; i++) {
-			const fileInput = asFileEditorInput(visibleEditors[i].input);
-			if ((fileInput && fileInput.getResource().toString() === uri.toString()) ||
-				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === uri.toString())) {
-
-				const control = <ICodeEditor>visibleEditors[i].getControl();
-				if (control) {
-					control.revealLineInCenterIfOutsideViewport(lineNumber);
-					control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-					this.editorGroupService.activateGroup(i);
-					if (!preserveFocus) {
-						this.editorGroupService.focusGroup(i);
-					}
-				}
-
-				return TPromise.as(null);
-			}
-		}
-
-		const process = this.viewModel.focusedProcess;
-		if (process && source && source.inMemory) {
-			// internal module
-			if (source.reference !== 0 && source.available) {
-				return process.session.source({ sourceReference: source.reference }).then(response => {
-					const mime = response && response.body && response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
-					const inputValue = response && response.body ? response.body.content : '';
-					return this.getDebugStringEditorInput(process, source, inputValue, mime);
-				}, (err: DebugProtocol.ErrorResponse) => {
-					// Display the error from debug adapter using a temporary editor #8836
-					return this.getDebugErrorEditorInput(process, source, err.message);
-				}).then(editorInput => {
-					return this.editorService.openEditor(editorInput, { preserveFocus, selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 } }, sideBySide);
-				});
-			}
-
-			return this.sourceIsUnavailable(process, source, sideBySide);
-		}
-		if (Source.isInMemory(uri)) {
-			return TPromise.as(null);
-		}
-
-		return this.fileService.resolveFile(uri).then(() =>
-			this.editorService.openEditor({
-				resource: uri,
-				options: {
-					selection: {
-						startLineNumber: lineNumber,
-						startColumn: 1,
-						endLineNumber: lineNumber,
-						endColumn: 1
-					},
-					preserveFocus: preserveFocus
-				}
-			}, sideBySide), err => this.sourceIsUnavailable(process, source, sideBySide)
-		);
-	}
-
-	private sourceIsUnavailable(process: debug.IProcess, source: Source, sideBySide: boolean): TPromise<any> {
-		this.model.sourceIsUnavailable(source);
-		const editorInput = this.getDebugErrorEditorInput(process, source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.name));
-
-		return this.editorService.openEditor(editorInput, { preserveFocus: true }, sideBySide);
-	}
-
 	public getConfigurationManager(): debug.IConfigurationManager {
 		return this.configurationManager;
 	}
@@ -935,20 +862,6 @@ export class DebugService implements debug.IDebugService {
 		this.model.clearThreads(session.getId(), false, threadId);
 		this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
 		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
-	}
-
-	private getDebugStringEditorInput(process: debug.IProcess, source: Source, value: string, mtype: string): DebugStringEditorInput {
-		const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
-		this.toDisposeOnSessionEnd[process.getId()].push(result);
-
-		return result;
-	}
-
-	private getDebugErrorEditorInput(process: debug.IProcess, source: Source, value: string): DebugErrorEditorInput {
-		const result = this.instantiationService.createInstance(DebugErrorEditorInput, source.name, value);
-		this.toDisposeOnSessionEnd[process.getId()].push(result);
-
-		return result;
 	}
 
 	private sendAllBreakpoints(process?: debug.IProcess): TPromise<any> {

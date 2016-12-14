@@ -13,7 +13,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actionRegistry';
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -21,7 +20,6 @@ import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelD
 import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
 import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE } from 'vs/workbench/parts/debug/common/debug';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -32,11 +30,9 @@ import {
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
 import * as service from 'vs/workbench/parts/debug/electron-browser/debugService';
-import { DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
-import { DebugErrorEditor } from 'vs/workbench/parts/debug/browser/debugErrorEditor';
+import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
@@ -109,6 +105,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDebugViewletAction
 
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(DebugEditorModelManager);
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(DebugActionsWidget);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider);
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registry.registerWorkbenchAction(new SyncActionDescriptor(
@@ -144,14 +141,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // register service
 registerSingleton(IDebugService, service.DebugService);
-
-// Register Debug Error Editor #9062
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(DebugErrorEditor.ID,
-	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugErrorEditor' }, "Debug Error"),
-	'vs/workbench/parts/debug/browser/debugErrorEditor',
-	'DebugErrorEditor'),
-	[new SyncDescriptor(DebugErrorEditorInput)]
-);
 
 // Register configuration
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);

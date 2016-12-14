@@ -538,11 +538,11 @@ export class Process implements debug.IProcess {
 		}
 	}
 
-	public sourceIsUnavailable(source: Source): void {
+	public sourceIsUnavailable(uri: uri): void {
 		Object.keys(this.threads).forEach(key => {
 			if (this.threads[key].getCachedCallStack()) {
 				this.threads[key].getCachedCallStack().forEach(stackFrame => {
-					if (stackFrame.source.uri.toString() === source.uri.toString()) {
+					if (stackFrame.source.uri.toString() === uri.toString()) {
 						stackFrame.source.available = false;
 					}
 				});
@@ -909,8 +909,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public sourceIsUnavailable(source: Source): void {
-		this.processes.forEach(p => p.sourceIsUnavailable(source));
+	public sourceIsUnavailable(uri: uri): void {
+		this.processes.forEach(p => p.sourceIsUnavailable(uri));
 		this._onDidChangeCallStack.fire();
 	}
 
