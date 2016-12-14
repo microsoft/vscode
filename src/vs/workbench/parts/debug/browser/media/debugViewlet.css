@@ -48,26 +48,32 @@
 	margin-right: 0.3em;
 	height: 20px;
 	flex-shrink: 1;
-	height: 35px;
+	border: 1px solid #dddddd;
+	margin-top: 7px;
 }
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
+	border-color: #3c3c3c;
+}
+
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	height: 20px;
 	width: 20px;
 	background: url('continue.svg') center center no-repeat;
 	flex-shrink: 0;
-	border: 1px solid #dddddd;
-	border-right: none;
+	transition: transform 50ms ease;
+	-webkit-transition: -webkit-transform 50ms ease;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	background: url('continue-inverse.svg') center center no-repeat;
-	border-color: #3c3c3c;
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
-	border: 1px solid #dddddd;
+	border-left: 1px solid #dddddd;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration,
@@ -93,17 +99,9 @@
 	cursor: initial;
 }
 
-/* Hover feedback for start debug action item */
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled) {
-	background-color: #ECECEC;
-}
-
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled),
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon:hover,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover:not(.disabled) {
-	background-color: #2D2D2D
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon.active {
+	-webkit-transform: scale(1.272019649, 1.272019649);
+	transform: scale(1.272019649, 1.272019649);
 }
 
 /* Debug viewlet trees */
