@@ -14,9 +14,10 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import { getCommonHttpHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 
 export interface IWindowState {
@@ -154,7 +155,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.options = config;
 		this._lastFocusTime = -1;
@@ -208,7 +210,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		// TODO@joao: hook this up to some initialization routine
 		// this causes a race between setting the headers and doing
 		// a request that needs them. chances are low
-		getCommonHTTPHeaders().done(headers => {
+		getCommonHttpHeaders(this.telemetryService).done(headers => {
 			if (!this._win) {
 				return;
 			}
