@@ -917,6 +917,7 @@ export interface IEditorGroup {
 	getEditors(mru?: boolean): IEditorInput[];
 	isActive(editor: IEditorInput): boolean;
 	isPreview(editor: IEditorInput): boolean;
+	isPinned(index: number): boolean;
 	isPinned(editor: IEditorInput): boolean;
 }
 
