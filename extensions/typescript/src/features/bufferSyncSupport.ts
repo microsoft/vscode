@@ -21,7 +21,7 @@ interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
 
-const Mode2ScriptKind: Map<'TS' | 'JS' | 'TSX' | 'JSX'> = {
+const Mode2ScriptKind: ObjectMap<'TS' | 'JS' | 'TSX' | 'JSX'> = {
 	'typescript': 'TS',
 	'typescriptreact': 'TSX',
 	'javascript': 'JS',
@@ -106,11 +106,11 @@ export default class BufferSyncSupport {
 	private client: ITypescriptServiceClient;
 
 	private _validate: boolean;
-	private modeIds: Map<boolean>;
-	private extensions: Map<boolean>;
+	private modeIds: ObjectMap<boolean>;
+	private extensions: ObjectMap<boolean>;
 	private diagnostics: Diagnostics;
 	private disposables: Disposable[] = [];
-	private syncedBuffers: Map<SyncedBuffer>;
+	private syncedBuffers: ObjectMap<SyncedBuffer>;
 
 	private projectValidationRequested: boolean;
 
@@ -119,7 +119,7 @@ export default class BufferSyncSupport {
 	private emitQueue: LinkedMap<string>;
 	private checkGlobalTSCVersion: boolean;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: Map<boolean>, validate: boolean = true) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: ObjectMap<boolean>, validate: boolean = true) {
 		this.client = client;
 		this.modeIds = Object.create(null);
 		modeIds.forEach(modeId => this.modeIds[modeId] = true);
