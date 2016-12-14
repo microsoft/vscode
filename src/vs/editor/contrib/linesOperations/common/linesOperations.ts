@@ -518,7 +518,7 @@ export class JoinLinesAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let selections = editor.getSelections();
-		let primarySelection = editor.getSelection();
+		let primaryCursor = editor.getSelection();
 
 		selections.sort(Range.compareRangesUsingStarts);
 		let reducedSelections: Selection[] = [];
@@ -526,8 +526,8 @@ export class JoinLinesAction extends EditorAction {
 		let lastSelection = selections.reduce((previousValue, currentValue) => {
 			if (previousValue.isEmpty()) {
 				if (previousValue.endLineNumber === currentValue.startLineNumber) {
-					if (primarySelection.equalsSelection(previousValue)) {
-						primarySelection = currentValue;
+					if (primaryCursor.equalsSelection(previousValue)) {
+						primaryCursor = currentValue;
 					}
 					return currentValue;
 				}
@@ -553,7 +553,7 @@ export class JoinLinesAction extends EditorAction {
 		let model = editor.getModel();
 		let edits = [];
 		let endCursorState = [];
-		let resultPrimarySelection = primarySelection;
+		let endPrimaryCursor = primaryCursor;
 		let lineOffset = 0;
 
 		for (let i = 0, len = reducedSelections.length; i < len; i++) {
@@ -632,8 +632,8 @@ export class JoinLinesAction extends EditorAction {
 					}
 				}
 
-				if (Range.intersectRanges(deleteSelection, primarySelection) !== null) {
-					resultPrimarySelection = resultSelection;
+				if (Range.intersectRanges(deleteSelection, primaryCursor) !== null) {
+					endPrimaryCursor = resultSelection;
 				} else {
 					endCursorState.push(resultSelection);
 				}
@@ -642,7 +642,7 @@ export class JoinLinesAction extends EditorAction {
 			lineOffset += deleteSelection.endLineNumber - deleteSelection.startLineNumber;
 		}
 
-		endCursorState.unshift(resultPrimarySelection);
+		endCursorState.unshift(endPrimaryCursor);
 		editor.executeEdits(this.id, edits, endCursorState);
 
 	}

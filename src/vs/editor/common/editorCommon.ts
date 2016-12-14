@@ -3939,7 +3939,7 @@ export interface ICommonCodeEditor extends IEditor {
 	pushUndoStop(): boolean;
 
 	/**
-	 * Execute a command on the editor.
+	 * Execute edits on the editor.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
 	 * @param endCursoState Cursor state after the edits were applied.
