@@ -5,15 +5,15 @@
 
 /* Title Container */
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
 	background: #F3F3F3;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
 	background: #252526;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
 	border-bottom: 1px solid #6FC3DF;
 }
 
