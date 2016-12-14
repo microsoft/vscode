@@ -8,14 +8,7 @@ Packager: Visual Studio Code Team <vscode-linux@microsoft.com>
 License:  Multiple, see https://code.visualstudio.com/license
 URL:      https://code.visualstudio.com/
 Icon:     @@NAME@@.xpm
-Requires: glibc >= 2.15
-%ifarch x86_64
-Requires: libgconf-2.so.4()(64bit)
-Requires: libXss.so.1()(64bit)
-%else
-Requires: libgconf-2.so.4
-Requires: libXss.so.1
-%endif
+Requires: @@DEPENDENCIES@@
 AutoReq:  0
 
 %description

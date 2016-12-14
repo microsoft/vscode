@@ -14,6 +14,7 @@ const vfs = require('vinyl-fs');
 const util = require('./lib/util');
 const packageJson = require('../package.json');
 const product = require('../product.json');
+const rpmDependencies = require('../resources/linux/rpm/dependencies');
 
 function getDebPackageArch(arch) {
 	return { x64: 'amd64', ia32: 'i386', arm: 'armhf' }[arch];
@@ -117,6 +118,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
+			.pipe(replace('@@DEPENDENCIES@@', rpmDependencies[rpmArch].join(', ')))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
