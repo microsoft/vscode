@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import { getCommonHttpHeaders } from 'vs/platform/environment/node/http';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -269,7 +269,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	@memoize
 	private get commonHTTPHeaders(): TPromise<{ [key: string]: string; }> {
-		return getCommonHTTPHeaders();
+		return getCommonHttpHeaders(this.telemetryService);
 	}
 
 	constructor(
