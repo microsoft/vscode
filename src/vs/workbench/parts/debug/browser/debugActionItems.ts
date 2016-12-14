@@ -52,11 +52,24 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		icon.title = this.action.label;
 		icon.tabIndex = 0;
 
-		this.toDispose.push(dom.addDisposableListener(icon, 'click', () => {
+		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.CLICK, () => {
 			icon.blur();
 			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 		}));
-		this.toDispose.push(dom.addDisposableListener(icon, 'keyup', (e: KeyboardEvent) => {
+
+		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_DOWN, () => {
+			if (this.selectBox.enabled) {
+				dom.addClass(icon, 'active');
+			}
+		}));
+		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_UP, () => {
+			dom.removeClass(icon, 'active');
+		}));
+		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_OUT, () => {
+			dom.removeClass(icon, 'active');
+		}));
+
+		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
 				this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
