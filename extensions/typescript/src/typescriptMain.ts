@@ -96,8 +96,8 @@ const validateSetting = 'validate.enable';
 class LanguageProvider {
 
 	private description: LanguageDescription;
-	private extensions: Map<boolean>;
-	private syntaxDiagnostics: Map<Diagnostic[]>;
+	private extensions: ObjectMap<boolean>;
+	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
 	private bufferSyncSupport: BufferSyncSupport;
 
@@ -285,7 +285,7 @@ class LanguageProvider {
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[];
-	private languagePerId: Map<LanguageProvider>;
+	private languagePerId: ObjectMap<LanguageProvider>;
 
 	constructor(descriptions: LanguageDescription[], storagePath: string | undefined, globalState: Memento) {
 		let handleProjectCreateOrDelete = () => {

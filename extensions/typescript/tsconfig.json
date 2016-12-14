@@ -1,9 +1,9 @@
 {
 	"compilerOptions": {
-		"target": "es5",
+		"target": "es6",
 		"module": "commonjs",
 		"lib": [
-			"es5",
+			"es6",
 			"es2015.promise"
 		],
 		"outDir": "./out",
