@@ -323,8 +323,9 @@ export class CallStackController extends BaseDebugController {
 					resource: stackFrame.source.uri,
 					options: {
 						preserveFocus,
-						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 }
-					}
+						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
+						revealIfVisible: true
+					},
 				}, sideBySide);
 			}
 		}, errors.onUnexpectedError);
@@ -1362,7 +1363,8 @@ export class BreakpointsController extends BaseDebugController {
 			resource: breakpoint.uri,
 			options: {
 				preserveFocus,
-				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 }
+				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
+				revealIfVisible: true
 			}
 		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}

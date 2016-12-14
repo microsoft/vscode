@@ -715,7 +715,8 @@ export class FocusProcessAction extends AbstractDebugAction {
 					resource: stackFrame.source.uri,
 					options: {
 						preserveFocus: true,
-						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 }
+						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
+						revealIfVisible: true
 					}
 				});
 			}
