@@ -173,15 +173,15 @@ function getFlatpakArch(arch) {
 }
 
 function prepareFlatpak(arch) {
-	// This is not imported in the global scope to avoid requiring ImageMagick
-	// (or GraphicsMagick) when not building building Flatpak bundles.
-	const imgResize = require('gulp-image-resize');
-
 	const binaryDir = '../VSCode-linux-' + arch;
 	const flatpakArch = getFlatpakArch(arch);
 	const destination = '.build/linux/flatpak/' + flatpakArch;
 
 	return function () {
+		// This is not imported in the global scope to avoid requiring ImageMagick
+		// (or GraphicsMagick) when not building building Flatpak bundles.
+		const imgResize = require('gulp-image-resize');
+
 		const all = [16, 24, 32, 48, 64, 128, 192, 256, 512].map(function (size) {
 			return gulp.src('resources/linux/code.png', { base: '.' })
 				.pipe(imgResize({ width: size, height: size, format: "png", noProfile: true }))
