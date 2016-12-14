@@ -116,6 +116,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
+			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@DEPENDENCIES@@', rpmDependencies[rpmArch].join(', ')))
