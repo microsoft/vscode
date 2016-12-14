@@ -600,7 +600,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return true;
 	}
 
-	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[]): boolean {
+	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean {
 		if (!this.cursor) {
 			// no view, no cursor
 			return false;
@@ -611,8 +611,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 
 		this.model.pushEditOperations(this.cursor.getSelections(), edits, () => {
-			return this.cursor.getSelections();
+			return endCursorState ? endCursorState : this.cursor.getSelections();
 		});
+
+		if (endCursorState) {
+			this.cursor.setSelections(source, endCursorState);
+		}
 
 		return true;
 	}
