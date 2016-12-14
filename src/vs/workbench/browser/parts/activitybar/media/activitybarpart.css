@@ -27,6 +27,7 @@
 /* High Contrast Theming */
 
 .hc-black .monaco-workbench > .part.activitybar.left .content {
+	box-sizing: border-box; /* helps showing the border when sidebar collapsed */
 	border-right: 1px solid #6FC3DF;
 }
 
