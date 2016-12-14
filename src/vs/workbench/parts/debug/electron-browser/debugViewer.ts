@@ -282,34 +282,6 @@ export class CallStackController extends BaseDebugController {
 		return super.onEnter(tree, event);
 	}
 
-	protected onUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
 	protected getContext(element: any): any {
 		if (element instanceof StackFrame) {
 			return element.source.uri.toString();
