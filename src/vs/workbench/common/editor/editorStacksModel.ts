@@ -482,9 +482,20 @@ export class EditorGroup implements IEditorGroup {
 		this.closeEditor(oldPreview);
 	}
 
-	public isPinned(editor: EditorInput): boolean {
-		const index = this.indexOf(editor);
-		if (index === -1) {
+	public isPinned(editor: EditorInput): boolean;
+	public isPinned(index: number): boolean;
+	public isPinned(arg1: EditorInput | number): boolean {
+		let editor: EditorInput;
+		let index: number;
+		if (typeof arg1 === 'number') {
+			editor = this.editors[arg1];
+			index = arg1;
+		} else {
+			editor = arg1;
+			index = this.indexOf(editor);
+		}
+
+		if (index === -1 || !editor) {
 			return false; // editor not found
 		}
 

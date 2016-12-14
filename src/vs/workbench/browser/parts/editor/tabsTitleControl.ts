@@ -204,7 +204,7 @@ export class TabsTitleControl extends TitleControl {
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
-				const isPinned = group.isPinned(editor);
+				const isPinned = group.isPinned(index);
 				const isActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
 
