@@ -24,7 +24,7 @@
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",
-    "graceful-fs": "4.1.2",
+    "graceful-fs": "4.1.11",
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.13",

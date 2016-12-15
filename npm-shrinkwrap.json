@@ -173,9 +173,9 @@
       "resolved": "https://registry.npmjs.org/glob-parent/-/glob-parent-2.0.0.tgz"
     },
     "graceful-fs": {
-      "version": "4.1.2",
-      "from": "graceful-fs@4.1.2",
-      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.2.tgz"
+      "version": "4.1.11",
+      "from": "graceful-fs@4.1.11",
+      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.11.tgz"
     },
     "http-proxy-agent": {
       "version": "0.2.7",
