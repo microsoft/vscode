@@ -843,7 +843,7 @@ suite('ExtensionsActions Test', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
 		workbenchService.queryLocal().done(() => {
-			instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { id: local[0].id, version: '1.0.2' }), aGalleryExtension('b', { id: local[1].id, version: '1.0.2' }), aGalleryExtension('c', local)));
+			instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { id: local[0].id, version: '1.0.2' }), aGalleryExtension('b', { id: local[1].id, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)));
 			workbenchService.queryGallery().done(() => {
 				assert.ok(testObject.enabled);
 				done();
@@ -854,7 +854,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test UpdateAllAction when some installed extensions are outdated and some outdated are being installed', (done) => {
 		const testObject: ExtensionsActions.UpdateAllAction = instantiationService.createInstance(ExtensionsActions.UpdateAllAction, 'id', 'label');
 		const local = [aLocalExtension('a', { version: '1.0.1' }), aLocalExtension('b', { version: '1.0.1' }), aLocalExtension('c', { version: '1.0.1' })];
-		const gallery = [aGalleryExtension('a', { id: local[0].id, version: '1.0.2' }), aGalleryExtension('b', { id: local[1].id, version: '1.0.2' }), aGalleryExtension('c', local)];
+		const gallery = [aGalleryExtension('a', { id: local[0].id, version: '1.0.2' }), aGalleryExtension('b', { id: local[1].id, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)];
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
 		workbenchService.queryLocal().done(() => {
@@ -870,7 +870,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test UpdateAllAction when some installed extensions are outdated and all outdated are being installed', (done) => {
 		const testObject: ExtensionsActions.UpdateAllAction = instantiationService.createInstance(ExtensionsActions.UpdateAllAction, 'id', 'label');
 		const local = [aLocalExtension('a', { version: '1.0.1' }), aLocalExtension('b', { version: '1.0.1' }), aLocalExtension('c', { version: '1.0.1' })];
-		const gallery = [aGalleryExtension('a', { id: local[0].id, version: '1.0.2' }), aGalleryExtension('b', { id: local[1].id, version: '1.0.2' }), aGalleryExtension('c', local)];
+		const gallery = [aGalleryExtension('a', { id: local[0].id, version: '1.0.2' }), aGalleryExtension('b', { id: local[1].id, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)];
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
 		workbenchService.queryLocal().done(() => {
