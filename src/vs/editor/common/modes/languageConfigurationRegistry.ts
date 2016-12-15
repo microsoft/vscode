@@ -11,7 +11,6 @@ import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBracke
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
@@ -279,13 +278,7 @@ export class LanguageConfigurationRegistryImpl {
 		return result;
 	}
 
-	public getEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): { enterAction: EnterAction; indentation: string; } {
-		let lineText = model.getLineContent(lineNumber);
-		let indentation = strings.getLeadingWhitespace(lineText);
-		if (indentation.length > column - 1) {
-			indentation = indentation.substring(0, column - 1);
-		}
-
+	public getEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
 		let enterAction = this.getRawEnterActionAtPosition(model, lineNumber, column);
 		if (!enterAction) {
 			enterAction = {
@@ -294,25 +287,11 @@ export class LanguageConfigurationRegistryImpl {
 			};
 		} else {
 			if (!enterAction.appendText) {
-				if (
-					(enterAction.indentAction === IndentAction.Indent) ||
-					(enterAction.indentAction === IndentAction.IndentOutdent)
-				) {
-					enterAction.appendText = '\t';
-				} else {
-					enterAction.appendText = '';
-				}
+				enterAction.appendText = '';
 			}
 		}
 
-		if (enterAction.removeText) {
-			indentation = indentation.substring(0, indentation.length - 1);
-		}
-
-		return {
-			enterAction: enterAction,
-			indentation: indentation
-		};
+		return enterAction;
 	}
 
 	// end onEnter
