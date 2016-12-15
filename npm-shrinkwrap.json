@@ -257,6 +257,11 @@
       "from": "isobject@>=2.0.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/isobject/-/isobject-2.1.0.tgz"
     },
+    "jschardet": {
+      "version": "1.4.1",
+      "from": "jschardet@>=1.4.1 <2.0.0",
+      "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.4.1.tgz"
+    },
     "kind-of": {
       "version": "3.0.4",
       "from": "kind-of@>=3.0.2 <4.0.0",

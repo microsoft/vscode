@@ -7,6 +7,7 @@
 
 import stream = require('vs/base/node/stream');
 import iconv = require('iconv-lite');
+import jschardet = require('jschardet');
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -85,4 +86,24 @@ export function detectEncodingByBOM(file: string, callback: (error: Error, encod
 
 		return callback(null, detectEncodingByBOMFromBuffer(buffer, bytesRead));
 	});
+}
+
+const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'urf-32'];
+/**
+ * Detects the encoding from buffer.
+ */
+export function detectEncodingByBuffer(buffer: NodeBuffer) {
+	let detected = jschardet.detect(buffer);
+	if (!detected || !detected.encoding) {
+		return null;
+	}
+	let enc = detected.encoding.toLowerCase();
+
+	// Ignore encodings that cannot detect correctly
+	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
+	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
+		return null;
+	}
+
+	return detected.encoding;
 }
