@@ -333,3 +333,91 @@ export class SettingsCountWidget extends Widget implements IOverlayWidget {
 		};
 	}
 }
+
+export class CopyPreferenceWidget<T> extends Widget implements IOverlayWidget {
+
+	private static counter: number = 1;
+
+	private _domNode: HTMLElement;
+	private _visible: boolean;
+	private _line: number;
+	private _id: string;
+	private _preferences: T[];
+
+	private _onClick: Emitter<void> = new Emitter<void>();
+	public get onClick(): Event<void> { return this._onClick.event; }
+
+	private _onMouseOver: Emitter<void> = new Emitter<void>();
+	public get onMouseOver(): Event<void> { return this._onMouseOver.event; }
+
+	constructor(private editor: ICodeEditor,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super();
+		this._id = 'preferences.copyPreferenceWidget' + CopyPreferenceWidget.counter++;
+		this.editor.addOverlayWidget(this);
+		this._register(this.editor.onDidScrollChange(() => {
+			if (this._visible) {
+				this._layout();
+			}
+		}));
+	}
+
+	public dispose(): void {
+		this.editor.removeOverlayWidget(this);
+		super.dispose();
+	}
+
+	getId(): string {
+		return this._id;
+	}
+
+	getDomNode(): HTMLElement {
+		if (!this._domNode) {
+			this._domNode = document.createElement('div');
+			this._domNode.style.width = '20px';
+			this._domNode.style.height = '20px';
+			this._domNode.className = 'copy-preferences-widget hidden';
+			this.onclick(this._domNode, e => this._onClick.fire());
+			this.onmouseover(this._domNode, e => this._onMouseOver.fire());
+		}
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition {
+		return null;
+	}
+
+	getLine(): number {
+		return this._line;
+	}
+
+	show(line: number, preferences: T[]): void {
+		this._preferences = preferences;
+		if (!this._visible || this._line !== line) {
+			this._line = line;
+			this._visible = true;
+			this._layout();
+		}
+	}
+
+	get preferences(): T[] {
+		return this._preferences;
+	}
+
+	hide(): void {
+		if (this._visible) {
+			this._visible = false;
+			this._domNode.classList.add('hidden');
+		}
+	}
+
+	private _layout(): void {
+		const topForLineNumber = this.editor.getTopForLineNumber(this._line);
+		const editorScrollTop = this.editor.getScrollTop();
+
+		this._domNode.style.top = `${topForLineNumber - editorScrollTop - 2}px`;
+		this._domNode.style.left = '0px';
+		this._domNode.classList.remove('hidden');
+	}
+}

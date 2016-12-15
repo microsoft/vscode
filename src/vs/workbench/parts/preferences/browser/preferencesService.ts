@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { parseTree, findNodeAtLocation } from 'vs/base/common/json';
 import { asFileEditorInput, SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,13 +24,13 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IPreferencesEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IPreferencesService, IPreferencesEditorModel, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
 
@@ -55,6 +54,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private defaultSettingsEditorInputForUser: DefaultPreferencesEditorInput;
 	private defaultSettingsEditorInputForWorkspace: DefaultPreferencesEditorInput;
 
+	private copyRangeHighlighter: RangeHighlightDecorations;
+
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -73,6 +74,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	) {
 		super();
 		this.defaultPreferencesEditorModels = new Map<URI, IPreferencesEditorModel>();
+		this.copyRangeHighlighter = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
@@ -152,17 +154,29 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}));
 	}
 
-	public copyConfiguration(configurationValue: IConfigurationValue): void {
+	public updateSetting(setting: ISetting, value: any): void {
 		const configurationTarget = this.getConfigurationTargetForCurrentActiveEditor();
 		if (configurationTarget !== null) {
-			this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
-			const editorControl = <ICodeEditor>this.editorService.getActiveEditor().getControl();
-			this.configurationEditingService.writeConfiguration(configurationTarget, configurationValue, { writeToBuffer: true, autoSave: true })
-				.then(() => {
-					editorControl.focus();
-					editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
-				}, error => this.messageService.show(Severity.Error, error));
+			this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [setting.key] });
+			this.configurationEditingService.writeConfiguration(configurationTarget, { key: setting.key, value }, { writeToBuffer: true, autoSave: true })
+				.then(() => this.onSettingUpdated(setting, configurationTarget), error => this.messageService.show(Severity.Error, error));
 		}
+	}
+
+	private onSettingUpdated(setting: ISetting, configurationTarget: ConfigurationTarget) {
+		const editorControl = <ICodeEditor>this.editorService.getActiveEditor().getControl();
+		editorControl.focus();
+		this.resolvePreferencesEditorModel(this.getEditableSettingsURI(configurationTarget))
+			.then(editorModel => {
+				const settingsEditorModel: SettingsEditorModel = <SettingsEditorModel>editorModel;
+				setting = settingsEditorModel.getSetting(setting.key);
+				editorControl.setSelection(setting.valueRange);
+				this.copyRangeHighlighter.highlightRange({
+					resource: editorModel.uri,
+					range: setting.range,
+					isWholeLine: false
+				}, editorControl);
+			});
 	}
 
 	private resolveSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
@@ -285,18 +299,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return ConfigurationTarget.WORKSPACE;
 		}
 		return null;
-	}
-
-	private getSelectionRange(setting: string, model: editorCommon.IModel): editorCommon.IRange {
-		const tree = parseTree(model.getValue());
-		const node = findNodeAtLocation(tree, [setting]);
-		const position = model.getPositionAt(node.offset);
-		return {
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column + node.length
-		};
 	}
 
 	private fetchMostCommonlyUsedSettings(): TPromise<string[]> {
