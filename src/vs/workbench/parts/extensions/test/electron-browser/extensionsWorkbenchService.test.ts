@@ -219,12 +219,12 @@ suite('ExtensionsWorkbenchService Test', () => {
 				readmeUrl: 'localReadmeUrl2',
 				changelogUrl: 'localChangelogUrl2',
 			});
-		const gallery1 = aGalleryExtension('expectedName', {
+		const gallery1 = aGalleryExtension(local1.manifest.name, {
 			id: local1.id,
 			displayName: 'expectedDisplayName',
 			version: '1.5.0',
 			publisherId: 'expectedPublisherId',
-			publisher: 'expectedPublisher',
+			publisher: local1.manifest.publisher,
 			publisherDisplayName: 'expectedPublisherDisplayName',
 			description: 'expectedDescription',
 			installCount: 1000,
@@ -250,10 +250,10 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 			let actual = actuals[0];
 			assert.equal(LocalExtensionType.User, actual.type);
-			assert.equal('expectedName', actual.name);
+			assert.equal('local1', actual.name);
 			assert.equal('expectedDisplayName', actual.displayName);
-			assert.equal('expectedPublisher.expectedName', actual.identifier);
-			assert.equal('expectedPublisher', actual.publisher);
+			assert.equal('localPublisher1.local1', actual.identifier);
+			assert.equal('localPublisher1', actual.publisher);
 			assert.equal('1.1.0', actual.version);
 			assert.equal('1.5.0', actual.latestVersion);
 			assert.equal('expectedDescription', actual.description);
