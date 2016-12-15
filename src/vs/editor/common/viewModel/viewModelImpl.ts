@@ -477,7 +477,13 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public getDecorationsViewportData(startLineNumber: number, endLineNumber: number): IDecorationsViewportData {
-		return this.decorations.getDecorationsViewportData(startLineNumber, endLineNumber);
+		let viewRange = new Range(
+			startLineNumber,
+			this.getLineMinColumn(startLineNumber),
+			endLineNumber,
+			this.getLineMaxColumn(endLineNumber)
+		);
+		return this.decorations.getDecorationsViewportData(viewRange);
 	}
 
 	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
