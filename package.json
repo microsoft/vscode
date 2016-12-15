@@ -27,7 +27,7 @@
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
-    "iconv-lite": "0.4.13",
+    "iconv-lite": "0.4.15",
     "minimist": "1.2.0",
     "native-keymap": "0.3.0",
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
