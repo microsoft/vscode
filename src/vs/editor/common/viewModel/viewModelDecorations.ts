@@ -6,7 +6,6 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { Constants } from 'vs/base/common/numbers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IDecorationsViewportData, InlineDecoration, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
@@ -25,8 +24,7 @@ export class ViewModelDecorations implements IDisposable {
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData;
-	private _cachedModelDecorationsResolverStartLineNumber: number;
-	private _cachedModelDecorationsResolverEndLineNumber: number;
+	private _cachedModelDecorationsResolverViewRange: Range;
 
 	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, converter: IModelRangeToViewRangeConverter) {
 		this.editorId = editorId;
@@ -40,8 +38,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _clearCachedModelDecorationsResolver(): void {
 		this._cachedModelDecorationsResolver = null;
-		this._cachedModelDecorationsResolverStartLineNumber = 0;
-		this._cachedModelDecorationsResolverEndLineNumber = 0;
+		this._cachedModelDecorationsResolverViewRange = null;
 	}
 
 	public dispose(): void {
@@ -113,23 +110,21 @@ export class ViewModelDecorations implements IDisposable {
 		return result;
 	}
 
-	public getDecorationsViewportData(startLineNumber: number, endLineNumber: number): IDecorationsViewportData {
+	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
 		var cacheIsValid = true;
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolver !== null);
-		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolverStartLineNumber === startLineNumber);
-		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolverEndLineNumber === endLineNumber);
+		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(startLineNumber, endLineNumber);
-			this._cachedModelDecorationsResolverStartLineNumber = startLineNumber;
-			this._cachedModelDecorationsResolverEndLineNumber = endLineNumber;
+			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);
+			this._cachedModelDecorationsResolverViewRange = viewRange;
 		}
 		return this._cachedModelDecorationsResolver;
 	}
 
-	private _getDecorationsViewportData(startLineNumber: number, endLineNumber: number): IDecorationsViewportData {
-		let viewportModelRange = this.converter.convertViewRangeToModelRange(
-			new Range(startLineNumber, 1, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER)
-		);
+	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
+		let viewportModelRange = this.converter.convertViewRangeToModelRange(viewportRange);
+		let startLineNumber = viewportRange.startLineNumber;
+		let endLineNumber = viewportRange.endLineNumber;
 		let modelDecorations = this.model.getDecorationsInRange(viewportModelRange, this.editorId, this.configuration.editor.readOnly);
 
 		let decorationsInViewport: ViewModelDecoration[] = [], decorationsInViewportLen = 0;
@@ -152,24 +147,26 @@ export class ViewModelDecorations implements IDisposable {
 				let intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				let intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
-					insert(inlineDecoration, inlineDecorations[j - startLineNumber]);
+					inlineDecorations[j - startLineNumber].push(inlineDecoration);
 				}
 			}
-			if (decorationOptions.beforeContentClassName && viewRange.startLineNumber >= startLineNumber) {
-				// TODO: What happens if the startLineNumber and startColumn is at the end of a line?
-				let inlineDecoration = new InlineDecoration(
-					new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn + 1),
-					decorationOptions.beforeContentClassName
-				);
-				insert(inlineDecoration, inlineDecorations[viewRange.startLineNumber - startLineNumber]);
+			if (decorationOptions.beforeContentClassName) {
+				if (startLineNumber <= viewRange.startLineNumber && viewRange.startLineNumber <= endLineNumber) {
+					// TODO: What happens if the startLineNumber and startColumn is at the end of a line?
+					let inlineDecoration = new InlineDecoration(
+						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn + 1),
+						decorationOptions.beforeContentClassName
+					);
+					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
+				}
 			}
-			if (decorationOptions.afterContentClassName && viewRange.endLineNumber <= endLineNumber) {
-				if (viewRange.endColumn > 1) {
+			if (decorationOptions.afterContentClassName) {
+				if (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber && viewRange.endColumn > 1) {
 					let inlineDecoration = new InlineDecoration(
 						new Range(viewRange.endLineNumber, viewRange.endColumn - 1, viewRange.endLineNumber, viewRange.endColumn),
 						decorationOptions.afterContentClassName
 					);
-					insert(inlineDecoration, inlineDecorations[viewRange.endLineNumber - startLineNumber]);
+					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}
 			}
 		}
@@ -179,21 +176,4 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations: inlineDecorations
 		};
 	}
-}
-
-// insert sorted by startColumn. All decorations are already sorted but this is necessary
-// as the startColumn of 'afterContent'-InlineDecoration is different from the decoration startColumn.
-function insert(decoration: InlineDecoration, decorations: InlineDecoration[]) {
-	let startColumn = decoration.range.startColumn;
-	let last = decorations.length - 1;
-	let idx = last;
-	while (idx >= 0 && decorations[idx].range.startColumn > startColumn) {
-		idx--;
-	}
-	if (idx === last) {
-		decorations.push(decoration);
-	} else {
-		decorations.splice(idx + 1, 0, decoration);
-	}
-
 }

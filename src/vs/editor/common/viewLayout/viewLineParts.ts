@@ -12,19 +12,26 @@ import { CharCode } from 'vs/base/common/charCode';
 import { LineParts } from 'vs/editor/common/core/lineParts';
 
 function cmpLineDecorations(a: InlineDecoration, b: InlineDecoration): number {
-	return Range.compareRangesUsingStarts(a.range, b.range);
+	let r = Range.compareRangesUsingStarts(a.range, b.range);
+	if (r === 0) {
+		if (a.inlineClassName < b.inlineClassName) {
+			return -1;
+		}
+		if (a.inlineClassName > b.inlineClassName) {
+			return 1;
+		}
+		return 0;
+	}
+	return r;
 }
 
 export function createLineParts(lineNumber: number, minLineColumn: number, lineContent: string, tabSize: number, lineTokens: ViewLineTokens, rawLineDecorations: InlineDecoration[], renderWhitespace: 'none' | 'boundary' | 'all'): LineParts {
 	if (renderWhitespace !== 'none') {
-		let oldLength = rawLineDecorations.length;
 		rawLineDecorations = insertWhitespaceLineDecorations(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), renderWhitespace, rawLineDecorations);
-		if (rawLineDecorations.length !== oldLength) {
-			rawLineDecorations.sort(cmpLineDecorations);
-		}
 	}
 
 	if (rawLineDecorations.length > 0) {
+		rawLineDecorations.sort(cmpLineDecorations);
 		return createViewLineParts(lineNumber, minLineColumn, lineTokens, lineContent, rawLineDecorations);
 	} else {
 		return createFastViewLineParts(lineTokens, lineContent);
