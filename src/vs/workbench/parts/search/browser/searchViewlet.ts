@@ -8,7 +8,7 @@
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorType } from 'vs/editor/common/editorCommon';
+import { EditorType, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -992,7 +992,7 @@ export class SearchViewlet extends Viewlet {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
 					resource,
 					range: element.range()
-				}, editor);
+				}, <ICommonCodeEditor>editor.getControl());
 			} else {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}

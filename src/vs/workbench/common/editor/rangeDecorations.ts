@@ -7,12 +7,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditor } from 'vs/platform/editor/common/editor';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
 	range: editorCommon.IRange;
+	isWholeLine?: boolean;
 }
 
 export class RangeHighlightDecorations implements IDisposable {
@@ -31,26 +31,26 @@ export class RangeHighlightDecorations implements IDisposable {
 		this.rangeHighlightDecorationId = null;
 	}
 
-	public highlightRange(range: IRangeHighlightDecoration, editor?: IEditor) {
+	public highlightRange(range: IRangeHighlightDecoration, editor?: editorCommon.ICommonCodeEditor) {
 		editor = editor ? editor : this.getEditor(range);
 		if (editor) {
-			this.doHighlightRange(<editorCommon.ICommonCodeEditor>editor.getControl(), range);
+			this.doHighlightRange(editor, range);
 		}
 	}
 
 	private doHighlightRange(editor: editorCommon.ICommonCodeEditor, selectionRange: IRangeHighlightDecoration) {
 		this.removeHighlightRange();
 		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
-			this.rangeHighlightDecorationId = changeAccessor.addDecoration(selectionRange.range, this.createRangeHighlightDecoration());
+			this.rangeHighlightDecorationId = changeAccessor.addDecoration(selectionRange.range, this.createRangeHighlightDecoration(selectionRange.isWholeLine));
 		});
 		this.setEditor(editor);
 	}
 
-	private getEditor(resourceRange: IRangeHighlightDecoration): IEditor {
+	private getEditor(resourceRange: IRangeHighlightDecoration): editorCommon.ICommonCodeEditor {
 		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
 		if (editorInput) {
 			if (editorInput.getResource().fsPath === resourceRange.resource.fsPath) {
-				return this.editorService.getActiveEditor();
+				return <editorCommon.ICommonCodeEditor>this.editorService.getActiveEditor().getControl();
 			}
 		}
 		return null;
@@ -86,11 +86,11 @@ export class RangeHighlightDecorations implements IDisposable {
 		model.deltaDecorations([rangeHighlightDecorationId], []);
 	}
 
-	private createRangeHighlightDecoration(): editorCommon.IModelDecorationOptions {
+	private createRangeHighlightDecoration(isWholeLine: boolean = true): editorCommon.IModelDecorationOptions {
 		return {
 			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className: 'rangeHighlight',
-			isWholeLine: true
+			isWholeLine
 		};
 	}
 
