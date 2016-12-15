@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -31,6 +31,11 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	private _onModelSaved: Emitter<TextFileModelChangeEvent>;
 	private _onModelReverted: Emitter<TextFileModelChangeEvent>;
 	private _onModelEncodingChanged: Emitter<TextFileModelChangeEvent>;
+
+	private _onModelsDirtyEvent: Event<TextFileModelChangeEvent[]>;
+	private _onModelsSaveError: Event<TextFileModelChangeEvent[]>;
+	private _onModelsSaved: Event<TextFileModelChangeEvent[]>;
+	private _onModelsReverted: Event<TextFileModelChangeEvent[]>;
 
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
 	private mapResourceToStateChangeListener: { [resource: string]: IDisposable; };
@@ -181,6 +186,53 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	public get onModelEncodingChanged(): Event<TextFileModelChangeEvent> {
 		return this._onModelEncodingChanged.event;
+	}
+
+	public get onModelsDirty(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsDirtyEvent) {
+			this._onModelsDirtyEvent = this.debounce(this.onModelDirty);
+		}
+
+		return this._onModelsDirtyEvent;
+	}
+
+	public get onModelsSaveError(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsSaveError) {
+			this._onModelsSaveError = this.debounce(this.onModelSaveError);
+		}
+
+		return this._onModelsSaveError;
+	}
+
+	public get onModelsSaved(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsSaved) {
+			this._onModelsSaved = this.debounce(this.onModelSaved);
+		}
+
+		return this._onModelsSaved;
+	}
+
+	public get onModelsReverted(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsReverted) {
+			this._onModelsReverted = this.debounce(this.onModelReverted);
+		}
+
+		return this._onModelsReverted;
+	}
+
+	private debounce(event: Event<TextFileModelChangeEvent>): Event<TextFileModelChangeEvent[]> {
+		return debounceEvent(event, (prev: TextFileModelChangeEvent[], cur: TextFileModelChangeEvent) => {
+			if (!prev) {
+				prev = [cur];
+			} else {
+				prev.push(cur);
+			}
+			return prev;
+		}, this.debounceDelay());
+	}
+
+	protected debounceDelay(): number {
+		return 250;
 	}
 
 	public get(resource: URI): ITextFileEditorModel {

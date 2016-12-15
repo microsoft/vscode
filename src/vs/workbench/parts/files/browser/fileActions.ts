@@ -1531,10 +1531,10 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	private registerListeners(): void {
 
 		// listen to files being changed locally
-		this.toDispose.push(this.textFileService.models.onModelDirty(e => this.updateEnablement(true)));
-		this.toDispose.push(this.textFileService.models.onModelSaved(e => this.updateEnablement(false)));
-		this.toDispose.push(this.textFileService.models.onModelReverted(e => this.updateEnablement(false)));
-		this.toDispose.push(this.textFileService.models.onModelSaveError(e => this.updateEnablement(true)));
+		this.toDispose.push(this.textFileService.models.onModelsDirty(e => this.updateEnablement(true)));
+		this.toDispose.push(this.textFileService.models.onModelsSaved(e => this.updateEnablement(false)));
+		this.toDispose.push(this.textFileService.models.onModelsReverted(e => this.updateEnablement(false)));
+		this.toDispose.push(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
 			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));

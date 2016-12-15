@@ -133,7 +133,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
 		// Also handle dirty count indicator #10556
-		this.toDispose.push(this.textFileService.models.onModelDirty(e => this.updateDirtyIndicator()));
+		this.toDispose.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
 
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
 		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => {

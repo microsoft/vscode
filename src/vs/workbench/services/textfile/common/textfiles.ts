@@ -185,11 +185,17 @@ export interface ITextFileEditorModelManager {
 
 	onModelDisposed: Event<URI>;
 	onModelContentChanged: Event<TextFileModelChangeEvent>;
+	onModelEncodingChanged: Event<TextFileModelChangeEvent>;
+
 	onModelDirty: Event<TextFileModelChangeEvent>;
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
 	onModelReverted: Event<TextFileModelChangeEvent>;
-	onModelEncodingChanged: Event<TextFileModelChangeEvent>;
+
+	onModelsDirty: Event<TextFileModelChangeEvent[]>;
+	onModelsSaveError: Event<TextFileModelChangeEvent[]>;
+	onModelsSaved: Event<TextFileModelChangeEvent[]>;
+	onModelsReverted: Event<TextFileModelChangeEvent[]>;
 
 	get(resource: URI): ITextFileEditorModel;
 
