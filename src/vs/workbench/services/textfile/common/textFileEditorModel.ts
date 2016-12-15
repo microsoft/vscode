@@ -107,6 +107,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 		this.toDispose.push(this.onDidStateChange(e => {
 			if (e === StateChange.REVERTED) {
+
 				// Cancel any content change event promises as they are no longer valid.
 				this.contentChangeEventScheduler.cancel();
 
@@ -178,8 +179,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	/**
 	 * Discards any local changes and replaces the model with the contents of the version on disk.
+	 *
+	 * @param if the parameter soft is true, will not attempt to load the contents from disk.
 	 */
-	public revert(): TPromise<void> {
+	public revert(soft?: boolean): TPromise<void> {
 		if (!this.isResolved()) {
 			return TPromise.as<void>(null);
 		}
@@ -190,8 +193,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		// Reload
-		return this.load(true /* force */).then(() => {
+		let loadPromise: TPromise<EditorModel>;
+		if (soft) {
+			loadPromise = TPromise.as(this);
+		} else {
+			loadPromise = this.load(true /* force */);
+		}
+
+		return loadPromise.then(() => {
 
 			// Emit file change event
 			this._onDidStateChange.fire(StateChange.REVERTED);

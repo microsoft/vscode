@@ -136,7 +136,6 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', function (done) {
 		let eventCounter = 0;
 
-
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.onDidStateChange(e => {
@@ -153,6 +152,34 @@ suite('Files - TextFileEditorModel', () => {
 			return model.revert().then(() => {
 				assert.ok(!model.isDirty());
 				assert.equal(model.textEditorModel.getValue(), 'Hello Html');
+				assert.equal(eventCounter, 1);
+
+				model.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('Revert (soft)', function (done) {
+		let eventCounter = 0;
+
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+
+		model.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				eventCounter++;
+			}
+		});
+
+		model.load().done(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.ok(model.isDirty());
+
+			return model.revert(true /* soft revert */).then(() => {
+				assert.ok(!model.isDirty());
+				assert.equal(model.textEditorModel.getValue(), 'foo');
 				assert.equal(eventCounter, 1);
 
 				model.dispose();

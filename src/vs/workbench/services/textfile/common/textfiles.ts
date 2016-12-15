@@ -223,7 +223,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	save(options?: IModelSaveOptions): TPromise<void>;
 
-	revert(): TPromise<void>;
+	revert(soft?: boolean): TPromise<void>;
 
 	setConflictResolutionMode(): void;
 
@@ -243,6 +243,19 @@ export interface ISaveOptions {
 	 * so that mtime and atime are updated. This helps to trigger external file watchers.
 	 */
 	force: boolean;
+}
+
+export interface IRevertOptions {
+
+	/**
+	 *  Forces to load the contents from disk again even if the file is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * A soft revert will clear dirty state of a file but not attempt to load the contents from disk.
+	 */
+	soft?: boolean;
 }
 
 export interface ITextFileService extends IDisposable {
@@ -311,10 +324,8 @@ export interface ITextFileService extends IDisposable {
 
 	/**
 	 * Reverts all the provided resources and returns a promise with the operation result.
-	 *
-	 * @param force to force revert even when the file is not dirty
 	 */
-	revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult>;
+	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult>;
 
 	/**
 	 * Brings up the confirm dialog to either save, don't save or cancel.

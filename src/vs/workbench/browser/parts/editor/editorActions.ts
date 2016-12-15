@@ -590,7 +590,7 @@ export class CloseAllEditorsAction extends Action {
 
 		let saveOrRevertPromise: TPromise<boolean>;
 		if (confirm === ConfirmResult.DONT_SAVE) {
-			saveOrRevertPromise = this.textFileService.revertAll().then(() => true);
+			saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
 		} else {
 			saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
 		}
