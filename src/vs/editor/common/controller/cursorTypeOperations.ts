@@ -48,6 +48,28 @@ export class TypeOperations {
 		);
 	}
 
+	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
+		count = count || 1;
+		let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + count, config.tabSize);
+		let newIndentation = '';
+		for (let i = 0; i < desiredIndentCount; i++) {
+			newIndentation += '\t';
+		}
+
+		return newIndentation;
+	}
+
+	public static unshiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
+		count = count || 1;
+		let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + count, config.tabSize);
+		let newIndentation = '';
+		for (let i = 0; i < desiredIndentCount; i++) {
+			newIndentation += '\t';
+		}
+
+		return newIndentation;
+	}
+
 	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, text: string, pasteOnNewLine: boolean): EditOperationResult {
 		let position = cursor.position;
 		let selection = cursor.selection;
@@ -96,21 +118,24 @@ export class TypeOperations {
 			return '\t';
 		}
 
-		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(model, lastLineNumber, model.getLineMaxColumn(lastLineNumber));
+		let enterAction = LanguageConfigurationRegistry.getEnterActionAtPosition(model, lastLineNumber, model.getLineMaxColumn(lastLineNumber));
+		let indentation = strings.getLeadingWhitespace(model.getLineContent(lastLineNumber));
 
-		let indentation: string;
-		if (r.enterAction.indentAction === IndentAction.Outdent) {
-			let desiredIndentCount = ShiftCommand.unshiftIndentCount(r.indentation, r.indentation.length, config.tabSize);
-			indentation = '';
-			for (let i = 0; i < desiredIndentCount; i++) {
-				indentation += '\t';
-			}
-			indentation = config.normalizeIndentation(indentation);
-		} else {
-			indentation = r.indentation;
+		// Since it's already a new line, indentation rules of last line are already applied.
+		if (enterAction.indentAction === IndentAction.Outdent) {
+			indentation = TypeOperations.unshiftIndent(config, indentation);
+		} else if (
+			(enterAction.indentAction === IndentAction.Indent) ||
+			(enterAction.indentAction === IndentAction.IndentOutdent)
+		) {
+			indentation = TypeOperations.shiftIndent(config, indentation);
 		}
 
-		let result = indentation + r.enterAction.appendText;
+		if (enterAction.removeText) {
+			indentation = TypeOperations.unshiftIndent(config, indentation, enterAction.removeText);
+		}
+
+		let result = config.normalizeIndentation(indentation) + enterAction.appendText;
 		if (result.length === 0) {
 			// good position is at column 1, but we gotta do something...
 			return '\t';
@@ -194,27 +219,44 @@ export class TypeOperations {
 		}
 	}
 
-	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): EditOperationResult {
 
-		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(model, range.startLineNumber, range.startColumn);
-		let enterAction = r.enterAction;
-		let indentation = r.indentation;
+	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): EditOperationResult {
+		let enterAction = LanguageConfigurationRegistry.getEnterActionAtPosition(model, range.startLineNumber, range.startColumn);
+		let lineText = model.getLineContent(range.startLineNumber);
+		let indentation = strings.getLeadingWhitespace(lineText);
+		if (indentation.length > range.startColumn - 1) {
+			indentation = indentation.substring(0, range.startColumn - 1);
+		}
+
+		// adjust indentation of current line.
+		let beforeText = '';
+		if (enterAction.outdentCurrentLine) {
+			let newIndentation = TypeOperations.unshiftIndent(config, indentation);
+			beforeText = newIndentation + lineText.substring(indentation.length, range.startColumn - 1);
+			indentation = newIndentation;
+			range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
+		}
+
+		// compute indentation of following lines
+		if (enterAction.removeText) {
+			indentation = indentation.substring(0, indentation.length - enterAction.removeText);
+		}
 
 		let executeCommand: ICommand;
 		if (enterAction.indentAction === IndentAction.None) {
 			// Nothing special
-			executeCommand = TypeOperations.typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
+			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
 
 		} else if (enterAction.indentAction === IndentAction.Indent) {
 			// Indent once
-			executeCommand = TypeOperations.typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
+			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(indentation + '\t' + enterAction.appendText), keepPosition);
 
 		} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
 			// Ultra special
 			let normalIndent = config.normalizeIndentation(indentation);
-			let increasedIndent = config.normalizeIndentation(indentation + enterAction.appendText);
+			let increasedIndent = config.normalizeIndentation(indentation + '\t' + enterAction.appendText);
 
-			let typeText = '\n' + increasedIndent + '\n' + normalIndent;
+			let typeText = beforeText + '\n' + increasedIndent + '\n' + normalIndent;
 
 			if (keepPosition) {
 				executeCommand = new ReplaceCommandWithoutChangingPosition(range, typeText);
@@ -222,12 +264,8 @@ export class TypeOperations {
 				executeCommand = new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length);
 			}
 		} else if (enterAction.indentAction === IndentAction.Outdent) {
-			let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, config.tabSize);
-			let actualIndentation = '';
-			for (let i = 0; i < desiredIndentCount; i++) {
-				actualIndentation += '\t';
-			}
-			executeCommand = TypeOperations.typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition);
+			let actualIndentation = TypeOperations.unshiftIndent(config, indentation);
+			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition);
 		}
 
 		return new EditOperationResult(executeCommand, {

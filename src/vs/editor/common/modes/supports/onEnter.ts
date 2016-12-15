@@ -78,20 +78,32 @@ export class OnEnterSupport {
 
 		// (3): Indentation Support
 		if (this._indentationRules) {
+			let enterAction: EnterAction = null;
 			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
+				enterAction = OnEnterSupport._INDENT;
 			}
 			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
+				enterAction = OnEnterSupport._INDENT;
 			}
 			if (/^\s/.test(beforeEnterText)) {
 				// No reason to run regular expressions if there is nothing to outdent from
 				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
-					return OnEnterSupport._OUTDENT;
+					enterAction = OnEnterSupport._OUTDENT;
 				}
 				if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-					return OnEnterSupport._OUTDENT;
+					enterAction = OnEnterSupport._OUTDENT;
 				}
+				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(beforeEnterText)) {
+					if (enterAction === null) {
+						enterAction = { indentAction: IndentAction.None, outdentCurrentLine: true };
+					} else {
+						enterAction.outdentCurrentLine = true;
+					}
+				}
+			}
+
+			if (enterAction !== null) {
+				return enterAction;
 			}
 		}
 
