@@ -214,7 +214,7 @@ export class TabsTitleControl extends TitleControl {
 				const verboseDescription = label.verboseDescription || '';
 
 				// Container
-				tabContainer.setAttribute('aria-label', `tab, ${name}`);
+				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
 
 				// Label
