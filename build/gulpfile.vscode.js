@@ -202,6 +202,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
 			'!extensions/*/build/**',
+			'!extensions/**/node_modules/@types/**',
 			'!extensions/*/{client,server}/src/**',
 			'!extensions/*/{client,server}/test/**',
 			'!extensions/*/{client,server}/out/**/test/**',

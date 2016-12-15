@@ -75,6 +75,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return this.resource;
 	}
 
+	public getModeId(): string {
+		if (this.cachedModel) {
+			return this.cachedModel.getModeId();
+		}
+
+		return this.modeId;
+	}
+
 	public getName(): string {
 		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
 	}

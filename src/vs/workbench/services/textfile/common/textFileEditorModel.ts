@@ -107,6 +107,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 		this.toDispose.push(this.onDidStateChange(e => {
 			if (e === StateChange.REVERTED) {
+
 				// Cancel any content change event promises as they are no longer valid.
 				this.contentChangeEventScheduler.cancel();
 
@@ -178,8 +179,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	/**
 	 * Discards any local changes and replaces the model with the contents of the version on disk.
+	 *
+	 * @param if the parameter soft is true, will not attempt to load the contents from disk.
 	 */
-	public revert(): TPromise<void> {
+	public revert(soft?: boolean): TPromise<void> {
 		if (!this.isResolved()) {
 			return TPromise.as<void>(null);
 		}
@@ -190,8 +193,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		// Reload
-		return this.load(true /* force */).then(() => {
+		let loadPromise: TPromise<EditorModel>;
+		if (soft) {
+			loadPromise = TPromise.as(this);
+		} else {
+			loadPromise = this.load(true /* force */);
+		}
+
+		return loadPromise.then(() => {
 
 			// Emit file change event
 			this._onDidStateChange.fire(StateChange.REVERTED);
@@ -223,17 +232,55 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return TPromise.as(this);
 		}
 
+		// Only for new models we support to load from backup
+		if (!this.textEditorModel && !this.createTextEditorModelPromise) {
+			return this.loadWithBackup(force);
+		}
+
+		// Otherwise load from file resource
+		return this.loadFromFile(force);
+	}
+
+	private loadWithBackup(force: boolean): TPromise<EditorModel> {
+		return this.backupFileService.loadBackupResource(this.resource).then(backup => {
+
+			// Make sure meanwhile someone else did not suceed or start loading
+			if (this.createTextEditorModelPromise || this.textEditorModel) {
+				return this.createTextEditorModelPromise || TPromise.as(this);
+			}
+
+			// If we have a backup, continue loading with it
+			if (!!backup) {
+				const content: IContent = {
+					resource: this.resource,
+					name: paths.basename(this.resource.fsPath),
+					mtime: Date.now(),
+					etag: void 0,
+					value: '', /* will be filled later from backup */
+					encoding: this.fileService.getEncoding(this.resource)
+				};
+
+				return this.loadWithContent(content, backup);
+			}
+
+			// Otherwise load from file
+			return this.loadFromFile(force);
+		});
+	}
+
+	private loadFromFile(force: boolean): TPromise<EditorModel> {
+
 		// Decide on etag
 		let etag: string;
 		if (force) {
-			etag = undefined; // bypass cache if force loading is true
+			etag = void 0; // bypass cache if force loading is true
 		} else if (this.versionOnDiskStat) {
 			etag = this.versionOnDiskStat.etag; // otherwise respect etag to support caching
 		}
 
 		// Resolve Content
 		return this.textFileService
-			.resolveTextContent(this.resource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding })
+			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
 			.then(content => this.loadWithContent(content), (error: IFileOperationResult) => this.handleLoadError(error));
 	}
 
@@ -247,41 +294,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return TPromise.as<EditorModel>(this);
 		}
 
-		// FileNotFound needs to be handled if we have a backup
-		if (result === FileOperationResult.FILE_NOT_FOUND) {
-			if (!this.textEditorModel && !this.createTextEditorModelPromise) {
-				return this.backupFileService.loadBackupResource(this.resource).then(backup => {
-
-					// Make sure meanwhile someone else did not suceed or start loading
-					if (this.createTextEditorModelPromise || this.textEditorModel) {
-						return this.createTextEditorModelPromise || TPromise.as(this.textEditorModel);
-					}
-
-					// If we have a backup, continue loading with it
-					if (!!backup) {
-						const content: IContent = {
-							resource: this.resource,
-							name: paths.basename(this.resource.fsPath),
-							mtime: Date.now(),
-							etag: void 0,
-							value: '', /* will be filled later from backup */
-							encoding: this.fileService.getEncoding(this.resource)
-						};
-
-						return this.loadWithContent(content);
-					}
-
-					// Otherwise bubble up the error
-					return TPromise.wrapError(error);
-				}, ignoreError => TPromise.wrapError(error));
-			}
-		}
-
 		// Otherwise bubble up the error
 		return TPromise.wrapError(error);
 	}
 
-	private loadWithContent(content: IRawTextContent | IContent): TPromise<EditorModel> {
+	private loadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<EditorModel> {
 		diag('load() - resolved content', this.resource, new Date());
 
 		// Telemetry
@@ -323,7 +340,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Create New Model
-		return this.doCreateTextModel(content.resource, content.value);
+		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
 	private doUpdateTextModel(value: string | IRawText): TPromise<EditorModel> {
@@ -341,10 +358,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.as<EditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: string | IRawText): TPromise<EditorModel> {
+	private doCreateTextModel(resource: URI, value: string | IRawText, backup: URI): TPromise<EditorModel> {
 		diag('load() - created text editor model', this.resource, new Date());
 
-		this.createTextEditorModelPromise = this.doLoadBackup().then(backupContent => {
+		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
 			const hasBackupContent = (typeof backupContent === 'string');
 
 			return this.createTextEditorModel(hasBackupContent ? backupContent : value, resource).then(() => {
@@ -378,14 +395,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.createTextEditorModelPromise;
 	}
 
-	private doLoadBackup(): TPromise<string> {
-		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
-			if (!backupResource) {
-				return TPromise.as(null);
-			}
+	private doLoadBackup(backup: URI): TPromise<string> {
+		if (!backup) {
+			return TPromise.as(null);
+		}
 
-			return this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => this.backupFileService.parseBackupContent(backup), error => null /* ignore errors */);
-		});
+		return this.textFileService.resolveTextContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => this.backupFileService.parseBackupContent(backup), error => null /* ignore errors */);
 	}
 
 	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): TPromise<IMode> {

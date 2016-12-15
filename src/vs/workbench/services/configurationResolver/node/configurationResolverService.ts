@@ -230,9 +230,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				}
 
 				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
-					interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
-						substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
-					);
+					if (result) {
+						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
+							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
+						);
+					}
 				});
 			};
 		});

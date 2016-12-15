@@ -6,11 +6,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 
 suite('Workbench - StringEditorModel', () => {
 
@@ -18,11 +21,11 @@ suite('Workbench - StringEditorModel', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModeService);
+		instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
 	test('StringEditorModel', function (done) {
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
@@ -44,7 +47,7 @@ suite('Workbench - StringEditorModel', () => {
 	});
 
 	test('StringEditorModel - setValue, clearValue, append, trim', function (done) {
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
@@ -78,4 +81,9 @@ suite('Workbench - StringEditorModel', () => {
 			done();
 		});
 	});
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 });

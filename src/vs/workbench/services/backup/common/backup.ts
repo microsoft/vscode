@@ -23,6 +23,11 @@ export interface IBackupFileService {
 	_serviceBrand: any;
 
 	/**
+	 * Finds out if there are any backups stored.
+	 */
+	hasBackups(): TPromise<boolean>;
+
+	/**
 	 * Loads the backup resource for a particular resource within the current workspace.
 	 *
 	 * @param resource The resource that is backed up.

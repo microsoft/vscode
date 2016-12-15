@@ -13,25 +13,6 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-// Known services
-import { IEventService } from 'vs/platform/event/common/event';
-import { EventService } from 'vs/platform/event/common/eventService';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISearchService } from 'vs/platform/search/common/search';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { HistoryService } from 'vs/workbench/services/history/browser/history';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { SimpleExtensionService } from 'vs/editor/browser/standalone/simpleServices';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { ReplaceService } from 'vs/workbench/parts/search/browser/replaceService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
 	service: any;
@@ -45,15 +26,6 @@ export class TestInstantiationService extends InstantiationService {
 		super(_serviceCollection);
 
 		this._servciesMap = new LinkedMap<ServiceIdentifier<any>, any>();
-		this._servciesMap.set(ITelemetryService, NullTelemetryService);
-		this._servciesMap.set(IEventService, EventService);
-		this._servciesMap.set(ISearchService, SearchService);
-		this._servciesMap.set(IHistoryService, HistoryService);
-		this._servciesMap.set(IModeService, ModeServiceImpl);
-		this._servciesMap.set(IExtensionService, SimpleExtensionService);
-		this._servciesMap.set(IMarkerService, MarkerService);
-		this._servciesMap.set(IReplaceService, ReplaceService);
-		this._servciesMap.set(IKeybindingService, WorkbenchKeybindingService);
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {

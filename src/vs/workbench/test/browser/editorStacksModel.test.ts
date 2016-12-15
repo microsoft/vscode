@@ -9,9 +9,9 @@ import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/test/utils/servicesTestUtils';
+import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -486,6 +486,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input1), true);
 		assert.equal(group.isPreview(input1), false);
 		assert.equal(group.isPinned(input1), true);
+		assert.equal(group.isPinned(0), true);
 
 		assert.equal(events.opened[0], input1);
 		assert.equal(events.activated[0], input1);
@@ -508,6 +509,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input2), true);
 		assert.equal(group.isPreview(input2), true);
 		assert.equal(group.isPinned(input2), false);
+		assert.equal(group.isPinned(0), false);
 
 		assert.equal(events.opened[1], input2);
 		assert.equal(events.activated[1], input2);
@@ -536,6 +538,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input3), true);
 		assert.equal(group.isPreview(input3), false);
 		assert.equal(group.isPinned(input3), true);
+		assert.equal(group.isPinned(0), true);
 
 		assert.equal(events.opened[2], input3);
 		assert.equal(events.activated[2], input3);
@@ -565,6 +568,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input4), true);
 		assert.equal(group.isPreview(input4), true);
 		assert.equal(group.isPinned(input4), false);
+		assert.equal(group.isPinned(0), false);
 
 		assert.equal(events.opened[3], input4);
 		assert.equal(events.activated[3], input4);
@@ -692,12 +696,15 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, input1);
 		assert.equal(group.isActive(input1), true);
 		assert.equal(group.isPinned(input1), true);
+		assert.equal(group.isPinned(0), true);
 		assert.equal(group.isPreview(input1), false);
 		assert.equal(group.isActive(input2), false);
 		assert.equal(group.isPinned(input2), true);
+		assert.equal(group.isPinned(1), true);
 		assert.equal(group.isPreview(input2), false);
 		assert.equal(group.isActive(input3), false);
 		assert.equal(group.isPinned(input3), true);
+		assert.equal(group.isPinned(2), true);
 		assert.equal(group.isPreview(input3), false);
 
 		const mru = group.getEditors(true);

@@ -204,7 +204,7 @@ export class TabsTitleControl extends TitleControl {
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
-				const isPinned = group.isPinned(editor);
+				const isPinned = group.isPinned(index);
 				const isActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
 
@@ -214,7 +214,7 @@ export class TabsTitleControl extends TitleControl {
 				const verboseDescription = label.verboseDescription || '';
 
 				// Container
-				tabContainer.setAttribute('aria-label', `tab, ${name}`);
+				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
 
 				// Label
@@ -320,6 +320,7 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabDisposeables = dispose(this.tabDisposeables);
 		this.editorLabels = dispose(this.editorLabels);
+		DOM.removeClass(this.titleContainer, 'shows-tabs');
 	}
 
 	private refreshTabs(group: IEditorGroup): void {
@@ -330,7 +331,8 @@ export class TabsTitleControl extends TitleControl {
 		const tabContainers: HTMLElement[] = [];
 
 		// Add a tab for each opened editor
-		this.context.getEditors().forEach(editor => {
+		const editors = this.context.getEditors();
+		editors.forEach(editor => {
 
 			// Tab Container
 			const tabContainer = document.createElement('div');
@@ -366,6 +368,10 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add to tabs container
 		tabContainers.forEach(tab => this.tabsContainer.appendChild(tab));
+
+		if (editors.length > 0) {
+			DOM.addClass(this.titleContainer, 'shows-tabs');
+		}
 	}
 
 	public layout(): void {

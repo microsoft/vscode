@@ -18,16 +18,12 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITree, IAccessibilityProvider, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IExpressionContainer, IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IExpressionContainer, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
@@ -493,17 +489,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 export class ReplExpressionsController extends BaseDebugController {
 
 	private lastSelectedString: string = null;
-
-	constructor(
-		private replInput: ICodeEditor,
-		actionProvider: IActionProvider,
-		@IDebugService debugService: IDebugService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService
-	) {
-		super(actionProvider, MenuId.DebugConsoleContext, debugService, contextMenuService, contextKeyService, menuService);
-	}
+	public toFocusOnClick: { focus(): void };
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
@@ -517,7 +503,7 @@ export class ReplExpressionsController extends BaseDebugController {
 		const selection = window.getSelection();
 		if (selection.type !== 'Range' || this.lastSelectedString === selection.toString()) {
 			// only focus the input if the user is not currently selecting.
-			this.replInput.focus();
+			this.toFocusOnClick.focus();
 		}
 		this.lastSelectedString = selection.toString();
 

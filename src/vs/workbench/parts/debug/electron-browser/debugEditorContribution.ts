@@ -280,37 +280,41 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private addLaunchConfiguration(): void {
-		let depthInArray = 0;
 		let configurationsPosition: IPosition;
 		const model = this.editor.getModel();
+		let depthInArray = 0;
+		let lastProperty: string;
 
 		visit(model.getValue(), {
 			onObjectProperty: (property, offset, length) => {
-				if (property === 'configurations' && depthInArray === 0) {
-					configurationsPosition = model.getPositionAt(offset);
-				}
+				lastProperty = property;
 			},
 			onArrayBegin: (offset: number, length: number) => {
+				if (lastProperty === 'configurations' && depthInArray === 0) {
+					configurationsPosition = model.getPositionAt(offset);
+				}
 				depthInArray++;
 			},
-			onArrayEnd: (offset: number, length: number) => {
+			onArrayEnd: () => {
 				depthInArray--;
 			}
 		});
-
-		if (configurationsPosition) {
-			const insertLineAfter = (lineNumber: number): TPromise<any> => {
-				if (this.editor.getModel().getLineLastNonWhitespaceColumn(lineNumber + 1) === 0) {
-					this.editor.setSelection(new Selection(lineNumber + 1, Number.MAX_VALUE, lineNumber + 1, Number.MAX_VALUE));
-					return TPromise.as(null);
-				}
-
-				this.editor.setSelection(new Selection(lineNumber, Number.MAX_VALUE, lineNumber, Number.MAX_VALUE));
-				return this.commandService.executeCommand('editor.action.insertLineAfter');
-			};
-
-			insertLineAfter(configurationsPosition.lineNumber).done(() => this.commandService.executeCommand('editor.action.triggerSuggest'), errors.onUnexpectedError);
+		if (!configurationsPosition) {
+			this.commandService.executeCommand('editor.action.triggerSuggest');
+			return;
 		}
+
+		const insertLineAfter = (lineNumber: number): TPromise<any> => {
+			if (this.editor.getModel().getLineLastNonWhitespaceColumn(lineNumber + 1) === 0) {
+				this.editor.setSelection(new Selection(lineNumber + 1, Number.MAX_VALUE, lineNumber + 1, Number.MAX_VALUE));
+				return TPromise.as(null);
+			}
+
+			this.editor.setSelection(new Selection(lineNumber, Number.MAX_VALUE, lineNumber, Number.MAX_VALUE));
+			return this.commandService.executeCommand('editor.action.insertLineAfter');
+		};
+
+		insertLineAfter(configurationsPosition.lineNumber).done(() => this.commandService.executeCommand('editor.action.triggerSuggest'), errors.onUnexpectedError);
 	}
 
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {

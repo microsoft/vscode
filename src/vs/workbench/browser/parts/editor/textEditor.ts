@@ -14,7 +14,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -28,6 +28,15 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { Scope } from 'vs/workbench/common/memento';
+
+const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+
+interface ITextEditorViewState {
+	0?: IEditorViewState;
+	1?: IEditorViewState;
+	2?: IEditorViewState;
+}
 
 /**
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
@@ -219,6 +228,57 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public getControl(): IEditor {
 		return this.editorControl;
+	}
+
+	/**
+	 * Saves the text editor view state under the given key.
+	 */
+	protected saveTextEditorViewState(key: string): void {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		let textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (!textEditorViewStateMemento) {
+			textEditorViewStateMemento = Object.create(null);
+			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
+		}
+
+		const editorViewState = this.getControl().saveViewState();
+
+		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		if (!fileViewState) {
+			fileViewState = Object.create(null);
+			textEditorViewStateMemento[key] = fileViewState;
+		}
+
+		if (typeof this.position === 'number') {
+			fileViewState[this.position] = editorViewState;
+		}
+	}
+
+	/**
+	 * Clears the text editor view state under the given key.
+	 */
+	protected clearTextEditorViewState(keys: string[]): void {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			keys.forEach(key => delete textEditorViewStateMemento[key]);
+		}
+	}
+
+	/**
+	 * Loads the text editor view state for the given key and returns it.
+	 */
+	protected loadTextEditorViewState(key: string): IEditorViewState {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			if (fileViewState) {
+				return fileViewState[this.position];
+			}
+		}
+
+		return null;
 	}
 
 	public dispose(): void {

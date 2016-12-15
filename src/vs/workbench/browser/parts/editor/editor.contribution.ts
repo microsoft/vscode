@@ -96,6 +96,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 interface ISerializedUntitledEditorInput {
 	resource: string;
+	modeId: string;
 }
 
 // Register Editor Input Factory
@@ -119,7 +120,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 			resource = URI.file(resource.fsPath); // untitled with associated file path use the file schema
 		}
 
-		const serialized: ISerializedUntitledEditorInput = { resource: resource.toString() };
+		const serialized: ISerializedUntitledEditorInput = { resource: resource.toString(), modeId: untitledEditorInput.getModeId() };
 
 		return JSON.stringify(serialized);
 	}
@@ -127,7 +128,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 
-		return this.untitledEditorService.createOrGet(URI.parse(deserialized.resource));
+		return this.untitledEditorService.createOrGet(URI.parse(deserialized.resource), deserialized.modeId);
 	}
 }
 

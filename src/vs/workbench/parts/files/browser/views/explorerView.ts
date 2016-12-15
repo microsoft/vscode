@@ -157,6 +157,10 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private onEditorsChanged(): void {
+		if (!this.autoReveal) {
+			return; // do not touch selection or focus if autoReveal === false
+		}
+
 		const activeInput = this.editorService.getActiveEditorInput();
 		let clearSelection = true;
 		let clearFocus = false;
@@ -251,7 +255,12 @@ export class ExplorerView extends CollapsibleViewletView {
 					this.shouldRefresh = false; // Reset flag
 				}
 
+				if (!this.autoReveal) {
+					return refreshPromise; // do not react to setVisible call if autoReveal === false
+				}
+
 				// Always select the current navigated file in explorer if input is file editor input
+				// unless autoReveal is set to false
 				const activeResource = this.getActiveEditorInputResource();
 				if (activeResource) {
 					return refreshPromise.then(() => {

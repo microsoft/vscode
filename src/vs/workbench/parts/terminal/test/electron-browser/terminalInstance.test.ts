@@ -7,13 +7,12 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import { TestMessageService } from 'vs/test/utils/servicesTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { TestMessageService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('Workbench - TerminalInstance', () => {
 
@@ -21,7 +20,6 @@ suite('Workbench - TerminalInstance', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IKeybindingService);
 		instantiationService.stub(IMessageService, new TestMessageService());
 	});
 

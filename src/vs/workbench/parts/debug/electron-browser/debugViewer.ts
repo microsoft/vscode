@@ -18,7 +18,7 @@ import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -28,11 +28,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { CopyValueAction, CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 
@@ -76,7 +77,8 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
-		container.textContent = value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+		const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+		container.textContent = value.replace(/[\n\r\t]/g, char => map[char]);
 	} else {
 		container.textContent = value;
 	}
@@ -185,6 +187,7 @@ export class BaseDebugController extends DefaultController {
 		private actionProvider: IActionProvider,
 		menuId: MenuId,
 		@debug.IDebugService protected debugService: debug.IDebugService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
@@ -281,34 +284,6 @@ export class CallStackController extends BaseDebugController {
 		return super.onEnter(tree, event);
 	}
 
-	protected onUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
 	protected getContext(element: any): any {
 		if (element instanceof StackFrame) {
 			return element.source.uri.toString();
@@ -341,12 +316,19 @@ export class CallStackController extends BaseDebugController {
 			process = element;
 		}
 
-		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
-
-		if (stackFrame) {
-			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-		}
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).then(() => {
+			if (stackFrame) {
+				const sideBySide = (event && (event.ctrlKey || event.metaKey));
+				return this.editorService.openEditor({
+					resource: stackFrame.source.uri,
+					options: {
+						preserveFocus,
+						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
+						revealIfVisible: true
+					},
+				}, sideBySide);
+			}
+		}, errors.onUnexpectedError);
 	}
 }
 
@@ -382,10 +364,10 @@ export class CallStackActionProvider implements IActionProvider {
 				actions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
 			}
 		} else if (element instanceof StackFrame) {
-			const capabilities = this.debugService.getViewModel().focusedProcess.session.configuration.capabilities;
-			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
+			if (element.thread.process.session.configuration.capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(RestartFrameAction, RestartFrameAction.ID, RestartFrameAction.LABEL));
 			}
+			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
 		return TPromise.as(actions);
@@ -1070,7 +1052,11 @@ export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
-		return DRAG_OVER_ACCEPT;
+		if (target instanceof Expression || target instanceof Model) {
+			return DRAG_OVER_ACCEPT;
+		}
+
+		return DRAG_OVER_REJECT;
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): void {
@@ -1334,8 +1320,15 @@ export class BreakpointsController extends BaseDebugController {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
+
+		return false;
+	}
+
+	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
 		if (element instanceof Breakpoint) {
 			this.openBreakpointSource(element, event, false);
+			return true;
 		}
 
 		return super.onEnter(tree, event);
@@ -1366,6 +1359,13 @@ export class BreakpointsController extends BaseDebugController {
 
 	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
-		this.debugService.openOrRevealSource(breakpoint.uri, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor({
+			resource: breakpoint.uri,
+			options: {
+				preserveFocus,
+				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
+				revealIfVisible: true
+			}
+		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}
 }

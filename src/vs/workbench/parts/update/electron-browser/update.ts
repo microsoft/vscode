@@ -45,6 +45,8 @@ const NotNowAction = new Action(
 	() => TPromise.as(true)
 );
 
+const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
+
 export function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
 	const requestService = accessor.get(IRequestService);
 	const keybindingService = accessor.get(IKeybindingService);
@@ -91,9 +93,13 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 			.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 	};
 
-	return requestService.request({ url })
-		.then(asText)
-		.then(text => patchKeybindings(text));
+	if (!releaseNotesCache[version]) {
+		releaseNotesCache[version] = requestService.request({ url })
+			.then(asText)
+			.then(text => patchKeybindings(text));
+	}
+
+	return releaseNotesCache[version];
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {

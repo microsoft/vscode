@@ -3330,7 +3330,7 @@ declare module 'vscode' {
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
-		storagePath: string;
+		storagePath: string | undefined;
 	}
 
 	/**

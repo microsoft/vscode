@@ -58,20 +58,18 @@ import pkg from 'vs/platform/node/package';
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
 
-function quit(accessor: ServicesAccessor, error?: Error): void;
-function quit(accessor: ServicesAccessor, message?: string): void;
-function quit(accessor: ServicesAccessor, arg?: any): void {
+function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
 	const logService = accessor.get(ILogService);
 
 	let exitCode = 0;
-	if (typeof arg === 'string') {
-		logService.log(arg);
-	} else {
+	if (typeof errorOrMessage === 'string') {
+		logService.log(errorOrMessage);
+	} else if (errorOrMessage) {
 		exitCode = 1; // signal error to the outside
-		if (arg.stack) {
-			console.error(arg.stack);
+		if (errorOrMessage.stack) {
+			console.error(errorOrMessage.stack);
 		} else {
-			console.error('Startup error: ' + arg.toString());
+			console.error('Startup error: ' + errorOrMessage.toString());
 		}
 	}
 

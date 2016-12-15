@@ -5,8 +5,11 @@
 
 'use strict';
 
+import * as assert from 'assert';
 import { TPromise, PPromise, TValueCallback, TProgressCallback, ProgressCallback } from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
+import * as paths from 'vs/base/common/paths';
+import URI from 'vs/base/common/uri';
 
 export class DeferredTPromise<T> extends TPromise<T> {
 
@@ -66,4 +69,13 @@ export class DeferredPPromise<C, P> extends PPromise<C, P> {
 	public error(e: any) {
 		this.errorCallback(e);
 	}
+}
+
+export function onError(error: Error, done: () => void): void {
+	assert.fail(error);
+	done();
+}
+
+export function toResource(path) {
+	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
 }

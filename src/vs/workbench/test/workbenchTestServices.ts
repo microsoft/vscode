@@ -8,10 +8,9 @@
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
-import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
@@ -21,7 +20,6 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
@@ -38,6 +36,7 @@ import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/work
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { RawText } from 'vs/editor/common/model/textModel';
@@ -48,13 +47,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-
-export const TestWorkspace: IWorkspace = {
-	resource: URI.file('C:\\testWorkspace'),
-	name: 'Test Workspace',
-	uid: Date.now()
-};
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -180,9 +174,10 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWorkbenchEditorService, new TestEditorService(function () { }));
 	instantiationService.stub(IPartService, new TestPartService());
 	instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
-	instantiationService.stub(IModeService);
+	instantiationService.stub(IModeService, ModeServiceImpl);
+	instantiationService.stub(IHistoryService, {});
 	instantiationService.stub(IHistoryService, 'getHistory', []);
-	instantiationService.stub(IModelService, createMockModelService(instantiationService));
+	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -510,52 +505,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 	}
 }
 
-export class TestQuickOpenService implements IQuickOpenService {
-	public _serviceBrand: any;
-
-	private callback: (prefix: string) => void;
-
-	constructor(callback?: (prefix: string) => void) {
-		this.callback = callback;
-	}
-
-	pick(arg: any, options?: any, token?: any): Promise {
-		return TPromise.as(null);
-	}
-
-	input(options?: any, token?: any): Promise {
-		return TPromise.as(null);
-	}
-
-	accept(): void {
-	}
-
-	focus(): void {
-	}
-
-	close(): void {
-	}
-
-	show(prefix?: string, options?: any): Promise {
-		if (this.callback) {
-			this.callback(prefix);
-		}
-
-		return TPromise.as(true);
-	}
-
-	get onShow(): Event<void> {
-		return null;
-	}
-
-	get onHide(): Event<void> {
-		return null;
-	}
-
-	public dispose() { }
-	public quickNavigate(): void { }
-}
-
 export const TestFileService = {
 	resolveContent: function (resource) {
 		return TPromise.as({
@@ -625,6 +574,11 @@ export const TestFileService = {
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
+
+	public hasBackups(): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
 	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -672,6 +626,87 @@ export class TestBackupFileService implements IBackupFileService {
 	}
 };
 
+export class TestWindowService implements IWindowService {
+
+	public _serviceBrand: any;
+
+	getCurrentWindowId(): number {
+		return 0;
+	}
+
+	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	reloadWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openDevTools(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleDevTools(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeFolder(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleFullScreen(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	setRepresentedFilename(fileName: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+		return TPromise.as(void 0);
+	}
+
+	focusWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	setDocumentEdited(flag: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleMenuBar(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	isMaximized(): TPromise<boolean> {
+		return TPromise.as(void 0);
+	}
+
+	maximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+}
+
 export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: any;
@@ -699,21 +734,6 @@ export class TestLifecycleService implements ILifecycleService {
 	public get onShutdown(): Event<ShutdownReason> {
 		return this._onShutdown.event;
 	}
-}
-
-export function createMockModelService(instantiationService: TestInstantiationService): IModelService {
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	return instantiationService.createInstance(ModelServiceImpl);
-}
-
-export function onError(error: Error, done: () => void): void {
-	assert.fail(error);
-
-	done();
-}
-
-export function toResource(path) {
-	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
 }
 
 export class TestWindowsService implements IWindowsService {

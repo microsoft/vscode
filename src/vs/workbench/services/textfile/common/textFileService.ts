@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -596,14 +596,14 @@ export abstract class TextFileService implements ITextFileService {
 		return this.untitledEditorService.get(untitledResource).suggestFileName();
 	}
 
-	public revert(resource: URI, force?: boolean): TPromise<boolean> {
-		return this.revertAll([resource], force).then(result => result.results.length === 1 && result.results[0].success);
+	public revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {
+		return this.revertAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
+	public revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
 
 		// Revert files first
-		return this.doRevertAllFiles(resources, force).then(operation => {
+		return this.doRevertAllFiles(resources, options).then(operation => {
 
 			// Revert untitled
 			const reverted = this.untitledEditorService.revertAll(resources);
@@ -613,8 +613,8 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doRevertAllFiles(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
-		const fileModels = force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
+	private doRevertAllFiles(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
+		const fileModels = options && options.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
 		fileModels.forEach(m => {
@@ -624,7 +624,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 
 		return TPromise.join(fileModels.map(model => {
-			return model.revert().then(() => {
+			return model.revert(options && options.soft).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}

@@ -29,10 +29,10 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
 import { FileChangeType, FileChangesEvent, EventType as FileEventType } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { getExcludes, QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
 import { MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -99,7 +99,7 @@ export class SearchViewlet extends Viewlet {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ISearchService private searchService: ISearchService,
+		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IReplaceService private replaceService: IReplaceService,
@@ -129,7 +129,7 @@ export class SearchViewlet extends Viewlet {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
-		this.viewModel = this.instantiationService.createInstance(SearchModel);
+		this.viewModel = this.searchWorkbenchService.searchModel;
 		let builder: Builder;
 		this.domNode = parent.div({
 			'class': 'search-viewlet'
@@ -274,7 +274,6 @@ export class SearchViewlet extends Viewlet {
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			this.refreshInputs();
 			this.tree.refresh();
 		}));
 
@@ -326,12 +325,6 @@ export class SearchViewlet extends Viewlet {
 				return this.tree.refresh(event.elements);
 			}
 		}
-	}
-
-	private refreshInputs(): void {
-		this.viewModel.searchResult.matches().forEach((fileMatch) => {
-			this.replaceService.refreshInput(fileMatch);
-		});
 	}
 
 	private replaceAll(): void {
@@ -953,7 +946,7 @@ export class SearchViewlet extends Viewlet {
 		}, 200);
 
 		this.searchWidget.setReplaceAllActionState(false);
-		this.replaceService.disposeAllInputs();
+		// this.replaceService.disposeAllReplacePreviews();
 		this.viewModel.search(query).done(onComplete, onError, onProgress);
 	}
 
@@ -965,7 +958,7 @@ export class SearchViewlet extends Viewlet {
 		this.actionRegistry['clearSearchResults'].enabled = false;
 
 		// clean up ui
-		this.replaceService.disposeAllInputs();
+		// this.replaceService.disposeAllReplacePreviews();
 		this.messages.hide();
 		this.results.show();
 		this.tree.onVisible();
@@ -980,7 +973,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ? this.replaceService.openReplacePreviewEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ? this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {

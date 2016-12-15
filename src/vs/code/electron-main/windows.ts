@@ -24,7 +24,7 @@ import { ILifecycleService, UnloadReason } from 'vs/code/electron-main/lifecycle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
@@ -143,7 +143,6 @@ export class WindowsManager implements IWindowsMainService {
 	onPathsOpen: CommonEvent<IPath> = this._onPathsOpen.event;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -725,12 +724,17 @@ export class WindowsManager implements IWindowsMainService {
 		if (!vscodeWindow) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 
-			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
+			vscodeWindow = new VSCodeWindow({
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
 				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
-			});
+			},
+				this.logService,
+				this.environmentService,
+				this.configurationService,
+				this.storageService
+			);
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
 

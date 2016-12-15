@@ -33,6 +33,8 @@ export class ResourceLabel extends IconLabel {
 	private toDispose: IDisposable[];
 	private label: IEditorLabel;
 	private options: IResourceLabelOptions;
+	private computedIconClasses: string[];
+	private lastKnownConfiguredLangId: string;
 
 	constructor(
 		container: HTMLElement,
@@ -51,25 +53,56 @@ export class ResourceLabel extends IconLabel {
 	}
 
 	private registerListeners(): void {
-		this.extensionService.onReady().then(() => this.render()); // update when extensions are loaded with potentially new languages
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render())); // update when file.associations change
+		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
 	}
 
 	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
+		const hasResourceChanged = this.hasResourceChanged(label);
+
 		this.label = label;
 		this.options = options;
 
-		this.render();
+		this.render(hasResourceChanged);
+	}
+
+	private hasResourceChanged(label: IEditorLabel): boolean {
+		const newResource = label ? label.resource : void 0;
+		const oldResource = this.label ? this.label.resource : void 0;
+
+		if (newResource && oldResource) {
+			return newResource.fsPath !== oldResource.fsPath;
+		}
+
+		if (!newResource && !oldResource) {
+			return false;
+		}
+
+		return true;
 	}
 
 	public clear(): void {
 		this.label = void 0;
 		this.options = void 0;
+		this.lastKnownConfiguredLangId = void 0;
+		this.computedIconClasses = void 0;
 
 		this.setValue();
 	}
 
-	private render(): void {
+	private render(clearIconCache: boolean): void {
+		if (this.label) {
+			const configuredLangId = getConfiguredLangId(this.modelService, this.label.resource);
+			if (this.lastKnownConfiguredLangId !== configuredLangId) {
+				clearIconCache = true;
+				this.lastKnownConfiguredLangId = configuredLangId;
+			}
+		}
+
+		if (clearIconCache) {
+			this.computedIconClasses = void 0;
+		}
+
 		if (!this.label) {
 			return;
 		}
@@ -83,7 +116,11 @@ export class ResourceLabel extends IconLabel {
 			title = getPathLabel(resource.fsPath);
 		}
 
-		const extraClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.isFolder);
+		if (!this.computedIconClasses) {
+			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.isFolder);
+		}
+
+		let extraClasses = this.computedIconClasses.slice(0);
 		if (this.options && this.options.extraClasses) {
 			extraClasses.push(...this.options.extraClasses);
 		}
@@ -100,6 +137,8 @@ export class ResourceLabel extends IconLabel {
 		this.toDispose = dispose(this.toDispose);
 		this.label = void 0;
 		this.options = void 0;
+		this.lastKnownConfiguredLangId = void 0;
+		this.computedIconClasses = void 0;
 	}
 }
 
@@ -131,21 +170,14 @@ export class FileLabel extends ResourceLabel {
 }
 
 export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, isFolder?: boolean): string[] {
-	let path: string;
-	let configuredLangId: string;
-	if (resource) {
-		path = resource.fsPath;
-		const model = modelService.getModel(resource);
-		if (model) {
-			const modeId = model.getModeId();
-			if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-				configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
-			}
-		}
-	}
 
 	// we always set these base classes even if we do not have a path
 	const classes = isFolder ? ['folder-icon'] : ['file-icon'];
+
+	let path: string;
+	if (resource) {
+		path = resource.fsPath;
+	}
 
 	if (path) {
 		const basename = paths.basename(path);
@@ -176,6 +208,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			}
 
 			// Configured Language
+			let configuredLangId = getConfiguredLangId(modelService, resource);
 			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(path);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
@@ -184,6 +217,21 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	}
 
 	return classes;
+}
+
+function getConfiguredLangId(modelService: IModelService, resource: uri): string {
+	let configuredLangId: string;
+	if (resource) {
+		const model = modelService.getModel(resource);
+		if (model) {
+			const modeId = model.getModeId();
+			if (modeId && modeId !== PLAINTEXT_MODE_ID) {
+				configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
+			}
+		}
+	}
+
+	return configuredLangId;
 }
 
 function cssEscape(val: string): string {
