@@ -1465,11 +1465,11 @@ export class TreeView extends HeightMap {
 					}
 				}
 
-				this.currentDropPromise = WinJS.TPromise.timeout(500).then(() => {
-					return this.context.tree.expand(this.currentDropElement).then(() => {
-						this.shouldInvalidateDropReaction = true;
-					});
-				});
+				if (reaction.autoExpand) {
+					this.currentDropPromise = WinJS.TPromise.timeout(500)
+						.then(() => this.context.tree.expand(this.currentDropElement))
+						.then(() => this.shouldInvalidateDropReaction = true);
+				}
 			}
 		}
 
