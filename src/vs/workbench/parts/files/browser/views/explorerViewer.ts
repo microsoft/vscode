@@ -848,7 +848,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 		// All
 		if (target.isDirectory) {
-			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY : DRAG_OVER_ACCEPT_BUBBLE_DOWN;
+			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
 		if (target.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
