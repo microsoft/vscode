@@ -403,9 +403,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private fromGallery(gallery: IGalleryExtension): Extension {
-		const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
-		const id = gallery.id;
-		const installed = installedByGalleryId[id];
+		const installedByGalleryId = index(this.installed, e => e.identifier);
+		const installed = installedByGalleryId[`${gallery.publisher}.${gallery.name}`];
 
 		if (installed) {
 			// Loading the compatible version only there is an engine property
