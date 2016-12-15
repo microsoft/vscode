@@ -20,7 +20,7 @@ import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
@@ -498,6 +498,9 @@ export class SearchModel extends Disposable {
 	private _replaceString: string = null;
 	private _replacePattern: ReplacePattern = null;
 
+	private _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
+	public onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
+
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 
 	constructor( @ISearchService private searchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
@@ -526,6 +529,7 @@ export class SearchModel extends Disposable {
 		if (this._searchQuery) {
 			this._replacePattern = new ReplacePattern(replaceString, this._searchQuery.contentPattern);
 		}
+		this._onReplaceTermChanged.fire();
 	}
 
 	public get searchResult(): SearchResult {
@@ -612,3 +616,27 @@ export class SearchModel extends Disposable {
 }
 
 export type FileMatchOrMatch = FileMatch | Match;
+
+export class SearchWorkbenchService implements ISearchWorkbenchService {
+
+	_serviceBrand: any;
+	private _searchModel: SearchModel;
+
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	}
+
+	get searchModel(): SearchModel {
+		if (!this._searchModel) {
+			this._searchModel = this.instantiationService.createInstance(SearchModel);
+		}
+		return this._searchModel;
+	}
+}
+
+export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
+
+export interface ISearchWorkbenchService {
+	_serviceBrand: any;
+
+	readonly searchModel: SearchModel;
+}
