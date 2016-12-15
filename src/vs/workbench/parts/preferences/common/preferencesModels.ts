@@ -88,6 +88,19 @@ export abstract class AbstractSettingsModel extends Disposable {
 		return null;
 	}
 
+	public getSetting(key: string): ISetting {
+		for (const group of this.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					if (key === setting.key) {
+						return setting;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
 	protected abstract _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[];
 	public abstract settingsGroups: ISettingsGroup[];
 }

@@ -33,8 +33,8 @@ import {
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorMouseEvent, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, SettingsCountWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
+import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, SettingsCountWidget, CopyPreferenceWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -50,6 +50,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -330,7 +331,7 @@ export class SettingsEditorContribution extends PreferencesEditorContribution im
 
 export class SettingsRenderer extends Disposable implements IPreferencesRenderer {
 
-	private copySettingActionRenderer: CopySettingActionRenderer;
+	private copySettingActionRenderer: CopySettingRenderer;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(protected editor: ICodeEditor, protected settingsEditorModel: SettingsEditorModel,
@@ -338,7 +339,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, false));
+		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingRenderer, editor, false));
 		this._register(editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
 
@@ -363,7 +364,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private focusNextSettingRenderer: FocusNextSettingRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
-	private copySettingActionRenderer: CopySettingActionRenderer;
+	private copySettingActionRenderer: CopySettingRenderer;
 	private settingsCountWidget: SettingsCountWidget;
 
 	constructor(protected editor: ICodeEditor, protected settingsEditorModel: DefaultSettingsEditorModel,
@@ -376,7 +377,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.focusNextSettingRenderer = this._register(instantiationService.createInstance(FocusNextSettingRenderer, editor));
-		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, true));
+		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingRenderer, editor, true));
 		this.settingsCountWidget = this._register(instantiationService.createInstance(SettingsCountWidget, editor, this.getCount(settingsEditorModel.settingsGroups)));
 		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, settingsEditorModel.settingsGroups));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
@@ -753,122 +754,129 @@ export class FocusNextSettingRenderer extends Disposable {
 	}
 }
 
-export class CopySettingActionRenderer extends Disposable {
+export class CopySettingRenderer extends Disposable {
 
-	private decorationIds: string[] = [];
+	private copyPreferenceWidgetForCusorPosition: CopyPreferenceWidget<ISetting>;
+	private copyPreferenceWidgetForMouseMove: CopyPreferenceWidget<ISetting>;
+
 	private settingsGroups: ISettingsGroup[];
-	private model: editorCommon.IModel;
+	private toggleCopyPreferenceWidgetOnMouseMoveDelayer: Delayer<void>;
+
+	private copyRangeHighlighter: RangeHighlightDecorations;
 
 	constructor(private editor: ICodeEditor, private isDefaultSettings: boolean,
-		@IPreferencesService private settingsService: IPreferencesService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super();
-		this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this.copyRangeHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
+
+		this.copyPreferenceWidgetForCusorPosition = this._register(this.instantiationService.createInstance(CopyPreferenceWidget, editor));
+		this.copyPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(CopyPreferenceWidget, editor));
+		this.toggleCopyPreferenceWidgetOnMouseMoveDelayer = new Delayer<void>(50);
+
+		this._register(this.copyPreferenceWidgetForCusorPosition.onClick(setting => this.onEditSettingClicked(this.copyPreferenceWidgetForCusorPosition)));
+		this._register(this.copyPreferenceWidgetForMouseMove.onClick(setting => this.onEditSettingClicked(this.copyPreferenceWidgetForMouseMove)));
+
+		this._register(this.copyPreferenceWidgetForCusorPosition.onMouseOver(setting => this.onMouseOver(this.copyPreferenceWidgetForCusorPosition)));
+		this._register(this.copyPreferenceWidgetForMouseMove.onMouseOver(setting => this.onMouseOver(this.copyPreferenceWidgetForMouseMove)));
+
+		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
+		this._register(this.editor.onMouseMove(mouseMoveEvent => this.onMouseMoved(mouseMoveEvent)));
 	}
 
 	public render(settingsGroups: ISettingsGroup[]): void {
-		this.model = this.editor.getModel();
+		this.copyPreferenceWidgetForCusorPosition.hide();
+		this.copyPreferenceWidgetForMouseMove.hide();
 		this.settingsGroups = settingsGroups;
-		this.model.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
-		});
-		this.model.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, this.createDecorations(this.model));
-		});
-	}
 
-	private createDecorations(model: editorCommon.IModel): editorCommon.IModelDeltaDecoration[] {
-		let result: editorCommon.IModelDeltaDecoration[] = [];
-		for (const settingsGroup of this.settingsGroups) {
-			for (const settingsSection of settingsGroup.sections) {
-				for (const setting of settingsSection.settings) {
-					const decoration = this.createSettingDecoration(setting, model);
-					if (decoration) {
-						result.push(decoration);
-					}
-				}
-			}
+		const settings = this.getSettings(this.editor.getPosition().lineNumber);
+		if (settings.length) {
+			this.showCopyPreferencesWidget(this.copyPreferenceWidgetForCusorPosition, settings);
 		}
-		return result;
 	}
 
-	private createSettingDecoration(setting: ISetting, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
-		const jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
-		if (jsonSchema) {
-			const canChooseValue = jsonSchema.enum || jsonSchema.type === 'boolean';
-			if (this.isDefaultSettings || canChooseValue) {
-				const lineNumber = setting.keyRange.startLineNumber;
-				return {
-					range: {
-						startLineNumber: lineNumber,
-						startColumn: model.getLineMaxColumn(lineNumber),
-						endLineNumber: lineNumber,
-						endColumn: model.getLineMaxColumn(lineNumber),
-					},
-					options: {
-						afterContentClassName: 'copySetting',
-						stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-						hoverMessage: canChooseValue ? this.isDefaultSettings ? nls.localize('selectAndCopySetting', "Select a value and copy to Settings")
-							: nls.localize('selectValue', "Select a value") : nls.localize('copy', "Copy to Settings")
-					}
-				};
-			}
+	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
+		this.copyPreferenceWidgetForMouseMove.hide();
+		const settings = this.getSettings(positionChangeEvent.position.lineNumber);
+		if (settings.length) {
+			this.showCopyPreferencesWidget(this.copyPreferenceWidgetForCusorPosition, settings);
+		} else {
+			this.copyPreferenceWidgetForCusorPosition.hide();
 		}
-		return null;
 	}
 
-	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		let range = e.target.range;
-		if (!range || !range.isEmpty) {
+	private onMouseMoved(mouseMoveEvent: IEditorMouseEvent): void {
+		if (mouseMoveEvent.event.target === this.copyPreferenceWidgetForMouseMove.getDomNode() ||
+			mouseMoveEvent.event.target === this.copyPreferenceWidgetForCusorPosition.getDomNode()
+		) {
 			return;
 		}
-		if (!e.event.leftButton) {
-			return;
-		}
-
-		switch (e.target.type) {
-			case editorCommon.MouseTargetType.CONTENT_EMPTY:
-				if (DOM.hasClass(<HTMLElement>e.target.element, 'copySetting')) {
-					this.onClick(e);
-				}
-				return;
-			default:
-				return;
+		this.copyRangeHighlighter.removeHighlightRange();
+		const settings = mouseMoveEvent.target.position ? this.getSettings(mouseMoveEvent.target.position.lineNumber) : null;
+		if (settings && settings.length && mouseMoveEvent.target.position.lineNumber !== this.copyPreferenceWidgetForCusorPosition.getLine()) {
+			this.showCopyPreferencesWidget(this.copyPreferenceWidgetForMouseMove, settings);
+		} else {
+			this.copyPreferenceWidgetForMouseMove.hide();
 		}
 	}
 
-	private getConfigurationsMap(): { [qualifiedKey: string]: IJSONSchema } {
-		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+	private showCopyPreferencesWidget(copyPreferencesWidget: CopyPreferenceWidget<ISetting>, settings: ISetting[]) {
+		copyPreferencesWidget.show(settings[0].valueRange.startLineNumber, settings);
+		copyPreferencesWidget.getDomNode().title = this.isDefaultSettings ? nls.localize('copyTitle', "Copy to settings") : nls.localize('updateTitle', "Update");
 	}
 
-	private onClick(e: IEditorMouseEvent) {
-		const setting = this.getSetting(e.target.range.startLineNumber);
-		if (setting) {
-			let jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
-			const actions = this.getActions(setting, jsonSchema);
-			let elementPosition = DOM.getDomNodePagePosition(<HTMLElement>e.target.element);
-			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => TPromise.wrap(actions)
-			});
-		}
+	private getSettings(lineNumber: number): ISetting[] {
+		const configurationMap = this.getConfigurationsMap();
+		return this.getSettingsAtLineNumber(lineNumber).filter(setting => {
+			let jsonSchema: IJSONSchema = configurationMap[setting.key];
+			return jsonSchema && (this.isDefaultSettings || jsonSchema.type === 'boolean' || jsonSchema.enum);
+		});
 	}
 
-	private getSetting(lineNumber: number): ISetting {
+	private getSettingsAtLineNumber(lineNumber: number): ISetting[] {
+		const settings = [];
 		for (const group of this.settingsGroups) {
+			if (group.range.startLineNumber > lineNumber) {
+				break;
+			}
 			if (lineNumber >= group.range.startLineNumber && lineNumber <= group.range.endLineNumber) {
 				for (const section of group.sections) {
 					for (const setting of section.settings) {
-						if (lineNumber >= setting.keyRange.startLineNumber && lineNumber <= setting.keyRange.endLineNumber) {
-							return setting;
+						if (setting.range.startLineNumber > lineNumber) {
+							break;
+						}
+						if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
+							settings.push(setting);
 						}
 					}
 				}
 			}
 		}
-		return null;
+		return settings;
+	}
+
+	private onMouseOver(copyPreferenceWidget: CopyPreferenceWidget<ISetting>): void {
+		this.copyRangeHighlighter.highlightRange({
+			resource: this.editor.getModel().uri,
+			range: copyPreferenceWidget.preferences[0].valueRange
+		}, this.editor);
+	}
+
+	private onEditSettingClicked(copyPreferenceWidget: CopyPreferenceWidget<ISetting>): void {
+		const elementPosition = DOM.getDomNodePagePosition(copyPreferenceWidget.getDomNode());
+		const anchor = { x: elementPosition.left + elementPosition.width, y: elementPosition.top + elementPosition.height + 10 };
+		const actions = copyPreferenceWidget.preferences.length === 1 ? this.getActions(copyPreferenceWidget.preferences[0], this.getConfigurationsMap()[copyPreferenceWidget.preferences[0].key])
+			: copyPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.wrap(actions)
+		});
+	}
+
+	private getConfigurationsMap(): { [qualifiedKey: string]: IJSONSchema } {
+		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	}
 
 	private getActions(setting: ISetting, jsonSchema: IJSONSchema): IAction[] {
@@ -877,12 +885,12 @@ export class CopySettingActionRenderer extends Disposable {
 				id: 'truthyValue',
 				label: 'true',
 				enabled: true,
-				run: () => this.settingsService.copyConfiguration({ key: setting.key, value: true })
+				run: () => this.updateSetting(setting, true)
 			}, <IAction>{
 				id: 'falsyValue',
 				label: 'false',
 				enabled: true,
-				run: () => this.settingsService.copyConfiguration({ key: setting.key, value: false })
+				run: () => this.updateSetting(setting, false)
 			}];
 		}
 		if (jsonSchema.enum) {
@@ -891,7 +899,7 @@ export class CopySettingActionRenderer extends Disposable {
 					id: value,
 					label: JSON.stringify(value),
 					enabled: true,
-					run: () => this.settingsService.copyConfiguration({ key: setting.key, value })
+					run: () => this.updateSetting(setting, value)
 				};
 			});
 		}
@@ -899,17 +907,16 @@ export class CopySettingActionRenderer extends Disposable {
 			id: 'copyToSettings',
 			label: nls.localize('copyToSettings', "Copy to Settings"),
 			enabled: true,
-			run: () => this.settingsService.copyConfiguration(setting)
+			run: () => this.updateSetting(setting, setting.value)
 		}];
 	}
 
-	public dispose() {
-		if (this.model) {
-			this.model.deltaDecorations(this.decorationIds, []);
-		}
-		super.dispose();
+	private updateSetting(setting: ISetting, value: any): void {
+		this.copyRangeHighlighter.removeHighlightRange();
+		this.preferencesService.updateSetting(setting, value);
 	}
 }
+
 
 const DefaultSettingsEditorCommand = EditorCommand.bindToContribution<PreferencesEditorContribution>((editor: editorCommon.ICommonCodeEditor) => <PreferencesEditorContribution>editor.getContribution(PreferencesEditorContribution.ID));
 
