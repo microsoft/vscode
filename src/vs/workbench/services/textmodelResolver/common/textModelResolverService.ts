@@ -71,13 +71,13 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		const providers = this.providers[resource.scheme] || [];
 		const factories = providers.map(p => () => p.provideTextContent(resource));
 
-		return first(factories).then(uri => {
-			if (!uri) {
+		return first(factories).then(model => {
+			if (!model) {
 				console.error(`Could not resolve any model with uri '${resource}'.`); // TODO PII
 				return TPromise.wrapError('Could not resolve any model with provided uri.');
 			}
 
-			return uri;
+			return model;
 		});
 	}
 }
