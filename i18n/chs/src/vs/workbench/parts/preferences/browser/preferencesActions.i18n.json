@@ -6,5 +6,6 @@
 {
 	"openGlobalKeybindings": "打开键盘快捷方式",
 	"openGlobalSettings": "打开用户设置",
-	"openWorkspaceSettings": "打开工作区设置"
+	"openWorkspaceSettings": "打开工作区设置",
+	"startSearchDefaultSettings": "焦点默认设置搜索"
 }

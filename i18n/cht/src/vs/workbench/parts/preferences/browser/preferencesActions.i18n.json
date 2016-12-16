@@ -6,5 +6,6 @@
 {
 	"openGlobalKeybindings": "開啟鍵盤快速鍵",
 	"openGlobalSettings": "開啟使用者設定",
-	"openWorkspaceSettings": "開啟工作區設定"
+	"openWorkspaceSettings": "開啟工作區設定",
+	"startSearchDefaultSettings": "焦點預設設定搜尋"
 }

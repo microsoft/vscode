@@ -33,6 +33,7 @@
 	"quickSuggestionsDelay": "控制延迟多少毫秒后将显示快速建议",
 	"renderControlCharacters": "控制编辑器是否应呈现控制字符",
 	"renderIndentGuides": "控制编辑器是否应呈现缩进参考线",
+	"renderIndicators": "控制差异编辑器是否为已添加/删除的更改显示 +/- 指示符号",
 	"renderLineHighlight": "控制编辑器应如何呈现当前行突出显示，可能为“无”、“装订线”、“线”和“全部”。",
 	"renderWhitespace": "控制编辑器中呈现空白字符的方式，可能为“无”、“边界”和“全部”。“边界”选项不会在单词之间呈现单空格。",
 	"roundedSelection": "控制选取范围是否有圆角",

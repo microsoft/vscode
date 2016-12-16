@@ -6,5 +6,6 @@
 {
 	"openGlobalKeybindings": "Ouvrir les raccourcis clavier",
 	"openGlobalSettings": "Ouvrir les paramètres utilisateur",
-	"openWorkspaceSettings": "Ouvrir les paramètres d'espace de travail"
+	"openWorkspaceSettings": "Ouvrir les paramètres d'espace de travail",
+	"startSearchDefaultSettings": "Recherche des paramètres de focus par défaut"
 }

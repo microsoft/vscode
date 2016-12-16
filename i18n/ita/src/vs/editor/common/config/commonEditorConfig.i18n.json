@@ -33,6 +33,7 @@
 	"quickSuggestionsDelay": "Controlla il ritardo in ms dopo il quale verranno visualizzati i suggerimenti rapidi",
 	"renderControlCharacters": "Controlla se l'editor deve eseguire il rendering dei caratteri di controllo",
 	"renderIndentGuides": "Controlla se l'editor deve eseguire il rendering delle guide con rientro",
+	"renderIndicators": "Consente di controllare se l'editor diff mostra gli indicatori +/- per le modifiche aggiunte/rimosse",
 	"renderLineHighlight": "Consente di controllare in che modo l'editor deve eseguire il rendering dell'evidenziazione di riga corrente. Le opzioni possibili sono 'none', 'gutter', 'line' e 'all'.",
 	"renderWhitespace": "Consente di controllare in che modo l'editor deve eseguire il rendering dei caratteri di spazio vuoto. Le opzioni possibili sono: 'none', 'boundary' e 'all'. Con l'opzione 'boundary' non viene eseguito il rendering di singoli spazi tra le parole.",
 	"roundedSelection": "Controlla se gli angoli delle selezioni sono arrotondati",

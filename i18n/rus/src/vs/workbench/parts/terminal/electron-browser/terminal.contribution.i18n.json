@@ -9,7 +9,7 @@
 	"terminal.integrated.cursorBlinking": "Управляет миганием курсора терминала.",
 	"terminal.integrated.fontFamily": "Определяет семейство шрифтов терминала, значение по умолчанию — editor.fontFamily.",
 	"terminal.integrated.fontLigatures": "Определяет, будут ли включены лигатуры шрифтов для терминала.",
-	"terminal.integrated.fontSize": "Определяет размер шрифта (в пикселях) для терминала; значение по умолчанию — editor.fontSize.",
+	"terminal.integrated.fontSize": "Определяет размер шрифта (в пикселях) для терминала.",
 	"terminal.integrated.lineHeight": "Определяет высоту строки терминала; это число умножается на размер шрифта терминала, что дает фактическую высоту строки в пикселях.",
 	"terminal.integrated.scrollback": "Определяет предельное число строк в буфере терминала.",
 	"terminal.integrated.setLocaleVariables": "Управляет заданием переменных при запуске терминала, значение по умолчанию: \"True\" для OS X и \"False\" для других платформ.",
