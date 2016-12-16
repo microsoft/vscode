@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace, ProviderResult } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -18,15 +18,25 @@ class MyCompletionItem extends CompletionItem {
 	document: TextDocument;
 	position: Position;
 
-	constructor(entry: CompletionEntry) {
+	constructor(position: Position, document: TextDocument, entry: CompletionEntry) {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
+		this.position = position;
+		this.document = document;
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
 			// We convert to 0-based indexing.
 			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
+		} else {
+			const text = document.getText(new Range(position.line, Math.max(0, position.character - entry.name.length), position.line, position.character));
+			for (let i = entry.name.length; i >= 0; --i) {
+				if ((text as any).endsWith(entry.name.substr(0, i))) {
+					this.range = new Range(position.line, Math.max(0, position.character - i), position.line, position.character);
+					break;
+				}
+			}
 		}
 	}
 
@@ -128,10 +138,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			if (body) {
 				for (let i = 0; i < body.length; i++) {
 					let element = body[i];
-					let item = new MyCompletionItem(element);
-					item.document = document;
-					item.position = position;
-
+					let item = new MyCompletionItem(position, document, element);
 					completionItems.push(item);
 				}
 			}
@@ -143,7 +150,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		});
 	}
 
-	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): any | Thenable<any> {
+	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem> {
 		if (item instanceof MyCompletionItem) {
 			const filepath = this.client.asAbsolutePath(item.document.uri);
 			if (!filepath) {
