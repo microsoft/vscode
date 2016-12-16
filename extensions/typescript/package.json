@@ -30,7 +30,9 @@
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
 		"onCommand:typescript.reloadProjects",
-		"onCommand:javascript.reloadProjects"
+		"onCommand:javascript.reloadProjects",
+		"workspaceContains:jsconfig.json",
+		"workspaceContains:tsconfig.json"
 	],
 	"main": "./out/typescriptMain",
 	"contributes": {
