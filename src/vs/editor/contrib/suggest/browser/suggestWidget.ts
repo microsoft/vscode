@@ -607,7 +607,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				return false;
 			case State.Details:
-				this.details.scrollDown();
+				this.list.focusNext(1, true);
+				this.renderDetails();
 				return true;
 			case State.Loading:
 				return !this.isAuto;
@@ -637,7 +638,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				return false;
 			case State.Details:
-				this.details.scrollUp();
+				this.list.focusPrevious(1, true);
+				this.renderDetails();
 				return true;
 			case State.Loading:
 				return !this.isAuto;
