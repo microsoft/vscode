@@ -9,6 +9,7 @@
 	"OpenExtensionsFile.failed": "Non è possibile creare il file 'extensions.json' all'interno della cartella '.vscode' ({0}).",
 	"Uninstalling": "Disinstallazione",
 	"builtin": "Predefinita",
+	"checkForUpdates": "Controlla la disponibilità di aggiornamenti",
 	"clearExtensionsInput": "Cancella input estensioni",
 	"configureWorkspaceRecommendedExtensions": "Configura estensioni consigliate (area di lavoro)",
 	"disableAction": "Disabilita",
@@ -36,6 +37,7 @@
 	"postUninstallTooltip": "Ricaricare per disattivare",
 	"postUpdateMessage": "Ricaricare questa finestra per attivare l'estensione aggiornata '{0}'?",
 	"postUpdateTooltip": "Ricaricare per aggiornare",
+	"reload": "&&Ricarica finestra",
 	"reloadAction": "Ricarica",
 	"showDisabledExtensions": "Mostra estensioni disabilitate",
 	"showInstalledExtensions": "Mostra estensioni installate",
@@ -48,5 +50,6 @@
 	"toggleExtensionsViewlet": "Mostra estensioni",
 	"uninstallAction": "Disinstalla",
 	"updateAction": "Aggiorna",
-	"updateAll": "Aggiorna tutte le estensioni"
+	"updateAll": "Aggiorna tutte le estensioni",
+	"updateTo": "Aggiorna a {0}"
 }

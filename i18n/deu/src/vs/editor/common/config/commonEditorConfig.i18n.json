@@ -33,6 +33,7 @@
 	"quickSuggestionsDelay": "Steuert die Verzögerung in ms für die Anzeige der Schnellvorschläge.",
 	"renderControlCharacters": "Steuert, ob der Editor Steuerzeichen rendern soll.",
 	"renderIndentGuides": "Steuert, ob der Editor Einzugsführungslinien rendern soll.",
+	"renderIndicators": "Steuert, ob der Diff-Editor die Indikatoren \"+\" und \"-\" für hinzugefügte/entfernte Änderungen anzeigt.",
 	"renderLineHighlight": "Steuert, wie der Editor die aktuelle Zeilenhervorhebung rendern soll. Mögliche Werte sind \"none\", \"gutter\", \"line\" und \"all\".",
 	"renderWhitespace": "Steuert, wie der Editor Leerzeichen rendert. Mögliche Optionen: \"none\", \"boundary\" und \"all\". Die Option \"boundary\" rendert keine einzelnen Leerzeichen zwischen Wörtern.",
 	"roundedSelection": "Steuert, ob die Auswahl runde Ecken aufweist.",

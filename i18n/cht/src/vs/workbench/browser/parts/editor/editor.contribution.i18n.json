@@ -9,6 +9,7 @@
 	"groupOnePicker": "在第一個群組顯示編輯器",
 	"groupThreePicker": "在第三個群組顯示編輯器",
 	"groupTwoPicker": "在第二個群組顯示編輯器",
+	"sideBySideEditor": "並排編輯器",
 	"textDiffEditor": "文字 Diff 編輯器",
 	"textEditor": "文字編輯器",
 	"view": "檢視"

@@ -6,5 +6,6 @@
 {
 	"openGlobalKeybindings": "바로 가기 키 열기",
 	"openGlobalSettings": "사용자 설정 열기",
-	"openWorkspaceSettings": "작업 영역 설정 열기"
+	"openWorkspaceSettings": "작업 영역 설정 열기",
+	"startSearchDefaultSettings": "기본 설정 검색에 포커스"
 }

@@ -33,6 +33,7 @@
 	"quickSuggestionsDelay": "控制延遲顯示快速建議的毫秒數",
 	"renderControlCharacters": "控制編輯器是否應顯示控制字元",
 	"renderIndentGuides": "控制編輯器是否應顯示縮排輔助線",
+	"renderIndicators": "控制 Diff 編輯器是否要為新增的/移除的變更顯示 +/- 標記",
 	"renderLineHighlight": "控制編輯器應如何轉譯目前反白的行，可能的值有 'none'、'gutter'、'line' 和 'all'。",
 	"renderWhitespace": "控制編輯器轉譯空白字元的方式，可能為 'none'、'boundary' 及 'all'。'boundary' 選項不會轉譯字組間的單一空格。",
 	"roundedSelection": "控制選取範圍是否有圓角",

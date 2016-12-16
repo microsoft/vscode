@@ -9,6 +9,7 @@
 	"emptySettingsHeader": "Inserire le impostazioni in questo file per sovrascrivere quelle predefinite",
 	"emptySettingsHeader1": "Inserire le impostazioni in questo file per sovrascrivere quelle utente e predefinite.",
 	"fail.createSettings": "Non è possibile creare '{0}' ({1}).",
+	"keybindingsEditorName": "Tasti di scelta rapida predefiniti",
 	"neverShowAgain": "Non visualizzare più questo messaggio",
 	"openFolderFirst": "Aprire prima una cartella per creare le impostazioni dell'area di lavoro",
 	"openWorkspaceSettings": "Apri impostazioni area di lavoro",

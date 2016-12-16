@@ -6,5 +6,6 @@
 {
 	"openGlobalKeybindings": "Apri tasti di scelta rapida",
 	"openGlobalSettings": "Apri impostazioni utente",
-	"openWorkspaceSettings": "Apri impostazioni area di lavoro"
+	"openWorkspaceSettings": "Apri impostazioni area di lavoro",
+	"startSearchDefaultSettings": "Sposta stato attivo su ricerca delle impostazioni predefinite"
 }

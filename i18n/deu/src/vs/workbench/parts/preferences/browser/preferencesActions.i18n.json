@@ -6,5 +6,6 @@
 {
 	"openGlobalKeybindings": "Tastaturkurzbefehle öffnen",
 	"openGlobalSettings": "Benutzereinstellungen öffnen",
-	"openWorkspaceSettings": "Arbeitsbereichseinstellungen öffnen"
+	"openWorkspaceSettings": "Arbeitsbereichseinstellungen öffnen",
+	"startSearchDefaultSettings": "Fokus für die Suche nach Standardeinstellungen"
 }

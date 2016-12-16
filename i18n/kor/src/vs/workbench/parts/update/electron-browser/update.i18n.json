@@ -16,6 +16,7 @@
 	"releaseNotes": "릴리스 정보",
 	"showReleaseNotes": "릴리스 정보 표시",
 	"thereIsUpdateAvailable": "사용 가능한 업데이트가 있습니다.",
+	"unassigned": "할당되지 않음",
 	"updateAvailable": "다시 시작하면 {0}이(가) 업데이트됩니다.",
 	"updateNow": "지금 업데이트"
 }

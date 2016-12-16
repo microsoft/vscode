@@ -33,6 +33,7 @@
 	"quickSuggestionsDelay": "빠른 제안을 표시할 지연 시간(ms)을 제어합니다.",
 	"renderControlCharacters": "편집기에서 제어 문자를 렌더링할지를 제어합니다.",
 	"renderIndentGuides": "편집기에서 들여쓰기 가이드를 렌더링할지를 제어합니다.",
+	"renderIndicators": "diff 편집기에서 추가/제거된 변경 내용에 대해 +/- 표시기를 표시하는지 여부를 제어합니다.",
 	"renderLineHighlight": "편집기가 현재 줄 강조 표시를 렌더링하는 방식을 제어합니다. 가능한 값은 'none', 'gutter', 'line' 및 'all'입니다.",
 	"renderWhitespace": "편집기에서 공백 문자를 렌더링하는 방법을 제어합니다. 가능한 값은 'none', 'boundary' 및 'all'입니다. 'boundary' 옵션은 단어 사이의 한 칸 공백을 렌더링하지 않습니다.",
 	"roundedSelection": "선택 항목의 모서리를 둥글게 할지 여부를 제어합니다.",
