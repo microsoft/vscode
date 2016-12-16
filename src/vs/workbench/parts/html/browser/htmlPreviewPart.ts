@@ -74,7 +74,6 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	protected createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
-		this._container.style.paddingLeft = '20px';
 		parent.getHTMLElement().appendChild(this._container);
 	}
 

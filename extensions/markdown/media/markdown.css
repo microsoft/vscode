@@ -6,8 +6,9 @@
 body {
 	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	font-size: 14px;
-	padding-left: 12px;
+	padding: 0 12px;
 	line-height: 22px;
+	word-wrap: break-word;
 }
 
 body.scrollBeyondLastLine {
@@ -94,6 +95,10 @@ code {
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 14px;
 	line-height: 19px;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
 }
 
 .mac code {
