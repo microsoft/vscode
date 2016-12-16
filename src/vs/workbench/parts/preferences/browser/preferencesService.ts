@@ -12,7 +12,6 @@ import * as labels from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { parseTree, findNodeAtLocation } from 'vs/base/common/json';
 import { asFileEditorInput, SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
@@ -136,11 +135,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	openGlobalKeybindingSettings(): TPromise<void> {
 		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		return this.createDefaultPreferencesEditorModel(PreferencesService.DEFAULT_KEY_BINDINGS_URI)
-			.then(editorModel => {
-				const defaultKeybindingsInput = this.instantiationService.createInstance(StringEditorInput, nls.localize('keybindingsEditorName', "Default Keyboard Shortcuts"), '', editorModel.content, 'json', true);
-				this.openTwoEditors(defaultKeybindingsInput, URI.file(this.environmentService.appKeybindingsPath), emptyContents);
-			});
+		return this.editorService.createInput({ resource: PreferencesService.DEFAULT_KEY_BINDINGS_URI })
+			.then(leftHandInput => this.openTwoEditors(<EditorInput>leftHandInput, URI.file(this.environmentService.appKeybindingsPath), emptyContents)).then(() => null);
 	}
 
 	private openEditableSettings(configurationTarget: ConfigurationTarget): TPromise<IEditor> {
@@ -223,7 +219,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (openDefaultSettings) {
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
-			return this.openTwoEditors(this.getDefaultSettingsEditorInput(configurationTarget), settingsResource, emptySettingsContents).then(() => null);
+			return this.openTwoEditors(this.getDefaultSettingsEditorInput(configurationTarget), settingsResource, emptySettingsContents);
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
@@ -243,12 +239,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 	}
 
-	private openTwoEditors(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<IEditor> {
+	private openTwoEditors(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<void> {
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
 				const sideBySideInput = new SideBySideEditorInput(typedRightHandEditableInput.getName(), typedRightHandEditableInput.getDescription(), leftHandDefaultInput, <EditorInput>typedRightHandEditableInput);
-				return this.editorService.openEditor(sideBySideInput);
+				this.editorService.openEditor(sideBySideInput);
+				return;
 			});
 		});
 	}
