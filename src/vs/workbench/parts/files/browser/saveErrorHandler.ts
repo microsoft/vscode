@@ -11,11 +11,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { EditorInputAction } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -29,25 +27,49 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IModel } from 'vs/editor/common/editorCommon';
 
 // A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
+export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution, ITextModelContentProvider {
 	private messages: { [resource: string]: () => void };
 	private toUnbind: IDisposable[];
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITextFileService private textFileService: ITextFileService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.messages = Object.create(null);
 		this.toUnbind = [];
 
-		this.registerListeners();
+		// Register as text model content provider that supports to load a resource as it actually
+		// is stored on disk as opposed to using the file:// scheme that will return a dirty buffer
+		// if there is one.
+		this.textModelResolverService.registerTextModelContentProvider('disk', this);
 
 		// Hook into model
 		TextFileEditorModel.setSaveErrorHandler(this);
+
+		this.registerListeners();
+	}
+
+	public provideTextContent(resource: URI): TPromise<IModel> {
+
+		// Make sure our file from disk is resolved up to date
+		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
+			let codeEditorModel = this.modelService.getModel(resource);
+			if (!codeEditorModel) {
+				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
+			} else {
+				codeEditorModel.setValueFromRawText(content.value);
+			}
+
+			return codeEditorModel;
+		});
 	}
 
 	public getId(): string {
@@ -154,7 +176,7 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 		model: ITextFileEditorModel,
 		name: string,
 		description: string,
-		originalInput: FileOnDiskEditorInput,
+		originalInput: ResourceEditorInput,
 		modifiedInput: FileEditorInput
 	) {
 		super(name, description, originalInput, modifiedInput);
@@ -171,60 +193,6 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 	}
 }
 
-export class FileOnDiskEditorInput extends ResourceEditorInput {
-	private fileResource: URI;
-	private lastModified: number;
-	private createdEditorModel: boolean;
-
-	constructor(
-		fileResource: URI,
-		name: string,
-		description: string,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		// We create a new resource URI here that is different from the file resource because we represent the state of
-		// the file as it is on disk and not as it is (potentially cached) in Code. That allows us to have a different
-		// model for the left-hand comparision compared to the conflicting one in Code to the right.
-		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), textModelResolverService);
-
-		this.fileResource = fileResource;
-	}
-
-	public getLastModified(): number {
-		return this.lastModified;
-	}
-
-	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
-
-		// Make sure our file from disk is resolved up to date
-		return this.textFileService.resolveTextContent(this.fileResource).then(content => {
-			this.lastModified = content.mtime;
-
-			const codeEditorModel = this.modelService.getModel(this.resource);
-			if (!codeEditorModel) {
-				this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath), this.resource);
-				this.createdEditorModel = true;
-			} else {
-				codeEditorModel.setValueFromRawText(content.value);
-			}
-
-			return super.resolve(refresh);
-		});
-	}
-
-	public dispose(): void {
-		if (this.createdEditorModel) {
-			this.modelService.destroyModel(this.resource);
-			this.createdEditorModel = false;
-		}
-
-		super.dispose();
-	}
-}
 
 const pendingResolveSaveConflictMessages: Function[] = [];
 function clearPendingResolveSaveConflictMessages(): void {
@@ -260,7 +228,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		this.actions = [
 			new Action('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"), null, true, () => {
 				if (!this.model.isDisposed()) {
-					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, paths.basename(resource.fsPath), resource.fsPath);
+					const originalInput = this.instantiationService.createInstance(ResourceEditorInput, paths.basename(resource.fsPath), resource.fsPath, URI.from({ scheme: 'disk', path: resource.fsPath }));
 					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, void 0);
 					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), this.environmentService.appNameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
 
@@ -282,15 +250,11 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 
 // Accept changes to resolve a conflicting edit
 export class AcceptLocalChangesAction extends EditorInputAction {
-	private messagesToHide: { (): void; }[];
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use local changes and overwrite disk contents"), 'conflict-editor-action accept-changes');
-
-		this.messagesToHide = [];
 	}
 
 	public run(): TPromise<void> {
@@ -300,51 +264,21 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 
 		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-		// 1.) Get the diff editor model from cache (resolve(false)) to have access to the mtime of the file we currently show to the left
-		return conflictInput.resolve(false).then((diffModel: DiffEditorModel) => {
-			const knownLastModified = (<FileOnDiskEditorInput>conflictInput.originalInput).getLastModified();
+		// revert to be able to save
+		return model.revert().then(() => {
 
-			// 2.) Revert the model to get the latest copy from disk and to have access to the mtime of the file now
-			return model.revert().then(() => {
-				const diskLastModified = model.getLastModifiedTime();
+			// Restore user value
+			model.textEditorModel.setValue(localModelValue);
 
-				// 3. a) If we know that the file on the left hand side was not modified meanwhile, restore the user value and trigger a save
-				if (diskLastModified <= knownLastModified) {
+			// Trigger save
+			return model.save().then(() => {
 
-					// Restore user value
-					model.textEditorModel.setValue(localModelValue);
+				// Reopen file input
+				return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
 
-					// Trigger save
-					return model.save().then(() => {
-
-						// Hide any previously shown messages
-						while (this.messagesToHide.length) {
-							this.messagesToHide.pop()();
-						}
-
-						// Reopen file input
-						return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
-
-							// Dispose conflict input
-							conflictInput.dispose();
-						});
-					});
-				}
-
-				// 3. b) The file was changed on disk while it was shown in the conflict editor
-				else {
-
-					// Again, we have to bring the model into conflict resolution because revert() would have cleared it
-					model.setConflictResolutionMode();
-
-					// Restore user value
-					model.textEditorModel.setValue(localModelValue);
-
-					// Reload the left hand side of the diff editor to show the up to date version and inform the user that he has to redo the action
-					return conflictInput.originalInput.resolve(true).then(() => {
-						this.messagesToHide.push(this.messageService.show(Severity.Info, nls.localize('conflictingFileHasChanged', "The content of the file on disk has changed and the left hand side of the compare editor was refreshed. Please review and resolve again.")));
-					});
-				}
+					// Dispose conflict input
+					conflictInput.dispose();
+				});
 			});
 		});
 	}
