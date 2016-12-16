@@ -93,4 +93,5 @@ export interface IWindowSettings {
 	fullScreenZenMode: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
+	autoDetectHighContrast: boolean;
 }
