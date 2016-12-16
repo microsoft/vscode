@@ -10,7 +10,7 @@
 	"debugConfigurationTitle": "调试",
 	"debugErrorEditor": "调试错误",
 	"debugPanel": "调试控制台",
-	"openExplorerOnEnd": "在调试会话结束时自动打开资源管理器 viewlet。",
+	"openExplorerOnEnd": "调试会话结束时自动打开资源管理器视图",
 	"toggleDebugPanel": "调试控制台",
 	"toggleDebugViewlet": "显示调试",
 	"view": "查看"

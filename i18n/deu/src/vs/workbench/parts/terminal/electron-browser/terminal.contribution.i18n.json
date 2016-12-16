@@ -9,7 +9,7 @@
 	"terminal.integrated.cursorBlinking": "Steuert, ob der Terminalcursor blinkt.",
 	"terminal.integrated.fontFamily": "Steuert die Schriftartfamilie des Terminals. Der Standardwert ist \"editor.fontFamily\".",
 	"terminal.integrated.fontLigatures": "Steuert, ob Schriftartligaturen im Terminal aktiviert sind.",
-	"terminal.integrated.fontSize": "Steuert den Schriftgrad des Terminals in Pixeln. Der Standardwert ist \"editor.fontSize\".",
+	"terminal.integrated.fontSize": "Steuert den Schriftgrad des Terminals in Pixeln.",
 	"terminal.integrated.lineHeight": "Steuert die Zeilenhöhe für das Terminal. Dieser Wert wird mit dem Schriftgrad des Terminals multipliziert, um die tatsächliche Zeilenhöhe in Pixeln zu erhalten.",
 	"terminal.integrated.scrollback": "Steuert die maximale Anzahl von Zeilen, die das Terminal im Puffer beibehält.",
 	"terminal.integrated.setLocaleVariables": "Steuert, ob Gebietsschemavariablen beim Start des Terminals festgelegt werden. Der Standardwert ist unter OS X TRUE und FALSE auf anderen Plattformen.",

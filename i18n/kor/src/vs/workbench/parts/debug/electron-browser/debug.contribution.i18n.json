@@ -10,7 +10,7 @@
 	"debugConfigurationTitle": "디버그",
 	"debugErrorEditor": "디버그 오류",
 	"debugPanel": "디버그 콘솔",
-	"openExplorerOnEnd": "디버그 세션 끝에 탐색기 뷰렛을 자동으로 엽니다.",
+	"openExplorerOnEnd": "디버그 세션 끝에 탐색기 뷰를 자동으로 엽니다.",
 	"toggleDebugPanel": "디버그 콘솔",
 	"toggleDebugViewlet": "디버그 표시",
 	"view": "보기"

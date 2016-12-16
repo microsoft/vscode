@@ -9,7 +9,7 @@
 	"terminal.integrated.cursorBlinking": "Controlla se il cursore del terminale è intermittente o meno.",
 	"terminal.integrated.fontFamily": "Controlla la famiglia di caratteri del terminale. L'impostazione predefinita è il valore di editor.fontFamily.",
 	"terminal.integrated.fontLigatures": "Controlla se i caratteri legatura sono abilitati nel terminale.",
-	"terminal.integrated.fontSize": "Controlla le dimensioni del carattere in pixel del terminale. L'impostazione predefinita è il valore di editor.fontSize.",
+	"terminal.integrated.fontSize": "Consente di controllare le dimensioni del carattere in pixel del terminale.",
 	"terminal.integrated.lineHeight": "Controlla l'altezza della riga del terminale. Questo numero è moltiplicato dalle dimensioni del carattere del terminale per ottenere l'altezza di riga effettiva in pixel.",
 	"terminal.integrated.scrollback": "Consente di controllare il numero massimo di righe che il terminale mantiene nel buffer.",
 	"terminal.integrated.setLocaleVariables": "Controlla se le variabili delle impostazioni locali sono impostate all'avvio del terminale. Il valore predefinito è true per OS X e false per altre piattaforme.",

@@ -9,6 +9,7 @@
 	"OpenExtensionsFile.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"extensions.json\" 文件。",
 	"Uninstalling": "正在卸载",
 	"builtin": "内置",
+	"checkForUpdates": "检查更新",
 	"clearExtensionsInput": "清除扩展输入",
 	"configureWorkspaceRecommendedExtensions": "配置建议的扩展(工作区)",
 	"disableAction": "禁用",
@@ -36,6 +37,7 @@
 	"postUninstallTooltip": "重新加载以停用",
 	"postUpdateMessage": "重载此窗口以激活更新的扩展“{0}”?",
 	"postUpdateTooltip": "重载以更新",
+	"reload": "重载窗口(&&R)",
 	"reloadAction": "重新加载",
 	"showDisabledExtensions": "显示已禁用的扩展",
 	"showInstalledExtensions": "显示已安装扩展",
@@ -48,5 +50,6 @@
 	"toggleExtensionsViewlet": "显示扩展",
 	"uninstallAction": "卸载",
 	"updateAction": "更新",
-	"updateAll": "更新所有扩展"
+	"updateAll": "更新所有扩展",
+	"updateTo": "更新到 {0}"
 }

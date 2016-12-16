@@ -7,6 +7,7 @@
 	"already exists": "目标存储库已存在，请选择要克隆到的另一个目录。",
 	"cloning": "正在克隆存储库“{0}”...",
 	"directory": "目标克隆目录",
-	"repo": "请提供一个 git 存储库 URL。",
-	"url": "存储库 URL"
+	"repo": "提供一个 git 存储库 URL。",
+	"url": "存储库 URL",
+	"valid": "请提供一个有效的 git 存储库 URL"
 }

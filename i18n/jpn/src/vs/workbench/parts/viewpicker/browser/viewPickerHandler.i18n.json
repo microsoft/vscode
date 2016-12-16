@@ -6,6 +6,7 @@
 {
 	"channels": "出力",
 	"entryAriaLabel": "{0}、ビューの選択",
+	"openView": "ビューを開きます",
 	"panels": "パネル",
 	"quickOpenView": "Quick Open ビュー",
 	"terminalTitle": "{0}: {1}",

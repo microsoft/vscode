@@ -10,7 +10,7 @@
 	"enablePreview": "Contrôle si les éditeurs ouverts s'affichent en mode aperçu. Les éditeurs en mode aperçu sont réutilisés jusqu'à ce qu'ils soient conservés (par exemple, après un double-clic ou une modification).",
 	"enablePreviewFromQuickOpen": "Contrôle si les éditeurs de Quick Open s'affichent en mode aperçu. Les éditeurs en mode aperçu sont réutilisés jusqu'à ce qu'ils soient conservés (par exemple, après un double-clic ou une modification).",
 	"file": "Fichier",
-	"fullScreenZenMode": "Contrôle si le mode zen doit faire passer automatiquement le banc d'essai en mode plein écran.",
+	"fullScreenZenMode": "Contrôle si l'activation du mode zen met également le banc d'essai en mode plein écran.",
 	"help": "Aide",
 	"openDefaultSettings": "Contrôle si l'ouverture des paramètres entraîne également l'ouverture d'un éditeur qui affiche tous les paramètres par défaut.",
 	"openFilesInNewWindow": "Après activation, les fichiers s'ouvrent dans une nouvelle fenêtre au lieu de réutiliser une instance existante.",

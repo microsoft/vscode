@@ -9,6 +9,7 @@
 	"OpenExtensionsFile.failed": "無法在 '.vscode' 資料夾 ({0}) 中建立 'extensions.json' 檔案。",
 	"Uninstalling": "正在解除安裝",
 	"builtin": "內建",
+	"checkForUpdates": "查看是否有更新",
 	"clearExtensionsInput": "清除擴充功能輸入",
 	"configureWorkspaceRecommendedExtensions": "設定建議的延伸模組 (工作區)",
 	"disableAction": "停用",
@@ -36,6 +37,7 @@
 	"postUninstallTooltip": "重新載入以停用",
 	"postUpdateMessage": "要重新載入此視窗以啟動已更新的延伸模組 '{0}' 嗎?",
 	"postUpdateTooltip": "重新載入以更新",
+	"reload": "重新載入視窗(&&R)",
 	"reloadAction": "重新載入",
 	"showDisabledExtensions": "顯示停用的延伸模組",
 	"showInstalledExtensions": "顯示安裝的擴充功能",
@@ -48,5 +50,6 @@
 	"toggleExtensionsViewlet": "顯示擴充功能",
 	"uninstallAction": "解除安裝",
 	"updateAction": "更新",
-	"updateAll": "更新所有延伸模組"
+	"updateAll": "更新所有延伸模組",
+	"updateTo": "更新至 {0}"
 }
