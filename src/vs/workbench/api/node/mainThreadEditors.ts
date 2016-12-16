@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, ISelection, IPosition, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -293,6 +293,13 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 			return TPromise.wrapError('TextEditor disposed');
 		}
 		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits, opts));
+	}
+
+	$tryInsertSnippet(id: string, template: string, posOrRange: IPosition | IRange): TPromise<boolean> {
+		if (!this._textEditorsMap[id]) {
+			return TPromise.wrapError('TextEditor disposed');
+		}
+		return TPromise.as(this._textEditorsMap[id].insertSnippet(template, posOrRange));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
