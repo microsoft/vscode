@@ -33,7 +33,7 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
@@ -54,7 +54,7 @@ export class TabsTitleControl extends TitleControl {
 	private activeTab: HTMLElement;
 	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
-	private tabDisposeables: IDisposable[] = [];
+	private tabDisposeables: IDisposable[];
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -322,7 +322,7 @@ export class TabsTitleControl extends TitleControl {
 		DOM.clearNode(this.tabsContainer);
 
 		this.tabDisposeables = dispose(this.tabDisposeables);
-		this.editorLabels = dispose(this.editorLabels);
+		this.editorLabels = [];
 
 		DOM.removeClass(this.titleContainer, 'shows-tabs');
 	}
@@ -347,7 +347,7 @@ export class TabsTitleControl extends TitleControl {
 		else {
 			for (let i = 0; i < tabsCount - tabsNeeded; i++) {
 				(this.tabsContainer.lastChild as HTMLElement).remove();
-				this.editorLabels.pop().dispose();
+				this.editorLabels.pop();
 				this.tabDisposeables.pop().dispose();
 			}
 		}
@@ -380,10 +380,10 @@ export class TabsTitleControl extends TitleControl {
 		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner: new TabActionRunner(() => this.context, index) });
 		bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
 
-		this.tabDisposeables.push(bar);
-
 		// Eventing
-		this.hookTabListeners(tabContainer, index);
+		const disposable = this.hookTabListeners(tabContainer, index);
+
+		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
 
 		return tabContainer;
 	}
@@ -424,10 +424,11 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private hookTabListeners(tab: HTMLElement, index: number): void {
+	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
+		const disposables = [];
 
 		// Open on Click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			tab.blur();
 
 			const { editor, position } = this.toTabContext(index);
@@ -437,7 +438,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Close on mouse middle click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 			tab.blur();
 
@@ -449,7 +450,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu on Shift+F10
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
 				DOM.EventHelper.stop(e);
@@ -461,7 +462,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Keyboard accessibility
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
@@ -505,7 +506,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Pin on double click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			const { group, editor } = this.toTabContext(index);
@@ -514,14 +515,14 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
 			const { group, editor } = this.toTabContext(index);
 
 			this.onContextMenu({ group, editor }, e, tab);
 		}));
 
 		// Drag start
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
 			const { group, editor } = this.toTabContext(index);
 
 			this.onEditorDragStart({ editor, group });
@@ -543,13 +544,13 @@ export class TabsTitleControl extends TitleControl {
 		let counter = 0;
 
 		// Drag over
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
 			counter++;
 			DOM.addClass(tab, 'dropfeedback');
 		}));
 
 		// Drag leave
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
 				DOM.removeClass(tab, 'dropfeedback');
@@ -557,7 +558,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Drag end
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
@@ -565,7 +566,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Drop
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
 			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
@@ -573,6 +574,8 @@ export class TabsTitleControl extends TitleControl {
 
 			this.onDrop(e, group, position, index);
 		}));
+
+		return combinedDisposable(disposables);
 	}
 
 	private toTabContext(index: number): { group: IEditorGroup, position: Position, editor: IEditorInput } {
