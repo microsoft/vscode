@@ -207,8 +207,8 @@ if (platform.isWindows) {
 	properties['window.autoDetectHighContrast'] = {
 		'type': 'boolean',
 		'default': true,
-		'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme.")
-	}
+		'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
+	};
 }
 
 if (platform.isMacintosh) {

@@ -259,7 +259,7 @@ export class ElectronWindow {
 		// High Contrast Events
 		ipc.on('vscode:enterHighContrast', (event) => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-			if (windowConfig.autoDetectHighContrast) {
+			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
 					this.themeService.setColorTheme(VS_HC_THEME, false);
 				});
@@ -268,7 +268,7 @@ export class ElectronWindow {
 
 		ipc.on('vscode:leaveHighContrast', (event) => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-			if (windowConfig.autoDetectHighContrast) {
+			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
 					this.themeService.setColorTheme(VS_DARK_THEME, false);
 				});
