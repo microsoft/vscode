@@ -147,7 +147,7 @@
 	background: url(collapsed-dark.svg) 50% 50% no-repeat;
 }
 
-.monaco-editor .copy-preferences-widget {
+.monaco-editor .edit-preferences-widget {
 	background: url('edit.svg') center center no-repeat;
 	transform: rotate(-90deg);
 	width:16px;
@@ -155,8 +155,8 @@
 	cursor: pointer;
 }
 
-.monaco-editor.hc-black .copy-preferences-widget,
-.monaco-editor.vs-dark .copy-preferences-widget {
+.monaco-editor.hc-black .edit-preferences-widget,
+.monaco-editor.vs-dark .edit-preferences-widget {
 	background: url('edit_inverse.svg') center center no-repeat;
 }
 
