@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, TextEditor, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -80,6 +80,24 @@ export function activate(context: ExtensionContext): void {
 		clientHost.reloadProjects();
 	}));
 
+	const implementationProvider = new DefinitionProvider('implementation', client);
+	context.subscriptions.push(commands.registerTextEditorCommand('typescript.goToImplementation', (editor: TextEditor) => {
+		if (!client.apiVersion.has213Features() || (editor.document.languageId !== 'typescript' && editor.document.languageId !== 'javascript')) {
+			return;
+		}
+		implementationProvider.provideDefinition(editor.document, editor.selection.start, true)
+			.then((locations) => {
+				const location = Array.isArray(locations) ? locations[0] : locations
+				if (!location) {
+					return;
+				}
+				const uri = Uri.parse(`${location.uri}#${location.range.start.line}`);
+				commands.executeCommand('vscode.open', uri)
+			});
+	}));
+
+	console.log(client.apiVersion.has213Features());
+
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
 		context.subscriptions.push(ProjectStatus.create(client,
@@ -140,7 +158,7 @@ class LanguageProvider {
 		this.completionItemProvider.updateConfiguration(config);
 
 		let hoverProvider = new HoverProvider(client);
-		let definitionProvider = new DefinitionProvider(client);
+		let definitionProvider = new DefinitionProvider('definition', client);
 		let documentHighlightProvider = new DocumentHighlightProvider(client);
 		let referenceProvider = new ReferenceProvider(client);
 		let documentSymbolProvider = new DocumentSymbolProvider(client);

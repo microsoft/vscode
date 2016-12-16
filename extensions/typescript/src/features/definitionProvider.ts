@@ -12,15 +12,17 @@ import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptDefinitionProvider implements DefinitionProvider {
 
+	private definitionType: 'definition' | 'implementation';
 	private client: ITypescriptServiceClient;
 
 	public tokens: string[] = [];
 
-	constructor(client: ITypescriptServiceClient) {
+	constructor(definitionType: 'definition' | 'implementation', client: ITypescriptServiceClient) {
+		this.definitionType = definitionType;
 		this.client = client;
 	}
 
-	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken): Promise<Definition | null> {
+	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | null> {
 		const filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve(null);
@@ -33,8 +35,8 @@ export default class TypeScriptDefinitionProvider implements DefinitionProvider 
 		if (!args.file) {
 			return Promise.resolve(null);
 		}
-		return this.client.execute('definition', args, token).then(response => {
-			let locations: Proto.FileSpan[] = response.body || [];
+		return this.client.execute(this.definitionType, args, token).then(response => {
+			let locations: Proto.FileSpan[] = (response && response.body) || [];
 			if (!locations || locations.length === 0) {
 				return [] as Definition;
 			}
@@ -47,7 +49,7 @@ export default class TypeScriptDefinitionProvider implements DefinitionProvider 
 				}
 			}).filter(x => x !== null) as Location[];
 		}, (error) => {
-			this.client.error(`'definition' request failed with error.`, error);
+			this.client.error(`'${this.definitionType}' request failed with error.`, error);
 			return [] as Definition;
 		});
 	}
