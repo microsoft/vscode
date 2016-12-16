@@ -203,6 +203,14 @@ let properties: { [path: string]: IJSONSchema; } = {
 	}
 };
 
+if (platform.isWindows) {
+	properties['window.autoDetectHighContrast'] = {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme.")
+	}
+}
+
 if (platform.isMacintosh) {
 	properties['window.titleBarStyle'] = {
 		'type': 'string',
