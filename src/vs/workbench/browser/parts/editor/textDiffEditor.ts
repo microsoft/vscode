@@ -37,6 +37,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -64,6 +65,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService, textFileService);
@@ -226,6 +228,14 @@ export class TextDiffEditor extends BaseTextEditor {
 				ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 			} else {
 				ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
+			}
+
+			const model = this.editorGroupService.getStacksModel();
+			if (model.groups.length > 1) {
+				const group = model.groupAt(this.position);
+				if (group) {
+					ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
+				}
 			}
 
 			options.ariaLabel = ariaLabel;

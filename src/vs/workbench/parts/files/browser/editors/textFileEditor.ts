@@ -31,6 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 /**
  * An implementation of editor for file system resources.
@@ -52,6 +53,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService, textFileService);
@@ -212,7 +214,23 @@ export class TextFileEditor extends BaseTextEditor {
 
 		const input = this.getInput();
 		const inputName = input && input.getName();
-		options.ariaLabel = inputName ? nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName) : nls.localize('fileEditorAriaLabel', "Text file editor.");
+
+		let ariaLabel: string;
+		if (inputName) {
+			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
+		} else {
+			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
+		}
+
+		const model = this.editorGroupService.getStacksModel();
+		if (model.groups.length > 1) {
+			const group = model.groupAt(this.position);
+			if (group) {
+				ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
+			}
+		}
+
+		options.ariaLabel = ariaLabel;
 
 		return options;
 	}
