@@ -48,6 +48,7 @@ export interface IPreferencesEditorModel {
 export interface ISettingsEditorModel extends IPreferencesEditorModel {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
+	getSetting(key: string): ISetting;
 	filterSettings(filter: string): IFilterResult;
 }
 
@@ -59,14 +60,15 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
+	defaultSettingsResource: URI;
+	defaultKeybindingsResource: URI;
+
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 
 	openGlobalSettings(): TPromise<void>;
 	openWorkspaceSettings(): TPromise<void>;
 	openGlobalKeybindingSettings(): TPromise<void>;
-
-	updateSetting(setting: ISetting, value: any): void;
 }
 
 export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);

@@ -334,7 +334,7 @@ export class SettingsCountWidget extends Widget implements IOverlayWidget {
 	}
 }
 
-export class CopyPreferenceWidget<T> extends Widget implements IOverlayWidget {
+export class EditPreferenceWidget<T> extends Widget implements IOverlayWidget {
 
 	private static counter: number = 1;
 
@@ -354,7 +354,7 @@ export class CopyPreferenceWidget<T> extends Widget implements IOverlayWidget {
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super();
-		this._id = 'preferences.copyPreferenceWidget' + CopyPreferenceWidget.counter++;
+		this._id = 'preferences.editPreferenceWidget' + EditPreferenceWidget.counter++;
 		this.editor.addOverlayWidget(this);
 		this._register(this.editor.onDidScrollChange(() => {
 			if (this._visible) {
@@ -377,7 +377,7 @@ export class CopyPreferenceWidget<T> extends Widget implements IOverlayWidget {
 			this._domNode = document.createElement('div');
 			this._domNode.style.width = '20px';
 			this._domNode.style.height = '20px';
-			this._domNode.className = 'copy-preferences-widget hidden';
+			this._domNode.className = 'edit-preferences-widget hidden';
 			this.onclick(this._domNode, e => this._onClick.fire());
 			this.onmouseover(this._domNode, e => this._onMouseOver.fire());
 		}

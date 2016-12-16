@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { asFileEditorInput, SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -23,14 +23,12 @@ import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/c
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IPreferencesEditorModel, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IPreferencesEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
 
@@ -44,17 +42,12 @@ interface IWorkbenchSettingsConfiguration {
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	static DEFAULT_SETTINGS_URI: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
-	static DEFAULT_KEY_BINDINGS_URI: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-
 	_serviceBrand: any;
 
 	// TODO:@sandy merge these models into editor inputs by extending resource editor model
 	private defaultPreferencesEditorModels: Map<URI, IPreferencesEditorModel>;
 	private defaultSettingsEditorInputForUser: DefaultPreferencesEditorInput;
 	private defaultSettingsEditorInputForWorkspace: DefaultPreferencesEditorInput;
-
-	private copyRangeHighlighter: RangeHighlightDecorations;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -74,8 +67,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	) {
 		super();
 		this.defaultPreferencesEditorModels = new Map<URI, IPreferencesEditorModel>();
-		this.copyRangeHighlighter = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
+
+	readonly defaultSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
+	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
 		const editorModel = this.defaultPreferencesEditorModels.get(uri);
@@ -83,7 +78,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return TPromise.as(editorModel);
 		}
 
-		if (PreferencesService.DEFAULT_SETTINGS_URI.fsPath === uri.fsPath) {
+		if (this.defaultSettingsResource.fsPath === uri.fsPath) {
 			return TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
@@ -93,7 +88,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				});
 		}
 
-		if (PreferencesService.DEFAULT_KEY_BINDINGS_URI.fsPath === uri.fsPath) {
+		if (this.defaultKeybindingsResource.fsPath === uri.fsPath) {
 			const model = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
 			this.defaultPreferencesEditorModels.set(uri, model);
 			return TPromise.wrap(model);
@@ -138,7 +133,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	openGlobalKeybindingSettings(): TPromise<void> {
 		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		return this.createDefaultPreferencesEditorModel(PreferencesService.DEFAULT_KEY_BINDINGS_URI)
+		return this.createDefaultPreferencesEditorModel(this.defaultKeybindingsResource)
 			.then(editorModel => {
 				const defaultKeybindingsInput = this.instantiationService.createInstance(StringEditorInput, nls.localize('keybindingsEditorName', "Default Keyboard Shortcuts"), '', editorModel.content, 'json', true);
 				this.openTwoEditors(defaultKeybindingsInput, URI.file(this.environmentService.appKeybindingsPath), emptyContents);
@@ -152,31 +147,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			resource: settingsResource,
 			options: { pinned: true }
 		}));
-	}
-
-	public updateSetting(setting: ISetting, value: any): void {
-		const configurationTarget = this.getConfigurationTargetForCurrentActiveEditor();
-		if (configurationTarget !== null) {
-			this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [setting.key] });
-			this.configurationEditingService.writeConfiguration(configurationTarget, { key: setting.key, value }, { writeToBuffer: true, autoSave: true })
-				.then(() => this.onSettingUpdated(setting, configurationTarget), error => this.messageService.show(Severity.Error, error));
-		}
-	}
-
-	private onSettingUpdated(setting: ISetting, configurationTarget: ConfigurationTarget) {
-		const editorControl = <ICodeEditor>this.editorService.getActiveEditor().getControl();
-		editorControl.focus();
-		this.resolvePreferencesEditorModel(this.getEditableSettingsURI(configurationTarget))
-			.then(editorModel => {
-				const settingsEditorModel: SettingsEditorModel = <SettingsEditorModel>editorModel;
-				setting = settingsEditorModel.getSetting(setting.key);
-				editorControl.setSelection(setting.valueRange);
-				this.copyRangeHighlighter.highlightRange({
-					resource: editorModel.uri,
-					range: setting.range,
-					isWholeLine: false
-				}, editorControl);
-			});
 	}
 
 	private resolveSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
@@ -246,12 +216,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 				if (!this.defaultSettingsEditorInputForUser) {
-					this.defaultSettingsEditorInputForUser = this._register(this.instantiationService.createInstance(DefaultPreferencesEditorInput, PreferencesService.DEFAULT_SETTINGS_URI));
+					this.defaultSettingsEditorInputForUser = this._register(this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.defaultSettingsResource));
 				}
 				return this.defaultSettingsEditorInputForUser;
 			case ConfigurationTarget.WORKSPACE:
 				if (!this.defaultSettingsEditorInputForWorkspace) {
-					this.defaultSettingsEditorInputForWorkspace = this._register(this.instantiationService.createInstance(DefaultPreferencesEditorInput, PreferencesService.DEFAULT_SETTINGS_URI));
+					this.defaultSettingsEditorInputForWorkspace = this._register(this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.defaultSettingsResource));
 				}
 				return this.defaultSettingsEditorInputForWorkspace;
 		}
@@ -277,28 +247,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 			return TPromise.wrapError(error);
 		});
-	}
-
-	private getConfigurationTargetForCurrentActiveEditor(): ConfigurationTarget {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			const editorInput = asFileEditorInput(activeEditor.input, true);
-			if (editorInput) {
-				return this.getConfigurationTarget(editorInput.getResource());
-			}
-		}
-		return null;
-	}
-
-	private getConfigurationTarget(resource: URI): ConfigurationTarget {
-		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === resource.fsPath) {
-			return ConfigurationTarget.USER;
-		}
-		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
-		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === resource.fsPath) {
-			return ConfigurationTarget.WORKSPACE;
-		}
-		return null;
 	}
 
 	private fetchMostCommonlyUsedSettings(): TPromise<string[]> {
