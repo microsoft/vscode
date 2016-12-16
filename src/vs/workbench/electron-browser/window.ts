@@ -26,7 +26,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -258,15 +258,21 @@ export class ElectronWindow {
 
 		// High Contrast Events
 		ipc.on('vscode:enterHighContrast', (event) => {
-			this.partService.joinCreation().then(() => {
-				this.themeService.setColorTheme(VS_HC_THEME, false);
-			});
+			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			if (windowConfig && windowConfig.autoDetectHighContrast) {
+				this.partService.joinCreation().then(() => {
+					this.themeService.setColorTheme(VS_HC_THEME, false);
+				});
+			}
 		});
 
 		ipc.on('vscode:leaveHighContrast', (event) => {
-			this.partService.joinCreation().then(() => {
-				this.themeService.setColorTheme(VS_DARK_THEME, false);
-			});
+			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			if (windowConfig && windowConfig.autoDetectHighContrast) {
+				this.partService.joinCreation().then(() => {
+					this.themeService.setColorTheme(VS_DARK_THEME, false);
+				});
+			}
 		});
 
 		// Configuration changes
