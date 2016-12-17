@@ -297,28 +297,25 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	protected _getNewProcessCwd(workspace: IWorkspace): string {
+	protected _getNewProcessCwd(workspace: IWorkspace, ignoreCustomStartPath: boolean): string {
 		let cwd;
 
 		// TODO: Handle non-existent customCwd
-		// Evaluate custom cwd first
-		const customCwd = this._configHelper.getCustomStartPath();
-		if (customCwd) {
-			if (path.isAbsolute(customCwd)) {
-				cwd = customCwd;
-			} else if (workspace) {
-				cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+		if (!ignoreCustomStartPath) {
+			// Evaluate custom cwd first
+			const customCwd = this._configHelper.getCustomStartPath();
+			if (customCwd) {
+				if (path.isAbsolute(customCwd)) {
+					cwd = customCwd;
+				} else if (workspace) {
+					cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+				}
 			}
 		}
 
 		// If there was no custom cwd or it was relative with no workspace
 		if (!cwd) {
-			if (workspace) {
-				cwd = workspace.resource.fsPath;
-			}
-			if (!cwd) {
-				cwd = os.homedir();
-			}
+			cwd = workspace ? workspace.resource.fsPath : os.homedir();
 		}
 
 		return TerminalInstance._sanitizeCwd(cwd);
@@ -329,7 +326,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getNewProcessCwd(workspace), locale);
+		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getNewProcessCwd(workspace, shell.ignoreCustomStartPath), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,

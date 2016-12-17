@@ -78,6 +78,8 @@ export interface ITerminalFont {
 export interface IShell {
 	executable: string;
 	args: string[];
+	/** Whether to ignore a custom start path (if the shell is being launched by an extension) */
+	ignoreCustomStartPath?: boolean;
 }
 
 export interface ITerminalService {
@@ -92,7 +94,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(name?: string, shellPath?: string, shellArgs?: string[]): ITerminalInstance;
+	createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomStartPath?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
