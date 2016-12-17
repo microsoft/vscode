@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch } from '../search';
 import * as baseMime from 'vs/base/common/mime';
 import { ILineMatch } from 'vs/platform/search/common/search';
-import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode } from 'vs/base/node/encoding';
+import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode, bomLength } from 'vs/base/node/encoding';
 import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 
 import { ISearchWorker, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
@@ -65,6 +65,9 @@ interface IFileSearchResult {
 	numMatches: number;
 	limitReached?: boolean;
 }
+
+const LF = 0x0a;
+const CR = 0x0d;
 
 export class SearchWorkerEngine {
 	private nextSearch = TPromise.wrap(null);
@@ -205,7 +208,7 @@ export class SearchWorkerEngine {
 
 						// Detect encoding and mime when this is the beginning of the file
 						if (isFirstRead) {
-							let mimeAndEncoding = detectMimeAndEncodingFromBuffer(buffer, bytesRead);
+							const mimeAndEncoding = detectMimeAndEncodingFromBuffer(buffer, bytesRead);
 							if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
 								return clb(null); // skip files that seem binary
 							}
@@ -213,23 +216,34 @@ export class SearchWorkerEngine {
 							// Check for BOM offset
 							switch (mimeAndEncoding.encoding) {
 								case UTF8:
-									pos = i = 3;
+									pos = i = bomLength(UTF8);
 									options.encoding = UTF8;
 									break;
 								case UTF16be:
-									pos = i = 2;
+									pos = i = bomLength(UTF16be);
 									options.encoding = UTF16be;
 									break;
 								case UTF16le:
-									pos = i = 2;
+									pos = i = bomLength(UTF16le);
 									options.encoding = UTF16le;
 									break;
 							}
 						}
 
+						// when we are running with UTF16le, LF and CR are encoded as
+						// 0A 00 (LF) and 0D 00 (CR). the zero bytes are at the end
+						// due to little endianess. since we want to split our buffer
+						// into lines, we need to skip over the 00 bytes after LF and CR
+						// so UTF16-LE gets a multiplier of 2, otherwise we would include
+						// bad 00 bytes in our resulting buffer.
+						let byteOffsetMultiplier = 1;
+						if (options.encoding === UTF16le) {
+							byteOffsetMultiplier = 2;
+						}
+
 						if (lastBufferHadTraillingCR) {
-							if (buffer[i] === 0x0a) { // LF (Line Feed)
-								lineFinished(1);
+							if (buffer[i] === LF) {
+								lineFinished(1 * byteOffsetMultiplier);
 								i++;
 							} else {
 								lineFinished(0);
@@ -239,16 +253,16 @@ export class SearchWorkerEngine {
 						}
 
 						for (; i < bytesRead; ++i) {
-							if (buffer[i] === 0x0a) { // LF (Line Feed)
-								lineFinished(1);
-							} else if (buffer[i] === 0x0d) { // CR (Carriage Return)
+							if (buffer[i] === LF) {
+								lineFinished(1 * byteOffsetMultiplier);
+							} else if (buffer[i] === CR) { // CR (Carriage Return)
 								if (i + 1 === bytesRead) {
 									lastBufferHadTraillingCR = true;
-								} else if (buffer[i + 1] === 0x0a) { // LF (Line Feed)
-									lineFinished(2);
+								} else if (buffer[i + 1] === LF) {
+									lineFinished(2 * byteOffsetMultiplier);
 									i++;
 								} else {
-									lineFinished(1);
+									lineFinished(1 * byteOffsetMultiplier);
 								}
 							}
 						}
@@ -339,7 +353,7 @@ export class LineMatch implements ILineMatch {
 	}
 
 	serialize(): ILineMatch {
-		let result = {
+		const result = {
 			preview: this.preview,
 			lineNumber: this.lineNumber,
 			offsetAndLengths: this.offsetAndLengths
