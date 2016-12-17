@@ -31,7 +31,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 	}
 
 	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): TPromise<number> {
-		return TPromise.as(this.terminalService.createInstance(name, shellPath, shellArgs).id);
+		return TPromise.as(this.terminalService.createInstance(name, shellPath, shellArgs, true).id);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {

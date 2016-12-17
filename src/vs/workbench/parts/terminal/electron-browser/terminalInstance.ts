@@ -297,12 +297,36 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
+	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
+		let cwd;
+
+		// TODO: Handle non-existent customCwd
+		if (!ignoreCustomCwd) {
+			// Evaluate custom cwd first
+			const customCwd = this._configHelper.getCwd();
+			if (customCwd) {
+				if (path.isAbsolute(customCwd)) {
+					cwd = customCwd;
+				} else if (workspace) {
+					cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+				}
+			}
+		}
+
+		// If there was no custom cwd or it was relative with no workspace
+		if (!cwd) {
+			cwd = workspace ? workspace.resource.fsPath : os.homedir();
+		}
+
+		return TerminalInstance._sanitizeCwd(cwd);
+	}
+
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
 		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
+		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -342,7 +366,9 @@ export class TerminalInstance implements ITerminalInstance {
 		}, TerminalInstance.LAUNCHING_DURATION);
 	}
 
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
+	// TODO: This should be private/protected
+	// TODO: locale should not be optional
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, cwd: string, locale?: string): IStringDictionary<string> {
 		let env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
@@ -351,7 +377,7 @@ export class TerminalInstance implements ITerminalInstance {
 				env[`PTYSHELLARG${i}`] = arg;
 			});
 		}
-		env['PTYCWD'] = TerminalInstance._sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
+		env['PTYCWD'] = cwd;
 		if (locale) {
 			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		}
