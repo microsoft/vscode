@@ -93,40 +93,45 @@ suite('Workbench - TerminalInstance', () => {
 			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null, null, null);
 		});
 
+		// This helper checks the paths in a cross-platform friendly manner
+		function assertPathsMatch(a: string, b: string): void {
+			assert.equal(Uri.file(a).fsPath, Uri.file(b).fsPath);
+		}
+
 		test('should default to os.homedir() for an empty workspace', () => {
-			assert.equal(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd(null, false), os.homedir());
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assert.equal(instance._getCwd({ resource: Uri.file('/foo') }, false), '/foo');
+			assertPathsMatch(instance._getCwd({ resource: Uri.file('/foo') }, false), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
 			configHelper.getCwd = () => '/foo';
-			assert.equal(instance._getCwd(null, false), '/foo');
+			assertPathsMatch(instance._getCwd(null, false), '/foo');
 		});
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
 			configHelper.getCwd = () => 'foo';
-			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
 			configHelper.getCwd = () => './foo';
-			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
 			configHelper.getCwd = () => '../foo';
-			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, false), '/foo');
+			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, false), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
 			configHelper.getCwd = () => 'foo';
-			assert.equal(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd(null, false), os.homedir());
 			configHelper.getCwd = () => './foo';
-			assert.equal(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd(null, false), os.homedir());
 			configHelper.getCwd = () => '../foo';
-			assert.equal(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd(null, false), os.homedir());
 		});
 
 		test('should ignore custom cwd when told to ignore', () => {
 			configHelper.getCwd = () => '/foo';
-			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, true), '/bar');
+			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, true), '/bar');
 		});
 	});
 });
