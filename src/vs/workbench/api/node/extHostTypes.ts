@@ -830,7 +830,8 @@ export enum CompletionItemKind {
 	Snippet = 14,
 	Color = 15,
 	File = 16,
-	Reference = 17
+	Reference = 17,
+	Folder = 18
 }
 
 export class CompletionItem {

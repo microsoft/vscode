@@ -146,6 +146,7 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.reference { background-image: url('Enumerator_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.snippet { background-image: url('Snippet_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.customcolor { background-image: none; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.folder { background-image: url('Folder_16x.svg'); }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.customcolor .colorspan {
 	margin: 0 0 0 0.3em;
@@ -253,6 +254,7 @@
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.reference { background-image: url('Enumerator_inverse_16x.svg'); }
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.snippet { background-image: url('Snippet_inverse_16x.svg'); }
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.customcolor { background-image: none; }
+.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.folder { background-image: url('Folder_inverse_16x.svg'); }
 
 /* High Contrast Theming */
 .monaco-editor.hc-black .suggest-widget {
