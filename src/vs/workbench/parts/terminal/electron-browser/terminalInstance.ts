@@ -297,13 +297,13 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	protected _getNewProcessCwd(workspace: IWorkspace, ignoreCustomStartPath: boolean): string {
+	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
 		let cwd;
 
 		// TODO: Handle non-existent customCwd
-		if (!ignoreCustomStartPath) {
+		if (!ignoreCustomCwd) {
 			// Evaluate custom cwd first
-			const customCwd = this._configHelper.getCustomStartPath();
+			const customCwd = this._configHelper.getCwd();
 			if (customCwd) {
 				if (path.isAbsolute(customCwd)) {
 					cwd = customCwd;
@@ -326,7 +326,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getNewProcessCwd(workspace, shell.ignoreCustomStartPath), locale);
+		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,

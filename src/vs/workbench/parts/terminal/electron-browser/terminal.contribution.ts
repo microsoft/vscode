@@ -106,8 +106,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': platform.isMacintosh
 		},
-		'terminal.integrated.customStartPath': {
-			'description': nls.localize('terminal.integrated.customStartPath', "If set, all terminals will start at this path."),
+		'terminal.integrated.cwd': {
+			'description': nls.localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
 			'type': 'string',
 			'default': undefined
 		},

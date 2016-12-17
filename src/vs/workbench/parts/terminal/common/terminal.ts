@@ -52,7 +52,7 @@ export interface ITerminalConfiguration {
 			setLocaleVariables: boolean,
 			scrollback: number,
 			commandsToSkipShell: string[],
-			customStartPath: string
+			cwd: string
 		}
 	};
 }
@@ -64,7 +64,7 @@ export interface ITerminalConfigHelper {
 	getCursorBlink(): boolean;
 	getCommandsToSkipShell(): string[];
 	getScrollback(): number;
-	getCustomStartPath(): string;
+	getCwd(): string;
 }
 
 export interface ITerminalFont {
@@ -78,8 +78,8 @@ export interface ITerminalFont {
 export interface IShell {
 	executable: string;
 	args: string[];
-	/** Whether to ignore a custom start path (if the shell is being launched by an extension) */
-	ignoreCustomStartPath?: boolean;
+	/** Whether to ignore a custom cwd (if the shell is being launched by an extension) */
+	ignoreCustomCwd?: boolean;
 }
 
 export interface ITerminalService {
@@ -94,7 +94,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomStartPath?: boolean): ITerminalInstance;
+	createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomCwd?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
