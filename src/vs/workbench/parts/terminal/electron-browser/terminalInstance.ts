@@ -297,7 +297,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private _getNewProcessCwd(workspace: IWorkspace): string {
+	protected _getNewProcessCwd(workspace: IWorkspace): string {
 		let cwd;
 
 		// TODO: Handle non-existent customCwd
@@ -324,7 +324,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	private _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
 		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
