@@ -696,7 +696,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(c, 2);
+			assert.equal(c, 3);
 			done();
 		});
 	});
@@ -717,7 +717,7 @@ suite('Search', () => {
 			}
 		}, (result) => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(c, 748);
+			assert.equal(c, 776);
 			done();
 		});
 	});
@@ -739,7 +739,7 @@ suite('Search', () => {
 			}
 		}, (result) => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(c, 366);
+			assert.equal(c, 394);
 			done();
 		});
 	});
