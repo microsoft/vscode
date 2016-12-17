@@ -17,8 +17,9 @@ import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -66,7 +67,8 @@ export class TerminalInstance implements ITerminalInstance {
 		shell: IShell,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService
+		@IMessageService private _messageService: IMessageService,
+		@IPanelService private _panelService: IPanelService
 	) {
 		this._toDispose = [];
 		this._skipTerminalCommands = [];
@@ -172,12 +174,14 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 
 		this._wrapperElement.appendChild(this._xtermElement);
@@ -284,7 +288,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _refreshSelectionContextKey() {
-		this._terminalHasTextContextKey.set(!window.getSelection().isCollapsed);
+		const activePanel = this._panelService.getActivePanel();
+		const isFocused = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		this._terminalHasTextContextKey.set(isFocused && !window.getSelection().isCollapsed);
 	}
 
 	private _sanitizeInput(data: any) {
