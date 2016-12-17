@@ -20,8 +20,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class TestTerminalInstance extends TerminalInstance {
-	public _getNewProcessCwd(workspace: IWorkspace, ignoreCustomStartPath: boolean): string {
-		return super._getNewProcessCwd(workspace, ignoreCustomStartPath);
+	public _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
+		return super._getCwd(workspace, ignoreCustomCwd);
 	}
 
 	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell): void { }
@@ -74,10 +74,10 @@ suite('Workbench - TerminalInstance', () => {
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
 	});
 
-	suite('_getNewProcessCwd', () => {
+	suite('_getCwd', () => {
 		let instance: TestTerminalInstance;
 		let instantiationService: TestInstantiationService;
-		let configHelper: { getCustomStartPath: () => string };
+		let configHelper: { getCwd: () => string };
 
 		setup(() => {
 			let contextKeyService = new MockKeybindingService();
@@ -88,45 +88,45 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			configHelper = {
-				getCustomStartPath: () => null
+				getCwd: () => null
 			};
 			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null, null, null);
 		});
 
 		test('should default to os.homedir() for an empty workspace', () => {
-			assert.equal(instance._getNewProcessCwd(null, false), os.homedir());
+			assert.equal(instance._getCwd(null, false), os.homedir());
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assert.equal(instance._getNewProcessCwd({ resource: Uri.file('/foo') }, false), '/foo');
+			assert.equal(instance._getCwd({ resource: Uri.file('/foo') }, false), '/foo');
 		});
 
-		test('should use an absolute custom start path as is', () => {
-			configHelper.getCustomStartPath = () => '/foo';
-			assert.equal(instance._getNewProcessCwd(null, false), '/foo');
+		test('should use an absolute custom cwd as is', () => {
+			configHelper.getCwd = () => '/foo';
+			assert.equal(instance._getCwd(null, false), '/foo');
 		});
 
-		test('should normalize a relative custom start path against the workspace path', () => {
-			configHelper.getCustomStartPath = () => 'foo';
-			assert.equal(instance._getNewProcessCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
-			configHelper.getCustomStartPath = () => './foo';
-			assert.equal(instance._getNewProcessCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
-			configHelper.getCustomStartPath = () => '../foo';
-			assert.equal(instance._getNewProcessCwd({ resource: Uri.file('/bar') }, false), '/foo');
+		test('should normalize a relative custom cwd against the workspace path', () => {
+			configHelper.getCwd = () => 'foo';
+			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
+			configHelper.getCwd = () => './foo';
+			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
+			configHelper.getCwd = () => '../foo';
+			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, false), '/foo');
 		});
 
-		test('should fall back for relative custom start paths that don\'t have a workspace', () => {
-			configHelper.getCustomStartPath = () => 'foo';
-			assert.equal(instance._getNewProcessCwd(null, false), os.homedir());
-			configHelper.getCustomStartPath = () => './foo';
-			assert.equal(instance._getNewProcessCwd(null, false), os.homedir());
-			configHelper.getCustomStartPath = () => '../foo';
-			assert.equal(instance._getNewProcessCwd(null, false), os.homedir());
+		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
+			configHelper.getCwd = () => 'foo';
+			assert.equal(instance._getCwd(null, false), os.homedir());
+			configHelper.getCwd = () => './foo';
+			assert.equal(instance._getCwd(null, false), os.homedir());
+			configHelper.getCwd = () => '../foo';
+			assert.equal(instance._getCwd(null, false), os.homedir());
 		});
 
-		test('should ignore custom start path when arg exists', () => {
-			configHelper.getCustomStartPath = () => '/foo';
-			assert.equal(instance._getNewProcessCwd({ resource: Uri.file('/bar') }, true), '/bar');
+		test('should ignore custom cwd when told to ignore', () => {
+			configHelper.getCwd = () => '/foo';
+			assert.equal(instance._getCwd({ resource: Uri.file('/bar') }, true), '/bar');
 		});
 	});
 });

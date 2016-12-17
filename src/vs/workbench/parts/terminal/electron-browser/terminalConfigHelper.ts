@@ -170,9 +170,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return config.terminal.integrated.setLocaleVariables;
 	}
 
-	public getCustomStartPath(): string {
+	public getCwd(): string {
 		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.customStartPath;
+		return config.terminal.integrated.cwd;
 	}
 
 	private _toInteger(source: any, minimum?: number): number {
