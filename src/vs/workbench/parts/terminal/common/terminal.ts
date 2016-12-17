@@ -51,7 +51,8 @@ export interface ITerminalConfiguration {
 			lineHeight: number,
 			setLocaleVariables: boolean,
 			scrollback: number,
-			commandsToSkipShell: string[]
+			commandsToSkipShell: string[],
+			customStartPath: string
 		}
 	};
 }
@@ -63,6 +64,7 @@ export interface ITerminalConfigHelper {
 	getCursorBlink(): boolean;
 	getCommandsToSkipShell(): string[];
 	getScrollback(): number;
+	getCustomStartPath(): string;
 }
 
 export interface ITerminalFont {

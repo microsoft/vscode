@@ -302,7 +302,8 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
+		const customCwd = this._configHelper.getCustomStartPath();
+		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, customCwd, locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -342,7 +343,9 @@ export class TerminalInstance implements ITerminalInstance {
 		}, TerminalInstance.LAUNCHING_DURATION);
 	}
 
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
+	// TODO: This should be private/protected
+	// TODO: locale should not be optional
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, customCwd: string, locale?: string): IStringDictionary<string> {
 		let env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
@@ -351,7 +354,8 @@ export class TerminalInstance implements ITerminalInstance {
 				env[`PTYSHELLARG${i}`] = arg;
 			});
 		}
-		env['PTYCWD'] = TerminalInstance._sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
+		// TODO: Handle non-existant customCwd
+		env['PTYCWD'] = customCwd ? customCwd : TerminalInstance._sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
 		if (locale) {
 			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		}

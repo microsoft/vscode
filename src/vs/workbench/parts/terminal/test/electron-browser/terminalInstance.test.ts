@@ -31,7 +31,7 @@ suite('Workbench - TerminalInstance', () => {
 		const parentEnv1: IStringDictionary<string> = <any>{
 			ok: true
 		};
-		const env1 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, null, 'en-au');
+		const env1 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, null, null, 'en-au');
 		assert.ok(env1['ok'], 'Parent environment is copied');
 		assert.deepStrictEqual(parentEnv1, { ok: true }, 'Parent environment is unchanged');
 		assert.equal(env1['PTYPID'], process.pid.toString(), 'PTYPID is equal to the current PID');
@@ -54,15 +54,15 @@ suite('Workbench - TerminalInstance', () => {
 				fsPath: '/my/dev/folder'
 			}
 		};
-		const env2 = TerminalInstance.createTerminalEnv(parentEnv2, shell2, workspace2, 'en-au');
+		const env2 = TerminalInstance.createTerminalEnv(parentEnv2, shell2, workspace2, null, 'en-au');
 		assert.ok(!('PTYSHELLARG0' in env2), 'PTYSHELLARG0 is unset');
 		assert.equal(env2['PTYCWD'], '/my/dev/folder', 'PTYCWD is equal to the workspace folder');
 		assert.equal(env2['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
-		const env3 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, null, null);
+		const env3 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, null, null, null);
 		assert.ok(!('LANG' in env3), 'LANG is unset');
 
-		const env4 = TerminalInstance.createTerminalEnv(parentEnv2, shell1, null, null);
+		const env4 = TerminalInstance.createTerminalEnv(parentEnv2, shell1, null, null, null);
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
 	});
 });
