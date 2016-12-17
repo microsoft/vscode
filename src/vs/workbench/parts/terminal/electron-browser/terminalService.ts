@@ -67,7 +67,7 @@ export class TerminalService implements ITerminalService {
 			executable: shellPath,
 			args: shellArgs
 		};
-		let terminalInstance = <TerminalInstance>this._instantiationService.createInstance(TerminalInstance,
+		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
