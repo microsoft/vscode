@@ -13,7 +13,7 @@ import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
 import { EditorInput, IEditorStacksModel, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { LocalFileChangeEvent, ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangeType, FileChangesEvent, EventType as CommonFileEventType } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -36,6 +36,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IFileService private fileService: IFileService
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
@@ -53,7 +54,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 
 		// Update editors from disk changes
-		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);

@@ -134,7 +134,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
-	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
+	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
 	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.getWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it

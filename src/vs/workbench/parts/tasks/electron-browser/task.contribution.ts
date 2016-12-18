@@ -30,13 +30,12 @@ import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -611,7 +610,6 @@ class TaskService extends EventEmitter implements ITaskService {
 	private editorService: IWorkbenchEditorService;
 	private contextService: IWorkspaceContextService;
 	private textFileService: ITextFileService;
-	private eventService: IEventService;
 	private modelService: IModelService;
 	private extensionService: IExtensionService;
 	private quickOpenService: IQuickOpenService;
@@ -629,7 +627,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IMessageService messageService: IMessageService, @IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService: ITextFileService,
-		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -646,7 +644,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.contextService = contextService;
 		this.telemetryService = telemetryService;
 		this.textFileService = textFileService;
-		this.eventService = eventService;
 		this.modelService = modelService;
 		this.extensionService = extensionService;
 		this.quickOpenService = quickOpenService;
@@ -841,7 +838,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (executeResult.kind === TaskExecuteKind.Started) {
 							if (executeResult.started.restartOnFileChanges) {
 								let pattern = executeResult.started.restartOnFileChanges;
-								this.fileChangesListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+								this.fileChangesListener = this.fileService.onFileChanges(event => {
 									let needsRestart = event.changes.some((change) => {
 										return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
 									});

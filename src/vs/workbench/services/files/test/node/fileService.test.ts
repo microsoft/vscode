@@ -12,7 +12,7 @@ import assert = require('assert');
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
-import { EventType, FileChangesEvent, FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { nfcall } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
@@ -22,7 +22,6 @@ import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
 
 suite('FileService', () => {
-	let events: utils.TestEventService;
 	let service: FileService;
 	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
@@ -37,15 +36,13 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			events = new utils.TestEventService();
-			service = new FileService(testDir, { disableWatcher: true }, events);
+			service = new FileService(testDir, { disableWatcher: true });
 			done();
 		});
 	});
 
 	teardown((done) => {
 		service.dispose();
-		events.dispose();
 		extfs.del(parentDir, os.tmpdir(), () => { }, done);
 	});
 
@@ -469,7 +466,7 @@ suite('FileService', () => {
 
 		service.watchFileChanges(toWatch);
 
-		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		service.onFileChanges((e: FileChangesEvent) => {
 			assert.ok(e);
 
 			service.unwatchFileChanges(toWatch);
@@ -486,7 +483,7 @@ suite('FileService', () => {
 
 		service.watchFileChanges(toWatch);
 
-		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		service.onFileChanges((e: FileChangesEvent) => {
 			assert.ok(e);
 
 			service.unwatchFileChanges(toWatch);
@@ -521,7 +518,7 @@ suite('FileService', () => {
 				encoding: 'windows1252',
 				encodingOverride: encodingOverride,
 				disableWatcher: true
-			}, null);
+			});
 
 			_service.resolveContent(uri.file(path.join(testDir, 'index.html'))).done(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -547,7 +544,7 @@ suite('FileService', () => {
 
 		let _service = new FileService(_testDir, {
 			disableWatcher: true
-		}, null);
+		});
 
 		extfs.copy(_sourceDir, _testDir, () => {
 			fs.readFile(resource.fsPath, (error, data) => {

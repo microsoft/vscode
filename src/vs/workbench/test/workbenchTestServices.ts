@@ -34,7 +34,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -178,7 +178,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHistoryService, {});
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-	instantiationService.stub(IFileService, TestFileService);
+	instantiationService.stub(IFileService, new TestFileService());
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
@@ -505,8 +505,41 @@ export class TestEditorService implements IWorkbenchEditorService {
 	}
 }
 
-export const TestFileService = {
-	resolveContent: function (resource) {
+export class TestFileService implements IFileService {
+
+	public _serviceBrand: any;
+
+	private _onFileChanges: Emitter<FileChangesEvent>;
+
+	constructor() {
+		this._onFileChanges = new Emitter<FileChangesEvent>();
+	}
+
+	public get onFileChanges(): Event<FileChangesEvent> {
+		return this._onFileChanges.event;
+	}
+
+	public fireFileChanges(event: FileChangesEvent): void {
+		this._onFileChanges.fire(event);
+	}
+
+	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat> {
+		return TPromise.as({
+			resource,
+			etag: Date.now().toString(),
+			encoding: 'utf8',
+			mtime: Date.now(),
+			isDirectory: false,
+			hasChildren: false,
+			name: paths.basename(resource.fsPath)
+		});
+	}
+
+	existsFile(resource: URI): TPromise<boolean> {
+		return TPromise.as(null);
+	}
+
+	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
 		return TPromise.as({
 			resource: resource,
 			value: 'Hello Html',
@@ -515,19 +548,9 @@ export const TestFileService = {
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
-	},
+	}
 
-	resolveFile: function (resource) {
-		return TPromise.as({
-			resource: resource,
-			etag: Date.now(),
-			encoding: 'utf8',
-			mtime: Date.now(),
-			name: paths.basename(resource.fsPath)
-		});
-	},
-
-	resolveStreamContent: function (resource) {
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
 		return TPromise.as({
 			resource: resource,
 			value: {
@@ -545,32 +568,76 @@ export const TestFileService = {
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
-	},
+	}
 
-	updateContent: function (res) {
+	resolveContents(resources: URI[]): TPromise<IContent[]> {
+		return TPromise.as(null);
+	}
+
+	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return TPromise.timeout(1).then(() => {
 			return {
-				resource: res,
+				resource,
 				etag: 'index.txt',
 				encoding: 'utf8',
 				mtime: Date.now(),
-				name: paths.basename(res.fsPath)
+				isDirectory: false,
+				hasChildren: false,
+				name: paths.basename(resource.fsPath)
 			};
 		});
-	},
-
-	backupFile: function (resource: URI, content: string) {
-		return TPromise.as(void 0);
-	},
-
-	discardBackup: function (resource: URI) {
-		return TPromise.as(void 0);
-	},
-
-	discardBackups: function () {
-		return TPromise.as(void 0);
 	}
-};
+
+	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+		return TPromise.as(null);
+	}
+
+	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+		return TPromise.as(null);
+	}
+
+	createFile(resource: URI, content?: string): TPromise<IFileStat> {
+		return TPromise.as(null);
+	}
+
+	createFolder(resource: URI): TPromise<IFileStat> {
+		return TPromise.as(null);
+	}
+
+	rename(resource: URI, newName: string): TPromise<IFileStat> {
+		return TPromise.as(null);
+	}
+
+	touchFile(resource: URI): TPromise<IFileStat> {
+		return TPromise.as(null);
+	}
+
+	del(resource: URI, useTrash?: boolean): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	importFile(source: URI, targetFolder: URI): TPromise<IImportResult> {
+		return TPromise.as(null);
+	}
+
+	watchFileChanges(resource: URI): void {
+	}
+
+	unwatchFileChanges(resource: URI): void;
+	unwatchFileChanges(fsPath: string): void;
+	unwatchFileChanges(arg1: any): void {
+	}
+
+	updateOptions(options: any): void {
+	}
+
+	getEncoding(resource: URI): string {
+		return 'utf8';
+	}
+
+	dispose(): void {
+	}
+}
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;

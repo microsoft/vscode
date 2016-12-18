@@ -9,10 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
-import { EventType } from 'vs/platform/files/common/files';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
+import { FileChangesEvent } from 'vs/platform/files/common/files';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -23,7 +22,7 @@ export class FileWatcher {
 	constructor(
 		private basePath: string,
 		private ignored: string[],
-		private eventEmitter: IEventService,
+		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean
 	) {
@@ -80,7 +79,7 @@ export class FileWatcher {
 
 		// Emit through broadcast service
 		if (events.length > 0) {
-			this.eventEmitter.emit(EventType.FILE_CHANGES, toFileChangesEvent(events));
+			this.onFileChanges(toFileChangesEvent(events));
 		}
 	}
 }

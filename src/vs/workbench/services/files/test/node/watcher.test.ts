@@ -8,17 +8,20 @@
 import assert = require('assert');
 
 import platform = require('vs/base/common/platform');
-import { FileChangeType, EventType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
-import utils = require('vs/workbench/services/files/test/node/utils');
 import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/services/files/node/watcher/common';
-import { IEventService } from 'vs/platform/event/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 
 class TestFileWatcher {
-	private eventEmitter: IEventService;
+	private _onFileChanges: Emitter<FileChangesEvent>;
 
-	constructor(events: IEventService) {
-		this.eventEmitter = events;
+	constructor() {
+		this._onFileChanges = new Emitter<FileChangesEvent>();
+	}
+
+	public get onFileChanges(): Event<FileChangesEvent> {
+		return this._onFileChanges.event;
 	}
 
 	public report(changes: IRawFileChange[]): void {
@@ -32,7 +35,7 @@ class TestFileWatcher {
 
 		// Emit through broadcast service
 		if (normalizedEvents.length > 0) {
-			this.eventEmitter.emit(EventType.FILE_CHANGES, toFileChangesEvent(normalizedEvents));
+			this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
 		}
 	}
 }
@@ -46,8 +49,7 @@ enum Path {
 suite('Watcher', () => {
 
 	test('watching - simple add/update/delete', function (done: () => void) {
-		var events = new utils.TestEventService();
-		var watch = new TestFileWatcher(events);
+		var watch = new TestFileWatcher();
 
 		var added = uri.file('/users/data/src/added.txt');
 		var updated = uri.file('/users/data/src/updated.txt');
@@ -59,7 +61,7 @@ suite('Watcher', () => {
 			{ path: deleted.fsPath, type: FileChangeType.DELETED },
 		];
 
-		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		watch.onFileChanges(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 3);
 			assert.ok(e.contains(added, FileChangeType.ADDED));
@@ -75,8 +77,7 @@ suite('Watcher', () => {
 	let pathSpecs = platform.isWindows ? [Path.WINDOWS, Path.UNC] : [Path.UNIX];
 	pathSpecs.forEach((p) => {
 		test('watching - delete only reported for top level folder (' + p + ')', function (done: () => void) {
-			var events = new utils.TestEventService();
-			var watch = new TestFileWatcher(events);
+			var watch = new TestFileWatcher();
 
 			var deletedFolderA = uri.file(p === Path.UNIX ? '/users/data/src/todelete1' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
 			var deletedFolderB = uri.file(p === Path.UNIX ? '/users/data/src/todelete2' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2' : '\\\\localhost\\users\\data\\src\\todelete2');
@@ -99,7 +100,7 @@ suite('Watcher', () => {
 				{ path: updatedFile.fsPath, type: FileChangeType.UPDATED }
 			];
 
-			events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+			watch.onFileChanges(e => {
 				assert.ok(e);
 				assert.equal(e.changes.length, 5);
 
@@ -117,8 +118,7 @@ suite('Watcher', () => {
 	});
 
 	test('watching - event normalization: ignore CREATE followed by DELETE', function (done: () => void) {
-		var events = new utils.TestEventService();
-		var watch = new TestFileWatcher(events);
+		var watch = new TestFileWatcher();
 
 		var created = uri.file('/users/data/src/related');
 		var deleted = uri.file('/users/data/src/related');
@@ -130,7 +130,7 @@ suite('Watcher', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		watch.onFileChanges(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 1);
 
@@ -143,8 +143,7 @@ suite('Watcher', () => {
 	});
 
 	test('watching - event normalization: flatten DELETE followed by CREATE into CHANGE', function (done: () => void) {
-		var events = new utils.TestEventService();
-		var watch = new TestFileWatcher(events);
+		var watch = new TestFileWatcher();
 
 		var deleted = uri.file('/users/data/src/related');
 		var created = uri.file('/users/data/src/related');
@@ -156,7 +155,7 @@ suite('Watcher', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		watch.onFileChanges(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 2);
 
@@ -170,8 +169,7 @@ suite('Watcher', () => {
 	});
 
 	test('watching - event normalization: ignore UPDATE when CREATE received', function (done: () => void) {
-		var events = new utils.TestEventService();
-		var watch = new TestFileWatcher(events);
+		var watch = new TestFileWatcher();
 
 		var created = uri.file('/users/data/src/related');
 		var updated = uri.file('/users/data/src/related');
@@ -183,7 +181,7 @@ suite('Watcher', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		watch.onFileChanges(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 2);
 
@@ -198,8 +196,7 @@ suite('Watcher', () => {
 	});
 
 	test('watching - event normalization: apply DELETE', function (done: () => void) {
-		var events = new utils.TestEventService();
-		var watch = new TestFileWatcher(events);
+		var watch = new TestFileWatcher();
 
 		var updated = uri.file('/users/data/src/related');
 		var updated2 = uri.file('/users/data/src/related');
@@ -213,7 +210,7 @@ suite('Watcher', () => {
 			{ path: updated.fsPath, type: FileChangeType.DELETED }
 		];
 
-		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		watch.onFileChanges(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 2);
 

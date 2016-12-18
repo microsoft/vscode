@@ -14,7 +14,7 @@ import { ModelState, ITextFileEditorModel, LocalFileChangeEvent, ITextFileEditor
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, EventType as CommonFileEventType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
@@ -47,7 +47,8 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IFileService private fileService: IFileService
 	) {
 		this.toUnbind = [];
 
@@ -84,7 +85,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 		// File changes
 		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
