@@ -138,6 +138,22 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return terminalConfig.cursorBlinking;
 	}
 
+	public getRightClickAction(): string {
+		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const integrated = config && config.terminal && config.terminal.integrated;
+		let rightClickAction: string = '';
+
+		if (this._platform === Platform.Windows) {
+			rightClickAction = integrated.rightClickAction.windows;
+		} else if (this._platform === Platform.Mac) {
+			rightClickAction = integrated.rightClickAction.osx;
+		} else if (this._platform === Platform.Linux) {
+			rightClickAction = integrated.rightClickAction.linux;
+		}
+
+		return rightClickAction;
+	}
+
 	public getShell(): IShell {
 		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		let shell: IShell = {

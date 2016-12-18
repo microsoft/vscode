@@ -44,6 +44,11 @@ export interface ITerminalConfiguration {
 				osx: string[],
 				windows: string[]
 			},
+			rightClickAction: {
+				linux: string,
+				osx: string,
+				windows: string
+			},
 			cursorBlinking: boolean,
 			fontFamily: string,
 			fontLigatures: boolean,
@@ -62,6 +67,7 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	getFontLigaturesEnabled(): boolean;
 	getCursorBlink(): boolean;
+	getRightClickAction(): string;
 	getCommandsToSkipShell(): string[];
 	getScrollback(): number;
 	getCwd(): string;
@@ -147,9 +153,19 @@ export interface ITerminalInstance {
 	dispose(): void;
 
 	/**
+	 * Check if anything is selected in terminal.
+	 */
+	hasSelection(): boolean;
+
+	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
 	copySelection(): void;
+
+	/**
+	 * Clear current selection.
+	 */
+	clearSelection(): void;
 
 	/**
 	 * Focuses the terminal instance.
