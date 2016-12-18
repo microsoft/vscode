@@ -656,8 +656,10 @@ export class VSCodeWindow implements IVSCodeWindow {
 	}
 
 	public setMenuBarVisibility(visible: boolean): void {
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
 		this.win.setMenuBarVisibility(visible);
-		this.win.setAutoHideMenuBar(!visible);
+		this.win.setAutoHideMenuBar(windowConfig && windowConfig.autoHideMenuBar ? !visible : false);
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {
