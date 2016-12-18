@@ -46,6 +46,12 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': []
 		},
+		'terminal.integrated.rightClickAction.linux': {
+			'description': nls.localize('terminal.integrated.shell.rightClickAction.linux', "Defines action on right mouse click on Linux terminal."),
+			'type': 'string',
+			enum: ['copyPaste', 'contextMenu'],
+			'default': 'contextMenu'
+		},
 		'terminal.integrated.shell.osx': {
 			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
 			'type': 'string',
@@ -59,6 +65,12 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': []
 		},
+		'terminal.integrated.rightClickAction.osx': {
+			'description': nls.localize('terminal.integrated.shell.rightClickAction.osx', "Defines action on right mouse click on the OS X terminal."),
+			'type': 'string',
+			enum: ['copyPaste', 'contextMenu'],
+			'default': 'contextMenu'
+		},
 		'terminal.integrated.shell.windows': {
 			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu), prefer C:\\Windows\\sysnative over C:\\Windows\\System32 to use the 64-bit versions."),
 			'type': 'string',
@@ -71,6 +83,12 @@ configurationRegistry.registerConfiguration({
 				'type': 'string'
 			},
 			'default': []
+		},
+		'terminal.integrated.rightClickAction.windows': {
+			'description': nls.localize('terminal.integrated.shell.rightClickAction.windows', "Defines action on right mouse click on the Windows terminal."),
+			'type': 'string',
+			enum: ['copyPaste', 'contextMenu'],
+			'default': 'copyPaste'
 		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),

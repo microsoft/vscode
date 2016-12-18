@@ -165,6 +165,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 					},
 					shellArgs: {
 						linux: []
+					},
+					rightClickAction: {
+						linux: 'contextMenu'
 					}
 				}
 			}
@@ -181,6 +184,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 					},
 					shellArgs: {
 						osx: []
+					},
+					rightClickAction: {
+						osx: 'contextMenu'
 					}
 				}
 			}
@@ -197,6 +203,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 					},
 					shellArgs: {
 						windows: []
+					},
+					rightClickAction: {
+						windows: 'copyPaste'
 					}
 				}
 			}
