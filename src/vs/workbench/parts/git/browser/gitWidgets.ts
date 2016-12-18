@@ -129,22 +129,22 @@ export class GitStatusbarItem implements IStatusbarItem {
 		} else {
 			const HEAD = state.HEAD;
 
+			title = nls.localize('branchName', "Branch name");
+			textContent = state.ps1;
+
 			if (state.isBusy) {
 				className += ' busy';
 			} else {
 				onclick = () => this.onBranchClick();
 			}
 
-			if (!HEAD) {
-				textContent = state.ps1;
-			} else if (!HEAD.name) {
-				textContent = state.ps1;
-				className += ' headless';
-			} else if (!HEAD.commit || !HEAD.upstream || (!HEAD.ahead && !HEAD.behind)) {
-				textContent = state.ps1;
-			} else {
-				textContent = state.ps1;
-				aheadBehindLabel = strings.format('{0}↓ {1}↑', HEAD.behind, HEAD.ahead);
+			if (HEAD) {
+				if (!HEAD.name) {
+					className += ' headless';
+				}
+				if (HEAD.commit && HEAD.upstream && (HEAD.ahead || HEAD.behind)) {
+					aheadBehindLabel = strings.format('{0}↓ {1}↑', HEAD.behind, HEAD.ahead);
+				}
 			}
 		}
 
