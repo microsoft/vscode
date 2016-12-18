@@ -200,6 +200,11 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'boolean',
 		'default': false,
 		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
+	},
+	'window.autoHideMenuBar': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('autoHideMenuBar', "If set to false, the menu bar will no longer be shown when pressing the alt key (linux / windows only)")
 	}
 };
 

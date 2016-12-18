@@ -1144,13 +1144,16 @@ export class WindowsManager implements IWindowsMainService {
 		// Update in settings
 		const menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
 		const newMenuBarHidden = !menuBarHidden;
+
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
 		this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
 
 		// Update across windows
 		WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
 
 		// Inform user if menu bar is now hidden
-		if (newMenuBarHidden) {
+		if (newMenuBarHidden && windowConfig && windowConfig.autoHideMenuBar) {
 			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
