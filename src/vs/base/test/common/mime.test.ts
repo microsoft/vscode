@@ -9,7 +9,7 @@ import { guessMimeTypes, registerTextMime } from 'vs/base/common/mime';
 
 suite('Mime', () => {
 	test('Dynamically Register Text Mime', () => {
-		var guess = guessMimeTypes('foo.monaco');
+		let guess = guessMimeTypes('foo.monaco');
 		assert.deepEqual(guess, ['application/unknown']);
 
 		registerTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
@@ -48,7 +48,7 @@ suite('Mime', () => {
 		registerTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
 		registerTextMime({ id: 'foobar', mime: 'text/foobar', firstline: /foobar/ });
 
-		var guess = guessMimeTypes('foo.monaco');
+		let guess = guessMimeTypes('foo.monaco');
 		assert.deepEqual(guess, ['text/monaco', 'text/plain']);
 
 		guess = guessMimeTypes('foo.monaco', 'foobar');
@@ -81,7 +81,7 @@ suite('Mime', () => {
 		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml' });
 		registerTextMime({ id: 'monaco', extension: '.monaco.xml.build', mime: 'text/monaco-xml-build' });
 
-		var guess = guessMimeTypes('foo.monaco');
+		let guess = guessMimeTypes('foo.monaco');
 		assert.deepEqual(guess, ['text/monaco', 'text/plain']);
 
 		guess = guessMimeTypes('foo.monaco.xml');
@@ -95,7 +95,7 @@ suite('Mime', () => {
 		registerTextMime({ id: 'monaco', extension: '.monaco.xnl', mime: 'text/monaco', userConfigured: true });
 		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml' });
 
-		var guess = guessMimeTypes('foo.monaco.xnl');
+		let guess = guessMimeTypes('foo.monaco.xnl');
 		assert.deepEqual(guess, ['text/monaco', 'text/plain']);
 	});
 
@@ -103,7 +103,7 @@ suite('Mime', () => {
 		registerTextMime({ id: 'monaco', filepattern: '**/dot.monaco.xml', mime: 'text/monaco' });
 		registerTextMime({ id: 'other', filepattern: '*ot.other.xml', mime: 'text/other' });
 
-		var guess = guessMimeTypes('/some/path/dot.monaco.xml');
+		let guess = guessMimeTypes('/some/path/dot.monaco.xml');
 		assert.deepEqual(guess, ['text/monaco', 'text/plain']);
 	});
 });

@@ -134,7 +134,7 @@ suite('CacheState', () => {
 		const second = createCacheState(cache, first);
 		second.load();
 		const secondKey = cache.cacheKeys[1];
-		var origErrorHandler = errors.errorHandler.getUnexpectedErrorHandler();
+		const origErrorHandler = errors.errorHandler.getUnexpectedErrorHandler();
 		try {
 			errors.setUnexpectedErrorHandler(() => null);
 			cache.loading[secondKey].error('loading failed');

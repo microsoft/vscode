@@ -14,7 +14,7 @@ suite('Collections', () => {
 		assert(collections.contains({ toString: 123 }, 'toString'));
 		assert(!collections.contains(Object.create(null), 'toString'));
 
-		var dict = Object.create(null);
+		let dict = Object.create(null);
 		dict['toString'] = 123;
 		assert(collections.contains(dict, 'toString'));
 	});
@@ -23,12 +23,12 @@ suite('Collections', () => {
 		collections.forEach({}, () => assert(false));
 		collections.forEach(Object.create(null), () => assert(false));
 
-		var count = 0;
+		let count = 0;
 		collections.forEach({ toString: 123 }, () => count++);
 		assert.equal(count, 1);
 
 		count = 0;
-		var dict = Object.create(null);
+		let dict = Object.create(null);
 		dict['toString'] = 123;
 		collections.forEach(dict, () => count++);
 		assert.equal(count, 1);
