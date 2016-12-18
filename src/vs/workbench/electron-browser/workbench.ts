@@ -43,7 +43,7 @@ import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -94,7 +94,6 @@ export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
-	workspace?: IWorkspace;
 	options: IOptions;
 	serviceCollection: ServiceCollection;
 }
@@ -185,7 +184,6 @@ export class Workbench implements IPartService {
 	constructor(
 		parent: HTMLElement,
 		container: HTMLElement,
-		workspace: IWorkspace,
 		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -203,7 +201,6 @@ export class Workbench implements IPartService {
 		this.container = container;
 
 		this.workbenchParams = {
-			workspace: workspace,
 			options,
 			serviceCollection
 		};
@@ -388,7 +385,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
-		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
+		else if (!this.contextService.getWorkspace() && this.telemetryService.getExperiments().openUntitledFile) {
 			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
@@ -919,7 +916,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Apply no-workspace state as CSS class
-		if (!this.workbenchParams.workspace) {
+		if (!this.contextService.getWorkspace()) {
 			this.workbench.addClass('no-workspace');
 		}
 

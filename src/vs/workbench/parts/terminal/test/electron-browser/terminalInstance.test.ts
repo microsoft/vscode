@@ -10,11 +10,11 @@ import * as os from 'os';
 import Uri from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestMessageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestMessageService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { MockKeybindingService, MockKeybindingService2 } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -85,6 +85,7 @@ suite('Workbench - TerminalInstance', () => {
 			let terminalFocusContextKey = contextKeyService.createKey('test', false);
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMessageService, new TestMessageService());
+			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			configHelper = {
