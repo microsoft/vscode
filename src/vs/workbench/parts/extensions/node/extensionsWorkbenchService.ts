@@ -678,7 +678,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		if (extension.gallery && this.installing.some(e => e.extension.gallery.id === extension.gallery.id)) {
+		if (extension.gallery && this.installing.some(e => e.extension.gallery && e.extension.gallery.id === extension.gallery.id)) {
 			return ExtensionState.Installing;
 		}
 
