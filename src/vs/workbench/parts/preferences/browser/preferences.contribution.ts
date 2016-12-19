@@ -68,7 +68,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsActi
 }), 'Preferences: Open User Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), 'Preferences: Open Workspace Settings', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(StartSearchDefaultSettingsAction, StartSearchDefaultSettingsAction.ID, StartSearchDefaultSettingsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }, ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR)), 'Preferences: Focus Default Settings Search', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(StartSearchDefaultSettingsAction, StartSearchDefaultSettingsAction.ID, '', { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }, ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR)), '');
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
