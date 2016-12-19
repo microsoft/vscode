@@ -324,7 +324,8 @@ export class CallStackController extends BaseDebugController {
 					options: {
 						preserveFocus,
 						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
-						revealIfVisible: true
+						revealIfVisible: true,
+						revealInCenterIfOutsideViewport: true
 					},
 				}, sideBySide);
 			}
@@ -1367,7 +1368,8 @@ export class BreakpointsController extends BaseDebugController {
 			options: {
 				preserveFocus,
 				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
-				revealIfVisible: true
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}

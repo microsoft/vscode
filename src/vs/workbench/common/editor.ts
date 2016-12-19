@@ -596,6 +596,7 @@ export class TextEditorOptions extends EditorOptions {
 	protected endLineNumber: number;
 	protected endColumn: number;
 
+	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState;
 	private editorOptions: ICodeEditorOptions;
 
@@ -629,6 +630,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.inactive) {
 				options.inactive = true;
+			}
+
+			if (input.options.revealInCenterIfOutsideViewport) {
+				options.revealInCenterIfOutsideViewport = true;
 			}
 
 			if (typeof input.options.index === 'number') {
@@ -737,7 +742,11 @@ export class TextEditorOptions extends EditorOptions {
 					endColumn: this.endColumn
 				};
 				editor.setSelection(range);
-				editor.revealRangeInCenter(range);
+				if (this.revealInCenterIfOutsideViewport) {
+					editor.revealRangeInCenterIfOutsideViewport(range);
+				} else {
+					editor.revealRangeInCenter(range);
+				}
 			}
 
 			// Reveal
@@ -747,7 +756,11 @@ export class TextEditorOptions extends EditorOptions {
 					column: this.startColumn
 				};
 				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos);
+				if (this.revealInCenterIfOutsideViewport) {
+					editor.revealPositionInCenterIfOutsideViewport(pos);
+				} else {
+					editor.revealPositionInCenter(pos);
+				}
 			}
 
 			gotApplied = true;

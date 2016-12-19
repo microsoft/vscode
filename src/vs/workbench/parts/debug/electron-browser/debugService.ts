@@ -278,7 +278,8 @@ export class DebugService implements debug.IDebugService {
 								resource: stackFrameToFocus.source.uri,
 								options: {
 									selection: { startLineNumber: stackFrameToFocus.lineNumber, startColumn: 1 },
-									revealIfVisible: true
+									revealIfVisible: true,
+									revealInCenterIfOutsideViewport: true
 								}
 							});
 						} else {
