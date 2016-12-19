@@ -2350,7 +2350,8 @@ declare module 'vscode' {
 		Snippet = 14,
 		Color = 15,
 		File = 16,
-		Reference = 17
+		Reference = 17,
+		Folder = 18
 	}
 
 	/**
