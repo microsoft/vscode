@@ -61,6 +61,7 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.enum:
 				return CompletionItemKind.Enum;
 			case PConst.Kind.module:
+			case PConst.Kind.externalModuleName:
 				return CompletionItemKind.Module;
 			case PConst.Kind.class:
 				return CompletionItemKind.Class;
