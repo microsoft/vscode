@@ -237,7 +237,7 @@ export class WindowsManager implements IWindowsMainService {
 			}
 
 			// 2-N windows open: Keep a list of windows that are opened on a specific folder to restore it in the next session as needed
-			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isPluginDevelopmentHost).map(w => {
+			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isExtensionDevelopmentHost).map(w => {
 				return <IWindowState>{
 					workspacePath: w.openedWorkspacePath,
 					uiState: w.serializeWindowState()
@@ -456,7 +456,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isPluginDevelopmentHost) && !openConfig.cli.diff) {
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
 			const recentPaths: { path: string; isFile?: boolean; }[] = [];
 
 			iPathsToOpen.forEach(iPath => {
@@ -727,6 +727,7 @@ export class WindowsManager implements IWindowsMainService {
 			vscodeWindow = new VSCodeWindow({
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
+				isExtensionTestHost: !!configuration.extensionTestsPath,
 				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
 				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			},
@@ -1090,8 +1091,10 @@ export class WindowsManager implements IWindowsMainService {
 
 		// On Window close, update our stored state of this window
 		const state: IWindowState = { workspacePath: win.openedWorkspacePath, uiState: win.serializeWindowState() };
-		if (win.isPluginDevelopmentHost) {
-			this.windowsState.lastPluginDevelopmentHostWindow = state;
+		if (win.isExtensionDevelopmentHost) {
+			if (!win.isExtensionTestHost) {
+				this.windowsState.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
+			}
 		} else {
 			this.windowsState.lastActiveWindow = state;
 
@@ -1225,7 +1228,7 @@ export class WindowsManager implements IWindowsMainService {
 		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		const vscodeWindow = this.getFocusedWindow();
-		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && this.getWindowCount() > 1) {
+		if (vscodeWindow && vscodeWindow.isExtensionDevelopmentHost && this.getWindowCount() > 1) {
 			vscodeWindow.win.close();
 		}
 
