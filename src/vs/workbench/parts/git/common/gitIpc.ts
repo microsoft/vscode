@@ -82,7 +82,7 @@ export interface IGitChannel extends IChannel {
 	call(command: 'reset', args: [string, boolean]): TPromise<IPCRawStatus>;
 	call(command: 'revertFiles', args: [string, string[]]): TPromise<IPCRawStatus>;
 	call(command: 'fetch'): TPromise<IPCRawStatus>;
-	call(command: 'pull', rebase?: boolean): TPromise<IPCRawStatus>;
+	call(command: 'pull', args: [boolean, string, string]): TPromise<IPCRawStatus>;
 	call(command: 'push', args: [string, string, IPushOptions]): TPromise<IPCRawStatus>;
 	call(command: 'sync'): TPromise<IPCRawStatus>;
 	call(command: 'commit', args: [string, boolean, boolean, boolean]): TPromise<IPCRawStatus>;
@@ -115,7 +115,7 @@ export class GitChannel implements IGitChannel {
 			case 'reset': return this.service.then(s => s.reset(args[0], args[1])).then(RawStatusSerializer.to);
 			case 'revertFiles': return this.service.then(s => s.revertFiles(args[0], args[1])).then(RawStatusSerializer.to);
 			case 'fetch': return this.service.then(s => s.fetch()).then(RawStatusSerializer.to);
-			case 'pull': return this.service.then(s => s.pull(args)).then(RawStatusSerializer.to);
+			case 'pull': return this.service.then(s => s.pull(args[0], args[1], args[2])).then(RawStatusSerializer.to);
 			case 'push': return this.service.then(s => s.push(args[0], args[1], args[2])).then(RawStatusSerializer.to);
 			case 'sync': return this.service.then(s => s.sync()).then(RawStatusSerializer.to);
 			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2], args[3])).then(RawStatusSerializer.to);
@@ -202,8 +202,8 @@ export class GitChannelClient implements IRawGitService {
 		return this.channel.call('fetch').then(RawStatusSerializer.from);
 	}
 
-	pull(rebase?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('pull', rebase).then(RawStatusSerializer.from);
+	pull(rebase?: boolean, remote?: string, branch?: string): TPromise<IRawStatus> {
+		return this.channel.call('pull', [rebase, remote, branch]).then(RawStatusSerializer.from);
 	}
 
 	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IRawStatus> {

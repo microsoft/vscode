@@ -138,8 +138,8 @@ export class RawGitService implements IRawGitService {
 		}).then(() => this.status());
 	}
 
-	pull(rebase?: boolean): TPromise<IRawStatus> {
-		return this.repo.pull(rebase).then(() => this.status());
+	pull(rebase?: boolean, remote?: string, branch?: string): TPromise<IRawStatus> {
+		return this.repo.pull(rebase, remote, branch).then(() => this.status());
 	}
 
 	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IRawStatus> {

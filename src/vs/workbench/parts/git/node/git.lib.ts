@@ -520,9 +520,10 @@ export class Repository {
 		});
 	}
 
-	pull(rebase?: boolean): Promise {
+	pull(rebase?: boolean, remote?: string, branch?: string): Promise {
 		const args = ['pull'];
 		if (rebase) { args.push('-r'); }
+		if (remote && branch) { args.push(remote, branch); }
 
 		return this.run(args).then(null, (err: GitError) => {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout)) {
