@@ -15,6 +15,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
 
@@ -262,7 +263,7 @@ suite('Workbench BaseEditor', () => {
 	});
 
 	test('Editor Input Factory', function () {
-		EditorRegistry.setInstantiationService(new TestInstantiationService());
+		EditorRegistry.setInstantiationService(workbenchInstantiationService());
 		EditorRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
 		let factory = EditorRegistry.getEditorInputFactory('myInputId');
