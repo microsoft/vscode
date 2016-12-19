@@ -230,7 +230,6 @@ export class DefaultSettingsHeaderWidget extends Widget {
 
 	public clear() {
 		this.inputBox.value = '';
-		this._onDidChange.fire();
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
