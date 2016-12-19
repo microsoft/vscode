@@ -41,7 +41,6 @@ export class FileService implements IFileService {
 	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
 
 	private _onFileChanges: Emitter<FileChangesEvent>;
-	private _onBeforeOperation: Emitter<FileOperationEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	constructor(
@@ -59,9 +58,6 @@ export class FileService implements IFileService {
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toUnbind.push(this._onFileChanges);
-
-		this._onBeforeOperation = new Emitter<FileOperationEvent>();
-		this.toUnbind.push(this._onBeforeOperation);
 
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 		this.toUnbind.push(this._onAfterOperation);
@@ -101,10 +97,6 @@ export class FileService implements IFileService {
 		return this._onFileChanges.event;
 	}
 
-	public get onBeforeOperation(): Event<FileOperationEvent> {
-		return this._onBeforeOperation.event;
-	}
-
 	public get onAfterOperation(): Event<FileOperationEvent> {
 		return this._onAfterOperation.event;
 	}
@@ -137,7 +129,6 @@ export class FileService implements IFileService {
 
 		// File events
 		this.toUnbind.push(this.raw.onFileChanges(e => this._onFileChanges.fire(e)));
-		this.toUnbind.push(this.raw.onBeforeOperation(e => this._onBeforeOperation.fire(e)));
 		this.toUnbind.push(this.raw.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		// Config changes
@@ -249,8 +240,6 @@ export class FileService implements IFileService {
 		if (!workspace) {
 			return TPromise.wrapError<void>('Need a workspace to use this');
 		}
-
-		this._onBeforeOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 
 		const absolutePath = resource.fsPath;
 		const result = shell.moveItemToTrash(absolutePath);

@@ -80,7 +80,6 @@ export class FileService implements IFileService {
 	private options: IFileServiceOptions;
 
 	private _onFileChanges: Emitter<FileChangesEvent>;
-	private _onBeforeOperation: Emitter<FileOperationEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	private toDispose: IDisposable[];
@@ -111,9 +110,6 @@ export class FileService implements IFileService {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
 
-		this._onBeforeOperation = new Emitter<FileOperationEvent>();
-		this.toDispose.push(this._onBeforeOperation);
-
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 		this.toDispose.push(this._onAfterOperation);
 
@@ -136,10 +132,6 @@ export class FileService implements IFileService {
 
 	public get onFileChanges(): Event<FileChangesEvent> {
 		return this._onFileChanges.event;
-	}
-
-	public get onBeforeOperation(): Event<FileOperationEvent> {
-		return this._onBeforeOperation.event;
 	}
 
 	public get onAfterOperation(): Event<FileOperationEvent> {
@@ -324,9 +316,6 @@ export class FileService implements IFileService {
 
 	public createFile(resource: uri, content: string = ''): TPromise<IFileStat> {
 
-		// Events
-		this._onBeforeOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE));
-
 		// Create file
 		return this.updateContent(resource, content).then(result => {
 
@@ -338,9 +327,6 @@ export class FileService implements IFileService {
 	}
 
 	public createFolder(resource: uri): TPromise<IFileStat> {
-
-		// Events
-		this._onBeforeOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE));
 
 		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
@@ -399,9 +385,6 @@ export class FileService implements IFileService {
 	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): TPromise<IFileStat> {
 		const sourcePath = this.toAbsolutePath(source);
 		const targetPath = this.toAbsolutePath(target);
-
-		// Events
-		this._onBeforeOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE));
 
 		// 1.) move / copy
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
@@ -464,9 +447,6 @@ export class FileService implements IFileService {
 		const targetResource = uri.file(paths.join(targetFolder.fsPath, paths.basename(source.fsPath)));
 		const targetPath = this.toAbsolutePath(targetResource);
 
-		// Events
-		this._onBeforeOperation.fire(new FileOperationEvent(source, FileOperation.IMPORT));
-
 		// 1.) resolve
 		return pfs.stat(sourcePath).then(stat => {
 			if (stat.isDirectory()) {
@@ -489,11 +469,11 @@ export class FileService implements IFileService {
 	}
 
 	public del(resource: uri): TPromise<void> {
-		this._onBeforeOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
-
 		const absolutePath = this.toAbsolutePath(resource);
 
 		return nfcall(extfs.del, absolutePath, this.tmpPath).then(() => {
+
+			// Events
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 		});
 	}

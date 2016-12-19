@@ -25,11 +25,6 @@ export interface IFileService {
 	onFileChanges: Event<FileChangesEvent>;
 
 	/**
-	 * An event that is fired when a certain file operation is about to begin.
-	 */
-	onBeforeOperation: Event<FileOperationEvent>;
-
-	/**
 	 * An event that is fired upon successful completion of a certain file operation.
 	 */
 	onAfterOperation: Event<FileOperationEvent>;

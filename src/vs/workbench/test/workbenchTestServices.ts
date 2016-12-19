@@ -504,12 +504,10 @@ export class TestFileService implements IFileService {
 	public _serviceBrand: any;
 
 	private _onFileChanges: Emitter<FileChangesEvent>;
-	private _onBeforeOperation: Emitter<FileOperationEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
-		this._onBeforeOperation = new Emitter<FileOperationEvent>();
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 	}
 
@@ -519,14 +517,6 @@ export class TestFileService implements IFileService {
 
 	public fireFileChanges(event: FileChangesEvent): void {
 		this._onFileChanges.fire(event);
-	}
-
-	public get onBeforeOperation(): Event<FileOperationEvent> {
-		return this._onBeforeOperation.event;
-	}
-
-	public fireBeforeOperation(event: FileOperationEvent): void {
-		this._onBeforeOperation.fire(event);
 	}
 
 	public get onAfterOperation(): Event<FileOperationEvent> {
