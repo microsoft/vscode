@@ -296,3 +296,4 @@
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.reference { background-image: url('Enumerator_inverse_16x.svg'); }
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.snippet { background-image: url('Snippet_inverse_16x.svg'); }
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.customcolor { background-image: none; }
+.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.folder { background-image: url('Folder_inverse_16x.svg'); }
