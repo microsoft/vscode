@@ -15,9 +15,8 @@ import { ArrayIterator } from 'vs/base/common/iterator';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
-import { LinkedMap as Map } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/platform';
-import { EditorOptions, EditorInput, asFileEditorInput } from 'vs/workbench/common/editor';
+import { EditorOptions, asFileEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -104,11 +103,8 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public static ID: string = 'workbench.editor.defaultPreferences';
-	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
 
-	private inputDisposeListener;
 	private defaultSettingHeaderWidget: DefaultSettingsHeaderWidget;
-
 	private delayedFilterLogging: Delayer<void>;
 
 	constructor(
@@ -161,9 +157,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions): TPromise<void> {
-		this.listenToInput(input);
-		return super.setInput(input, options)
-			.then(() => this.updateInput());
+		return super.setInput(input, options).then(() => this.updateInput());
 	}
 
 	public layout(dimension: Dimension) {
@@ -205,42 +199,11 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public clearInput(): void {
 		this.getControl().setModel(null);
-		this.saveState(<DefaultPreferencesEditorInput>this.input);
-		if (this.inputDisposeListener) {
-			this.inputDisposeListener.dispose();
-		}
 		super.clearInput();
 	}
 
 	private getDefaultPreferencesContribution(): PreferencesEditorContribution {
 		return (<CodeEditor>this.getControl()).getContribution<PreferencesEditorContribution>(DefaultSettingsEditorContribution.ID);
-	}
-
-	protected restoreViewState(input: EditorInput) {
-		const viewState = DefaultPreferencesEditor.VIEW_STATE.get((<DefaultPreferencesEditorInput>input).getResource());
-		if (viewState) {
-			this.getControl().restoreViewState(viewState);
-		}
-	}
-
-	private saveState(input: DefaultPreferencesEditorInput) {
-		const state = this.getControl().saveViewState();
-		if (state) {
-			const resource = input.getResource();
-			if (DefaultPreferencesEditor.VIEW_STATE.has(resource)) {
-				DefaultPreferencesEditor.VIEW_STATE.delete(resource);
-			}
-			DefaultPreferencesEditor.VIEW_STATE.set(resource, state);
-		}
-	}
-
-	private listenToInput(input: EditorInput) {
-		if (this.inputDisposeListener) {
-			this.inputDisposeListener.dispose();
-		}
-		if (input instanceof DefaultPreferencesEditorInput) {
-			this.inputDisposeListener = (<DefaultPreferencesEditorInput>input).willDispose(() => this.saveState(<DefaultPreferencesEditorInput>input));
-		}
 	}
 
 	private reportFilteringUsed(filter: string): void {
