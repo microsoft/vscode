@@ -12,10 +12,9 @@ import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
-import { IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -24,6 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import Event, { Emitter } from 'vs/base/common/event';
 
 import { shell } from 'electron';
 
@@ -40,9 +40,11 @@ export class FileService implements IFileService {
 	private toUnbind: IDisposable[];
 	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
 
+	private _onFileChanges: Emitter<FileChangesEvent>;
+	private _onAfterOperation: Emitter<FileOperationEvent>;
+
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -53,6 +55,12 @@ export class FileService implements IFileService {
 	) {
 		this.toUnbind = [];
 		this.activeOutOfWorkspaceWatchers = Object.create(null);
+
+		this._onFileChanges = new Emitter<FileChangesEvent>();
+		this.toUnbind.push(this._onFileChanges);
+
+		this._onAfterOperation = new Emitter<FileOperationEvent>();
+		this.toUnbind.push(this._onAfterOperation);
 
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
@@ -79,10 +87,18 @@ export class FileService implements IFileService {
 
 		// create service
 		const workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService);
+		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();
+	}
+
+	public get onFileChanges(): Event<FileChangesEvent> {
+		return this._onFileChanges.event;
+	}
+
+	public get onAfterOperation(): Event<FileOperationEvent> {
+		return this._onAfterOperation.event;
 	}
 
 	private onFileServiceError(msg: any): void {
@@ -110,6 +126,10 @@ export class FileService implements IFileService {
 	}
 
 	private registerListeners(): void {
+
+		// File events
+		this.toUnbind.push(this.raw.onFileChanges(e => this._onFileChanges.fire(e)));
+		this.toUnbind.push(this.raw.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		// Config changes
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
@@ -222,11 +242,12 @@ export class FileService implements IFileService {
 		}
 
 		const absolutePath = resource.fsPath;
-
 		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
 			return TPromise.wrapError<void>(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}
+
+		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 
 		return TPromise.as(null);
 	}

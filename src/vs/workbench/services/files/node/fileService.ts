@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IBaseStat, IUpdateContentOptions, FileChangeType, EventType, IImportResult, MAX_FILE_SIZE } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IBaseStat, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent } from 'vs/platform/files/common/files';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import baseMime = require('vs/base/common/mime');
@@ -24,6 +24,7 @@ import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import { isWindows } from 'vs/base/common/platform';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
@@ -32,7 +33,7 @@ import flow = require('vs/base/node/flow');
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
-import { IEventService } from 'vs/platform/event/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -63,7 +64,7 @@ function etag(arg1: any, arg2?: any): string {
 		mtime = (<fs.Stats>arg1).mtime.getTime();
 	}
 
-	return '"' + crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex') + '"';
+	return `"${crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex')}"`;
 }
 
 export class FileService implements IFileService {
@@ -78,13 +79,17 @@ export class FileService implements IFileService {
 	private tmpPath: string;
 	private options: IFileServiceOptions;
 
-	private workspaceWatcherToDispose: () => void;
+	private _onFileChanges: Emitter<FileChangesEvent>;
+	private _onAfterOperation: Emitter<FileOperationEvent>;
+
+	private toDispose: IDisposable[];
 
 	private activeFileChangesWatchers: { [resource: string]: fs.FSWatcher; };
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService) {
+	constructor(basePath: string, options: IFileServiceOptions) {
+		this.toDispose = [];
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
 		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
@@ -101,6 +106,12 @@ export class FileService implements IFileService {
 
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
+
+		this._onFileChanges = new Emitter<FileChangesEvent>();
+		this.toDispose.push(this._onFileChanges);
+
+		this._onAfterOperation = new Emitter<FileOperationEvent>();
+		this.toDispose.push(this._onAfterOperation);
 
 		if (!this.options.errorLogger) {
 			this.options.errorLogger = console.error;
@@ -119,6 +130,14 @@ export class FileService implements IFileService {
 		this.undeliveredRawFileChangesEvents = [];
 	}
 
+	public get onFileChanges(): Event<FileChangesEvent> {
+		return this._onFileChanges.event;
+	}
+
+	public get onAfterOperation(): Event<FileOperationEvent> {
+		return this._onAfterOperation.event;
+	}
+
 	public updateOptions(options: IFileServiceOptions): void {
 		if (options) {
 			objects.mixin(this.options, options); // overwrite current options
@@ -126,11 +145,11 @@ export class FileService implements IFileService {
 	}
 
 	private setupWin32WorkspaceWatching(): void {
-		this.workspaceWatcherToDispose = new WindowsWatcherService(this.basePath, this.options.watcherIgnoredPatterns, this.eventEmitter, this.options.errorLogger, this.options.verboseLogging).startWatching();
+		this.toDispose.push(toDisposable(new WindowsWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	private setupUnixWorkspaceWatching(): void {
-		this.workspaceWatcherToDispose = new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, this.eventEmitter, this.options.errorLogger, this.options.verboseLogging).startWatching();
+		this.toDispose.push(toDisposable(new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
@@ -296,17 +315,31 @@ export class FileService implements IFileService {
 	}
 
 	public createFile(resource: uri, content: string = ''): TPromise<IFileStat> {
-		return this.updateContent(resource, content);
+
+		// Create file
+		return this.updateContent(resource, content).then(result => {
+
+			// Events
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+			return result;
+		});
 	}
 
 	public createFolder(resource: uri): TPromise<IFileStat> {
 
-		// 1.) create folder
+		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
 		return pfs.mkdirp(absolutePath).then(() => {
 
-			// 2.) resolve
-			return this.resolve(resource);
+			// 2.) Resolve
+			return this.resolve(resource).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
 		});
 	}
 
@@ -357,7 +390,13 @@ export class FileService implements IFileService {
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
 
 			// 2.) resolve
-			return this.resolve(target);
+			return this.resolve(target).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, result));
+
+				return result;
+			});
 		});
 	}
 
@@ -418,7 +457,13 @@ export class FileService implements IFileService {
 			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then(exists => {
 
 				// 3.) resolve
-				return this.resolve(targetResource).then(stat => <IImportResult>{ isNew: !exists, stat: stat });
+				return this.resolve(targetResource).then(stat => {
+
+					// Events
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.IMPORT, stat));
+
+					return <IImportResult>{ isNew: !exists, stat: stat };
+				});
 			});
 		});
 	}
@@ -426,7 +471,11 @@ export class FileService implements IFileService {
 	public del(resource: uri): TPromise<void> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return nfcall(extfs.del, absolutePath, this.tmpPath);
+		return nfcall(extfs.del, absolutePath, this.tmpPath).then(() => {
+
+			// Events
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		});
 	}
 
 	// Helpers
@@ -653,7 +702,7 @@ export class FileService implements IFileService {
 					const normalizedEvents = normalize(buffer);
 
 					// Emit
-					this.eventEmitter.emit(EventType.FILE_CHANGES, toFileChangesEvent(normalizedEvents));
+					this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
 
 					return TPromise.as(null);
 				});
@@ -679,10 +728,7 @@ export class FileService implements IFileService {
 	}
 
 	public dispose(): void {
-		if (this.workspaceWatcherToDispose) {
-			this.workspaceWatcherToDispose();
-			this.workspaceWatcherToDispose = null;
-		}
+		this.toDispose = dispose(this.toDispose);
 
 		for (let key in this.activeFileChangesWatchers) {
 			const watcher = this.activeFileChangesWatchers[key];

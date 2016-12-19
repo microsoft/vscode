@@ -13,7 +13,6 @@ import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -43,7 +42,6 @@ export class OutputPanel extends StringEditor {
 		@IStorageService storageService: IStorageService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
@@ -53,7 +51,7 @@ export class OutputPanel extends StringEditor {
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, themeService, untitledEditorService, editorGroupService, textFileService);
+			messageService, configurationService, editorService, themeService, untitledEditorService, editorGroupService, textFileService);
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
 	}

@@ -9,7 +9,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Builder } from 'vs/base/browser/builder';
 
 suite('ProgressBar', () => {
-	var fixture: HTMLElement;
+	let fixture: HTMLElement;
 
 	setup(() => {
 		fixture = document.createElement('div');
@@ -21,9 +21,9 @@ suite('ProgressBar', () => {
 	});
 
 	test('Progress Bar', function () {
-		var b = new Builder(fixture);
+		const b = new Builder(fixture);
 
-		var bar = new ProgressBar(b);
+		const bar = new ProgressBar(b);
 		assert(bar.getContainer());
 		assert(bar.infinite());
 		assert(bar.total(100));

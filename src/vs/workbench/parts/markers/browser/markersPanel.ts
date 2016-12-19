@@ -17,7 +17,6 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -66,7 +65,6 @@ export class MarkersPanel extends Panel {
 		@IMarkerService private markerService: IMarkerService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService

@@ -7,12 +7,12 @@
 import * as assert from 'assert';
 import objects = require('vs/base/common/objects');
 
-var check = (one, other, msg) => {
+let check = (one, other, msg) => {
 	assert(objects.equals(one, other), msg);
 	assert(objects.equals(other, one), '[reverse] ' + msg);
 };
 
-var checkNot = (one, other, msg) => {
+let checkNot = (one, other, msg) => {
 	assert(!objects.equals(one, other), msg);
 	assert(!objects.equals(other, one), '[reverse] ' + msg);
 };
@@ -57,7 +57,7 @@ suite('Objects', () => {
 
 	test('mixin - array', function () {
 
-		var foo: any = {};
+		let foo: any = {};
 		objects.mixin(foo, { bar: [1, 2, 3] });
 
 		assert(foo.bar);
@@ -69,11 +69,11 @@ suite('Objects', () => {
 	});
 
 	test('mixin - no overwrite', function () {
-		var foo: any = {
+		let foo: any = {
 			bar: '123'
 		};
 
-		var bar: any = {
+		let bar: any = {
 			bar: '456'
 		};
 
@@ -83,8 +83,8 @@ suite('Objects', () => {
 	});
 
 	test('cloneAndChange', () => {
-		var o1 = { something: 'hello' };
-		var o = {
+		let o1 = { something: 'hello' };
+		let o = {
 			o1: o1,
 			o2: o1
 		};
@@ -92,21 +92,21 @@ suite('Objects', () => {
 	});
 
 	test('safeStringify', function () {
-		var obj1 = {
+		let obj1 = {
 			friend: null
 		};
 
-		var obj2 = {
+		let obj2 = {
 			friend: null
 		};
 
 		obj1.friend = obj2;
 		obj2.friend = obj1;
 
-		var arr: any = [1];
+		let arr: any = [1];
 		arr.push(arr);
 
-		var circular = {
+		let circular = {
 			a: 42,
 			b: null,
 			c: [
@@ -121,7 +121,7 @@ suite('Objects', () => {
 		circular.b = circular;
 		circular.d = arr;
 
-		var result = objects.safeStringify(circular);
+		let result = objects.safeStringify(circular);
 
 		assert.deepEqual(JSON.parse(result), {
 			a: 42,
@@ -140,7 +140,7 @@ suite('Objects', () => {
 
 	test('derive', function () {
 
-		var someValue = 2;
+		let someValue = 2;
 
 		function Base(): void {
 			//example
@@ -160,8 +160,8 @@ suite('Objects', () => {
 
 		objects.derive(Base, Child);
 
-		var base = new Base();
-		var child = new Child();
+		let base = new Base();
+		let child = new Child();
 
 		assert(base instanceof Base);
 		assert(child instanceof Child);

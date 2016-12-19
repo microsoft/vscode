@@ -15,9 +15,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -290,9 +289,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEventService private eventService: IEventService,
 		@IIntegrityService integrityService: IIntegrityService,
 		@ITitleService titleService: ITitleService,
+		@IFileService private fileService: IFileService,
 		@IWindowService private windowService: IWindowService
 	) {
 		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService, titleService);
@@ -312,7 +311,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
 
 		// File changes
-		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {

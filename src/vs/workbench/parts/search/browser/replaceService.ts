@@ -14,7 +14,6 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEventService } from 'vs/platform/event/common/event';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
@@ -25,7 +24,7 @@ import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
@@ -87,7 +86,7 @@ export class ReplaceService implements IReplaceService {
 
 	constructor(
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEventService private eventService: IEventService,
+		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
@@ -100,7 +99,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		let bulkEdit: BulkEdit = createBulkEdit(this.eventService, this.textModelResolverService, null);
+		let bulkEdit: BulkEdit = createBulkEdit(this.fileService, this.textModelResolverService, null);
 		bulkEdit.progress(progress);
 
 		if (arg instanceof Match) {

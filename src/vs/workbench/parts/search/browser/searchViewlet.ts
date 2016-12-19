@@ -27,7 +27,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
-import { FileChangeType, FileChangesEvent, EventType as FileEventType } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { getExcludes, QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
@@ -37,7 +37,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -89,7 +88,7 @@ export class SearchViewlet extends Viewlet {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEventService private eventService: IEventService,
+		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IProgressService private progressService: IProgressService,
@@ -116,7 +115,7 @@ export class SearchViewlet extends Viewlet {
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 

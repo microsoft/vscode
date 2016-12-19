@@ -311,7 +311,7 @@ suite('window namespace tests', () => {
 	});
 
 	test('createTerminal, Terminal.name', () => {
-		var terminal = window.createTerminal('foo');
+		const terminal = window.createTerminal('foo');
 		assert.equal(terminal.name, 'foo');
 
 		assert.throws(() => {
