@@ -225,7 +225,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
-		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
+		return this.instantiationService.createInstance(this.fileInputDescriptor).then(typedFileInput => {
 			typedFileInput.setResource(resource);
 			typedFileInput.setPreferredEncoding(encoding);
 

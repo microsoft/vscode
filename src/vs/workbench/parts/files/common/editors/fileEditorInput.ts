@@ -99,6 +99,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		return this.preferredEncoding;
 	}
 
+	public getPreferredEncoding(): string {
+		return this.preferredEncoding;
+	}
+
 	public setEncoding(encoding: string, mode: EncodingMode): void {
 		this.preferredEncoding = encoding;
 
