@@ -162,9 +162,9 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public layout(dimension: Dimension) {
 		this.defaultSettingHeaderWidget.layout(dimension);
-		const headerWidgetPosition = DOM.getDomNodePagePosition(this.defaultSettingHeaderWidget.domNode);
+		const headerHeight = DOM.getTotalHeight(this.defaultSettingHeaderWidget.domNode);
 		this.getControl().layout({
-			height: dimension.height - headerWidgetPosition.height,
+			height: dimension.height - headerHeight,
 			width: dimension.width
 		});
 	}
