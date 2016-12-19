@@ -204,7 +204,7 @@ export class VSCodeMenu {
 		if (typeof newAutoHideMenuBar !== 'boolean') {
 			newAutoHideMenuBar = true;
 		}
-		if ( newAutoHideMenuBar !== this.currentAutoHideMenuBar) {
+		if (newAutoHideMenuBar !== this.currentAutoHideMenuBar) {
 			this.currentAutoHideMenuBar = newAutoHideMenuBar;
 			updateMenu = true;
 		}
