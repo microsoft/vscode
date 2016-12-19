@@ -5,21 +5,9 @@
 	<project_license>@@LICENSE@@</project_license>
 	<name>@@NAME_LONG@@</name>
 	<url type="homepage">https://code.visualstudio.com</url>
-	<summary>Code editor for developers supporting integration with existing tools</summary>
+	<summary>Code editing. Redefined.</summary>
 	<description>
-		<p>
-			Visual Studio Code is a lightweight but powerful source code editor which
-			runs on your desktop and is available for Windows, Mac and Linux. It comes
-			with built-in support for JavaScript, TypeScript and Node.js and has a rich
-			ecosystem of extensions for other languages (such as C++, C#, Python, PHP)
-			and runtimes. 
-		</p>
-		<p>
-			The editor includes built-in support for the Git distributed version control
-			system, intelligent code completion, support for highlighting and completing
-			many programming languages, and and integrated debugging interface. Additional
-			functionality is provided by optional extensions.
-		</p>
+		<p>Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.</p>
 	</description>
 	<screenshots>
 		<screenshot type="default">
