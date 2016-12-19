@@ -91,7 +91,7 @@ export interface IWindowsMainService {
 	ready(initialUserEnv: platform.IProcessEnvironment): void;
 	reload(win: VSCodeWindow, cli?: ParsedArgs): void;
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
-	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
+	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
 	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void;
 	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void;
@@ -579,11 +579,11 @@ export class WindowsManager implements IWindowsMainService {
 		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
 	}
 
-	public openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
+	public openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
 
-		// Reload an existing plugin development host window on the same path
+		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
-		// on the same plugin path.
+		// on the same extension path.
 		let res = WindowsManager.WINDOWS.filter(w => w.config && this.isPathEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
@@ -755,7 +755,7 @@ export class WindowsManager implements IWindowsMainService {
 		else {
 
 			// Some configuration things get inherited if the window is being reused and we are
-			// in plugin development host mode. These options are all development related.
+			// in extension development host mode. These options are all development related.
 			const currentWindowConfig = vscodeWindow.config;
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
@@ -785,7 +785,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private getNewWindowState(configuration: IWindowConfiguration): ISingleWindowState {
 
-		// plugin development host Window - load from stored settings if any
+		// extension development host Window - load from stored settings if any
 		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
 			return this.windowsState.lastPluginDevelopmentHostWindow.uiState;
 		}

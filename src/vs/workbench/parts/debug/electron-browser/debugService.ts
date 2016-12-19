@@ -154,7 +154,7 @@ export class DebugService implements debug.IDebugService {
 			return;
 		}
 
-		// a plugin logged output, show it inside the REPL
+		// an extension logged output, show it inside the REPL
 		if (broadcast.channel === EXTENSION_LOG_BROADCAST_CHANNEL) {
 			let extensionOutput: ILogEntry = broadcast.payload;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
