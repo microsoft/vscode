@@ -378,6 +378,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsCountWidget = this._register(instantiationService.createInstance(SettingsCountWidget, editor, this.getCount(settingsEditorModel.settingsGroups)));
 		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, settingsEditorModel.settingsGroups));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
+
+		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
 	}
 
 	public render() {
@@ -385,9 +387,9 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer.render(this.settingsEditorModel.settingsGroups);
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
 		this.settingsCountWidget.render();
-		this.hiddenAreasRenderer.render();
 		this.focusNextSettingRenderer.render([]);
 		this.settingsGroupTitleRenderer.showGroup(1);
+		this.hiddenAreasRenderer.render();
 	}
 
 	public filterPreferences(filter: string) {
@@ -402,6 +404,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		} else {
 			this.focusNextSettingRenderer.render(filterResult.filteredGroups);
 		}
+		this.hiddenAreasRenderer.render();
 	}
 
 	public focusNextSetting(): void {
@@ -432,14 +435,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 }
 
 export interface HiddenAreasProvider {
-	onHiddenAreasChanged: Event<void>;
 	hiddenAreas: editorCommon.IRange[];
 }
 
 export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
-
-	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
-	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; };
 
 	constructor(private editor: ICodeEditor, private settingsGroups: ISettingsGroup[]
 	) {
@@ -567,9 +566,6 @@ export class HiddenAreasRenderer extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
-		for (const hiddenAreProvider of hiddenAreasProviders) {
-			this._register(hiddenAreProvider.onHiddenAreasChanged(() => this.render()));
-		}
 	}
 
 	public render() {
@@ -591,9 +587,6 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	private decorationIds: string[] = [];
 	public hiddenAreas: editorCommon.IRange[] = [];
 
-	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
-	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; };
-
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -612,7 +605,6 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, model)));
 			});
 		}
-		this._onHiddenAreasChanged.fire();
 	}
 
 	private createDecoration(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
