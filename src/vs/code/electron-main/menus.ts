@@ -44,6 +44,9 @@ interface IConfiguration extends IFilesConfiguration {
 			visible: boolean;
 		}
 	};
+	window: {
+		autoHideMenuBar: boolean;
+	};
 }
 
 export class VSCodeMenu {
@@ -56,6 +59,7 @@ export class VSCodeMenu {
 	private currentSidebarLocation: 'left' | 'right';
 	private currentStatusbarVisible: boolean;
 	private currentActivityBarVisible: boolean;
+	private currentAutoHideMenuBar: boolean;
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -196,6 +200,15 @@ export class VSCodeMenu {
 			updateMenu = true;
 		}
 
+		let newAutoHideMenuBar = config && config.window && config.window.autoHideMenuBar;
+		if (typeof newAutoHideMenuBar !== 'boolean') {
+			newAutoHideMenuBar = true;
+		}
+		if ( newAutoHideMenuBar !== this.currentAutoHideMenuBar) {
+			this.currentAutoHideMenuBar = newAutoHideMenuBar;
+			updateMenu = true;
+		}
+
 		if (handleMenu && updateMenu) {
 			this.updateMenu();
 		}
@@ -241,6 +254,10 @@ export class VSCodeMenu {
 	}
 
 	private install(): void {
+
+		// Auto hide menu bar
+		const windows = this.windowsService.getWindows();
+		windows.forEach(w => w.win.setAutoHideMenuBar(this.currentAutoHideMenuBar));
 
 		// Menus
 		const menubar = new Menu();
