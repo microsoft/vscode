@@ -228,13 +228,26 @@ export class DefaultSettingsHeaderWidget extends Widget {
 		this.inputBox.width = dimension.width - 62;
 	}
 
+	public clear() {
+		this.inputBox.value = '';
+		this._onDidChange.fire();
+	}
+
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
+		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
 				this._onEnter.fire();
-				keyboardEvent.preventDefault();
-				keyboardEvent.stopPropagation();
-				return;
+				handled = true;
+				break;
+			case KeyCode.Escape:
+				this.clear();
+				handled = true;
+				break;
+		}
+		if (handled) {
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
 		}
 	}
 }
