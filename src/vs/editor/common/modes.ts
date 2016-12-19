@@ -167,7 +167,8 @@ export type SuggestionType = 'method'
 	| 'color'
 	| 'file'
 	| 'reference'
-	| 'customcolor';
+	| 'customcolor'
+	| 'folder';
 
 /**
  * @internal

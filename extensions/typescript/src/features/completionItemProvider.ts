@@ -67,10 +67,11 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.interface:
 				return CompletionItemKind.Interface;
 			case PConst.Kind.warning:
-			case PConst.Kind.directory:
 			case PConst.Kind.file:
 			case PConst.Kind.script:
 				return CompletionItemKind.File;
+			case PConst.Kind.directory:
+				return CompletionItemKind.Folder;
 		}
 
 		return CompletionItemKind.Property;

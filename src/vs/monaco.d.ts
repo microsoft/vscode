@@ -3954,6 +3954,7 @@ declare module monaco.languages {
         Color = 15,
         File = 16,
         Reference = 17,
+        Folder = 18,
     }
 
     /**
