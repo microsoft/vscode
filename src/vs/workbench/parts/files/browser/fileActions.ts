@@ -26,9 +26,8 @@ import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
+import { toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
 import { asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
@@ -48,6 +47,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Selection } from 'vs/editor/common/core/selection';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export interface IEditableData {
 	action: IAction;
@@ -1216,6 +1216,7 @@ export class CompareResourcesAction extends Action {
 		tree: ITree,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@ICommandService private commandService: ICommandService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel());
@@ -1270,10 +1271,7 @@ export class CompareResourcesAction extends Action {
 			this.tree.clearHighlight();
 		}
 
-		const leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0);
-		const rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0);
-
-		return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(globalResourceToCompare, this.resource, this.contextService), null, leftInput, rightInput));
+		return this.commandService.executeCommand('_workbench.diff', [globalResourceToCompare, this.resource, toDiffLabel(globalResourceToCompare, this.resource, this.contextService)]);
 	}
 }
 
