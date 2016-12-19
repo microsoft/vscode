@@ -25,6 +25,16 @@ export interface IFileService {
 	onFileChanges: Event<FileChangesEvent>;
 
 	/**
+	 * An event that is fired when a certain file operation is about to begin.
+	 */
+	onBeforeOperation: Event<FileOperationEvent>;
+
+	/**
+	 * An event that is fired upon successful completion of a certain file operation.
+	 */
+	onAfterOperation: Event<FileOperationEvent>;
+
+	/**
 	 * Resolve the properties of a file identified by the resource.
 	 *
 	 * If the optional parameter "resolveTo" is specified in options, the stat service is asked
@@ -144,6 +154,31 @@ export interface IFileService {
 	dispose(): void;
 }
 
+export enum FileOperation {
+	CREATE,
+	DELETE,
+	MOVE,
+	COPY,
+	IMPORT
+}
+
+export class FileOperationEvent {
+
+	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
+	}
+
+	public get resource(): URI {
+		return this._resource;
+	}
+
+	public get target(): IFileStat {
+		return this._target;
+	}
+
+	public get operation(): FileOperation {
+		return this._operation;
+	}
+}
 
 /**
  * Possible changes that can occur to a file.

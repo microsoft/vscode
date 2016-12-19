@@ -18,7 +18,6 @@ import timer = require('vs/base/common/timer');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { EventService } from 'vs/platform/event/common/eventService';
 import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -131,7 +130,6 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 }
 
 function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
-	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
@@ -149,7 +147,6 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 			timerService.beforeWorkbenchOpen = new Date();
 			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
-				eventService,
 				contextService,
 				environmentService,
 				timerService

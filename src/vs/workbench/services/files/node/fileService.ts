@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IBaseStat, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IBaseStat, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent } from 'vs/platform/files/common/files';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import baseMime = require('vs/base/common/mime');
@@ -80,6 +80,8 @@ export class FileService implements IFileService {
 	private options: IFileServiceOptions;
 
 	private _onFileChanges: Emitter<FileChangesEvent>;
+	private _onBeforeOperation: Emitter<FileOperationEvent>;
+	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	private toDispose: IDisposable[];
 
@@ -109,6 +111,12 @@ export class FileService implements IFileService {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
 
+		this._onBeforeOperation = new Emitter<FileOperationEvent>();
+		this.toDispose.push(this._onBeforeOperation);
+
+		this._onAfterOperation = new Emitter<FileOperationEvent>();
+		this.toDispose.push(this._onAfterOperation);
+
 		if (!this.options.errorLogger) {
 			this.options.errorLogger = console.error;
 		}
@@ -128,6 +136,14 @@ export class FileService implements IFileService {
 
 	public get onFileChanges(): Event<FileChangesEvent> {
 		return this._onFileChanges.event;
+	}
+
+	public get onBeforeOperation(): Event<FileOperationEvent> {
+		return this._onBeforeOperation.event;
+	}
+
+	public get onAfterOperation(): Event<FileOperationEvent> {
+		return this._onAfterOperation.event;
 	}
 
 	public updateOptions(options: IFileServiceOptions): void {
@@ -307,17 +323,37 @@ export class FileService implements IFileService {
 	}
 
 	public createFile(resource: uri, content: string = ''): TPromise<IFileStat> {
-		return this.updateContent(resource, content);
+
+		// Events
+		this._onBeforeOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE));
+
+		// Create file
+		return this.updateContent(resource, content).then(result => {
+
+			// Events
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+			return result;
+		});
 	}
 
 	public createFolder(resource: uri): TPromise<IFileStat> {
 
-		// 1.) create folder
+		// Events
+		this._onBeforeOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE));
+
+		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
 		return pfs.mkdirp(absolutePath).then(() => {
 
-			// 2.) resolve
-			return this.resolve(resource);
+			// 2.) Resolve
+			return this.resolve(resource).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
 		});
 	}
 
@@ -364,11 +400,20 @@ export class FileService implements IFileService {
 		const sourcePath = this.toAbsolutePath(source);
 		const targetPath = this.toAbsolutePath(target);
 
+		// Events
+		this._onBeforeOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE));
+
 		// 1.) move / copy
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
 
 			// 2.) resolve
-			return this.resolve(target);
+			return this.resolve(target).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, result));
+
+				return result;
+			});
 		});
 	}
 
@@ -419,6 +464,9 @@ export class FileService implements IFileService {
 		const targetResource = uri.file(paths.join(targetFolder.fsPath, paths.basename(source.fsPath)));
 		const targetPath = this.toAbsolutePath(targetResource);
 
+		// Events
+		this._onBeforeOperation.fire(new FileOperationEvent(source, FileOperation.IMPORT));
+
 		// 1.) resolve
 		return pfs.stat(sourcePath).then(stat => {
 			if (stat.isDirectory()) {
@@ -429,15 +477,25 @@ export class FileService implements IFileService {
 			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then(exists => {
 
 				// 3.) resolve
-				return this.resolve(targetResource).then(stat => <IImportResult>{ isNew: !exists, stat: stat });
+				return this.resolve(targetResource).then(stat => {
+
+					// Events
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.IMPORT, stat));
+
+					return <IImportResult>{ isNew: !exists, stat: stat };
+				});
 			});
 		});
 	}
 
 	public del(resource: uri): TPromise<void> {
+		this._onBeforeOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return nfcall(extfs.del, absolutePath, this.tmpPath);
+		return nfcall(extfs.del, absolutePath, this.tmpPath).then(() => {
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		});
 	}
 
 	// Helpers

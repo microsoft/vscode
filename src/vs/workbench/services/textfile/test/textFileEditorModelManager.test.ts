@@ -15,9 +15,7 @@ import { workbenchInstantiationService, TestEditorGroupService, createFileInput,
 import { onError } from 'vs/base/test/common/utils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IEventService } from 'vs/platform/event/common/event';
-import { LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
@@ -25,20 +23,6 @@ export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 	protected debounceDelay(): number {
 		return 10;
 	}
-}
-
-class ServiceAccessor {
-	constructor(
-		@IEditorGroupService public editorGroupService: TestEditorGroupService,
-		@IEventService public eventService: IEventService,
-		@IFileService public fileService: TestFileService,
-		@IModelService public modelService: IModelService
-	) {
-	}
-}
-
-function toResource(path: string): URI {
-	return URI.file(join('C:\\', path));
 }
 
 function toStat(resource: URI) {
@@ -50,6 +34,19 @@ function toStat(resource: URI) {
 		mtime: Date.now(),
 		etag: 'etag'
 	};
+}
+
+class ServiceAccessor {
+	constructor(
+		@IEditorGroupService public editorGroupService: TestEditorGroupService,
+		@IFileService public fileService: TestFileService,
+		@IModelService public modelService: IModelService
+	) {
+	}
+}
+
+function toResource(path: string): URI {
+	return URI.file(join('C:\\', path));
 }
 
 suite('Files - TextFileEditorModelManager', () => {
@@ -192,8 +189,8 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.ok(!model.isDisposed());
 
-		// delete event (local)
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource)));
+		// delete operation
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.DELETE));
 
 		assert.ok(model.isDisposed());
 
@@ -213,8 +210,8 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.ok(!model.isDisposed());
 
-		// move event (local)
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource), toStat(toResource('/path/index_moved.txt'))));
+		// move operation
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, toStat(toResource('/path/index_moved.txt'))));
 
 		assert.ok(model.isDisposed());
 		assert.ok(!accessor.modelService.getModel(model.getResource()));

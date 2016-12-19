@@ -24,7 +24,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -34,7 +33,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -166,7 +165,6 @@ export class TestTextFileService extends TextFileService {
 
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
-	instantiationService.stub(IEventService, new TestEventService());
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -290,10 +288,6 @@ export class TestPartService implements IPartService {
 	public getWorkbenchElementId(): string { return ''; }
 
 	public toggleZenMode(): void { }
-}
-
-export class TestEventService extends EventEmitter implements IEventService {
-	public _serviceBrand: any;
 }
 
 export class TestStorageService extends EventEmitter implements IStorageService {
@@ -510,9 +504,13 @@ export class TestFileService implements IFileService {
 	public _serviceBrand: any;
 
 	private _onFileChanges: Emitter<FileChangesEvent>;
+	private _onBeforeOperation: Emitter<FileOperationEvent>;
+	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
+		this._onBeforeOperation = new Emitter<FileOperationEvent>();
+		this._onAfterOperation = new Emitter<FileOperationEvent>();
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -521,6 +519,22 @@ export class TestFileService implements IFileService {
 
 	public fireFileChanges(event: FileChangesEvent): void {
 		this._onFileChanges.fire(event);
+	}
+
+	public get onBeforeOperation(): Event<FileOperationEvent> {
+		return this._onBeforeOperation.event;
+	}
+
+	public fireBeforeOperation(event: FileOperationEvent): void {
+		this._onBeforeOperation.fire(event);
+	}
+
+	public get onAfterOperation(): Event<FileOperationEvent> {
+		return this._onAfterOperation.event;
+	}
+
+	public fireAfterOperation(event: FileOperationEvent): void {
+		this._onAfterOperation.fire(event);
 	}
 
 	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat> {
