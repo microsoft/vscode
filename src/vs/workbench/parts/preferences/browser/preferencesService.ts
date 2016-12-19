@@ -219,7 +219,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (openDefaultSettings) {
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
-			return this.openTwoEditors(this.getDefaultSettingsEditorInput(configurationTarget), settingsResource, emptySettingsContents);
+			return this.openSideBySideEditor(this.getDefaultSettingsEditorInput(configurationTarget), settingsResource, emptySettingsContents);
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
@@ -239,13 +239,28 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 	}
 
-	private openTwoEditors(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<void> {
+	private openSideBySideEditor(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<void> {
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
 				const sideBySideInput = new SideBySideEditorInput(typedRightHandEditableInput.getName(), typedRightHandEditableInput.getDescription(), leftHandDefaultInput, <EditorInput>typedRightHandEditableInput);
 				this.editorService.openEditor(sideBySideInput);
 				return;
+			});
+		});
+	}
+
+	private openTwoEditors(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<void> {
+		// Create as needed and open in editor
+		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
+			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
+				const editors = [
+					{ input: leftHandDefaultInput, position: Position.ONE, options: { pinned: true } },
+					{ input: typedRightHandEditableInput, position: Position.TWO, options: { pinned: true } }
+				];
+				return this.editorService.openEditors(editors).then(result => {
+					this.editorGroupService.focusGroup(Position.TWO);
+				});
 			});
 		});
 	}
