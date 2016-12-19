@@ -36,7 +36,6 @@ import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEventService } from 'vs/platform/event/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -87,7 +86,6 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IGitService gitService: IGitService,
 		@IOutputService outputService: IOutputService,
-		@IEventService eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();

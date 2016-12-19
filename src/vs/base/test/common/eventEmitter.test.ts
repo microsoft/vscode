@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { EventEmitter, OrderGuaranteeEventEmitter } from 'vs/base/common/eventEmitter';
 
 suite('EventEmitter', () => {
-	var eventEmitter: EventEmitter;
+	let eventEmitter: EventEmitter;
 
 	setup(() => {
 		eventEmitter = new EventEmitter();
@@ -20,7 +20,7 @@ suite('EventEmitter', () => {
 	});
 
 	test('add listener, emit other event type', function () {
-		var didCall = false;
+		let didCall = false;
 		eventEmitter.addListener2('eventType1', function (e) {
 			didCall = true;
 		});
@@ -29,7 +29,7 @@ suite('EventEmitter', () => {
 	});
 
 	test('add listener, emit event', function () {
-		var didCall = false;
+		let didCall = false;
 		eventEmitter.addListener2('eventType', function (e) {
 			didCall = true;
 		});
@@ -38,11 +38,11 @@ suite('EventEmitter', () => {
 	});
 
 	test('add 2 listeners, emit event', function () {
-		var didCallFirst = false;
+		let didCallFirst = false;
 		eventEmitter.addListener2('eventType', function (e) {
 			didCallFirst = true;
 		});
-		var didCallSecond = false;
+		let didCallSecond = false;
 		eventEmitter.addListener2('eventType', function (e) {
 			didCallSecond = true;
 		});
@@ -52,8 +52,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('add 1 listener, remove it, emit event', function () {
-		var didCall = false;
-		var remove = eventEmitter.addListener2('eventType', function (e) {
+		let didCall = false;
+		let remove = eventEmitter.addListener2('eventType', function (e) {
 			didCall = true;
 		});
 		remove.dispose();
@@ -62,12 +62,12 @@ suite('EventEmitter', () => {
 	});
 
 	test('add 2 listeners, emit event, remove one while processing', function () {
-		var firstCallCount = 0;
-		var remove1 = eventEmitter.addListener2('eventType', function (e) {
+		let firstCallCount = 0;
+		let remove1 = eventEmitter.addListener2('eventType', function (e) {
 			firstCallCount++;
 			remove1.dispose();
 		});
-		var secondCallCount = 0;
+		let secondCallCount = 0;
 		eventEmitter.addListener2('eventType', function (e) {
 			secondCallCount++;
 		});
@@ -78,7 +78,7 @@ suite('EventEmitter', () => {
 	});
 
 	test('event object is assert', function () {
-		var data: any;
+		let data: any;
 		eventEmitter.addListener2('eventType', function (e) {
 			data = e.data;
 		});
@@ -87,7 +87,7 @@ suite('EventEmitter', () => {
 	});
 
 	test('deferred emit', function () {
-		var calledCount = 0;
+		let calledCount = 0;
 		eventEmitter.addListener2('eventType', function (e) {
 			calledCount++;
 		});
@@ -102,7 +102,7 @@ suite('EventEmitter', () => {
 	});
 
 	test('deferred emit maintains events order', function () {
-		var order = 0;
+		let order = 0;
 		eventEmitter.addListener2('eventType2', function (e) {
 			order++;
 			assert.equal(order, 1);
@@ -119,7 +119,7 @@ suite('EventEmitter', () => {
 	});
 
 	test('deferred emit maintains events order for bulk listeners', function () {
-		var count = 0;
+		let count = 0;
 		eventEmitter.addBulkListener2(function (events) {
 			assert.equal(events[0].getType(), 'eventType2');
 			assert.equal(events[1].getType(), 'eventType1');
@@ -133,7 +133,7 @@ suite('EventEmitter', () => {
 	});
 
 	test('emit notifies bulk listeners', function () {
-		var count = 0;
+		let count = 0;
 		eventEmitter.addBulkListener2(function (events) {
 			count++;
 		});
@@ -142,15 +142,15 @@ suite('EventEmitter', () => {
 	});
 
 	test('one event emitter, one listener', function () {
-		var emitter = new EventEmitter();
-		var eventBus = new EventEmitter();
+		let emitter = new EventEmitter();
+		let eventBus = new EventEmitter();
 
 		eventBus.addEmitter2(emitter);
-		var didCallFirst = false;
+		let didCallFirst = false;
 		eventBus.addListener2('eventType', function (e) {
 			didCallFirst = true;
 		});
-		var didCallSecond = false;
+		let didCallSecond = false;
 		eventBus.addListener2('eventType', function (e) {
 			didCallSecond = true;
 		});
@@ -161,10 +161,10 @@ suite('EventEmitter', () => {
 	});
 
 	test('two event emitters, two listeners, deferred emit', function () {
-		var callCnt = 0;
-		var emitter1 = new EventEmitter();
-		var emitter2 = new EventEmitter();
-		var eventBus = new EventEmitter();
+		let callCnt = 0;
+		let emitter1 = new EventEmitter();
+		let emitter2 = new EventEmitter();
+		let eventBus = new EventEmitter();
 
 		eventBus.addEmitter2(emitter1);
 		eventBus.addEmitter2(emitter2);
@@ -187,16 +187,16 @@ suite('EventEmitter', () => {
 	});
 
 	test('cascading emitters', function () {
-		var emitter1 = new EventEmitter();
-		var emitter2 = new EventEmitter();
-		var emitter3 = new EventEmitter();
-		var emitter4 = new EventEmitter();
+		let emitter1 = new EventEmitter();
+		let emitter2 = new EventEmitter();
+		let emitter3 = new EventEmitter();
+		let emitter4 = new EventEmitter();
 
 		emitter2.addEmitter2(emitter1);
 		emitter3.addEmitter2(emitter2);
 		emitter4.addEmitter2(emitter3);
 
-		var didCall = false;
+		let didCall = false;
 		emitter4.addListener2('eventType', function (e) {
 			didCall = true;
 		});
@@ -206,8 +206,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('EventEmitter makes no order guarantees 1', () => {
-		var emitter = new EventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new EventEmitter();
+		let actualCallOrder: string[] = [];
 
 		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
@@ -232,8 +232,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('EventEmitter makes no order guarantees 2', () => {
-		var emitter = new EventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new EventEmitter();
+		let actualCallOrder: string[] = [];
 
 		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
@@ -262,8 +262,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('OrderGuaranteeEventEmitter makes order guarantees 1', () => {
-		var emitter = new OrderGuaranteeEventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new OrderGuaranteeEventEmitter();
+		let actualCallOrder: string[] = [];
 
 		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
@@ -288,8 +288,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('OrderGuaranteeEventEmitter makes order guarantees 2', () => {
-		var emitter = new OrderGuaranteeEventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new OrderGuaranteeEventEmitter();
+		let actualCallOrder: string[] = [];
 
 		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');

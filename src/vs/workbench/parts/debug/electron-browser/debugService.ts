@@ -22,8 +22,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
-import { IEventService } from 'vs/platform/event/common/event';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -85,12 +84,12 @@ export class DebugService implements debug.IDebugService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEventService eventService: IEventService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
 		@ITaskService private taskService: ITaskService,
+		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
@@ -107,11 +106,11 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
 
-		this.registerListeners(eventService, lifecycleService);
+		this.registerListeners(lifecycleService);
 	}
 
-	private registerListeners(eventService: IEventService, lifecycleService: ILifecycleService): void {
-		this.toDispose.push(eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+	private registerListeners(lifecycleService: ILifecycleService): void {
+		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		if (this.taskService) {
 			this.toDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, (e: TaskEvent) => {

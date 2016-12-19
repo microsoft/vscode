@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 
 function assertUrl(raw: string, scheme: string, domain: string, port: string, path: string, queryString: string, fragmentId: string): void {
 	// check for equivalent behaviour
-	var uri = URI.parse(raw);
+	const uri = URI.parse(raw);
 	assert.equal(uri.scheme, scheme);
 	assert.equal(uri.authority, port ? domain + ':' + port : domain);
 	assert.equal(uri.path, path);

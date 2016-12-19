@@ -11,8 +11,7 @@ import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IEventService } from 'vs/platform/event/common/event';
-import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
+import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -33,17 +32,17 @@ interface IRecording {
 
 class ChangeRecorder {
 
-	private _eventService: IEventService;
+	private _fileService: IFileService;
 
-	constructor(eventService: IEventService) {
-		this._eventService = eventService;
+	constructor(fileService: IFileService) {
+		this._fileService = fileService;
 	}
 
 	public start(): IRecording {
 
 		const changes: IStringDictionary<IFileChange[]> = Object.create(null);
 
-		const stop = this._eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+		const stop = this._fileService.onFileChanges((event) => {
 			event.changes.forEach(change => {
 
 				const key = String(change.resource);
@@ -274,17 +273,17 @@ export interface BulkEdit {
 	finish(): TPromise<ISelection>;
 }
 
-export function bulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
-	let bulk = createBulkEdit(eventService, textModelResolverService, editor);
+export function bulkEdit(fileService: IFileService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
+	let bulk = createBulkEdit(fileService, textModelResolverService, editor);
 	bulk.add(edits);
 	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor): BulkEdit {
+export function createBulkEdit(fileService: IFileService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor): BulkEdit {
 
 	let all: IResourceEdit[] = [];
-	let recording = new ChangeRecorder(eventService).start();
+	let recording = new ChangeRecorder(fileService).start();
 	let progressRunner: IProgressRunner;
 
 	function progress(progress: IProgressRunner) {

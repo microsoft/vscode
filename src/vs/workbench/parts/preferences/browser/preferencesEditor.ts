@@ -45,7 +45,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -114,7 +113,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -123,7 +121,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IModeService private modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService, textFileService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, editorService, themeService, textFileService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
