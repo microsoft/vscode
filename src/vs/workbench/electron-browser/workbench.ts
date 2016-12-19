@@ -1081,8 +1081,10 @@ export class Workbench implements IPartService {
 		}
 		this.inZenMode.set(this.zenMode.active);
 
-		(toggleFullScreen ? this.windowService.toggleFullScreen() : TPromise.as(null))
-			.done(() => this.layout(), errors.onUnexpectedError);
+		this.layout();
+		if (toggleFullScreen) {
+			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);
+		}
 	}
 
 	private shouldRestoreLastOpenedViewlet(): boolean {
