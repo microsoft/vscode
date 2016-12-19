@@ -244,7 +244,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
 				const sideBySideInput = new SideBySideEditorInput(typedRightHandEditableInput.getName(), typedRightHandEditableInput.getDescription(), leftHandDefaultInput, <EditorInput>typedRightHandEditableInput);
-				this.editorService.openEditor(sideBySideInput);
+				this.editorService.openEditor(sideBySideInput, { pinned: true });
 				return;
 			});
 		});
