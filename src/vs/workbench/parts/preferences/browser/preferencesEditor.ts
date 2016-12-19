@@ -244,7 +244,7 @@ class DefaultPreferencesCodeEditor extends CodeEditor {
 	protected _getContributions(): IEditorContributionCtor[] {
 		let contributions = super._getContributions();
 		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
-		contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
+		contributions = contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
 		contributions.push(DefaultSettingsEditorContribution);
 		return contributions;
 	}
