@@ -9,7 +9,6 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { memoize } from 'vs/base/common/decorators';
 import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, EXTENSION_IDENTIFIER_REGEX } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
@@ -266,11 +265,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	_serviceBrand: any;
 
 	private extensionsGalleryUrl: string;
-
-	@memoize
-	private get commonHTTPHeaders(): TPromise<{ [key: string]: string; }> {
-		return getCommonHttpHeaders(this.telemetryService);
-	}
+	private readonly commonHTTPHeaders: TPromise<{ [key: string]: string; }>;
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
@@ -279,6 +274,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
+		this.commonHTTPHeaders = getCommonHttpHeaders(this.telemetryService);
 	}
 
 	private api(path = ''): string {
