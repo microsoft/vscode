@@ -16,8 +16,10 @@ import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -25,10 +27,10 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { Range } from 'vs/editor/common/core/range';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, CONTEXT_DEFAULT_SETTINGS_EDITOR,
-	DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL
+	DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL, DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -36,7 +38,7 @@ import { ICodeEditor, IEditorMouseEvent, IEditorContributionCtor } from 'vs/edit
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, SettingsCountWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { CommonEditorRegistry, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -907,4 +909,31 @@ CommonEditorRegistry.registerEditorCommand(new DefaultSettingsEditorCommand({
 	id: DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL,
 	precondition: ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR),
 	handler: x => (<DefaultSettingsRenderer>x.getPreferencesRenderer()).collapseAll()
+}));
+
+class StartSearchDefaultSettingsCommand extends Command {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const defaultPreferencesEditor = this.getDefaultPreferencesEditor(accessor);
+		if (defaultPreferencesEditor) {
+			defaultPreferencesEditor.focus();
+		}
+	}
+
+	private getDefaultPreferencesEditor(accessor: ServicesAccessor): DefaultPreferencesEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
+		if (activeEditor instanceof SideBySideEditor) {
+			const detailsEditor = activeEditor.getDetailsEditor();
+			if (detailsEditor instanceof DefaultPreferencesEditor) {
+				return detailsEditor;
+			}
+		}
+		return null;
+	}
+}
+
+CommonEditorRegistry.registerEditorCommand(new StartSearchDefaultSettingsCommand({
+	id: DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH,
+	precondition: ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR),
+	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }
 }));
