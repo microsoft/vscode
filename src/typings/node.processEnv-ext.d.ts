@@ -8,9 +8,12 @@ declare namespace NodeJS {
 	export interface Process {
 
 		/**
-		 * VS Code specific extension of a delayed
-		 * process enviroment.
+		 * The lazy enviroment is a promise that resolves to `process.env`
+		 * once the process is resolved. The use-case is VS Code running
+		 * on Linux/macOS when being launched via a launcher. Then the env
+		 * (as defined in .bashrc etc) isn't properly set and needs to be
+		 * resolved lazy.
 		 */
-		delayedEnv: Thenable<typeof process.env> | undefined;
+		lazyEnv: Thenable<typeof process.env> | undefined;
 	}
 }
