@@ -11,10 +11,8 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorInputAction } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -29,6 +27,9 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
+import { getResource } from 'vs/workbench/common/editor';
+
+export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution, ITextModelContentProvider {
@@ -49,7 +50,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		// Register as text model content provider that supports to load a resource as it actually
 		// is stored on disk as opposed to using the file:// scheme that will return a dirty buffer
 		// if there is one.
-		this.textModelResolverService.registerTextModelContentProvider('disk', this);
+		this.textModelResolverService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, this);
 
 		// Hook into model
 		TextFileEditorModel.setSaveErrorHandler(this);
@@ -165,35 +166,6 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	}
 }
 
-// Save conflict resolution editor input
-export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
-
-	public static ID = 'workbench.editors.files.conflictResolutionDiffEditorInput';
-
-	private model: ITextFileEditorModel;
-
-	constructor(
-		model: ITextFileEditorModel,
-		name: string,
-		description: string,
-		originalInput: ResourceEditorInput,
-		modifiedInput: FileEditorInput
-	) {
-		super(name, description, originalInput, modifiedInput);
-
-		this.model = model;
-	}
-
-	public getModel(): ITextFileEditorModel {
-		return this.model;
-	}
-
-	public getTypeId(): string {
-		return ConflictResolutionDiffEditorInput.ID;
-	}
-}
-
-
 const pendingResolveSaveConflictMessages: Function[] = [];
 function clearPendingResolveSaveConflictMessages(): void {
 	while (pendingResolveSaveConflictMessages.length > 0) {
@@ -214,6 +186,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ICommandService commandService: ICommandService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.model = model;
@@ -228,11 +201,10 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		this.actions = [
 			new Action('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"), null, true, () => {
 				if (!this.model.isDisposed()) {
-					const originalInput = this.instantiationService.createInstance(ResourceEditorInput, paths.basename(resource.fsPath), resource.fsPath, URI.from({ scheme: 'disk', path: resource.fsPath }));
-					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, void 0);
-					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), this.environmentService.appNameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
+					const name = paths.basename(resource.fsPath);
+					const editorLabel = nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.environmentService.appNameLong);
 
-					return this.editorService.openEditor(conflictInput).then(() => {
+					return commandService.executeCommand('_workbench.diff', [URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), resource, editorLabel]).then(() => {
 
 						// We have to bring the model into conflict resolution mode to prevent subsequent save erros when the user makes edits
 						this.model.setConflictResolutionMode();
@@ -252,32 +224,35 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 export class AcceptLocalChangesAction extends EditorInputAction {
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITextModelResolverService private resolverService: ITextModelResolverService
 	) {
 		super('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use local changes and overwrite disk contents"), 'conflict-editor-action accept-changes');
 	}
 
 	public run(): TPromise<void> {
-		const conflictInput = <ConflictResolutionDiffEditorInput>this.input;
-		const model = conflictInput.getModel();
-		const localModelValue = model.getValue();
+		return this.resolverService.createModelReference(getResource(this.input)).then(reference => {
+			const model = reference.object as ITextFileEditorModel;
+			const localModelValue = model.getValue();
 
-		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+			clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-		// revert to be able to save
-		return model.revert().then(() => {
+			// revert to be able to save
+			return model.revert().then(() => {
 
-			// Restore user value
-			model.textEditorModel.setValue(localModelValue);
+				// Restore user value
+				model.textEditorModel.setValue(localModelValue);
 
-			// Trigger save
-			return model.save().then(() => {
+				// Trigger save
+				return model.save().then(() => {
 
-				// Reopen file input
-				return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
+					// Reopen file input
+					return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
 
-					// Dispose conflict input
-					conflictInput.dispose();
+						// Clean up
+						this.input.dispose();
+						reference.dispose();
+					});
 				});
 			});
 		});
@@ -288,25 +263,28 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 export class RevertLocalChangesAction extends EditorInputAction {
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITextModelResolverService private resolverService: ITextModelResolverService
 	) {
 		super('workbench.action.files.revert', nls.localize('revertLocalChanges', "Discard local changes and revert to content on disk"), 'conflict-editor-action revert-changes');
 	}
 
 	public run(): TPromise<void> {
-		const conflictInput = <ConflictResolutionDiffEditorInput>this.input;
-		const model = conflictInput.getModel();
+		return this.resolverService.createModelReference(getResource(this.input)).then(reference => {
+			const model = reference.object as ITextFileEditorModel;
 
-		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+			clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-		// Revert on model
-		return model.revert().then(() => {
+			// Revert on model
+			return model.revert().then(() => {
 
-			// Reopen file input
-			return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
+				// Reopen file input
+				return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
 
-				// Dispose conflict input
-				conflictInput.dispose();
+					// Clean up
+					this.input.dispose();
+					reference.dispose();
+				});
 			});
 		});
 	}

@@ -606,9 +606,9 @@ export class KeybindingsReferenceAction extends Action {
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string]) {
+CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string]) {
 	const editorService = accessor.get(IWorkbenchEditorService);
-	let [left, right, label] = args;
+	let [left, right, label, description] = args;
 
 	if (!label) {
 		label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", left.toString(true), right.toString(true));
@@ -617,7 +617,7 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 	return TPromise.join([editorService.createInput({ resource: left }), editorService.createInput({ resource: right })]).then(inputs => {
 		const [left, right] = inputs;
 
-		const diff = new DiffEditorInput(label, void 0, <EditorInput>left, <EditorInput>right);
+		const diff = new DiffEditorInput(label, description, <EditorInput>left, <EditorInput>right);
 		return editorService.openEditor(diff);
 	}).then(() => {
 		return void 0;
