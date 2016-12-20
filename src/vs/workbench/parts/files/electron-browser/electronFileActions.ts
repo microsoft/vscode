@@ -141,42 +141,6 @@ export class OpenFileAction extends Action {
 	}
 }
 
-export class OpenFolderAction extends Action {
-
-	static ID = 'workbench.action.files.openFolder';
-	static LABEL = nls.localize('openFolder', "Open Folder...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowService private windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<any> {
-		return this.windowService.openFolderPicker();
-	}
-}
-
-export class OpenFileFolderAction extends Action {
-
-	static ID = 'workbench.action.files.openFileFolder';
-	static LABEL = nls.localize('openFileFolder', "Open...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowService private windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<any> {
-		return this.windowService.openFileFolderPicker();
-	}
-}
-
 export class ShowOpenedFileInNewWindow extends Action {
 
 	public static ID = 'workbench.action.files.showOpenedFileInNewWindow';
