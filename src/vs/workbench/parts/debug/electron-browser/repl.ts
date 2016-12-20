@@ -25,6 +25,7 @@ import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -138,11 +139,14 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext);
+		controller.toFocusOnClick = this.replInput;
+
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(ReplExpressionsController, this.replInput, new ReplExpressionsActionProvider(this.instantiationService))
+			controller
 		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {

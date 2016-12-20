@@ -605,7 +605,7 @@ export class DragAndDrop extends ActionContainer implements tree.IDragAndDrop {
 	private onDragWorkingTree(targetElement: any): tree.IDragOverReaction {
 		if (targetElement instanceof gitmodel.StatusGroup) {
 			var targetStatusGroup = <git.IStatusGroup>targetElement;
-			return targetStatusGroup.getType() === git.StatusType.INDEX ? tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN : tree.DRAG_OVER_REJECT;
+			return targetStatusGroup.getType() === git.StatusType.INDEX ? tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN(false) : tree.DRAG_OVER_REJECT;
 		} else if (targetElement instanceof gitmodel.FileStatus) {
 			var targetStatus = <git.IFileStatus>targetElement;
 			return targetStatus.getType() === git.StatusType.INDEX ? tree.DRAG_OVER_ACCEPT_BUBBLE_UP : tree.DRAG_OVER_REJECT;
@@ -617,7 +617,7 @@ export class DragAndDrop extends ActionContainer implements tree.IDragAndDrop {
 	private onDragIndex(targetElement: any): tree.IDragOverReaction {
 		if (targetElement instanceof gitmodel.StatusGroup) {
 			var targetStatusGroup = <git.IStatusGroup>targetElement;
-			return targetStatusGroup.getType() === git.StatusType.WORKING_TREE ? tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN : tree.DRAG_OVER_REJECT;
+			return targetStatusGroup.getType() === git.StatusType.WORKING_TREE ? tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN(false) : tree.DRAG_OVER_REJECT;
 		} else if (targetElement instanceof gitmodel.FileStatus) {
 			var targetStatus = <git.IFileStatus>targetElement;
 			return targetStatus.getType() === git.StatusType.WORKING_TREE ? tree.DRAG_OVER_ACCEPT_BUBBLE_UP : tree.DRAG_OVER_REJECT;
@@ -629,7 +629,7 @@ export class DragAndDrop extends ActionContainer implements tree.IDragAndDrop {
 	private onDragMerge(targetElement: any): tree.IDragOverReaction {
 		if (targetElement instanceof gitmodel.StatusGroup) {
 			var targetStatusGroup = <git.IStatusGroup>targetElement;
-			return targetStatusGroup.getType() === git.StatusType.INDEX ? tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN : tree.DRAG_OVER_REJECT;
+			return targetStatusGroup.getType() === git.StatusType.INDEX ? tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN(false) : tree.DRAG_OVER_REJECT;
 		} else if (targetElement instanceof gitmodel.FileStatus) {
 			var targetStatus = <git.IFileStatus>targetElement;
 			return targetStatus.getType() === git.StatusType.INDEX ? tree.DRAG_OVER_ACCEPT_BUBBLE_UP : tree.DRAG_OVER_REJECT;

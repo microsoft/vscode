@@ -55,7 +55,7 @@ const options: minimist.Opts = {
 
 function validate(args: ParsedArgs): ParsedArgs {
 	if (args.goto) {
-		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:COLUMN))`.")));
+		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
 
 	return args;
@@ -105,7 +105,7 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 export const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
-	'-g, --goto': localize('goto', "Open the file at path at the line and column (add :line[:column] to path)."),
+	'-g, --goto': localize('goto', "Open the file at path at the line and character (add :line[:character] to path)."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),

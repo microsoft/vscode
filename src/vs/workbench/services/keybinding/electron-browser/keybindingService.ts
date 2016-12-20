@@ -123,7 +123,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private userKeybindings: ConfigWatcher<IUserFriendlyKeybinding[]>;
 
 	constructor(
-		domNode: HTMLElement,
+		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -156,7 +156,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			keybindings: event.config
 		})));
 
-		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this.toDispose.push(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			let shouldPreventDefault = this._dispatch(keyEvent.toKeybinding(), keyEvent.target);
 			if (shouldPreventDefault) {

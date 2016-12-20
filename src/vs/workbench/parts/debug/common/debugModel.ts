@@ -12,7 +12,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
-import * as strings from 'vs/base/common/strings';
 import { distinct } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
@@ -348,6 +347,10 @@ export class StackFrame implements debug.IStackFrame {
 	public restart(): TPromise<any> {
 		return this.thread.process.session.restartFrame({ frameId: this.frameId });
 	}
+
+	public toString(): string {
+		return `${this.name} (${this.source.name}:${this.lineNumber})`;
+	}
 }
 
 export class Thread implements debug.IThread {
@@ -535,11 +538,11 @@ export class Process implements debug.IProcess {
 		}
 	}
 
-	public sourceIsUnavailable(source: Source): void {
+	public sourceIsUnavailable(uri: uri): void {
 		Object.keys(this.threads).forEach(key => {
 			if (this.threads[key].getCachedCallStack()) {
 				this.threads[key].getCachedCallStack().forEach(stackFrame => {
-					if (stackFrame.source.uri.toString() === source.uri.toString()) {
+					if (stackFrame.source.uri.toString() === uri.toString()) {
 						stackFrame.source.available = false;
 					}
 				});
@@ -812,32 +815,31 @@ export class Model implements debug.IModel {
 
 	public addReplExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name);
-		this.addReplElement(expression);
+		this.addReplElements([expression]);
 		return expression.evaluate(process, stackFrame, 'repl')
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
 	public appendToRepl(output: string | debug.IExpression, severity: severity): void {
 		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-		const groupTogether = typeof output === 'string' && previousOutput instanceof OutputElement && severity === previousOutput.severity;
-		if (groupTogether) {
-			if (strings.endsWith(previousOutput.value, '\n') && previousOutput.value === output && output.trim()) {
-				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				previousOutput.counter++;
-			} else {
-				// append to previous line if same group
-				previousOutput.value += output;
-			}
+		if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim()) {
+			// we got the same output (but not an empty string when trimmed) so we just increment the counter
+			previousOutput.counter++;
 		} else {
-			const newReplElement = typeof output === 'string' ? new OutputElement(output, severity) : output;
-			this.addReplElement(newReplElement);
+			if (previousOutput && previousOutput.value === '') {
+				// remove potential empty lines between different output types
+				this.replElements.pop();
+			}
+
+			const newReplElements = typeof output === 'string' ? output.split('\n').map(line => new OutputElement(line, severity)) : [output];
+			this.addReplElements(newReplElements);
 		}
 
 		this._onDidChangeREPLElements.fire();
 	}
 
-	private addReplElement(newElement: debug.ITreeElement): void {
-		this.replElements.push(newElement);
+	private addReplElements(newElements: debug.ITreeElement[]): void {
+		this.replElements.push(...newElements);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}
@@ -907,8 +909,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public sourceIsUnavailable(source: Source): void {
-		this.processes.forEach(p => p.sourceIsUnavailable(source));
+	public sourceIsUnavailable(uri: uri): void {
+		this.processes.forEach(p => p.sourceIsUnavailable(uri));
 		this._onDidChangeCallStack.fire();
 	}
 

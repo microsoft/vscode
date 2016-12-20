@@ -22,6 +22,7 @@ suite('Debug - Source', () => {
 		assert.equal(source.inMemory, false);
 		assert.equal(source.reference, rawSource.sourceReference);
 		assert.equal(source.uri.toString(), uri.file(rawSource.path).toString());
+		assert.equal(Source.getSourceReference(source.uri), 0);
 	});
 
 	test('from raw internal source', () => {
@@ -35,5 +36,6 @@ suite('Debug - Source', () => {
 		assert.equal(source.name, rawSource.name);
 		assert.equal(source.inMemory, true);
 		assert.equal(source.reference, rawSource.sourceReference);
+		assert.equal(Source.getSourceReference(source.uri), 11);
 	});
 });

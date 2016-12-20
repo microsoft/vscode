@@ -10,7 +10,7 @@ import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/c
 import uri from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
@@ -18,18 +18,13 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITree, IAccessibilityProvider, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IExpressionContainer, IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IExpressionContainer, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
-import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 const $ = dom.$;
 
@@ -93,11 +88,11 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
 		// group 1: absolute path
-		// group 2: the root slash/drive letter, if present
+		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
 		// group 3: line number
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/
+		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
 	];
 
 	private static LINE_HEIGHT_PX = 18;
@@ -106,8 +101,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private characterWidth: number;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		// noop
 	}
@@ -378,10 +372,9 @@ export class ReplExpressionsRenderer implements IRenderer {
 			pattern.lastIndex = 0; // the holy grail of software development
 
 			const match = pattern.exec(text);
-			let resource: uri = null;
+			let resource = null;
 			try {
-				// If root slash / drive letter is present, resolve relative path
-				resource = match && (match[2] ? uri.file(match[1]) : this.contextService.toResource(match[1]));
+				resource = match && uri.file(match[1]);
 			} catch (e) { }
 
 			if (resource) {
@@ -398,7 +391,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				link.textContent = text.substr(match.index, match[0].length);
 				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
 				linkContainer.appendChild(link);
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[3]), match[4] && Number(match[4]));
+				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[3]), Number(match[4]));
 
 				let textAfterLink = text.substr(match.index + match[0].length);
 				if (textAfterLink) {
@@ -414,7 +407,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		return linkContainer || text;
 	}
 
-	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number = 0): void {
+	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number): void {
 		const selection = window.getSelection();
 		if (selection.type === 'Range') {
 			return; // do not navigate when user is selecting
@@ -478,10 +471,6 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
-		if (element instanceof Variable || element instanceof Expression) {
-			actions.push(this.instantiationService.createInstance(AddToWatchExpressionsAction, AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, element));
-			actions.push(new Separator());
-		}
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
 		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
 
@@ -496,17 +485,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 export class ReplExpressionsController extends BaseDebugController {
 
 	private lastSelectedString: string = null;
-
-	constructor(
-		private replInput: ICodeEditor,
-		actionProvider: IActionProvider,
-		@IDebugService debugService: IDebugService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService
-	) {
-		super(actionProvider, MenuId.DebugConsoleContext, debugService, contextMenuService, contextKeyService, menuService);
-	}
+	public toFocusOnClick: { focus(): void };
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
@@ -520,7 +499,7 @@ export class ReplExpressionsController extends BaseDebugController {
 		const selection = window.getSelection();
 		if (selection.type !== 'Range' || this.lastSelectedString === selection.toString()) {
 			// only focus the input if the user is not currently selecting.
-			this.replInput.focus();
+			this.toFocusOnClick.focus();
 		}
 		this.lastSelectedString = selection.toString();
 

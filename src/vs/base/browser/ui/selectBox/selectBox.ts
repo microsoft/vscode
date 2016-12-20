@@ -62,6 +62,10 @@ export class SelectBox extends Widget {
 		this.select.disabled = !value;
 	}
 
+	public get enabled(): boolean {
+		return !this.select.disabled;
+	}
+
 	public blur(): void {
 		if (this.select) {
 			this.select.blur();

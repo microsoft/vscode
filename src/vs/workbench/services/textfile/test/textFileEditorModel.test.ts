@@ -10,15 +10,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IEventService } from 'vs/platform/event/common/event';
 import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { workbenchInstantiationService, TestTextFileService, createFileInput, onError, toResource } from 'vs/test/utils/servicesTestUtils';
+import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
+import { onError, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
-	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
@@ -95,10 +95,6 @@ suite('Files - TextFileEditorModel', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
 		assert.equal(model.getState(), ModelState.SAVED);
 
-		accessor.eventService.addListener2('files:internalFileChanged', () => {
-			assert.ok(false);
-		});
-
 		model.onDidStateChange(e => {
 			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
 		});
@@ -135,7 +131,6 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', function (done) {
 		let eventCounter = 0;
 
-
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.onDidStateChange(e => {
@@ -152,6 +147,34 @@ suite('Files - TextFileEditorModel', () => {
 			return model.revert().then(() => {
 				assert.ok(!model.isDirty());
 				assert.equal(model.textEditorModel.getValue(), 'Hello Html');
+				assert.equal(eventCounter, 1);
+
+				model.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('Revert (soft)', function (done) {
+		let eventCounter = 0;
+
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+
+		model.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				eventCounter++;
+			}
+		});
+
+		model.load().done(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.ok(model.isDirty());
+
+			return model.revert(true /* soft revert */).then(() => {
+				assert.ok(!model.isDirty());
+				assert.equal(model.textEditorModel.getValue(), 'foo');
 				assert.equal(eventCounter, 1);
 
 				model.dispose();

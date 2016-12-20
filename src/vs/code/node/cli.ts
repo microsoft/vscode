@@ -8,8 +8,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/node/argv';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return argv['list-extensions'] || !!argv['install-extension'] || !!argv['uninstall-extension'];

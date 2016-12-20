@@ -13,7 +13,6 @@ import 'vs/base/common/errors';
 import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
-import 'vs/editor/contrib/suggest/electron-browser/snippetCompletion';
 import 'vs/editor/browser/editor.all';
 
 // Menus/Actions
@@ -91,13 +90,13 @@ import 'vs/workbench/parts/contentprovider/common/contentprovider.contribution';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
-import 'vs/workbench/parts/feedback/browser/feedback.contribution';
+import 'vs/workbench/parts/feedback/electron-browser/feedback.contribution';
 
-import 'vs/workbench/parts/welcome/browser/gettingStarted.contribution';
+import 'vs/workbench/parts/welcome/electron-browser/gettingStarted.contribution';
 
 import 'vs/workbench/parts/update/electron-browser/update.contribution';
 
-import 'vs/workbench/parts/nps/browser/nps.contribution';
+import 'vs/workbench/parts/nps/electron-browser/nps.contribution';
 
 import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 

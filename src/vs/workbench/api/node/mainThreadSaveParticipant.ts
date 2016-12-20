@@ -251,8 +251,8 @@ export class SaveParticipant implements ISaveParticipant {
 
 		this._saveParticipants = [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
-			instantiationService.createInstance(FinalNewLineParticipant),
 			instantiationService.createInstance(FormatOnSaveParticipant),
+			instantiationService.createInstance(FinalNewLineParticipant),
 			instantiationService.createInstance(ExtHostSaveParticipant)
 		];
 

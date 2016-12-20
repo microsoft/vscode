@@ -17,12 +17,11 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
-import { TestEventService, workbenchInstantiationService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import URI from 'vs/base/common/uri';
-import utils = require('vs/workbench/services/files/test/node/utils');
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -35,8 +34,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -60,10 +60,11 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupModelService backupService: IBackupModelService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IWindowsService windowsService: IWindowsService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService);
 	}
 
 	public isDirty(resource?: URI): boolean {
@@ -96,10 +97,9 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 	function createServices(workspaceDir: string, globalSettingsFile: string, dirty?: boolean, noWorkspace?: boolean): TPromise<{ configurationService: WorkspaceConfigurationService, configurationEditingService: ConfigurationEditingService }> {
 		const workspaceContextService = new WorkspaceContextService(noWorkspace ? null : { resource: URI.file(workspaceDir) });
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-		const configurationService = new WorkspaceConfigurationService(workspaceContextService, new TestEventService(), environmentService);
+		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true });
+		const configurationService = new WorkspaceConfigurationService(workspaceContextService, environmentService);
 		const textFileService = workbenchInstantiationService().createInstance(TestDirtyTextFileService, dirty);
-		const events = new utils.TestEventService();
-		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events);
 
 		return configurationService.initialize().then(() => {
 			return {

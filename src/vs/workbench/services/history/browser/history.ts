@@ -11,14 +11,12 @@ import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import product from 'vs/platform/product';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
-import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -198,12 +196,12 @@ export abstract class BaseHistoryService {
 	}
 
 	private doGetWindowTitle(input?: IEditorInput): string {
-		const appName = product.nameLong;
+		const appName = this.environmentService.appNameLong;
 
 		let prefix: string;
-		const fileInput = asFileEditorInput(input);
-		if (fileInput && this.showFullPath) {
-			prefix = labels.getPathLabel(fileInput.getResource());
+		const file = toResource(input, { filter: 'file' });
+		if (file && this.showFullPath) {
+			prefix = labels.getPathLabel(file);
 			if ((platform.isMacintosh || platform.isLinux) && prefix.indexOf(this.environmentService.userHome) === 0) {
 				prefix = `~${prefix.substr(this.environmentService.userHome.length)}`;
 			}
@@ -291,9 +289,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEventService private eventService: IEventService,
 		@IIntegrityService integrityService: IIntegrityService,
 		@ITitleService titleService: ITitleService,
+		@IFileService private fileService: IFileService,
 		@IWindowService private windowService: IWindowService
 	) {
 		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService, titleService);
@@ -313,7 +311,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
 
 		// File changes
-		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
@@ -326,12 +324,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
-			const fileEditor = asFileEditorInput(event.editor); // we only support files to reopen
-			if (fileEditor) {
+			const file = toResource(event.editor, { filter: 'file' }); // we only support files to reopen
+			if (file) {
 
 				// Remove all inputs matching and add as last recently closed
 				this.removeFromRecentlyClosedFiles(event.editor);
-				this.recentlyClosedFiles.push({ resource: fileEditor.getResource(), index: event.index });
+				this.recentlyClosedFiles.push({ resource: file, index: event.index });
 
 				// Bounding
 				if (this.recentlyClosedFiles.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
@@ -579,9 +577,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		const fileInput = asFileEditorInput(input);
-		if (fileInput) {
-			return { resource: fileInput.getResource() };
+		const file = toResource(input, { filter: 'file' });
+		if (file) {
+			return { resource: file };
 		}
 
 		return input;
@@ -676,9 +674,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (arg2 instanceof EditorInput) {
-			const fileInput = asFileEditorInput(arg2);
+			const file = toResource(arg2, { filter: 'file' });
 
-			return fileInput && fileInput.getResource().toString() === resource.toString();
+			return file && file.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;

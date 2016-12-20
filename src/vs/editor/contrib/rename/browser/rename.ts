@@ -10,7 +10,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEventService } from 'vs/platform/event/common/event';
+import { IFileService } from 'vs/platform/files/common/files';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -42,7 +42,7 @@ class RenameController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IMessageService private _messageService: IMessageService,
-		@IEventService private _eventService: IEventService,
+		@IFileService private _fileService: IFileService,
 		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
 		@IProgressService private _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -132,7 +132,7 @@ class RenameController implements IEditorContribution {
 
 		// start recording of file changes so that we can figure out if a file that
 		// is to be renamed conflicts with another (concurrent) modification
-		let edit = createBulkEdit(this._eventService, this._textModelResolverService, <ICodeEditor>this.editor);
+		let edit = createBulkEdit(this._fileService, this._textModelResolverService, <ICodeEditor>this.editor);
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {

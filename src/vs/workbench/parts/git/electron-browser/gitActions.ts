@@ -13,7 +13,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import Severity from 'vs/base/common/severity';
 import { IGitService } from 'vs/workbench/parts/git/common/git';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import * as url from 'url';
 import { remote } from 'electron';
 
@@ -36,13 +36,13 @@ export class CloneAction extends Action {
 
 	run(): TPromise<void> {
 		return this.quickOpenService.input({
-			prompt: localize('repo', "Provide a git repository URL."),
+			prompt: localize('valid', "Provide a valid git repository URL"),
 			placeHolder: localize('url', "Repository URL"),
 			validateInput: input => {
 				const parsedUrl = url.parse(input);
 
 				if (!parsedUrl.protocol || !parsedUrl.host) {
-					return TPromise.as(localize('valid', "Please provide a valid git repository URL"));
+					return TPromise.as(localize('valid', "Provide a valid git repository URL"));
 				}
 
 				return TPromise.as('');

@@ -7,11 +7,16 @@
 
 import 'vs/css!./noworkspaceView';
 import nls = require('vs/nls');
+import * as errors from 'vs/base/common/errors';
 import winjs = require('vs/base/common/winjs.base');
 import ee = require('vs/base/common/eventEmitter');
+import env = require('vs/base/common/platform');
 import view = require('vs/workbench/parts/git/browser/views/view');
 import builder = require('vs/base/browser/builder');
-import actions = require('vs/base/common/actions');
+import { Button } from 'vs/base/browser/ui/button/button';
+import { IActionRunner, IAction } from 'vs/base/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 const $ = builder.$;
 
 export class NoWorkspaceView
@@ -19,6 +24,14 @@ export class NoWorkspaceView
 	implements view.IView {
 	public ID = 'noworkspace';
 	private _element: HTMLElement;
+	private _openFolderButton: Button;
+
+	constructor(
+		private actionRunner: IActionRunner,
+		@IInstantiationService private instantiationService: IInstantiationService,
+	) {
+		super();
+	}
 
 	public get element(): HTMLElement {
 		if (!this._element) {
@@ -31,14 +44,29 @@ export class NoWorkspaceView
 	private render(): void {
 		this._element = $([
 			'<div class="noworkspace-view">',
-			'<p>', nls.localize('noWorkspace', "There is no currently opened folder."), '</p>',
+			'<p>', nls.localize('noWorkspaceHelp', "You have not yet opened a folder."), '</p>',
 			'<p>', nls.localize('pleaseRestart', "Open a folder with a Git repository in order to access Git features."), '</p>',
 			'</div>'
 		].join('')).getHTMLElement();
+
+		this._openFolderButton = new Button(this._element);
+		this._openFolderButton.label = nls.localize('openFolder', "Open Folder");
+		this._openFolderButton.addListener2('click', () => {
+			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			this.actionRunner.run(action).done(() => {
+				action.dispose();
+			}, err => {
+				action.dispose();
+				errors.onUnexpectedError(err);
+			});
+		});
 	}
 
 	public focus(): void {
-		return;
+		if (this._openFolderButton) {
+			this._openFolderButton.getElement().focus();
+		}
 	}
 
 	public layout(dimension: builder.Dimension): void {
@@ -53,11 +81,11 @@ export class NoWorkspaceView
 		return null;
 	}
 
-	public getActions(): actions.IAction[] {
+	public getActions(): IAction[] {
 		return [];
 	}
 
-	public getSecondaryActions(): actions.IAction[] {
+	public getSecondaryActions(): IAction[] {
 		return [];
 	}
 }

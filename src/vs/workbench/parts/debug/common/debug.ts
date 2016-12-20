@@ -171,6 +171,7 @@ export interface IStackFrame extends ITreeElement {
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	restart(): TPromise<any>;
+	toString(): string;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -280,7 +281,6 @@ export interface IDebugConfiguration {
 
 export interface IGlobalConfig {
 	version: string;
-	debugServer?: number;
 	compounds: ICompound[];
 	configurations: IConfig[];
 }
@@ -473,11 +473,6 @@ export interface IDebugService {
 	 * Gets the current view model.
 	 */
 	getViewModel(): IViewModel;
-
-	/**
-	 * Opens a new or reveals an already visible editor showing the source.
-	 */
-	openOrRevealSource(sourceOrUri: Source | uri, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
 }
 
 // Editor interfaces

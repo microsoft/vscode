@@ -8,30 +8,18 @@
 import * as assert from 'assert';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import URI from 'vs/base/common/uri';
-import { join, basename } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
-import { IEventService } from 'vs/platform/event/common/event';
-import { ITextFileService, LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileOperation, FileOperationEvent, FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
-}
-
-function toStat(resource: URI) {
-	return {
-		resource,
-		isDirectory: false,
-		hasChildren: false,
-		name: basename(resource.fsPath),
-		mtime: Date.now(),
-		etag: 'etag'
-	};
 }
 
 class ServiceAccessor {
@@ -39,7 +27,7 @@ class ServiceAccessor {
 		@IWorkbenchEditorService public editorService: IWorkbenchEditorService,
 		@IEditorGroupService public editorGroupService: IEditorGroupService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IEventService public eventService: IEventService
+		@IFileService public fileService: TestFileService
 	) {
 	}
 }
@@ -68,7 +56,7 @@ suite('Files - FileEditorTracker', () => {
 
 		assert.ok(!input.isDisposed());
 
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource)));
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.DELETE));
 		assert.ok(input.isDisposed());
 		group.closeEditor(input);
 
@@ -77,15 +65,15 @@ suite('Files - FileEditorTracker', () => {
 
 		const other = toResource.call(this, '/foo/barfoo');
 
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(other)));
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(other, FileOperation.DELETE));
 		assert.ok(!input.isDisposed());
 
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(parent)));
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(parent, FileOperation.DELETE));
 		assert.ok(input.isDisposed());
 
 		// Move
 		const to = toResource.call(this, '/foo/barfoo/change.js');
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource), toStat(to)));
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, to));
 		assert.ok(input.isDisposed());
 	});
 
@@ -103,7 +91,7 @@ suite('Files - FileEditorTracker', () => {
 
 		assert.ok(!input.isDisposed());
 
-		accessor.eventService.emit(EventType.FILE_CHANGES, new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
 		assert.ok(input.isDisposed());
 		group.closeEditor(input);
 
@@ -112,10 +100,10 @@ suite('Files - FileEditorTracker', () => {
 
 		const other = toResource.call(this, '/foo/barfoo');
 
-		accessor.eventService.emit(EventType.FILE_CHANGES, new FileChangesEvent([{ resource: other, type: FileChangeType.DELETED }]));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: other, type: FileChangeType.DELETED }]));
 		assert.ok(!input.isDisposed());
 
-		accessor.eventService.emit(EventType.FILE_CHANGES, new FileChangesEvent([{ resource: parent, type: FileChangeType.DELETED }]));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: parent, type: FileChangeType.DELETED }]));
 		assert.ok(input.isDisposed());
 	});
 });

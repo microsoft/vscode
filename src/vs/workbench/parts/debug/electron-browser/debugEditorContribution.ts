@@ -25,7 +25,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
-import { RemoveBreakpointAction, EditConditionalBreakpointAction, ToggleEnablementAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -73,7 +73,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (breakpoint) {
 			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
 			actions.push(this.instantiationService.createInstance(EditConditionalBreakpointAction, EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor, lineNumber));
-			actions.push(this.instantiationService.createInstance(ToggleEnablementAction, ToggleEnablementAction.ID, ToggleEnablementAction.LABEL));
+			if (breakpoint.enabled) {
+				actions.push(this.instantiationService.createInstance(DisableBreakpointAction, DisableBreakpointAction.ID, DisableBreakpointAction.LABEL));
+			} else {
+				actions.push(this.instantiationService.createInstance(EnableBreakpointAction, EnableBreakpointAction.ID, EnableBreakpointAction.LABEL));
+			}
 		} else {
 			actions.push(new Action(
 				'addBreakpoint',
@@ -276,37 +280,41 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private addLaunchConfiguration(): void {
-		let depthInArray = 0;
 		let configurationsPosition: IPosition;
 		const model = this.editor.getModel();
+		let depthInArray = 0;
+		let lastProperty: string;
 
 		visit(model.getValue(), {
 			onObjectProperty: (property, offset, length) => {
-				if (property === 'configurations' && depthInArray === 0) {
-					configurationsPosition = model.getPositionAt(offset);
-				}
+				lastProperty = property;
 			},
 			onArrayBegin: (offset: number, length: number) => {
+				if (lastProperty === 'configurations' && depthInArray === 0) {
+					configurationsPosition = model.getPositionAt(offset);
+				}
 				depthInArray++;
 			},
-			onArrayEnd: (offset: number, length: number) => {
+			onArrayEnd: () => {
 				depthInArray--;
 			}
 		});
-
-		if (configurationsPosition) {
-			const insertLineAfter = (lineNumber: number): TPromise<any> => {
-				if (this.editor.getModel().getLineLastNonWhitespaceColumn(lineNumber + 1) === 0) {
-					this.editor.setSelection(new Selection(lineNumber + 1, Number.MAX_VALUE, lineNumber + 1, Number.MAX_VALUE));
-					return TPromise.as(null);
-				}
-
-				this.editor.setSelection(new Selection(lineNumber, Number.MAX_VALUE, lineNumber, Number.MAX_VALUE));
-				return this.commandService.executeCommand('editor.action.insertLineAfter');
-			};
-
-			insertLineAfter(configurationsPosition.lineNumber).done(() => this.commandService.executeCommand('editor.action.triggerSuggest'), errors.onUnexpectedError);
+		if (!configurationsPosition) {
+			this.commandService.executeCommand('editor.action.triggerSuggest');
+			return;
 		}
+
+		const insertLineAfter = (lineNumber: number): TPromise<any> => {
+			if (this.editor.getModel().getLineLastNonWhitespaceColumn(lineNumber + 1) === 0) {
+				this.editor.setSelection(new Selection(lineNumber + 1, Number.MAX_VALUE, lineNumber + 1, Number.MAX_VALUE));
+				return TPromise.as(null);
+			}
+
+			this.editor.setSelection(new Selection(lineNumber, Number.MAX_VALUE, lineNumber, Number.MAX_VALUE));
+			return this.commandService.executeCommand('editor.action.insertLineAfter');
+		};
+
+		insertLineAfter(configurationsPosition.lineNumber).done(() => this.commandService.executeCommand('editor.action.triggerSuggest'), errors.onUnexpectedError);
 	}
 
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {

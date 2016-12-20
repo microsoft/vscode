@@ -22,12 +22,13 @@ import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService, UnloadReason } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -91,7 +92,7 @@ export interface IWindowsMainService {
 	ready(initialUserEnv: platform.IProcessEnvironment): void;
 	reload(win: VSCodeWindow, cli?: ParsedArgs): void;
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
-	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
+	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
 	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void;
 	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void;
@@ -143,13 +144,13 @@ export class WindowsManager implements IWindowsMainService {
 	onPathsOpen: CommonEvent<IPath> = this._onPathsOpen.event;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
 	public ready(initialUserEnv: platform.IProcessEnvironment): void {
@@ -238,7 +239,7 @@ export class WindowsManager implements IWindowsMainService {
 			}
 
 			// 2-N windows open: Keep a list of windows that are opened on a specific folder to restore it in the next session as needed
-			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isPluginDevelopmentHost).map(w => {
+			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isExtensionDevelopmentHost).map(w => {
 				return <IWindowState>{
 					workspacePath: w.openedWorkspacePath,
 					uiState: w.serializeWindowState()
@@ -457,7 +458,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isPluginDevelopmentHost) && !openConfig.cli.diff) {
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
 			const recentPaths: { path: string; isFile?: boolean; }[] = [];
 
 			iPathsToOpen.forEach(iPath => {
@@ -471,7 +472,6 @@ export class WindowsManager implements IWindowsMainService {
 				this.addToRecentPathsList(recentPaths);
 			}
 		}
-
 
 		// Emit events
 		this._onPathsOpen.fire(iPathsToOpen);
@@ -581,11 +581,11 @@ export class WindowsManager implements IWindowsMainService {
 		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
 	}
 
-	public openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
+	public openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
 
-		// Reload an existing plugin development host window on the same path
+		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
-		// on the same plugin path.
+		// on the same extension path.
 		let res = WindowsManager.WINDOWS.filter(w => w.config && this.isPathEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
@@ -726,12 +726,19 @@ export class WindowsManager implements IWindowsMainService {
 		if (!vscodeWindow) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 
-			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
+			vscodeWindow = new VSCodeWindow({
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
+				isExtensionTestHost: !!configuration.extensionTestsPath,
 				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
 				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
-			});
+			},
+				this.logService,
+				this.environmentService,
+				this.configurationService,
+				this.storageService,
+				this.telemetryService
+			);
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
@@ -751,7 +758,7 @@ export class WindowsManager implements IWindowsMainService {
 		else {
 
 			// Some configuration things get inherited if the window is being reused and we are
-			// in plugin development host mode. These options are all development related.
+			// in extension development host mode. These options are all development related.
 			const currentWindowConfig = vscodeWindow.config;
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
@@ -762,13 +769,14 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		if (!configuration.extensionDevelopmentPath) {
-			this.backupService.registerWindowForBackupsSync(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
-		}
-
 		// Only load when the window has not vetoed this
 		this.lifecycleService.unload(vscodeWindow, UnloadReason.LOAD).done(veto => {
 			if (!veto) {
+
+				// Register window for backups
+				if (!configuration.extensionDevelopmentPath) {
+					this.backupService.registerWindowForBackupsSync(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
+				}
 
 				// Load it
 				vscodeWindow.load(configuration);
@@ -780,7 +788,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private getNewWindowState(configuration: IWindowConfiguration): ISingleWindowState {
 
-		// plugin development host Window - load from stored settings if any
+		// extension development host Window - load from stored settings if any
 		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
 			return this.windowsState.lastPluginDevelopmentHostWindow.uiState;
 		}
@@ -1086,8 +1094,10 @@ export class WindowsManager implements IWindowsMainService {
 
 		// On Window close, update our stored state of this window
 		const state: IWindowState = { workspacePath: win.openedWorkspacePath, uiState: win.serializeWindowState() };
-		if (win.isPluginDevelopmentHost) {
-			this.windowsState.lastPluginDevelopmentHostWindow = state;
+		if (win.isExtensionDevelopmentHost) {
+			if (!win.isExtensionTestHost) {
+				this.windowsState.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
+			}
 		} else {
 			this.windowsState.lastActiveWindow = state;
 
@@ -1221,7 +1231,7 @@ export class WindowsManager implements IWindowsMainService {
 		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		const vscodeWindow = this.getFocusedWindow();
-		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && this.getWindowCount() > 1) {
+		if (vscodeWindow && vscodeWindow.isExtensionDevelopmentHost && this.getWindowCount() > 1) {
 			vscodeWindow.win.close();
 		}
 

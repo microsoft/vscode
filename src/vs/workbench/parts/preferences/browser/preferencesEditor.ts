@@ -16,8 +16,10 @@ import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -25,10 +27,10 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { Range } from 'vs/editor/common/core/range';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, CONTEXT_DEFAULT_SETTINGS_EDITOR,
-	DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL
+	DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL, DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -36,15 +38,15 @@ import { ICodeEditor, IEditorMouseEvent, IEditorContributionCtor } from 'vs/edit
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, SettingsCountWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { CommonEditorRegistry, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -65,10 +67,6 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 
 	constructor(resource: URI, @ITextModelResolverService textModelResolverService: ITextModelResolverService) {
 		super(nls.localize('settingsEditorName', "Default Settings"), '', resource, textModelResolverService);
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 
 	getTypeId(): string {
@@ -113,15 +111,15 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, editorService, themeService, textFileService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
@@ -162,9 +160,9 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public layout(dimension: Dimension) {
 		this.defaultSettingHeaderWidget.layout(dimension);
-		const headerWidgetPosition = DOM.getDomNodePagePosition(this.defaultSettingHeaderWidget.domNode);
+		const headerHeight = DOM.getTotalHeight(this.defaultSettingHeaderWidget.domNode);
 		this.getControl().layout({
-			height: dimension.height - headerWidgetPosition.height,
+			height: dimension.height - headerHeight,
 			width: dimension.width
 		});
 	}
@@ -244,7 +242,7 @@ class DefaultPreferencesCodeEditor extends CodeEditor {
 	protected _getContributions(): IEditorContributionCtor[] {
 		let contributions = super._getContributions();
 		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
-		contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
+		contributions = contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
 		contributions.push(DefaultSettingsEditorContribution);
 		return contributions;
 	}
@@ -376,8 +374,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.focusNextSettingRenderer = this._register(instantiationService.createInstance(FocusNextSettingRenderer, editor));
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, true));
 		this.settingsCountWidget = this._register(instantiationService.createInstance(SettingsCountWidget, editor, this.getCount(settingsEditorModel.settingsGroups)));
-		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(ParanthesisHidingRenderer, editor));
+		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, settingsEditorModel.settingsGroups));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
+
+		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
 	}
 
 	public render() {
@@ -385,9 +385,9 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer.render(this.settingsEditorModel.settingsGroups);
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
 		this.settingsCountWidget.render();
-		this.hiddenAreasRenderer.render();
 		this.focusNextSettingRenderer.render([]);
 		this.settingsGroupTitleRenderer.showGroup(1);
+		this.hiddenAreasRenderer.render();
 	}
 
 	public filterPreferences(filter: string) {
@@ -402,6 +402,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		} else {
 			this.focusNextSettingRenderer.render(filterResult.filteredGroups);
 		}
+		this.hiddenAreasRenderer.render();
 	}
 
 	public focusNextSetting(): void {
@@ -432,16 +433,12 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 }
 
 export interface HiddenAreasProvider {
-	onHiddenAreasChanged: Event<void>;
 	hiddenAreas: editorCommon.IRange[];
 }
 
-export class ParanthesisHidingRenderer extends Disposable implements HiddenAreasProvider {
+export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
 
-	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
-	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; };
-
-	constructor(private editor: ICodeEditor
+	constructor(private editor: ICodeEditor, private settingsGroups: ISettingsGroup[]
 	) {
 		super();
 	}
@@ -452,12 +449,18 @@ export class ParanthesisHidingRenderer extends Disposable implements HiddenAreas
 			{
 				startLineNumber: 1,
 				startColumn: model.getLineMinColumn(1),
-				endLineNumber: 1,
-				endColumn: model.getLineMaxColumn(1)
+				endLineNumber: 2,
+				endColumn: model.getLineMaxColumn(2)
 			},
 			{
-				startLineNumber: model.getLineCount(),
-				startColumn: model.getLineMinColumn(model.getLineCount()),
+				startLineNumber: this.settingsGroups[0].range.endLineNumber + 1,
+				startColumn: model.getLineMinColumn(this.settingsGroups[0].range.endLineNumber + 1),
+				endLineNumber: this.settingsGroups[0].range.endLineNumber + 4,
+				endColumn: model.getLineMaxColumn(this.settingsGroups[0].range.endLineNumber + 4)
+			},
+			{
+				startLineNumber: model.getLineCount() - 1,
+				startColumn: model.getLineMinColumn(model.getLineCount() - 1),
 				endLineNumber: model.getLineCount(),
 				endColumn: model.getLineMaxColumn(model.getLineCount())
 			}
@@ -561,9 +564,6 @@ export class HiddenAreasRenderer extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
-		for (const hiddenAreProvider of hiddenAreasProviders) {
-			this._register(hiddenAreProvider.onHiddenAreasChanged(() => this.render()));
-		}
 	}
 
 	public render() {
@@ -585,9 +585,6 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	private decorationIds: string[] = [];
 	public hiddenAreas: editorCommon.IRange[] = [];
 
-	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
-	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; };
-
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -606,7 +603,6 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, model)));
 			});
 		}
-		this._onHiddenAreasChanged.fire();
 	}
 
 	private createDecoration(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
@@ -909,4 +905,31 @@ CommonEditorRegistry.registerEditorCommand(new DefaultSettingsEditorCommand({
 	id: DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL,
 	precondition: ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR),
 	handler: x => (<DefaultSettingsRenderer>x.getPreferencesRenderer()).collapseAll()
+}));
+
+class StartSearchDefaultSettingsCommand extends Command {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const defaultPreferencesEditor = this.getDefaultPreferencesEditor(accessor);
+		if (defaultPreferencesEditor) {
+			defaultPreferencesEditor.focus();
+		}
+	}
+
+	private getDefaultPreferencesEditor(accessor: ServicesAccessor): DefaultPreferencesEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
+		if (activeEditor instanceof SideBySideEditor) {
+			const detailsEditor = activeEditor.getDetailsEditor();
+			if (detailsEditor instanceof DefaultPreferencesEditor) {
+				return detailsEditor;
+			}
+		}
+		return null;
+	}
+}
+
+CommonEditorRegistry.registerEditorCommand(new StartSearchDefaultSettingsCommand({
+	id: DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH,
+	precondition: ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR),
+	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }
 }));

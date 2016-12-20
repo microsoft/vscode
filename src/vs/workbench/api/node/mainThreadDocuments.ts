@@ -11,7 +11,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IEventService } from 'vs/platform/event/common/event';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -39,7 +38,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IEventService eventService: IEventService,
 		@ITextFileService textFileService: ITextFileService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IFileService fileService: IFileService,

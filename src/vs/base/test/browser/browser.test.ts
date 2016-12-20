@@ -12,16 +12,16 @@ suite('Browsers', () => {
 	test('all', function () {
 		assert(!(isWindows && isMacintosh));
 
-		var isOpera = browser.isOpera || navigator.userAgent.indexOf('OPR') >= 0;
-		var isIE11orEarlier = browser.isIE11orEarlier;
-		var isFirefox = browser.isFirefox;
-		var isWebKit = browser.isWebKit;
-		var isChrome = browser.isChrome;
-		var isSafari = browser.isSafari;
+		let isOpera = browser.isOpera || navigator.userAgent.indexOf('OPR') >= 0;
+		let isIE11orEarlier = browser.isIE11orEarlier;
+		let isFirefox = browser.isFirefox;
+		let isWebKit = browser.isWebKit;
+		let isChrome = browser.isChrome;
+		let isSafari = browser.isSafari;
 
-		var hasCSSAnimations = browser.hasCSSAnimationSupport();
+		let hasCSSAnimations = browser.hasCSSAnimationSupport();
 
-		var browserCount = 0;
+		let browserCount = 0;
 		if (isOpera) {
 			browserCount++;
 		}

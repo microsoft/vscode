@@ -9,19 +9,16 @@ import 'vs/css!./media/workbench';
 
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import strings = require('vs/base/common/strings');
 import Event, { Emitter } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
-import timer = require('vs/base/common/timer');
 import { StopWatch } from 'vs/base/common/stopwatch';
 import errors = require('vs/base/common/errors');
-import { BackupModelService } from 'vs/workbench/services/backup/node/backupModelService';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -51,6 +48,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -67,7 +65,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -152,6 +150,7 @@ export class Workbench implements IPartService {
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
+	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -195,7 +194,7 @@ export class Workbench implements IPartService {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private configurationService: WorkspaceConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService
@@ -284,9 +283,7 @@ export class Workbench implements IPartService {
 				}
 
 				viewletRestoreStopWatch = StopWatch.create();
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
 				compositeAndEditorPromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
-					viewletTimerEvent.stop();
 					viewletRestoreStopWatch.stop();
 				}));
 			}
@@ -300,7 +297,6 @@ export class Workbench implements IPartService {
 
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
-			const editorTimerEvent = timer.start(timer.Topic.STARTUP, '[renderer] restoring editor view state');
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
 				if (inputsWithOptions.length) {
@@ -319,7 +315,6 @@ export class Workbench implements IPartService {
 
 				return editorOpenPromise.then(() => {
 					this.onEditorsChanged(); // make sure we show the proper background in the editor area
-					editorTimerEvent.stop();
 					editorRestoreStopWatch.stop();
 				});
 			}));
@@ -394,7 +389,13 @@ export class Workbench implements IPartService {
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
 		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
-			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
+			return this.backupFileService.hasBackups().then(hasBackups => {
+				if (hasBackups) {
+					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
+				}
+
+				return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
+			});
 		}
 
 		return TPromise.as([]);
@@ -418,11 +419,11 @@ export class Workbench implements IPartService {
 		this.contextKeyService = this.instantiationService.createInstance(ContextKeyService);
 		serviceCollection.set(IContextKeyService, this.contextKeyService);
 
-		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, <any>window);
+		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, window);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
 		// Context Menu
-		serviceCollection.set(IContextMenuService, this.instantiationService.createInstance(ContextMenuService));
+		serviceCollection.set(IContextMenuService, new SyncDescriptor(ContextMenuService));
 
 		// Menus/Actions
 		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
@@ -465,33 +466,31 @@ export class Workbench implements IPartService {
 		// File Service
 		const fileService = this.instantiationService.createInstance(FileService);
 		serviceCollection.set(IFileService, fileService);
+		this.toDispose.push(fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
 
 		// History
-		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
+		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
 		// Backup File Service
-		const workspace = this.contextService.getWorkspace();
-		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.windowService.getCurrentWindowId()));
-
-		// Backup Service
-		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));
+		this.backupFileService = this.instantiationService.createInstance(BackupFileService);
+		serviceCollection.set(IBackupFileService, this.backupFileService);
 
 		// Text File Service
-		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
+		serviceCollection.set(ITextFileService, new SyncDescriptor(TextFileService));
 
 		// SCM Service
-		serviceCollection.set(ISCMService, this.instantiationService.createInstance(SCMService));
+		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
 
 		// Text Model Resolver Service
-		serviceCollection.set(ITextModelResolverService, this.instantiationService.createInstance(TextModelResolverService));
+		serviceCollection.set(ITextModelResolverService, new SyncDescriptor(TextModelResolverService));
 
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
 		// Configuration Resolver
-		const configurationResolverService = this.instantiationService.createInstance(ConfigurationResolverService, workspace ? workspace.resource : null, process.env);
-		serviceCollection.set(IConfigurationResolverService, configurationResolverService);
+		const workspace = this.contextService.getWorkspace();
+		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, workspace ? workspace.resource : null, process.env));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
@@ -1074,12 +1073,18 @@ export class Workbench implements IPartService {
 			}
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
+			const activeEditor = this.editorPart.getActiveEditor();
+			if (activeEditor) {
+				activeEditor.focus();
+			}
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 		}
 		this.inZenMode.set(this.zenMode.active);
 
-		(toggleFullScreen ? this.windowService.toggleFullScreen() : TPromise.as(null))
-			.done(() => this.layout(), errors.onUnexpectedError);
+		this.layout();
+		if (toggleFullScreen) {
+			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);
+		}
 	}
 
 	private shouldRestoreLastOpenedViewlet(): boolean {

@@ -10,36 +10,27 @@ import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
-import { IEditorViewState, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { Action } from 'vs/base/common/actions';
-import { Scope } from 'vs/workbench/common/memento';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, IFileService } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-
-const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
-
-interface ITextEditorViewState {
-	0?: IEditorViewState;
-	1?: IEditorViewState;
-	2?: IEditorViewState;
-}
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 /**
  * An implementation of editor for file system resources.
@@ -58,20 +49,21 @@ export class TextFileEditor extends BaseTextEditor {
 		@IHistoryService private historyService: IHistoryService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, editorService, themeService, textFileService);
 
 		// Clear view state for deleted files
-		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted && deleted.length) {
-			this.clearTextEditorViewState(this.storageService, deleted.map((d) => d.resource.toString()));
+			this.clearTextEditorViewState(deleted.map(d => d.resource.toString()));
 		}
 	}
 
@@ -113,7 +105,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Remember view settings if input changes
 		if (oldInput) {
-			this.saveTextEditorViewState(this.storageService, oldInput.getResource().toString());
+			this.saveTextEditorViewState(oldInput.getResource().toString());
 		}
 
 		// Different Input (Reload)
@@ -145,7 +137,7 @@ export class TextFileEditor extends BaseTextEditor {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
-			const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
+			const editorViewState = this.loadTextEditorViewState(this.getInput().getResource().toString());
 			if (editorViewState) {
 				textEditor.restoreViewState(editorViewState);
 			}
@@ -154,7 +146,7 @@ export class TextFileEditor extends BaseTextEditor {
 			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
 				(<TextEditorOptions>options).apply(textEditor);
 			}
-		}, (error) => {
+		}, error => {
 
 			// In case we tried to open a file inside the text editor and the response
 			// indicates that this is not a text file, reopen the file through the binary
@@ -220,67 +212,32 @@ export class TextFileEditor extends BaseTextEditor {
 
 		const input = this.getInput();
 		const inputName = input && input.getName();
-		options.ariaLabel = inputName ? nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName) : nls.localize('fileEditorAriaLabel', "Text file editor.");
 
-		return options;
-	}
-
-	/**
-	 * Saves the text editor view state under the given key.
-	 */
-	private saveTextEditorViewState(storageService: IStorageService, key: string): void {
-		const memento = this.getMemento(storageService, Scope.WORKSPACE);
-		let textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (!textEditorViewStateMemento) {
-			textEditorViewStateMemento = Object.create(null);
-			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
+		let ariaLabel: string;
+		if (inputName) {
+			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
+		} else {
+			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
 		}
 
-		const editorViewState = this.getControl().saveViewState();
-
-		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-		if (!fileViewState) {
-			fileViewState = Object.create(null);
-			textEditorViewStateMemento[key] = fileViewState;
-		}
-
-		if (typeof this.position === 'number') {
-			fileViewState[this.position] = editorViewState;
-		}
-	}
-
-	/**
-	 * Clears the text editor view state under the given key.
-	 */
-	private clearTextEditorViewState(storageService: IStorageService, keys: string[]): void {
-		const memento = this.getMemento(storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (textEditorViewStateMemento) {
-			keys.forEach(key => delete textEditorViewStateMemento[key]);
-		}
-	}
-
-	/**
-	 * Loads the text editor view state for the given key and returns it.
-	 */
-	private loadTextEditorViewState(storageService: IStorageService, key: string): IEditorViewState {
-		const memento = this.getMemento(storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (textEditorViewStateMemento) {
-			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-			if (fileViewState) {
-				return fileViewState[this.position];
+		const model = this.editorGroupService.getStacksModel();
+		if (model.groups.length > 1) {
+			const group = model.groupAt(this.position);
+			if (group) {
+				ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
 			}
 		}
 
-		return null;
+		options.ariaLabel = ariaLabel;
+
+		return options;
 	}
 
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
 		if (this.input) {
-			this.saveTextEditorViewState(this.storageService, this.getInput().getResource().toString());
+			this.saveTextEditorViewState(this.getInput().getResource().toString());
 		}
 
 		// Clear Model
@@ -294,7 +251,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Save View State
 		if (this.input) {
-			this.saveTextEditorViewState(this.storageService, this.getInput().getResource().toString());
+			this.saveTextEditorViewState(this.getInput().getResource().toString());
 		}
 
 		// Call Super

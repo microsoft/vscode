@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/workbench/parts/indentation/common/indentationCommands';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 @editorAction

@@ -34,6 +34,7 @@ import FormattingProvider from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
+import CodeActionProvider from './features/codeActionProvider';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as ProjectStatus from './utils/projectStatus';
@@ -96,8 +97,8 @@ const validateSetting = 'validate.enable';
 class LanguageProvider {
 
 	private description: LanguageDescription;
-	private extensions: Map<boolean>;
-	private syntaxDiagnostics: Map<Diagnostic[]>;
+	private extensions: ObjectMap<boolean>;
+	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
 	private bufferSyncSupport: BufferSyncSupport;
 
@@ -164,6 +165,9 @@ class LanguageProvider {
 			languages.registerRenameProvider(selector, renameProvider);
 			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			if (client.apiVersion.has213Features()) {
+				languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, modeId));
+			}
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
@@ -285,9 +289,9 @@ class LanguageProvider {
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[];
-	private languagePerId: Map<LanguageProvider>;
+	private languagePerId: ObjectMap<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[], storagePath: string, globalState: Memento) {
+	constructor(descriptions: LanguageDescription[], storagePath: string | undefined, globalState: Memento) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -427,6 +431,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
 			let converted = new Diagnostic(range, text);
 			converted.source = source;
+			converted.code = '' + diagnostic.code;
 			result.push(converted);
 		}
 		return result;

@@ -7,7 +7,6 @@
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ISearchService, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -16,6 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Uri } from 'vscode';
 import { MainThreadWorkspaceShape } from './extHost.protocol';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 
@@ -25,7 +25,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _textModelResolverService: ITextModelResolverService;
-	private _eventService: IEventService;
+	private _fileService: IFileService;
 
 	constructor(
 		@ISearchService searchService: ISearchService,
@@ -33,7 +33,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		@ITextFileService textFileService,
 		@IWorkbenchEditorService editorService,
 		@ITextModelResolverService textModelResolverService,
-		@IEventService eventService
+		@IFileService fileService: IFileService
 	) {
 		super();
 
@@ -41,7 +41,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		this._workspace = contextService.getWorkspace();
 		this._textFileService = textFileService;
 		this._editorService = editorService;
-		this._eventService = eventService;
+		this._fileService = fileService;
 		this._textModelResolverService = textModelResolverService;
 	}
 
@@ -99,7 +99,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			}
 		}
 
-		return bulkEdit(this._eventService, this._textModelResolverService, codeEditor, edits)
+		return bulkEdit(this._fileService, this._textModelResolverService, codeEditor, edits)
 			.then(() => true);
 	}
 }

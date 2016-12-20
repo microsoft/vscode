@@ -33,6 +33,7 @@
           ".asp",
           ".aspx",
           ".jshtm",
+          ".volt",
           ".vue"
         ],
         "aliases": [

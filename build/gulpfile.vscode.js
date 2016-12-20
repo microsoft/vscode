@@ -40,7 +40,7 @@ const nodeModules = ['electron', 'original-fs']
 
 const builtInExtensions = [
 	{ name: 'ms-vscode.node-debug', version: '1.8.13' },
-	{ name: 'ms-vscode.node-debug2', version: '1.8.6' }
+	{ name: 'ms-vscode.node-debug2', version: '1.9.0' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -202,6 +202,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
 			'!extensions/*/build/**',
+			'!extensions/**/node_modules/@types/**',
 			'!extensions/*/{client,server}/src/**',
 			'!extensions/*/{client,server}/test/**',
 			'!extensions/*/{client,server}/out/**/test/**',

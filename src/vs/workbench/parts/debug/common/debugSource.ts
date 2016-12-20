@@ -38,4 +38,13 @@ export class Source {
 	public static isInMemory(uri: uri): boolean {
 		return uri.toString().indexOf(Source.INTERNAL_URI_PREFIX) === 0;
 	}
+
+	public static getSourceReference(uri: uri): number {
+		if (!Source.isInMemory(uri)) {
+			return 0;
+		}
+
+		const uriStr = uri.toString();
+		return parseInt(uriStr.substring(Source.INTERNAL_URI_PREFIX.length, uriStr.lastIndexOf('/')));
+	}
 }

@@ -68,7 +68,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		// First validate before making any edits
 		return this.validate(target, operation, options).then(validation => {
-			if (typeof validation.error === 'number') {
+			if (!options.writeToBuffer && typeof validation.error === 'number') {
+				// Target cannot contain JSON errors if writing to disk
 				return this.wrapError(validation.error, target);
 			}
 
@@ -93,7 +94,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		});
 	}
 
-	private writeToBuffer(contents: string, operation: IConfigurationEditOperation, resource: URI, options: IConfigurationEditingOptions): TPromise<any> {
+	private writeToBuffer(contents: string, operation: IConfigurationEditOperation, resource: URI, options: IConfigurationEditingOptions): TPromise<void> {
 		const isDirtyBefore = this.textFileService.isDirty(resource);
 		const edit = this.getEdits(contents, operation)[0];
 		return this.textModelResolverService.createModelReference(resource).
@@ -120,7 +121,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return false;
 	}
 
-	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<any> {
+	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<void> {
 		// Apply all edits to the configuration file
 		const result = this.applyEdits(contents, operation);
 
@@ -228,14 +229,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 					return { exists, contents: content };
 				}
 
-				// Target cannot contain JSON errors
+				let error = void 0;
 				const parseErrors: json.ParseError[] = [];
 				json.parse(content, parseErrors);
 				if (parseErrors.length > 0) {
-					return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
+					error = ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION;
 				}
 
-				return { exists, contents: content };
+				return { exists, contents: content, error };
 			});
 		});
 	}

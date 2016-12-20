@@ -365,7 +365,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 			try {
 				// Tokenize only the first X characters
-				r = this._tokenizationSupport.tokenize(this._lines[lineIndex].text, this._lines[lineIndex].getState(), 0, stopLineTokenizationAfter);
+				let freshState = this._lines[lineIndex].getState().clone();
+				r = this._tokenizationSupport.tokenize(this._lines[lineIndex].text, freshState, 0, stopLineTokenizationAfter);
 			} catch (e) {
 				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
 				onUnexpectedError(e);

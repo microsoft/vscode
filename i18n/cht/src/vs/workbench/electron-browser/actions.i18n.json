@@ -13,6 +13,7 @@
 	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "檔案",
 	"folders": "資料夾",
+	"keybindingsReference": "鍵盤快速鍵參考",
 	"newWindow": "開新視窗",
 	"noFolderOpened": "此執行個體中目前沒有開啟的資料夾可以關閉。",
 	"openRecent": "開啟最近的檔案",

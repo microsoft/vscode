@@ -17,8 +17,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import product from 'vs/platform/product';
+import { IRequestService } from 'vs/platform/request/node/request';
+import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -84,15 +84,15 @@ export class UpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IRequestService requestService: IRequestService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		if (process.platform === 'win32') {
-			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
+			this.raw = new Win32AutoUpdaterImpl(requestService);
 		} else if (process.platform === 'linux') {
-			this.raw = instantiationService.createInstance(LinuxAutoUpdaterImpl);
+			this.raw = new LinuxAutoUpdaterImpl(requestService);
 		} else if (process.platform === 'darwin') {
 			this.raw = electron.autoUpdater;
 		} else {
