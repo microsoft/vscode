@@ -391,31 +391,22 @@ function start(): void {
 
 	const instantiationService = createServices(args);
 
-	// On some platforms we need to manually read from the global environment variables
-	// and assign them to the process environment (e.g. when doubleclick app on Mac)
-	return getShellEnvironment().then(shellEnv => {
-		// Patch `process.env` with the user's shell environment
-		assign(process.env, shellEnv);
 
-		return instantiationService.invokeFunction(accessor => {
-			const environmentService = accessor.get(IEnvironmentService);
-			const instanceEnv = {
-				VSCODE_PID: String(process.pid),
-				VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-				VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
-				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
-			};
+	return instantiationService.invokeFunction(accessor => {
+		const environmentService = accessor.get(IEnvironmentService);
+		const instanceEnv: typeof process.env = {
+			VSCODE_PID: String(process.pid),
+			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+			VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
+			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+		};
 
-			// Patch `process.env` with the instance's environment
-			assign(process.env, instanceEnv);
+		// Patch `process.env` with the instance's environment
+		assign(process.env, instanceEnv);
 
-			// Collect all environment patches to send to other processes
-			const env = assign({}, shellEnv, instanceEnv);
-
-			return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
-				.then(() => instantiationService.invokeFunction(setupIPC))
-				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
-		});
+		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
+			.then(() => instantiationService.invokeFunction(setupIPC))
+			.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, instanceEnv));
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 

@@ -195,13 +195,17 @@ function main() {
 		], function () {
 			timers.afterLoadWorkbenchMain = new Date();
 
-			require('vs/workbench/electron-browser/main')
-				.startup(configuration)
-				.done(function () {
-					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
-				}, function (error) {
-					onError(error, enableDeveloperTools);
-				});
+			process.lazyEnv.then(function () {
+
+				require('vs/workbench/electron-browser/main')
+					.startup(configuration)
+					.done(function () {
+						unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
+					}, function (error) {
+						onError(error, enableDeveloperTools);
+					});
+			});
+
 		});
 	});
 }
