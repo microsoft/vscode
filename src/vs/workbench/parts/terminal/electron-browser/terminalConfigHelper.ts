@@ -138,20 +138,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return terminalConfig.cursorBlinking;
 	}
 
-	public getRightClickAction(): string {
+	public isRightClickCopyPaste(): boolean {
 		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		const integrated = config && config.terminal && config.terminal.integrated;
-		let rightClickAction: string = '';
-
-		if (this._platform === Platform.Windows) {
-			rightClickAction = integrated.rightClickAction.windows;
-		} else if (this._platform === Platform.Mac) {
-			rightClickAction = integrated.rightClickAction.osx;
-		} else if (this._platform === Platform.Linux) {
-			rightClickAction = integrated.rightClickAction.linux;
-		}
-
-		return rightClickAction;
+		return config.terminal.integrated.rightClickCopyPaste;
 	}
 
 	public getShell(): IShell {

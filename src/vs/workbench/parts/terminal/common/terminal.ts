@@ -19,6 +19,8 @@ export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.S
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
 
+export const TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE = platform.isWindows;
+
 /**  A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
 /**  A context key that is set when the integrated terminal does not have focus. */
@@ -44,11 +46,7 @@ export interface ITerminalConfiguration {
 				osx: string[],
 				windows: string[]
 			},
-			rightClickAction: {
-				linux: string,
-				osx: string,
-				windows: string
-			},
+			rightClickCopyPaste: boolean,
 			cursorBlinking: boolean,
 			fontFamily: string,
 			fontLigatures: boolean,
@@ -67,7 +65,7 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	getFontLigaturesEnabled(): boolean;
 	getCursorBlink(): boolean;
-	getRightClickAction(): string;
+	isRightClickCopyPaste(): boolean;
 	getCommandsToSkipShell(): string[];
 	getScrollback(): number;
 	getCwd(): string;

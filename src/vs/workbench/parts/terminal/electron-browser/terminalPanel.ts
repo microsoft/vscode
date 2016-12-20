@@ -149,8 +149,7 @@ export class TerminalPanel extends Panel {
 				// occurs on the selection itself.
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
-				let rightClickAction: string = this._terminalService.configHelper.getRightClickAction();
-				if (rightClickAction === 'copyPaste') {
+				if (this._terminalService.configHelper.isRightClickCopyPaste()) {
 					let terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
@@ -158,13 +157,9 @@ export class TerminalPanel extends Panel {
 					} else {
 						terminal.paste();
 					}
-				} else if (rightClickAction === 'contextMenu') {
-					let anchor: HTMLElement | { x: number, y: number } = this._parentDomElement;
-					if (event instanceof MouseEvent) {
-						const standardEvent = new StandardMouseEvent(event);
-						anchor = { x: standardEvent.posx, y: standardEvent.posy };
-					}
-
+				} else {
+					const standardEvent = new StandardMouseEvent(event);
+					let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 					this._contextMenuService.showContextMenu({
 						getAnchor: () => anchor,
 						getActions: () => TPromise.as(this._getContextMenuActions()),

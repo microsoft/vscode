@@ -56,7 +56,8 @@ export class KillTerminalAction extends Action {
 }
 
 /**
- * Copies the terminal selection.
+ * Copies the terminal selection. Note that since the command palette takes focus from the terminal,
+ * this cannot be triggered through the command palette.
  */
 export class CopyTerminalSelectionAction extends Action {
 
