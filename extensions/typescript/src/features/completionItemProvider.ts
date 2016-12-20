@@ -30,9 +30,10 @@ class MyCompletionItem extends CompletionItem {
 			// We convert to 0-based indexing.
 			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
 		} else {
-			const text = document.getText(new Range(position.line, Math.max(0, position.character - entry.name.length), position.line, position.character));
-			for (let i = entry.name.length; i >= 0; --i) {
-				if ((text as any).endsWith(entry.name.substr(0, i))) {
+			const text = document.getText(new Range(position.line, Math.max(0, position.character - entry.name.length), position.line, position.character)).toLowerCase();
+			const entryName = entry.name.toLowerCase();
+			for (let i = entryName.length; i >= 0; --i) {
+				if (text.endsWith(entryName.substr(0, i))) {
 					this.range = new Range(position.line, Math.max(0, position.character - i), position.line, position.character);
 					break;
 				}
