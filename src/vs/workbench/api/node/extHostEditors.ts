@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDocuments, ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind, TextEditorLineNumbersStyle } from './extHostTypes';
-import { ISingleEditOperation, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, TextEditorCursorStyle, IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorAddData, ITextEditorPositionData } from './extHost.protocol';
@@ -621,8 +621,17 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	insertSnippet(template: string, posOrRange: Position | Range) {
-		const convertedPosOrRange = posOrRange instanceof Position ?
-			TypeConverters.fromPosition(posOrRange) : TypeConverters.fromRange(posOrRange);
+		let convertedPosOrRange: IPosition | IRange;
+
+		if (Position.isPosition(posOrRange)) {
+			convertedPosOrRange = TypeConverters.fromPosition(posOrRange);
+		}
+		else if (Range.isRange(posOrRange)) {
+			convertedPosOrRange = TypeConverters.fromRange(posOrRange);
+		}
+		else {
+			return TPromise.wrapError(new Error('Unrecognized value for posOrRange'));
+		}
 
 		return this._proxy.$tryInsertSnippet(this._id, template, convertedPosOrRange);
 	}
