@@ -21,7 +21,7 @@ import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType,
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
-import { asFileEditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -165,16 +165,15 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Handle files
 		const activeFile = this.getActiveFile();
 		if (activeFile) {
-			const fileResource = activeFile.getResource();
 
 			// Always remember last opened file
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = fileResource.toString();
+			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
-			if (this.isVisible && this.contextService.isInsideWorkspace(fileResource)) {
-				const selection = this.hasSelection(fileResource);
+			if (this.isVisible && this.contextService.isInsideWorkspace(activeFile)) {
+				const selection = this.hasSelection(activeFile);
 				if (!selection) {
-					this.select(fileResource).done(null, errors.onUnexpectedError);
+					this.select(activeFile).done(null, errors.onUnexpectedError);
 				}
 
 				clearSelection = false;
@@ -263,7 +262,7 @@ export class ExplorerView extends CollapsibleViewletView {
 				const activeFile = this.getActiveFile();
 				if (activeFile) {
 					return refreshPromise.then(() => {
-						return this.select(activeFile.getResource());
+						return this.select(activeFile);
 					});
 				}
 
@@ -300,7 +299,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 	}
 
-	private getActiveFile(): IFileEditorInput {
+	private getActiveFile(): URI {
 		const input = this.editorService.getActiveEditorInput();
 
 		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
@@ -309,7 +308,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 
 		// check for files
-		return asFileEditorInput(input, true);
+		return toResource(input, { supportSideBySide: true, filter: 'file' });
 	}
 
 	private getInput(): FileStat {
@@ -620,8 +619,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Find resource to focus from active editor input if set
 		let resourceToFocus: URI;
 		if (this.autoReveal) {
-			const activeFile = this.getActiveFile();
-			resourceToFocus = activeFile ? activeFile.getResource() : void 0;
+			resourceToFocus = this.getActiveFile();
 			if (!resourceToFocus) {
 				const selection = this.explorerViewer.getSelection();
 				if (selection && selection.length === 1) {
@@ -652,7 +650,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (!root) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
-				targetsToResolve.push(activeFile.getResource());
+				targetsToResolve.push(activeFile);
 			}
 
 			if (targetsToExpand.length) {

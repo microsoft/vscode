@@ -16,7 +16,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 
 interface Data {
@@ -153,9 +153,9 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 	if (!resource) {
 		let editorService = accessor.get(IWorkbenchEditorService);
-		let fileEditorInput = asFileEditorInput(editorService.getActiveEditorInput());
-		if (fileEditorInput) {
-			process(fileEditorInput.getResource()).then(result => {
+		let file = toResource(editorService.getActiveEditorInput(), { filter: 'file' });
+		if (file) {
+			process(file).then(result => {
 				console.log(result);
 			});
 		} else {

@@ -17,7 +17,7 @@ import { BaseEditor, IEditorInputActionContext } from 'vs/workbench/browser/part
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
-import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent, getResource } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
 import { EventType as BaseEventType } from 'vs/base/common/events';
 import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -301,7 +301,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		const position = this.stacks.positionOfGroup(group);
 
 		// Update the resource context
-		this.resourceContext.set(group && getResource(group.activeEditor));
+		this.resourceContext.set(group && toResource(group.activeEditor, { supportSideBySide: true }));
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const control = this.editorService.getVisibleEditors()[position];
@@ -427,7 +427,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		// Update the resource context
 		const currentContext = this.resourceContext.get();
-		this.resourceContext.set(identifier.editor && getResource(identifier.editor));
+		this.resourceContext.set(toResource(identifier.editor, { supportSideBySide: true }));
 
 		// Find target anchor
 		let anchor: HTMLElement | { x: number, y: number } = node;

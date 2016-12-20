@@ -17,6 +17,7 @@ import tdeditor = require('vs/workbench/browser/parts/editor/textDiffEditor');
 import teditor = require('vs/workbench/browser/parts/editor/textEditor');
 import filesCommon = require('vs/workbench/parts/files/common/files');
 import gitcontrib = require('vs/workbench/parts/git/browser/gitWorkbenchContributions');
+import diffei = require('vs/workbench/common/editor/diffEditorInput');
 import { IGitService, Status, IFileStatus, StatusType } from 'vs/workbench/parts/git/common/git';
 import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
 import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
@@ -548,7 +549,12 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 	}
 
 	public getInput(): WorkbenchEditorCommon.IFileEditorInput {
-		return WorkbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput());
+		const input = this.editorService.getActiveEditorInput();
+		if (input instanceof FileEditorInput) {
+			return input;
+		}
+
+		return null;
 	}
 
 	public run(context?: any): TPromise<any> {
@@ -611,9 +617,12 @@ class GlobalOpenInEditorAction extends OpenFileAction {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const input = WorkbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		let input = this.editorService.getActiveEditorInput();
+		if (input instanceof diffei.DiffEditorInput) {
+			input = input.modifiedInput;
+		}
 
-		if (!input) {
+		if (!(input instanceof FileEditorInput)) {
 			return TPromise.as(null);
 		}
 

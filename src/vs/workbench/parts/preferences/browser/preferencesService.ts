@@ -11,7 +11,7 @@ import { LinkedMap as Map } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { parseTree, findNodeAtLocation } from 'vs/base/common/json';
-import { asFileEditorInput, SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
@@ -280,9 +280,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private getConfigurationTargetForCurrentActiveEditor(): ConfigurationTarget {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			const editorInput = asFileEditorInput(activeEditor.input, true);
-			if (editorInput) {
-				return this.getConfigurationTarget(editorInput.getResource());
+			const file = toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' });
+			if (file) {
+				return this.getConfigurationTarget(file);
 			}
 		}
 		return null;

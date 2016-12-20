@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, hasResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -195,7 +195,7 @@ export class FocusFirstGroupAction extends Action {
 
 			// For now only support to open files from history to the side
 			if (input instanceof EditorInput) {
-				if (!!getUntitledOrFileResource(input)) {
+				if (hasResource(input, { filter: ['file', 'untitled'] })) {
 					return this.editorService.openEditor(input, null, Position.ONE);
 				}
 			} else {
@@ -268,7 +268,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 				// For now only support to open files from history to the side
 				if (input instanceof EditorInput) {
-					if (!!getUntitledOrFileResource(input)) {
+					if (hasResource(input, { filter: ['file', 'untitled'] })) {
 						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
 					}
 				} else {

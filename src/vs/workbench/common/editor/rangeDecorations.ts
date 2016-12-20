@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -47,9 +47,9 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): editorCommon.ICommonCodeEditor {
-		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		if (editorInput) {
-			if (editorInput.getResource().fsPath === resourceRange.resource.fsPath) {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		if (fileResource) {
+			if (fileResource.fsPath === resourceRange.resource.fsPath) {
 				return <editorCommon.ICommonCodeEditor>this.editorService.getActiveEditor().getControl();
 			}
 		}

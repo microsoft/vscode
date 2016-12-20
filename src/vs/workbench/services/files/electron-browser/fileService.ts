@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -147,11 +147,11 @@ export class FileService implements IFileService {
 
 	private handleOutOfWorkspaceWatchers(): void {
 		const visibleOutOfWorkspaceResources = this.editorService.getVisibleEditors().map(editor => {
-			return asFileEditorInput(editor.input, true);
-		}).filter(input => {
-			return !!input && !this.contextService.isInsideWorkspace(input.getResource());
-		}).map(input => {
-			return input.getResource().toString();
+			return toResource(editor.input, { supportSideBySide: true, filter: 'file' });
+		}).filter(fileResource => {
+			return !!fileResource && !this.contextService.isInsideWorkspace(fileResource);
+		}).map(fileResource => {
+			return fileResource.toString();
 		});
 
 		// Handle no longer visible out of workspace resources

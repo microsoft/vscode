@@ -14,7 +14,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, asFileEditorInput, getResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
@@ -221,7 +221,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Label
 				const tabLabel = this.editorLabels[index];
-				tabLabel.setLabel({ name, description, resource: getResource(editor) }, { extraClasses: ['tab-label'], italic: !isPinned });
+				tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
 
 				// Active state
 				if (isActive) {
@@ -529,9 +529,9 @@ export class TabsTitleControl extends TitleControl {
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Insert transfer accordingly
-			const fileInput = asFileEditorInput(editor, true);
-			if (fileInput) {
-				const resource = fileInput.getResource().toString();
+			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
+			if (fileResource) {
+				const resource = fileResource.toString();
 				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
 				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
 			}

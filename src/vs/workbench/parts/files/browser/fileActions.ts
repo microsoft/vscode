@@ -27,7 +27,7 @@ import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
-import { asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
@@ -1159,11 +1159,11 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		if (fileInput) {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		if (fileResource) {
 
 			// Keep as resource to compare
-			globalResourceToCompare = fileInput.getResource();
+			globalResourceToCompare = fileResource;
 
 			// Pick another entry from history
 			interface IHistoryPickEntry extends IFilePickOpenEntry {
@@ -1328,7 +1328,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 		if (this.resource) {
 			source = this.resource;
 		} else {
-			source = getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
+			source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: ['file', 'untitled'] });
 		}
 
 		if (source) {
@@ -1347,7 +1347,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				const activeEditor = this.editorService.getActiveEditor();
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
-					const activeResource = getUntitledOrFileResource(activeEditor.input, true);
+					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
 					if (activeResource && activeResource.toString() === source.toString()) {
 						selectionOfSource = <Selection>editor.getSelection();
 					}
@@ -1565,7 +1565,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		const editorGroup = editorIdentifier.group;
 		const resourcesToSave: URI[] = [];
 		editorGroup.getEditors().forEach(editor => {
-			const resource = getUntitledOrFileResource(editor, true);
+			const resource = toResource(editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
 			if (resource) {
 				resourcesToSave.push(resource);
 			}
@@ -1620,10 +1620,7 @@ export class RevertFileAction extends Action {
 		if (this.resource) {
 			resource = this.resource;
 		} else {
-			const activeFileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-			if (activeFileInput) {
-				resource = activeFileInput.getResource();
-			}
+			resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
 		if (resource && resource.scheme !== 'untitled') {
@@ -1699,15 +1696,15 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-		if (fileInput) {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		if (fileResource) {
 			return this.viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
-				const isInsideWorkspace = this.contextService.isInsideWorkspace(fileInput.getResource());
+				const isInsideWorkspace = this.contextService.isInsideWorkspace(fileResource);
 				if (isInsideWorkspace) {
 					const explorerView = viewlet.getExplorerView();
 					if (explorerView) {
 						explorerView.expand();
-						explorerView.select(fileInput.getResource(), true);
+						explorerView.select(fileResource, true);
 					}
 				} else {
 					const openEditorsView = viewlet.getOpenEditorsView();

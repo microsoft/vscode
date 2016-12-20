@@ -27,7 +27,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { getResource } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
 
@@ -231,7 +231,7 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 	}
 
 	public run(): TPromise<void> {
-		return this.resolverService.createModelReference(getResource(this.input)).then(reference => {
+		return this.resolverService.createModelReference(toResource(this.input, { supportSideBySide: true })).then(reference => {
 			const model = reference.object as ITextFileEditorModel;
 			const localModelValue = model.getValue();
 
@@ -270,7 +270,7 @@ export class RevertLocalChangesAction extends EditorInputAction {
 	}
 
 	public run(): TPromise<void> {
-		return this.resolverService.createModelReference(getResource(this.input)).then(reference => {
+		return this.resolverService.createModelReference(toResource(this.input, { supportSideBySide: true })).then(reference => {
 			const model = reference.object as ITextFileEditorModel;
 
 			clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions

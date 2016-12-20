@@ -18,7 +18,7 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
@@ -223,8 +223,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onEditorsChanged(): void {
-		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		this.currentActiveFile = editorInput ? editorInput.getResource() : null;
+		this.currentActiveFile = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		this.autoReveal();
 	}
 
