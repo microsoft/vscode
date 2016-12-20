@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -17,6 +17,7 @@ interface NumberSet {
 interface Source {
 	uri: Uri;
 	version: number;
+	range: Range;
 }
 
 export default class TypeScriptCodeActionProvider implements CodeActionProvider {
@@ -50,7 +51,8 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 		const source: Source = {
 			uri: document.uri,
-			version: document.version
+			version: document.version,
+			range: range
 		};
 		return this.getSupportedCodeActions(context)
 			.then(supportedActions => {
@@ -95,6 +97,20 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	}
 
 	private onCodeAction(source: Source, workspaceEdit: WorkspaceEdit) {
-		workspace.applyEdit(workspaceEdit);
+		workspace.applyEdit(workspaceEdit).then(success => {
+			if (!success) {
+				return Promise.reject(null);
+			}
+			// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
+			// apply formatting to the source range until TS returns formatted results
+			return commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, source.range, {}).then((edits: TextEdit[]) => {
+				if (!edits || !edits.length) {
+					return false;
+				}
+				const workspaceEdit = new WorkspaceEdit();
+				workspaceEdit.set(source.uri, edits);
+				return workspace.applyEdit(workspaceEdit);
+			});
+		});
 	}
 }
