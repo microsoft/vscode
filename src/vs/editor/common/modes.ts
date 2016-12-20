@@ -7,7 +7,6 @@
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
@@ -87,10 +86,6 @@ export interface ILineTokens2 {
 	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
 	 */
 	endState: IState2;
-	/**
-	 * An optional promise to force the model to retokenize this line (e.g. missing information at the point of tokenization)
-	 */
-	retokenize?: TPromise<void>;
 }
 /**
  * The state of the tokenizer between two lines.

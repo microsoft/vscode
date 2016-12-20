@@ -9,19 +9,10 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Model } from 'vs/editor/common/model/model';
-import { AbstractState, ITokenizationResult } from 'vs/editor/common/modes/abstractState';
 import * as modes from 'vs/editor/common/modes';
-import { TokenizationSupport } from 'vs/editor/common/modes/supports/tokenizationSupport';
-import { LineStream } from 'vs/editor/common/modes/lineStream';
+import { Token } from 'vs/editor/common/core/token';
 
 // --------- utils
-
-var LINE1 = '1';
-var LINE2 = '2';
-var LINE3 = '3';
-var LINE4 = '4';
-var LINE5 = '5';
-
 
 suite('Editor Model - Model Modes 1', () => {
 
@@ -32,39 +23,40 @@ suite('Editor Model - Model Modes 1', () => {
 	};
 	let thisModel: Model;
 
-	class ModelState1 extends AbstractState {
-		public makeClone(): ModelState1 {
-			return this;
-		}
-		public equals(other: modes.IState): boolean {
-			return this === other;
-		}
-		public tokenize(stream: LineStream): ITokenizationResult {
-			let chr = stream.peek();
-			stream.advance(1);
-			calledState.calledFor.push(chr);
-			stream.advanceToEOS();
-			return { type: '' };
-		}
-	}
-
 	function checkAndClear(calledState: { calledFor: string[] }, arr: string[]) {
 		assert.deepEqual(calledState.calledFor, arr);
 		calledState.calledFor = [];
 	}
 
-	modes.TokenizationRegistry.register(LANGUAGE_ID, new TokenizationSupport(null, LANGUAGE_ID, {
-		getInitialState: () => new ModelState1(LANGUAGE_ID)
-	}, false));
+	class ModelState1 implements modes.IState {
+		clone(): modes.IState { return this; }
+		equals(other: modes.IState): boolean { return this === other; }
+		getModeId(): string { return LANGUAGE_ID; }
+		getStateData(): modes.IState { throw new Error('Not implemented'); }
+		setStateData(state: modes.IState): void { throw new Error('Not implemented'); }
+	}
+
+	modes.TokenizationRegistry.register(LANGUAGE_ID, {
+		getInitialState: () => new ModelState1(),
+		tokenize: (line: string, state: modes.IState): modes.ILineTokens => {
+			calledState.calledFor.push(line.charAt(0));
+			return {
+				tokens: [new Token(0, '')],
+				actualStopOffset: line.length,
+				endState: state,
+				modeTransitions: null
+			};
+		}
+	});
 
 	setup(() => {
 		calledState.calledFor = [];
 		var text =
-			LINE1 + '\r\n' +
-			LINE2 + '\n' +
-			LINE3 + '\n' +
-			LINE4 + '\r\n' +
-			LINE5;
+			'1\r\n' +
+			'2\n' +
+			'3\n' +
+			'4\r\n' +
+			'5';
 		thisModel = Model.createFromString(text, undefined, LANGUAGE_ID);
 	});
 
@@ -168,38 +160,45 @@ suite('Editor Model - Model Modes 1', () => {
 	});
 });
 
-
-
 suite('Editor Model - Model Modes 2', () => {
 
 	const LANGUAGE_ID = 'modelModeTest2';
 
-	class ModelState2 extends AbstractState {
+	class ModelState2 implements modes.IState {
+		prevLineContent: string;
 
-		private prevLineContent: string;
-
-		constructor(modeId: string, prevLineContent: string) {
-			super(modeId);
+		constructor(prevLineContent: string) {
 			this.prevLineContent = prevLineContent;
 		}
 
-		public makeClone(): ModelState2 {
-			return new ModelState2(this.getModeId(), this.prevLineContent);
+		clone(): modes.IState {
+			return new ModelState2(this.prevLineContent);
 		}
 
-		public equals(other: modes.IState): boolean {
-			return (other instanceof ModelState2) && (this.prevLineContent === (<ModelState2>other).prevLineContent);
+		equals(other: modes.IState): boolean {
+			return (other instanceof ModelState2) && other.prevLineContent === this.prevLineContent;
 		}
 
-		public tokenize(stream: LineStream): ITokenizationResult {
-			var line = stream.advanceToEOS();
-			this.prevLineContent = line;
-			return { type: '' };
+		getModeId(): string {
+			return LANGUAGE_ID;
 		}
+
+		getStateData(): modes.IState { throw new Error('Not implemented'); }
+		setStateData(state: modes.IState): void { throw new Error('Not implemented'); }
 	}
-	modes.TokenizationRegistry.register(LANGUAGE_ID, new TokenizationSupport(null, LANGUAGE_ID, {
-		getInitialState: () => new ModelState2(LANGUAGE_ID, '')
-	}, false));
+
+	modes.TokenizationRegistry.register(LANGUAGE_ID, {
+		getInitialState: () => new ModelState2(''),
+		tokenize: (line: string, state: modes.IState): modes.ILineTokens => {
+			(<ModelState2>state).prevLineContent = line;
+			return {
+				tokens: [new Token(0, '')],
+				actualStopOffset: line.length,
+				endState: state,
+				modeTransitions: null
+			};
+		}
+	});
 
 	function invalidEqual(model, indexArray) {
 		var i, len, asHash = {};
@@ -306,39 +305,31 @@ suite('Editor Model - Token Iterator', () => {
 
 	const LANGUAGE_ID = 'modelModeTestTokenIterator';
 
-	class NState extends AbstractState {
-
-		private n: number;
-		private allResults: ITokenizationResult[];
-
-		constructor(modeId: string, n: number) {
-			super(modeId);
-			this.n = n;
-			this.allResults = null;
-		}
-
-		public makeClone(): NState {
-			return this;
-		}
-
-		public equals(other: modes.IState): boolean {
-			return true;
-		}
-
-		public tokenize(stream: LineStream): ITokenizationResult {
-			var ndash = this.n, value = '';
-			while (!stream.eos() && ndash > 0) {
-				let chr = stream.peek();
-				stream.advance(1);
-				value += chr;
-				ndash--;
-			}
-			return { type: 'n-' + (this.n - ndash) + '-' + value };
-		}
+	class NState implements modes.IState {
+		clone(): modes.IState { return this; }
+		equals(other: modes.IState): boolean { return this === other; }
+		getModeId(): string { return LANGUAGE_ID; }
+		getStateData(): modes.IState { throw new Error('Not implemented'); }
+		setStateData(state: modes.IState): void { throw new Error('Not implemented'); }
 	}
-	modes.TokenizationRegistry.register(LANGUAGE_ID, new TokenizationSupport(null, LANGUAGE_ID, {
-		getInitialState: () => new NState(LANGUAGE_ID, 3)
-	}, false));
+
+	modes.TokenizationRegistry.register(LANGUAGE_ID, {
+		getInitialState: (): modes.IState => new NState(),
+		tokenize: (line: string, state: modes.IState): modes.ILineTokens => {
+			let tokens: Token[] = [];
+			for (let i = 0; i < line.length / 3; i++) {
+				let from = 3 * i;
+				let to = from + 3;
+				tokens.push(new Token(from, 'n-3-' + line.substring(from, to)));
+			}
+			return {
+				tokens: tokens,
+				actualStopOffset: line.length,
+				endState: state,
+				modeTransitions: null
+			};
+		}
+	});
 
 	var thisModel: Model;
 
