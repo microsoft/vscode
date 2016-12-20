@@ -336,12 +336,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onGroupOrientationChanged: Emitter<void>;
+	private _onShowTabsChanged: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
+		this._onShowTabsChanged = new Emitter<void>();
 
 		let services = new ServiceCollection();
 
@@ -375,6 +377,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public get onGroupOrientationChanged(): Event<void> {
 		return this._onGroupOrientationChanged.event;
+	}
+
+	public get onShowTabsChanged(): Event<void> {
+		return this._onShowTabsChanged.event;
 	}
 
 	public focusGroup(group: IEditorGroup): void;
@@ -424,6 +430,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public getStacksModel(): EditorStacksModel {
 		return this.stacksModel;
+	}
+
+	public areTabsShown(): boolean {
+		return true;
 	}
 }
 

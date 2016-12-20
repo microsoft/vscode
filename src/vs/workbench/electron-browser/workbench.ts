@@ -133,6 +133,7 @@ export class Workbench implements IPartService {
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
+	private static showTabsConfigurationKey = 'workbench.editor.showTabs';
 
 	private _onTitleBarVisibilityChange: Emitter<void>;
 
@@ -879,6 +880,11 @@ export class Workbench implements IPartService {
 			const newActivityBarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.activityBarVisibleConfigurationKey).value;
 			if (newActivityBarHiddenValue !== this.activityBarHidden) {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
+			}
+
+			const showTabsValue = this.configurationService.lookup<boolean>(Workbench.showTabsConfigurationKey).value;
+			if (showTabsValue !== this.editorPart.areTabsShown()) {
+				this.editorPart.setShowTabs(showTabsValue);
 			}
 		}
 	}

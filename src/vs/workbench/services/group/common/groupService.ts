@@ -47,6 +47,11 @@ export interface IEditorGroupService {
 	onGroupOrientationChanged: Event<void>;
 
 	/**
+	 * Emitted when tabs visibility was changed.
+	 */
+	onShowTabsChanged: Event<void>;
+
+	/**
 	 * Keyboard focus the editor group at the provided position.
 	 */
 	focusGroup(group: IEditorGroup): void;
@@ -102,4 +107,9 @@ export interface IEditorGroupService {
 	 * Provides access to the editor stacks model
 	 */
 	getStacksModel(): IEditorStacksModel;
+
+	/**
+	 * Returns true if tabs are shown, false otherwise.
+	 */
+	areTabsShown(): boolean;
 }
