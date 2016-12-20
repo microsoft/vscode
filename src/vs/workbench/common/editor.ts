@@ -16,7 +16,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
 
 export enum ConfirmResult {
 	SAVE,
@@ -334,28 +333,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 * Sets the preferred encodingt to use for this input.
 	 */
 	setPreferredEncoding(encoding: string): void;
-}
-
-/**
- * The base class of untitled editor inputs in the workbench.
- */
-export abstract class UntitledEditorInput extends EditorInput implements IEncodingSupport {
-
-	abstract getResource(): URI;
-
-	abstract isDirty(): boolean;
-
-	abstract suggestFileName(): string;
-
-	abstract getEncoding(): string;
-
-	abstract setEncoding(encoding: string, mode: EncodingMode): void;
-
-	public getTelemetryDescriptor(): { [key: string]: any; } {
-		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
-		return descriptor;
-	}
 }
 
 /**
@@ -816,37 +793,6 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 }
 
 /**
- * Given an input, tries to get the associated URI for it (either file or untitled scheme).
- */
-export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boolean): URI {
-	if (!input) {
-		return null;
-	}
-
-	// Untitled
-	if (input instanceof UntitledEditorInput) {
-		return input.getResource();
-	}
-
-	// File
-	const fileInput = asFileEditorInput(input, supportDiff);
-
-	return fileInput && fileInput.getResource();
-}
-
-// TODO@Ben every editor should have an associated resource
-export function getResource(input: IEditorInput): URI {
-	if (input instanceof EditorInput && typeof (<any>input).getResource === 'function') {
-		const candidate = (<any>input).getResource();
-		if (candidate instanceof URI) {
-			return candidate;
-		}
-	}
-
-	return getUntitledOrFileResource(input, true);
-}
-
-/**
  * Helper to return all opened editors with resources not belonging to the currently opened workspace.
  */
 export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
@@ -855,32 +801,14 @@ export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGrou
 	editorGroupService.getStacksModel().groups.forEach(group => {
 		const editors = group.getEditors();
 		editors.forEach(editor => {
-			const fileInput = asFileEditorInput(editor, true);
-			if (fileInput && !contextService.isInsideWorkspace(fileInput.getResource())) {
-				resources.push(fileInput.getResource());
+			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
+			if (fileResource && !contextService.isInsideWorkspace(fileResource)) {
+				resources.push(fileResource);
 			}
 		});
 	});
 
 	return resources;
-}
-
-/**
- * Returns the object as IFileEditorInput only if it matches the signature.
- */
-export function asFileEditorInput(obj: any, supportSideBySide?: boolean): IFileEditorInput {
-	if (!obj) {
-		return null;
-	}
-
-	// Check for side by side if we are asked to
-	if (supportSideBySide && obj instanceof SideBySideEditorInput) {
-		obj = (<SideBySideEditorInput>obj).master;
-	}
-
-	const i = <IFileEditorInput>obj;
-
-	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setEncoding, i.getEncoding, i.getResource, i.setPreferredEncoding) ? i : null;
 }
 
 export interface IStacksModelChangeEvent {
@@ -991,6 +919,67 @@ export interface ActiveEditorMoveArguments {
 	value?: number;
 }
 
-export var EditorCommands = {
+export const EditorCommands = {
 	MoveActiveEditor: 'moveActiveEditor'
 };
+
+export interface IResourceOptions {
+	supportSideBySide?: boolean;
+	filter?: 'file' | 'untitled' | ['file', 'untitled'] | ['untitled', 'file'];
+}
+
+export function hasResource(editor: IEditorInput, options?: IResourceOptions): boolean {
+	return !!toResource(editor, options);
+}
+
+export function toResource(editor: IEditorInput, options?: IResourceOptions): URI {
+	if (!editor) {
+		return null;
+	}
+
+	// Check for side by side if we are asked to
+	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
+		editor = editor.master;
+	}
+
+	const resource = doGetEditorResource(editor);
+	if (!options || !options.filter) {
+		return resource; // return early if no filter is specified
+	}
+
+	if (!resource) {
+		return null;
+	}
+
+	let includeFiles: boolean;
+	let includeUntitled: boolean;
+	if (Array.isArray(options.filter)) {
+		includeFiles = (options.filter.indexOf('file') >= 0);
+		includeUntitled = (options.filter.indexOf('untitled') >= 0);
+	} else {
+		includeFiles = (options.filter === 'file');
+		includeUntitled = (options.filter === 'untitled');
+	}
+
+	if (includeFiles && resource.scheme === 'file') {
+		return resource;
+	}
+
+	if (includeUntitled && resource.scheme === 'untitled') {
+		return resource;
+	}
+
+	return null;
+}
+
+// TODO@Ben every editor should have an associated resource
+function doGetEditorResource(editor: IEditorInput): URI {
+	if (editor instanceof EditorInput && typeof (<any>editor).getResource === 'function') {
+		const candidate = (<any>editor).getResource();
+		if (candidate instanceof URI) {
+			return candidate;
+		}
+	}
+
+	return null;
+}

@@ -14,7 +14,7 @@ import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -57,9 +57,9 @@ export class GlobalRevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-		if (fileInput) {
-			this.windowsService.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		if (fileResource) {
+			this.windowsService.showItemInFolder(paths.normalize(fileResource.fsPath, true));
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 		}
@@ -103,9 +103,9 @@ export class GlobalCopyPathAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		const fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
-		if (fileInput) {
-			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
+		const fileResource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
+		if (fileResource) {
+			clipboard.writeText(labels.getPathLabel(fileResource));
 			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
@@ -130,11 +130,11 @@ export class OpenFileAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
 		// Handle in browser process
-		if (fileInput) {
-			return this.windowService.openFilePicker(false, paths.dirname(fileInput.getResource().fsPath));
+		if (fileResource) {
+			return this.windowService.openFilePicker(false, paths.dirname(fileResource.fsPath));
 		}
 
 		return this.windowService.openFilePicker();
@@ -157,9 +157,9 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-		if (fileInput) {
-			this.windowsService.windowOpen([fileInput.getResource().fsPath], true);
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		if (fileResource) {
+			this.windowsService.windowOpen([fileResource.fsPath], true);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to open in new window"));
 		}

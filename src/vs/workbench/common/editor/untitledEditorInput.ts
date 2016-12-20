@@ -10,18 +10,19 @@ import { suggestFilename } from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
-import { UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends AbstractUntitledEditorInput {
+export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	public static ID: string = 'workbench.editors.untitledEditorInput';
 	public static SCHEMA: string = 'untitled';
@@ -173,6 +174,13 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.toUnbind.push(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 
 		return model;
+	}
+
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+
+		return descriptor;
 	}
 
 	public matches(otherInput: any): boolean {

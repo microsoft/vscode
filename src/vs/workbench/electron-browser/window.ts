@@ -21,7 +21,7 @@ import { extractResources } from 'vs/base/browser/dnd';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { asFileEditorInput, EditorInput } from 'vs/workbench/common/editor';
+import { toResource, EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -106,10 +106,9 @@ export class ElectronWindow {
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
 			this.editorGroupService.onEditorsChanged(() => {
-				const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-				const fileName = fileInput ? fileInput.getResource().fsPath : '';
+				const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-				this.titleService.setRepresentedFilename(fileName);
+				this.titleService.setRepresentedFilename(file ? file.fsPath : '');
 			});
 		}
 
