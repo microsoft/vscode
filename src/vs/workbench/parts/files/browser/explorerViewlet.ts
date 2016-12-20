@@ -189,7 +189,7 @@ export class ExplorerViewlet extends Viewlet {
 
 		// No workspace
 		else {
-			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView);
+			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, this.getActionRunner());
 		}
 
 		if (this.openEditorsVisible) {
