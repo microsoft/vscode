@@ -9,10 +9,9 @@ import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
-import { IEventService } from 'vs/platform/event/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -24,8 +23,7 @@ function toResource(path) {
 class ServiceAccessor {
 	constructor(
 		@IWorkbenchEditorService public editorService: IWorkbenchEditorService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@IEventService public eventService: IEventService
+		@ITextFileService public textFileService: TestTextFileService
 	) {
 	}
 }

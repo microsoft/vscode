@@ -12,7 +12,7 @@ interface Item<T> {
 
 export default class LinkedMap<T> {
 
-	private map: Map<Item<T>>;
+	private map: ObjectMap<Item<T>>;
 	private head: Item<T> | undefined;
 	private tail: Item<T> | undefined;
 	private _length: number;

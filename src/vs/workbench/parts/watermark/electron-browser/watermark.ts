@@ -20,7 +20,8 @@ import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quic
 import { KeybindingsReferenceAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { ShowRecommendedKeymapExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { GlobalNewUntitledFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
+import { OpenFileAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';

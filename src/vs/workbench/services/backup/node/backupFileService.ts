@@ -17,6 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -25,6 +26,7 @@ export interface IBackupFilesModel {
 	has(resource: Uri, versionId?: number): boolean;
 	get(): Uri[];
 	remove(resource: Uri): void;
+	count(): number;
 	clear(): void;
 }
 
@@ -53,6 +55,10 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 	public add(resource: Uri, versionId = 0): void {
 		this.cache[resource.toString()] = versionId;
+	}
+
+	public count(): number {
+		return Object.keys(this.cache).length;
 	}
 
 	public has(resource: Uri, versionId?: number): boolean {
@@ -91,17 +97,16 @@ export class BackupFileService implements IBackupFileService {
 	private ready: TPromise<IBackupFilesModel>;
 
 	constructor(
-		windowId: number,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService,
+		@IWindowService windowService: IWindowService,
 		@IBackupService private backupService: IBackupService
 	) {
-		this.ready = this.init(windowId);
+		this.ready = this.init(windowService.getCurrentWindowId());
 	}
 
 	private get backupEnabled(): boolean {
-		// Hot exit is disabled when doing extension development
-		return !this.environmentService.isExtensionDevelopment;
+		return !this.environmentService.isExtensionDevelopment; // Hot exit is disabled when doing extension development
 	}
 
 	private init(windowId: number): TPromise<IBackupFilesModel> {
@@ -113,7 +118,14 @@ export class BackupFileService implements IBackupFileService {
 
 		return this.backupService.getBackupPath(windowId).then(backupPath => {
 			this.backupWorkspacePath = backupPath;
+
 			return model.resolve(this.backupWorkspacePath);
+		});
+	}
+
+	public hasBackups(): TPromise<boolean> {
+		return this.ready.then(model => {
+			return model.count() > 0;
 		});
 	}
 
@@ -165,7 +177,7 @@ export class BackupFileService implements IBackupFileService {
 				return void 0;
 			}
 
-			return this.fileService.del(backupResource).then(() => model.remove(backupResource));
+			return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
 		});
 	}
 
@@ -175,7 +187,7 @@ export class BackupFileService implements IBackupFileService {
 				return void 0;
 			}
 
-			return this.fileService.del(Uri.file(this.backupWorkspacePath)).then(() => model.clear());
+			return pfs.del(this.backupWorkspacePath).then(() => model.clear());
 		});
 	}
 
@@ -200,7 +212,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public parseBackupContent(rawText: IRawTextContent): string {
-		return rawText.value.lines.slice(1).join('\n'); // The first line of a backup text file is the file name
+		return rawText.value.lines.slice(1).join(rawText.value.EOL); // The first line of a backup text file is the file name
 	}
 
 	protected getBackupResource(resource: Uri): Uri {

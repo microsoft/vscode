@@ -53,25 +53,23 @@ import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
 
-function quit(accessor: ServicesAccessor, error?: Error): void;
-function quit(accessor: ServicesAccessor, message?: string): void;
-function quit(accessor: ServicesAccessor, arg?: any): void {
+function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
 	const logService = accessor.get(ILogService);
 
 	let exitCode = 0;
-	if (typeof arg === 'string') {
-		logService.log(arg);
-	} else {
+	if (typeof errorOrMessage === 'string') {
+		logService.log(errorOrMessage);
+	} else if (errorOrMessage) {
 		exitCode = 1; // signal error to the outside
-		if (arg.stack) {
-			console.error(arg.stack);
+		if (errorOrMessage.stack) {
+			console.error(errorOrMessage.stack);
 		} else {
-			console.error('Startup error: ' + arg.toString());
+			console.error('Startup error: ' + errorOrMessage.toString());
 		}
 	}
 
@@ -242,10 +240,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		// Propagate to clients
 		windowsMainService.ready(userEnv);
 
-		// Install Menu
-		const menu = instantiationService2.createInstance(VSCodeMenu);
-		menu.ready();
-
 		// Open our first window
 		if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
@@ -254,6 +248,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		} else {
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff, initialStartup: true }); // default: read paths from cli
 		}
+
+		// Install Menu
+		const menu = instantiationService2.createInstance(VSCodeMenu);
+		menu.ready();
 	});
 }
 

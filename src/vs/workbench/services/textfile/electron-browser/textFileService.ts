@@ -12,7 +12,7 @@ import strings = require('vs/base/common/strings');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
-import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IFileService, IResolveContentOptions } from 'vs/platform/files/common/files';
@@ -25,12 +25,13 @@ import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -48,12 +49,13 @@ export class TextFileService extends AbstractTextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IModelService private modelService: IModelService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupModelService backupService: IBackupModelService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IMessageService messageService: IMessageService,
-		@IStorageService private storageService: IStorageService
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IStorageService private storageService: IStorageService,
+		@IWindowsService windowsService: IWindowsService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

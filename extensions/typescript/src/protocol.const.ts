@@ -36,6 +36,7 @@ export class Kind {
 	public static warning: string = 'warning';
 	public static directory: string = 'directory';
 	public static file: string = 'file';
+	public static externalModuleName = 'external module name';
 }
 
 export class KindModifier {

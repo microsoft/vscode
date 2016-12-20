@@ -34,6 +34,7 @@ export interface IExtension {
 	version: string;
 	latestVersion: string;
 	description: string;
+	url: string;
 	iconUrl: string;
 	iconUrlFallback: string;
 	licenseUrl: string;

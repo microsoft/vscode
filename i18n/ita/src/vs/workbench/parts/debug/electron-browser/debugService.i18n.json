@@ -8,17 +8,18 @@
 	"NewLaunchConfig": "Impostare il file di configurazione di avvio per l'applicazione.",
 	"breakpointAdded": "Aggiunto un punto di interruzione a riga {0} del file {1}",
 	"breakpointRemoved": "Rimosso un punto di interruzione a riga {0} del file {1}",
+	"compoundMustHaveConfigurationNames": "Per avviare più configurazioni, deve essere impostato l'attributo \"configurationNames\" dell'elemento composto.",
 	"debugAdapterCrash": "Il processo dell'adattatore di debug è stato terminato in modo imprevisto",
 	"debugAnyway": "Eseguire comunque il debug",
 	"debugSourceNotAvailable": "L'origine {0} non è disponibile.",
 	"debugTypeMissing": "Manca la proprietà 'type' per la configurazione di avvio scelta.",
 	"debugTypeNotSupported": "Il tipo di debug configurato '{0}' non è supportato.",
-	"debuggingContinued": "Il debug è continuato.",
 	"debuggingPaused": "Il debug è stato sospeso. Motivo: {0}, {1} {2}",
 	"debuggingStarted": "Il debug è stato avviato.",
 	"debuggingStopped": "Il debug è stato arrestato.",
 	"differentTaskRunning": "È in esecuzione un'attività {0}. Non è possibile eseguire l'attività di preavvio {1}.",
 	"preLaunchTaskError": "È stato rilevato un errore di compilazione durante preLaunchTask '{0}'.",
 	"preLaunchTaskErrors": "Sono stati rilevati errori di compilazione durante preLaunchTask '{0}'.",
-	"preLaunchTaskExitCode": "L'attività di preavvio '{0}' è stata terminata ed è stato restituito il codice di uscita {1}."
+	"preLaunchTaskExitCode": "L'attività di preavvio '{0}' è stata terminata ed è stato restituito il codice di uscita {1}.",
+	"snapshotObj": "Per questo oggetto vengono visualizzati solo i valori primitivi."
 }

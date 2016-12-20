@@ -55,6 +55,34 @@ export interface IResourceInput {
 	options?: ITextEditorOptions;
 }
 
+export interface IResourceDiffInput {
+
+	/**
+	 * The left hand side URI to open inside a diff editor.
+	 */
+	leftResource: URI;
+
+	/**
+	 * The right hand side URI to open inside a diff editor.
+	 */
+	rightResource: URI;
+
+	/**
+	 * Label to show for the diff editor
+	 */
+	label?: string;
+
+	/**
+	 * Description to show for the diff editor
+	 */
+	description?: string;
+
+	/**
+	 * Optional options to use when opening the text diff input.
+	 */
+	options?: ITextEditorOptions;
+}
+
 export interface IEditorControl {
 
 }
@@ -198,4 +226,9 @@ export interface ITextEditorOptions extends IEditorOptions {
 		endLineNumber?: number;
 		endColumn?: number;
 	};
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	revealInCenterIfOutsideViewport?: boolean;
 }

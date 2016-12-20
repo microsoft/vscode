@@ -16,7 +16,6 @@ import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEventService } from 'vs/platform/event/common/event';
 import { equals as arrayEquals } from 'vs/base/common/arrays';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
@@ -40,7 +39,6 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ICodeEditorService editorService: ICodeEditorService,
-		@IEventService eventService: IEventService,
 		@IModelService modelService: IModelService
 	) {
 		super();

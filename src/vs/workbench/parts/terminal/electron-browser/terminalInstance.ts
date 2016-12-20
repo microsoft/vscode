@@ -17,8 +17,9 @@ import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -66,7 +67,8 @@ export class TerminalInstance implements ITerminalInstance {
 		shell: IShell,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService
+		@IMessageService private _messageService: IMessageService,
+		@IPanelService private _panelService: IPanelService
 	) {
 		this._toDispose = [];
 		this._skipTerminalCommands = [];
@@ -172,12 +174,14 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 
 		this._wrapperElement.appendChild(this._xtermElement);
@@ -284,19 +288,45 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _refreshSelectionContextKey() {
-		this._terminalHasTextContextKey.set(!window.getSelection().isCollapsed);
+		const activePanel = this._panelService.getActivePanel();
+		const isFocused = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		this._terminalHasTextContextKey.set(isFocused && !window.getSelection().isCollapsed);
 	}
 
 	private _sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
+	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
+		let cwd;
+
+		// TODO: Handle non-existent customCwd
+		if (!ignoreCustomCwd) {
+			// Evaluate custom cwd first
+			const customCwd = this._configHelper.getCwd();
+			if (customCwd) {
+				if (path.isAbsolute(customCwd)) {
+					cwd = customCwd;
+				} else if (workspace) {
+					cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+				}
+			}
+		}
+
+		// If there was no custom cwd or it was relative with no workspace
+		if (!cwd) {
+			cwd = workspace ? workspace.resource.fsPath : os.homedir();
+		}
+
+		return TerminalInstance._sanitizeCwd(cwd);
+	}
+
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
 		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
+		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -336,7 +366,9 @@ export class TerminalInstance implements ITerminalInstance {
 		}, TerminalInstance.LAUNCHING_DURATION);
 	}
 
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
+	// TODO: This should be private/protected
+	// TODO: locale should not be optional
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, cwd: string, locale?: string): IStringDictionary<string> {
 		let env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
@@ -345,7 +377,7 @@ export class TerminalInstance implements ITerminalInstance {
 				env[`PTYSHELLARG${i}`] = arg;
 			});
 		}
-		env['PTYCWD'] = TerminalInstance._sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
+		env['PTYCWD'] = cwd;
 		if (locale) {
 			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		}

@@ -13,7 +13,6 @@ import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -27,6 +26,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 export class OutputPanel extends StringEditor {
 
@@ -41,15 +42,16 @@ export class OutputPanel extends StringEditor {
 		@IStorageService storageService: IStorageService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, themeService, untitledEditorService);
+			messageService, configurationService, editorService, themeService, untitledEditorService, editorGroupService, textFileService);
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
 	}

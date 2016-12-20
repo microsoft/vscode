@@ -22,6 +22,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -95,18 +96,23 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 interface ISerializedUntitledEditorInput {
 	resource: string;
-}
-
-let untitledEditorServiceAccessor: UntitledEditorServiceAccessor;
-class UntitledEditorServiceAccessor {
-	constructor( @IUntitledEditorService public untitledEditorService: IUntitledEditorService) {
-	}
+	modeId: string;
 }
 
 // Register Editor Input Factory
 class UntitledEditorInputFactory implements IEditorInputFactory {
 
+	constructor(
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private textFileService: ITextFileService
+	) {
+	}
+
 	public serialize(editorInput: EditorInput): string {
+		if (!this.textFileService.isHotExitEnabled) {
+			return null; // never restore untitled unless hot exit is enabled
+		}
+
 		const untitledEditorInput = <UntitledEditorInput>editorInput;
 
 		let resource = untitledEditorInput.getResource();
@@ -114,7 +120,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 			resource = URI.file(resource.fsPath); // untitled with associated file path use the file schema
 		}
 
-		const serialized: ISerializedUntitledEditorInput = { resource: resource.toString() };
+		const serialized: ISerializedUntitledEditorInput = { resource: resource.toString(), modeId: untitledEditorInput.getModeId() };
 
 		return JSON.stringify(serialized);
 	}
@@ -122,11 +128,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 
-		if (!untitledEditorServiceAccessor) {
-			untitledEditorServiceAccessor = instantiationService.createInstance(UntitledEditorServiceAccessor);
-		}
-
-		return untitledEditorServiceAccessor.untitledEditorService.createOrGet(URI.parse(deserialized.resource));
+		return this.untitledEditorService.createOrGet(URI.parse(deserialized.resource), deserialized.modeId);
 	}
 }
 

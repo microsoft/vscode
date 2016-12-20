@@ -15,7 +15,7 @@ import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
 import * as pfs from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
-import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';

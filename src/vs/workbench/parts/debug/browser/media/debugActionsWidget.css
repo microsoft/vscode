@@ -47,10 +47,15 @@
 	background-repeat: no-repeat;
 }
 
-.vs-dark .monaco-workbench .debug-actions-widget,
-.hc-black .monaco-workbench .debug-actions-widget {
+.vs-dark .monaco-workbench .debug-actions-widget {
 	background-color: #333;
 	box-shadow: 0 5px 8px #000;
+}
+
+.hc-black .monaco-workbench .debug-actions-widget {
+	background-color: #000;
+	box-shadow: unset;
+	border: 1px solid #6FC3DF;
 }
 
 /* Debug actionbar actions */

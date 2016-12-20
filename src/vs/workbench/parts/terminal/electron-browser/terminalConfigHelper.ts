@@ -170,6 +170,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return config.terminal.integrated.setLocaleVariables;
 	}
 
+	public getCwd(): string {
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.cwd;
+	}
+
 	private _toInteger(source: any, minimum?: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {

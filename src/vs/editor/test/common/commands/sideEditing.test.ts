@@ -18,20 +18,20 @@ import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 
 const NO_TAB_SIZE = 0;
 
-function testCommand(lines: string[], selection: Selection, edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelection: Selection): void {
+function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	let model = Model.createFromString(lines.join('\n'));
 	let config = new MockConfiguration(null);
 	let cursor = new Cursor(0, config, model, viewModelHelper(model), false);
 
-	cursor.setSelections('tests', [selection]);
+	cursor.setSelections('tests', selections);
 
 	model.applyEdits(edits);
 
 	let actualValue = model.toRawText().lines;
 	assert.deepEqual(actualValue, expectedLines);
 
-	let actualSelection = cursor.getSelection();
-	assert.deepEqual(actualSelection.toString(), expectedSelection.toString());
+	let actualSelections = cursor.getSelections();
+	assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 
 	cursor.dispose();
 	config.dispose();
@@ -57,7 +57,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(1, 1, 1, 1),
+			[new Selection(1, 1, 1, 1)],
 			[
 				EditOperation.replace(new Selection(1, 1, 1, 1), 'something ')
 			],
@@ -67,7 +67,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(1, 1, 1, 11)
+			[new Selection(1, 1, 1, 11)]
 		);
 	});
 
@@ -79,7 +79,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(1, 1, 1, 6),
+			[new Selection(1, 1, 1, 6)],
 			[
 				EditOperation.replace(new Selection(1, 1, 1, 6), 'something')
 			],
@@ -89,7 +89,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(1, 1, 1, 10)
+			[new Selection(1, 1, 1, 10)]
 		);
 	});
 
@@ -109,7 +109,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(1, 1, 1, 1),
+			[new Selection(1, 1, 1, 1)],
 			[
 				EditOperation.insert(new Position(1, 1), 'something ')
 			],
@@ -119,7 +119,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(1, 11, 1, 11)
+			[new Selection(1, 11, 1, 11)]
 		);
 	});
 
@@ -131,7 +131,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(1, 6, 1, 6),
+			[new Selection(1, 6, 1, 6)],
 			[
 				EditOperation.insert(new Position(1, 6), ' something\nnew ')
 			],
@@ -142,7 +142,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			new Selection(2, 5, 2, 5)
+			[new Selection(2, 5, 2, 5)]
 		);
 	});
 
@@ -151,14 +151,14 @@ suite('Editor Side Editing - collapsed selection', () => {
 			[
 				'$obj = New-Object "system.col"'
 			],
-			new Selection(1, 30, 1, 30),
+			[new Selection(1, 30, 1, 30)],
 			[
 				EditOperation.replaceMove(new Range(1, 19, 1, 31), '"System.Collections"')
 			],
 			[
 				'$obj = New-Object "System.Collections"'
 			],
-			new Selection(1, 39, 1, 39)
+			[new Selection(1, 39, 1, 39)]
 		);
 	});
 
@@ -175,7 +175,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'	fmt.Println(strings.Con)',
 				'}'
 			],
-			new Selection(8, 25, 8, 25),
+			[new Selection(8, 25, 8, 25)],
 			[
 				EditOperation.replaceMove(new Range(5, 1, 5, 1), '\t\"strings\"\n')
 			],
@@ -191,7 +191,24 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'	fmt.Println(strings.Con)',
 				'}'
 			],
-			new Selection(9, 25, 9, 25)
+			[new Selection(9, 25, 9, 25)]
+		);
+	});
+
+	test('issue #15236: Selections broke after deleting text using vscode.TextEditor.edit ', () => {
+		testCommand(
+			[
+				'foofoofoo, foofoofoo, bar'
+			],
+			[new Selection(1, 1, 1, 10), new Selection(1, 12, 1, 21)],
+			[
+				EditOperation.replace(new Range(1, 1, 1, 10), ''),
+				EditOperation.replace(new Range(1, 12, 1, 21), ''),
+			],
+			[
+				', , bar'
+			],
+			[new Selection(1, 1, 1, 1), new Selection(1, 3, 1, 3)]
 		);
 	});
 

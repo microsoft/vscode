@@ -603,16 +603,6 @@ registerCommand(new CoreCommand({
 		mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
 	}
 }));
-registerCommand(new CoreCommand({
-	id: H.DeleteAllRight,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: null,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
-	}
-}));
 
 
 registerCommand(new WordCommand(H.CursorWordStartLeft, false, KeyCode.LeftArrow));

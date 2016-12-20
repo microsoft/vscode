@@ -9,9 +9,9 @@ import arrays = require('vs/base/common/arrays');
 
 suite('Arrays', () => {
 	test('findFirst', function () {
-		var array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
-		var idx = arrays.findFirst(array, e => e >= 0);
+		let idx = arrays.findFirst(array, e => e >= 0);
 		assert.equal(array[idx], 1);
 
 		idx = arrays.findFirst(array, e => e > 1);
@@ -37,7 +37,7 @@ suite('Arrays', () => {
 		function compare(a: number, b: number): number {
 			return a - b;
 		}
-		var array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
 		assert.equal(arrays.binarySearch(array, 1, compare), 0);
 		assert.equal(arrays.binarySearch(array, 5, compare), 2);

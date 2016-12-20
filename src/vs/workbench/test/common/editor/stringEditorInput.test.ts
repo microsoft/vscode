@@ -6,13 +6,17 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import URI from 'vs/base/common/uri';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { createMockModelService, TestEditorService } from 'vs/test/utils/servicesTestUtils';
+import { TestEditorService } from 'vs/workbench/test/workbenchTestServices';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 
 suite('Workbench - StringEditorInput', () => {
@@ -25,8 +29,8 @@ suite('Workbench - StringEditorInput', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
-		modeService = instantiationService.stub(IModeService);
-		modelService = <IModelService>instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
+		modelService = <IModelService>instantiationService.stub(IModelService, stubModelService(instantiationService));
 	});
 
 	test('StringEditorInput', function (done) {
@@ -108,4 +112,9 @@ suite('Workbench - StringEditorInput', () => {
 		assert.strictEqual(promiseEditorInput.matches(promiseEditorInput2), true);
 		assert.strictEqual(stringEditorInput.matches(stringEditorInput2), true);
 	});
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 });

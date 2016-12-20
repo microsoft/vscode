@@ -80,7 +80,7 @@ interface MyMessageItem extends MessageItem {
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
 	private host: ITypescriptServiceClientHost;
-	private storagePath: string;
+	private storagePath: string | undefined;
 	private globalState: Memento;
 	private pathSeparator: string;
 
@@ -108,13 +108,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
-	constructor(host: ITypescriptServiceClientHost, storagePath: string, globalState: Memento) {
+	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento) {
 		this.host = host;
 		this.storagePath = storagePath;
 		this.globalState = globalState;
 		this.pathSeparator = path.sep;
 
-		const p = new Promise<void>((resolve, reject) => {
+		var p = new Promise<void>((resolve, reject) => {
 			this._onReady = { promise: p, resolve, reject };
 		});
 		this._onReady.promise = p;
@@ -665,11 +665,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
 				} else if (event.event === 'telemetry') {
 					let telemetryData = (event as Proto.TelemetryEvent).body;
-					let properties: Map<string> = Object.create(null);
+					let properties: ObjectMap<string> = Object.create(null);
 					switch (telemetryData.telemetryEventName) {
 						case 'typingsInstalled':
 							let typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
 							properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+
 							if (is.defined(typingsInstalledPayload.installSuccess)) {
 								properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
 							}
@@ -709,7 +710,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && request.arguments) {
-			data = `Arguments: ${JSON.stringify(request.arguments, [], 4)}`;
+			data = `Arguments: ${JSON.stringify(request.arguments, null, 4)}`;
 		}
 		this.logTrace(`Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${this.requestQueue.length}`, data);
 	}
@@ -720,7 +721,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && response.body) {
-			data = `Result: ${JSON.stringify(response.body, [], 4)}`;
+			data = `Result: ${JSON.stringify(response.body, null, 4)}`;
 		}
 		this.logTrace(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
 	}
@@ -731,7 +732,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && event.body) {
-			data = `Data: ${JSON.stringify(event.body, [], 4)}`;
+			data = `Data: ${JSON.stringify(event.body, null, 4)}`;
 		}
 		this.logTrace(`Event received: ${event.event} (${event.seq}).`, data);
 	}

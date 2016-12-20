@@ -25,6 +25,7 @@
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus,
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
 	outline: 2px solid #f38518;
+	outline-offset: -2px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {

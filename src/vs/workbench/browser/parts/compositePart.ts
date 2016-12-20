@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
-import timer = require('vs/base/common/timer');
 import uuid = require('vs/base/common/uuid');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
@@ -95,7 +94,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	private doOpenComposite(id: string, focus?: boolean): TPromise<Composite> {
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Open Composite {0}', id.substr(id.lastIndexOf('.') + 1)));
 
 		// Use a generated token to avoid race conditions from long running promises
 		let currentCompositeOpenToken = uuid.generateUuid();
@@ -119,8 +117,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 				// Check if another composite opened meanwhile and return in that case
 				if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
-					timerEvent.stop();
-
 					return TPromise.as(null);
 				}
 
@@ -129,8 +125,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					if (focus) {
 						composite.focus();
 					}
-
-					timerEvent.stop();
 
 					// Fullfill promise with composite that is being opened
 					return TPromise.as(composite);
@@ -141,8 +135,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					if (focus) {
 						composite.focus();
 					}
-
-					timerEvent.stop();
 
 					// Fullfill promise with composite that is being opened
 					return composite;

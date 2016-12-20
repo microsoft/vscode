@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Model } from 'vs/editor/common/model/model';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenizationRegistry, IState } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { Token } from 'vs/editor/common/core/token';
@@ -260,21 +260,27 @@ suite('TextModelWithTokens regression tests', () => {
 		}
 
 		let _tokenId = 0;
+		class IndicisiveModeState implements IState {
+			clone(): IState { return this; }
+			equals(other: IState): boolean { return true; }
+			getModeId(): string { throw new Error('Not implemented'); }
+			getStateData(): IState { throw new Error('Not implemented'); }
+			setStateData(state: IState): void { throw new Error('Not implemented'); }
+		}
 		class IndicisiveMode extends MockMode {
 			constructor() {
 				super();
 				TokenizationRegistry.register(this.getId(), {
 					getInitialState: () => {
-						return null;
+						return new IndicisiveModeState();
 					},
 					tokenize: (line, state, offsetDelta, stopAtOffset) => {
 						let myId = ++_tokenId;
 						return {
 							tokens: [new Token(0, 'custom.' + myId)],
 							actualStopOffset: line.length,
-							endState: null,
-							modeTransitions: [],
-							retokenize: null
+							endState: state,
+							modeTransitions: []
 						};
 					}
 				});

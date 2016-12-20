@@ -332,9 +332,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private parse() {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-		const allSettingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
-		this._allSettingsGroups = [this.getMostCommonlyUsedSettings(allSettingsGroups), ...allSettingsGroups];
-		this._content = this.toContent(this.settingsGroups);
+		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
+		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
+		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
 	}
 
 	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
@@ -419,63 +420,73 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return c1.order - c2.order;
 	}
 
-	private toContent(settingsGroups: ISettingsGroup[]): string {
-		let lastSetting: ISetting = null;
+	private toContent(mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
 		this._contentByLines = [];
+		this._contentByLines.push('[');
+		this.pushGroups([mostCommonlyUsed]);
+		this._contentByLines.push(',');
+		this.pushGroups(settingsGroups);
+		this._contentByLines.push(']');
+		return this._contentByLines.join('\n');
+	}
 
+	private pushGroups(settingsGroups: ISettingsGroup[]): void {
+		let lastSetting: ISetting = null;
 		this._contentByLines.push('{');
 		this._contentByLines.push('');
-
 		for (const group of settingsGroups) {
-			this._contentByLines.push('');
-			let groupStart = this._contentByLines.length + 1;
-
-			for (const section of group.sections) {
-				if (section.description) {
-					let sectionTitleStart = this._contentByLines.length + 1;
-					this.addDescription(section.description, this.indent, this._contentByLines);
-					section.descriptionRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
-				}
-
-				for (const setting of section.settings) {
-					const settingStart = this._contentByLines.length + 1;
-					this.addDescription(setting.description, this.indent, this._contentByLines);
-					setting.descriptionRange = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
-
-					let preValueConent = this.indent;
-					const keyString = JSON.stringify(setting.key);
-					preValueConent += keyString;
-					setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
-
-					preValueConent += ': ';
-					const valueStart = this._contentByLines.length + 1;
-					let valueString = JSON.stringify(setting.value, null, this.indent);
-					if (valueString && (typeof setting.value === 'object')) {
-						const mulitLineValue = valueString.split('\n');
-						this._contentByLines.push(preValueConent + mulitLineValue[0]);
-						for (let i = 1; i < mulitLineValue.length; i++) {
-							this._contentByLines.push(this.indent + mulitLineValue[i]);
-						}
-					} else {
-						this._contentByLines.push(preValueConent + valueString);
-					}
-
-					setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
-					this._contentByLines[this._contentByLines.length - 1] += ',';
-					lastSetting = setting;
-					this._contentByLines.push('');
-					setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
-				}
-			}
-			group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+			lastSetting = this.pushGroup(group);
 		}
-
 		if (lastSetting) {
 			const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
 			this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
 		}
 		this._contentByLines.push('}');
-		return this._contentByLines.join('\n');
+	}
+
+	private pushGroup(group: ISettingsGroup): ISetting {
+		let lastSetting: ISetting = null;
+		this._contentByLines.push('');
+		let groupStart = this._contentByLines.length + 1;
+		for (const section of group.sections) {
+			if (section.description) {
+				let sectionTitleStart = this._contentByLines.length + 1;
+				this.addDescription(section.description, this.indent, this._contentByLines);
+				section.descriptionRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+			}
+
+			for (const setting of section.settings) {
+				const settingStart = this._contentByLines.length + 1;
+				this.addDescription(setting.description, this.indent, this._contentByLines);
+				setting.descriptionRange = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+
+				let preValueConent = this.indent;
+				const keyString = JSON.stringify(setting.key);
+				preValueConent += keyString;
+				setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
+
+				preValueConent += ': ';
+				const valueStart = this._contentByLines.length + 1;
+				let valueString = JSON.stringify(setting.value, null, this.indent);
+				if (valueString && (typeof setting.value === 'object')) {
+					const mulitLineValue = valueString.split('\n');
+					this._contentByLines.push(preValueConent + mulitLineValue[0]);
+					for (let i = 1; i < mulitLineValue.length; i++) {
+						this._contentByLines.push(this.indent + mulitLineValue[i]);
+					}
+				} else {
+					this._contentByLines.push(preValueConent + valueString);
+				}
+
+				setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
+				this._contentByLines[this._contentByLines.length - 1] += ',';
+				lastSetting = setting;
+				this._contentByLines.push('');
+				setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+			}
+		}
+		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+		return lastSetting;
 	}
 
 	private addDescription(description: string, indent: string, result: string[]) {

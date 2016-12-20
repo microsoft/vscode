@@ -7,7 +7,7 @@
 
 import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
@@ -202,6 +202,14 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
 	}
 };
+
+if (platform.isWindows) {
+	properties['window.autoDetectHighContrast'] = {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
+	};
+}
 
 if (platform.isMacintosh) {
 	properties['window.titleBarStyle'] = {

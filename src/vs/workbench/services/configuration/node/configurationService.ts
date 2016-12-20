@@ -14,7 +14,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import collections = require('vs/base/common/collections');
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { readFile } from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
@@ -22,7 +21,7 @@ import { IConfigFile, consolidate, newConfigFile } from 'vs/workbench/services/c
 import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService as BaseConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
-import { EventType as FileEventType, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import Event, { Emitter } from 'vs/base/common/event';
 
 interface IStat {
@@ -64,7 +63,6 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEventService private eventService: IEventService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME
 	) {
@@ -97,7 +95,6 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, events => this.handleWorkspaceFileEvents(events)));
 		this.toDispose.push(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
 	}
 
@@ -258,7 +255,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		return this.bulkFetchFromWorkspacePromise.then(() => TPromise.join(this.workspaceFilePathToConfiguration));
 	}
 
-	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
+	public handleWorkspaceFileEvents(event: FileChangesEvent): void {
 		const events = event.changes;
 		let affectedByChanges = false;
 

@@ -12,7 +12,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -26,6 +25,7 @@ import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { readdir } from 'vs/base/node/pfs';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IGit {
 	path: string;
@@ -196,7 +196,7 @@ export class ElectronGitService extends GitService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEventService eventService: IEventService,
+		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
@@ -230,6 +230,6 @@ export class ElectronGitService extends GitService {
 			}
 		}
 
-		super(raw, instantiationService, eventService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
+		super(raw, instantiationService, fileService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
 	}
 }

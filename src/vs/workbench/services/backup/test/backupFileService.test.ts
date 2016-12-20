@@ -22,7 +22,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
-
+import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 class TestEnvironmentService extends EnvironmentService {
 
 	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {
@@ -49,14 +49,14 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.cre
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null);
+		const fileService = new FileService(workspace.fsPath, { disableWatcher: true });
 		const environmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
 		const backupService: IBackupService = {
 			_serviceBrand: null,
 			getBackupPath: () => TPromise.as(workspaceBackupPath)
 		};
 
-		super(1, environmentService, fileService, backupService);
+		super(environmentService, fileService, new TestWindowService(), backupService);
 	}
 
 	public getBackupResource(resource: Uri): Uri {
@@ -126,7 +126,10 @@ suite('BackupFileService', () => {
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 				service.hasBackup(fooFile).then(exists2 => {
 					assert.equal(exists2, true);
-					done();
+					return service.hasBackups().then(hasBackups => {
+						assert.ok(hasBackups);
+						done();
+					});
 				});
 			});
 		});

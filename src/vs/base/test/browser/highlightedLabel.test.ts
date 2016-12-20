@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
 suite('HighlightedLabel', () => {
-	var label: HighlightedLabel;
+	let label: HighlightedLabel;
 
 	setup(() => {
 		label = new HighlightedLabel(document.createElement('div'));

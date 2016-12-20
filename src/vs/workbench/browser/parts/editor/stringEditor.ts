@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -18,12 +18,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 /**
  * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
@@ -33,8 +34,6 @@ export class StringEditor extends BaseTextEditor {
 
 	public static ID = 'workbench.editors.stringEditor';
 
-	private mapResourceToEditorViewState: { [resource: string]: IEditorViewState; };
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -42,21 +41,20 @@ export class StringEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
-
-		this.mapResourceToEditorViewState = Object.create(null);
+		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, editorService, themeService, textFileService);
 
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
 
 	private onUntitledDirtyChange(resource: URI): void {
 		if (!this.untitledEditorService.isDirty(resource)) {
-			delete this.mapResourceToEditorViewState[resource.toString()]; // untitled file got reverted, so remove view state
+			this.clearTextEditorViewState([resource.toString()]); // untitled file got reverted, so remove view state
 		}
 	}
 
@@ -88,9 +86,7 @@ export class StringEditor extends BaseTextEditor {
 		}
 
 		// Remember view settings if input changes
-		if (oldInput instanceof UntitledEditorInput) {
-			this.mapResourceToEditorViewState[oldInput.getResource().toString()] = this.getControl().saveViewState();
-		}
+		this.saveTextEditorViewState(oldInput);
 
 		// Different Input (Reload)
 		return input.resolve(true).then((resolvedModel: EditorModel) => {
@@ -129,7 +125,7 @@ export class StringEditor extends BaseTextEditor {
 
 	protected restoreViewState(input: EditorInput) {
 		if (input instanceof UntitledEditorInput) {
-			const viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
+			const viewState = this.loadTextEditorViewState(input.getResource().toString());
 			if (viewState) {
 				this.getControl().restoreViewState(viewState);
 			}
@@ -151,6 +147,14 @@ export class StringEditor extends BaseTextEditor {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
 			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
+		}
+
+		const model = this.editorGroupService.getStacksModel();
+		if (model.groups.length > 1) {
+			const group = model.groupAt(this.position);
+			if (group) {
+				ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
+			}
 		}
 
 		options.ariaLabel = ariaLabel;
@@ -176,13 +180,32 @@ export class StringEditor extends BaseTextEditor {
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
-		if (this.input instanceof UntitledEditorInput) {
-			this.mapResourceToEditorViewState[(<UntitledEditorInput>this.input).getResource().toString()] = this.getControl().saveViewState();
-		}
+		this.saveTextEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
 
 		super.clearInput();
+	}
+
+	public shutdown(): void {
+
+		// Save View State
+		this.saveTextEditorViewState(this.input);
+
+		// Call Super
+		super.shutdown();
+	}
+
+	protected saveTextEditorViewState(input: EditorInput): void;
+	protected saveTextEditorViewState(key: string): void;
+	protected saveTextEditorViewState(arg1: EditorInput | string): void {
+		if (typeof arg1 === 'string') {
+			return super.saveTextEditorViewState(arg1);
+		}
+
+		if (arg1 instanceof UntitledEditorInput && !arg1.isDisposed()) {
+			return super.saveTextEditorViewState(arg1.getResource().toString());
+		}
 	}
 }

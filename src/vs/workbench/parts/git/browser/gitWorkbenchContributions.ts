@@ -24,7 +24,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import quickopen = require('vs/workbench/browser/quickopen');
 import 'vs/workbench/parts/git/browser/gitEditorContributions';
 import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -36,7 +35,6 @@ export class StatusUpdater implements ext.IWorkbenchContribution {
 	static ID = 'vs.git.statusUpdater';
 
 	private gitService: IGitService;
-	private eventService: IEventService;
 	private activityBarService: IActivityBarService;
 	private messageService: IMessageService;
 	private configurationService: IConfigurationService;
@@ -45,13 +43,11 @@ export class StatusUpdater implements ext.IWorkbenchContribution {
 
 	constructor(
 		@IGitService gitService: IGitService,
-		@IEventService eventService: IEventService,
 		@IActivityBarService activityBarService: IActivityBarService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this.gitService = gitService;
-		this.eventService = eventService;
 		this.activityBarService = activityBarService;
 		this.messageService = messageService;
 		this.configurationService = configurationService;
@@ -221,6 +217,12 @@ export function registerContributions(): void {
 				enum: ['all', 'tracked', 'off'],
 				default: 'all',
 				description: nls.localize('countBadge', "Controls the git badge counter."),
+			},
+			'git.checkoutType': {
+				type: 'string',
+				enum: ['all', 'local', 'tags', 'remote'],
+				default: 'all',
+				description: nls.localize('checkoutType', "Controls what type of branches are listed."),
 			}
 		}
 	});

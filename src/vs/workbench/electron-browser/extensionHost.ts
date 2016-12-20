@@ -21,7 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

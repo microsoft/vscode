@@ -13,8 +13,8 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/platform';
 import { crashReporter } from 'electron';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 
 const TELEMETRY_SECTION_ID = 'telemetry';
 

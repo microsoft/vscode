@@ -23,7 +23,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -391,7 +391,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
 			} else {
-				this.replaceService.openReplacePreviewEditor(elementToShowReplacePreview, true);
+				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
 			}
 		});
 	}
@@ -439,9 +439,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		if (editorInput) {
-			return editorInput.getResource().fsPath === this.element.parent().resource().fsPath;
+		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		if (file) {
+			return file.fsPath === this.element.parent().resource().fsPath;
 		}
 		return false;
 	}

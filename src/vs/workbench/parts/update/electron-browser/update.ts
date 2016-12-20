@@ -10,8 +10,8 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
-import pkg from 'vs/platform/package';
-import product from 'vs/platform/product';
+import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -44,6 +44,8 @@ const NotNowAction = new Action(
 	true,
 	() => TPromise.as(true)
 );
+
+const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
 export function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
 	const requestService = accessor.get(IRequestService);
@@ -91,9 +93,13 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 			.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 	};
 
-	return requestService.request({ url })
-		.then(asText)
-		.then(text => patchKeybindings(text));
+	if (!releaseNotesCache[version]) {
+		releaseNotesCache[version] = requestService.request({ url })
+			.then(asText)
+			.then(text => patchKeybindings(text));
+	}
+
+	return releaseNotesCache[version];
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
@@ -189,7 +195,6 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 export class UpdateContribution implements IWorkbenchContribution {
 
 	private static KEY = 'releaseNotes/lastVersion';
-	private static INSIDER_KEY = 'releaseNotes/shouldShowInsiderDisclaimer';
 	getId() { return 'vs.update'; }
 
 	constructor(
@@ -223,27 +228,6 @@ export class UpdateContribution implements IWorkbenchContribution {
 				message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", product.nameLong, pkg.version),
 				actions: [
 					LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl),
-					CloseAction
-				]
-			});
-		}
-
-		const shouldShowInsiderDisclaimer = storageService.getBoolean(UpdateContribution.INSIDER_KEY, StorageScope.GLOBAL, true);
-
-		// is this a build which releases often?
-		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(pkg.version)) {
-			messageService.show(Severity.Info, {
-				message: nls.localize('insiderBuilds', "Insider builds and releases everyday!", product.nameLong, pkg.version),
-				actions: [
-					new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
-						window.open('http://go.microsoft.com/fwlink/?LinkID=798816');
-						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
-						return TPromise.as(null);
-					}),
-					new Action('update.neverAgain', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
-						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
-						return TPromise.as(null);
-					}),
 					CloseAction
 				]
 			});

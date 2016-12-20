@@ -491,7 +491,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 1, 8);
 		moveTo(thisCursor, 3, 9, true);
 		moveToBeginningOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(1, 6, 1, 6));
+		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
 	});
 
 	test('move to beginning of line with selection multiline backward', () => {
@@ -519,7 +519,14 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 1, 8);
 		moveTo(thisCursor, 3, 9, true);
 		moveToBeginningOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(1, 6, 1, 6));
+		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+	});
+
+	test('issue #17011: Shift+home/end now go to the end of the selection start\'s line, not the selection\'s end', () => {
+		moveTo(thisCursor, 1, 8);
+		moveTo(thisCursor, 3, 9, true);
+		moveToBeginningOfLine(thisCursor, true);
+		assertCursor(thisCursor, new Selection(1, 8, 3, 5));
 	});
 
 	// --------- move to end of line
@@ -566,7 +573,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 3, 9);
 		moveTo(thisCursor, 1, 1, true);
 		moveToEndOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+		assertCursor(thisCursor, new Selection(1, 21, 1, 21));
 	});
 
 	test('move to end of line with selection single line forward', () => {

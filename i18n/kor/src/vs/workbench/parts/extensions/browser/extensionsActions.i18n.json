@@ -9,6 +9,7 @@
 	"OpenExtensionsFile.failed": "'.vscode' 폴더({0}) 내에 'extensions.json' 파일을 만들 수 없습니다.",
 	"Uninstalling": "제거하는 중",
 	"builtin": "기본 제공",
+	"checkForUpdates": "업데이트 확인",
 	"clearExtensionsInput": "확장 입력 지우기",
 	"configureWorkspaceRecommendedExtensions": "권장 확장 구성(작업 영역)",
 	"disableAction": "사용 안 함",
@@ -42,9 +43,12 @@
 	"showOutdatedExtensions": "만료된 확장 표시",
 	"showPopularExtensions": "자주 사용되는 확장 표시",
 	"showRecommendedExtensions": "권장되는 확장 표시",
+	"showRecommendedKeymapExtensions": "권장되는 키 맵 표시",
+	"showRecommendedKeymapExtensionsShort": "키 맵",
 	"showWorkspaceRecommendedExtensions": "작업 영역 권장 확장 표시",
 	"toggleExtensionsViewlet": "확장 표시",
 	"uninstallAction": "제거",
 	"updateAction": "업데이트",
-	"updateAll": "모든 확장 업데이트"
+	"updateAll": "모든 확장 업데이트",
+	"updateTo": "{0}(으)로 업데이트"
 }

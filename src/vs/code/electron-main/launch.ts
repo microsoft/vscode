@@ -91,7 +91,7 @@ export class LaunchService implements ILaunchService {
 		// Otherwise handle in windows service
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv });
+			this.windowsService.openExtensionDevelopmentHostWindow({ cli: args, userEnv });
 		} else if (args._.length === 0 && args['new-window']) {
 			usedWindows = this.windowsService.open({ cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args._.length === 0) {

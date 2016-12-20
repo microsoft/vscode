@@ -8,13 +8,13 @@ import * as sinon from 'sinon';
 import * as assert from 'assert';
 import { IExtensionManagementService, IExtensionEnablementService, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import { TestEnvironmentService, TestWorkspace } from 'vs/test/utils/servicesTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -32,7 +32,7 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
 		super(storageService(instantiationService), instantiationService.get(IWorkspaceContextService),
-			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, TestEnvironmentService),
+			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, <IEnvironmentService>{}),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: new Emitter() }));
 	}
 
