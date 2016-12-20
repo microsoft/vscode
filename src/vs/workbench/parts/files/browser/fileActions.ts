@@ -47,7 +47,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Selection } from 'vs/editor/common/core/selection';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export interface IEditableData {
 	action: IAction;
@@ -1216,7 +1215,6 @@ export class CompareResourcesAction extends Action {
 		tree: ITree,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel());
@@ -1271,7 +1269,11 @@ export class CompareResourcesAction extends Action {
 			this.tree.clearHighlight();
 		}
 
-		return this.commandService.executeCommand('_workbench.diff', [globalResourceToCompare, this.resource, toDiffLabel(globalResourceToCompare, this.resource, this.contextService)]);
+		return this.editorService.openEditor({
+			leftResource: globalResourceToCompare,
+			rightResource: this.resource,
+			label: toDiffLabel(globalResourceToCompare, this.resource, this.contextService)
+		});
 	}
 }
 
