@@ -35,6 +35,7 @@ import {
 } from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
 function getStatus(gitService: IGitService, contextService: IWorkspaceContextService, input: WorkbenchEditorCommon.IFileEditorInput): IFileStatus {
 	const model = gitService.getModel();
@@ -100,7 +101,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 	}
 
 	private getStatus(): IFileStatus {
-		return getStatus(this.gitService, this.contextService, <filesCommon.FileEditorInput>this.input);
+		return getStatus(this.gitService, this.contextService, <FileEditorInput>this.input);
 	}
 
 	public run(context?: WorkbenchEditorCommon.IEditorContext): TPromise<any> {
@@ -481,7 +482,7 @@ class FileEditorActionContributor extends baseeditor.EditorInputActionContributo
 	}
 
 	public hasActionsForEditorInput(context: baseeditor.IEditorInputActionContext): boolean {
-		return context.input instanceof filesCommon.FileEditorInput;
+		return context.input instanceof FileEditorInput;
 	}
 
 	public getActionsForEditorInput(context: baseeditor.IEditorInputActionContext): baseeditor.IEditorInputAction[] {

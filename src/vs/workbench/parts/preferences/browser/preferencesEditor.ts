@@ -69,10 +69,6 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 		super(nls.localize('settingsEditorName', "Default Settings"), '', resource, textModelResolverService);
 	}
 
-	getResource(): URI {
-		return this.resource;
-	}
-
 	getTypeId(): string {
 		return DefaultPreferencesEditorInput.ID;
 	}
