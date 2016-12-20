@@ -111,7 +111,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
-		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.updateTabOptions(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
 		this.toDispose.push(this.scheduler);
@@ -142,7 +142,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.updateTabOptions(e.config)));
+		this.toDispose.push(this.editorGroupService.onShowTabsChanged(() => this.updateTabOptions(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
 	}
 
@@ -152,9 +153,9 @@ export abstract class TitleControl implements ITitleAreaControl {
 		}
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
+	private updateTabOptions(config: IWorkbenchEditorConfiguration): void {
 		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
-		this.showTabs = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+		this.showTabs = this.editorGroupService.areTabsShown();
 		this.showTabCloseButton = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButton;
 	}
 

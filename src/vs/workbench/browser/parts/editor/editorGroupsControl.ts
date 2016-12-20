@@ -166,7 +166,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.toDispose.push(this.onStacksChangeScheduler);
 		this.stacksChangedBuffer = [];
 
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.updateTabOptions(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		const editorGroupOrientation = groupOrientation || 'vertical';
 		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
@@ -210,19 +210,19 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 	private registerListeners(): void {
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.updateTabOptions(e.config, true)));
+		this.toDispose.push(this.editorGroupService.onShowTabsChanged(() => this.updateTabOptions(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>(), true)));
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
+	private updateTabOptions(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
 		const showTabCloseButton = this.showTabCloseButton;
 
+		this.showTabs = this.editorGroupService.areTabsShown();
 		if (config.workbench && config.workbench.editor) {
-			this.showTabs = config.workbench.editor.showTabs;
 			this.showTabCloseButton = config.workbench.editor.showTabCloseButton;
 			this.showIcons = config.workbench.editor.showIcons;
 		} else {
-			this.showTabs = true;
 			this.showTabCloseButton = true;
 			this.showIcons = false;
 		}

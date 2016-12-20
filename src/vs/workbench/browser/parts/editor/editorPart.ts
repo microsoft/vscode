@@ -84,11 +84,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private previewEditors: boolean;
+	private showTabs: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 	private _onGroupOrientationChanged: Emitter<void>;
+	private _onShowTabsChanged: Emitter<void>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -114,6 +116,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
+		this._onShowTabsChanged = new Emitter<void>();
 
 		this.visibleEditors = [];
 
@@ -133,6 +136,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			const editorConfig = config.workbench.editor;
 
 			this.previewEditors = editorConfig.enablePreview;
+			this.showTabs = editorConfig.showTabs;
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		}
@@ -199,6 +203,19 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public get onGroupOrientationChanged(): Event<void> {
 		return this._onGroupOrientationChanged.event;
+	}
+
+	public get onShowTabsChanged(): Event<void> {
+		return this._onShowTabsChanged.event;
+	}
+
+	public areTabsShown(): boolean {
+		return this.showTabs;
+	}
+
+	public setShowTabs(value: boolean) {
+		this.showTabs = value;
+		this._onShowTabsChanged.fire();
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
