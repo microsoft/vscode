@@ -85,4 +85,16 @@ declare module 'vscode' {
 		 */
 		getClickCommand?(node: T): string;
 	}
+	export interface TextEditor {
+		/**
+		 * Inserts the given snippet template and enters snippet mode.
+		 *
+		 * If the editor is already in snippet mode, insertion fails and the returned promise resolves to false.
+		 *
+		 * @param template The snippet template to insert
+		 * @param posOrRange The position or replacement range representing the location of the insertion.
+		 * @return A promise that resolves with a value indicating if the snippet could be inserted.
+		 */
+		insertSnippet(template: string, posOrRange: Position | Range): Thenable<boolean>;
+	}
 }
