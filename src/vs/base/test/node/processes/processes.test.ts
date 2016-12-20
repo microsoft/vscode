@@ -9,6 +9,7 @@ import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import processes = require('vs/base/node/processes');
 
@@ -80,6 +81,19 @@ suite('Processes', () => {
 				child.kill();
 				done();
 			}
+		});
+	});
+
+	test('env, ready by default', function () {
+		return processes.env.ready.then(() => {
+			assert.ok(true);
+		});
+	});
+
+	test('env, delayed', function () {
+		processes.env.addDelayedEnvironment(TPromise.as({ foo: 1 }));
+		return processes.env.ready.then(() => {
+			assert.equal(process.env.foo, 1);
 		});
 	});
 });
