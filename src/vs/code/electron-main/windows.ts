@@ -70,6 +70,12 @@ interface INativeOpenDialogOptions {
 	window?: VSCodeWindow;
 }
 
+interface IConfiguration extends IWindowSettings {
+	window: {
+		autoHideMenuBar: boolean;
+	};
+}
+
 const ReopenFoldersSetting = {
 	ALL: 'all',
 	ONE: 'one',
@@ -129,6 +135,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
+	private currentAutoHideMenuBar: boolean;
 
 	private _onRecentPathsChange = new Emitter<void>();
 	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
@@ -251,7 +258,21 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Update jump list when recent paths change
 		this.onRecentPathsChange(() => this.updateWindowsJumpList());
+
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
+
+	private onConfigurationUpdated(config: IConfiguration): void {
+
+		let newAutoHideMenuBar = config && config.window && config.window.autoHideMenuBar;
+		if (typeof newAutoHideMenuBar !== 'boolean') {
+			newAutoHideMenuBar = true;
+		}
+		if (newAutoHideMenuBar !== this.currentAutoHideMenuBar) {
+			this.currentAutoHideMenuBar = newAutoHideMenuBar;
+			this.getWindows().forEach(w => w.win.setAutoHideMenuBar(this.currentAutoHideMenuBar));
+		}
+	};
 
 	private onBroadcast(event: string, payload: any): void {
 
