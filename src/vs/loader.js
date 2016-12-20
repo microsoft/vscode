@@ -41,27 +41,26 @@ var AMDLoader;
         Utilities.fileUriToFilePath = function (uri) {
             uri = decodeURI(uri);
             if (isWindows) {
-                if (/^file:\/\/\//.test(uri)) {
+                if (Utilities.startsWith(uri, 'file:///')) {
                     // This is a URI without a hostname => return only the path segment
                     return uri.substr(8);
                 }
-                if (/^file:\/\//.test(uri)) {
+                if (Utilities.startsWith(uri, 'file://')) {
                     return uri.substr(5);
                 }
             }
-            else {
-                if (/^file:\/\//.test(uri)) {
-                    return uri.substr(7);
-                }
+            else if (Utilities.startsWith(uri, 'file://')) {
+                return uri.substr(7);
             }
             // Not sure...
             return uri;
         };
         Utilities.startsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
+            return haystack.indexOf(needle) === 0;
         };
         Utilities.endsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(haystack.length - needle.length) === needle;
+            var ind = haystack.lastIndexOf(needle);
+            return ind >= 0 && ind + needle.length === haystack.length;
         };
         // only check for "?" before "#" to ensure that there is a real Query-String
         Utilities.containsQueryString = function (url) {
@@ -77,21 +76,17 @@ var AMDLoader;
                 || Utilities.startsWith(url, '/'));
         };
         Utilities.forEachProperty = function (obj, callback) {
-            if (obj) {
-                var key;
-                for (key in obj) {
-                    if (obj.hasOwnProperty(key)) {
-                        callback(key, obj[key]);
-                    }
+            for (var key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    callback(key, obj[key]);
                 }
             }
         };
         Utilities.isEmpty = function (obj) {
-            var isEmpty = true;
-            Utilities.forEachProperty(obj, function () {
-                isEmpty = false;
-            });
-            return isEmpty;
+            for (var key in obj) {
+                return false;
+            }
+            return true;
         };
         Utilities.isArray = function (obj) {
             if (Array.isArray) {
@@ -105,12 +100,7 @@ var AMDLoader;
             }
             var result = Utilities.isArray(obj) ? [] : {};
             Utilities.forEachProperty(obj, function (key, value) {
-                if (value && typeof value === 'object') {
-                    result[key] = Utilities.recursiveClone(value);
-                }
-                else {
-                    result[key] = value;
-                }
+                result[key] = Utilities.recursiveClone(value);
             });
             return result;
         };
