@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS, TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
@@ -46,12 +46,6 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': []
 		},
-		'terminal.integrated.rightClickAction.linux': {
-			'description': nls.localize('terminal.integrated.shell.rightClickAction.linux', "Defines action on right mouse click on Linux terminal."),
-			'type': 'string',
-			enum: ['copyPaste', 'contextMenu'],
-			'default': 'contextMenu'
-		},
 		'terminal.integrated.shell.osx': {
 			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
 			'type': 'string',
@@ -64,12 +58,6 @@ configurationRegistry.registerConfiguration({
 				'type': 'string'
 			},
 			'default': []
-		},
-		'terminal.integrated.rightClickAction.osx': {
-			'description': nls.localize('terminal.integrated.shell.rightClickAction.osx', "Defines action on right mouse click on the OS X terminal."),
-			'type': 'string',
-			enum: ['copyPaste', 'contextMenu'],
-			'default': 'contextMenu'
 		},
 		'terminal.integrated.shell.windows': {
 			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu), prefer C:\\Windows\\sysnative over C:\\Windows\\System32 to use the 64-bit versions."),
@@ -84,11 +72,10 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': []
 		},
-		'terminal.integrated.rightClickAction.windows': {
-			'description': nls.localize('terminal.integrated.shell.rightClickAction.windows', "Defines action on right mouse click on the Windows terminal."),
-			'type': 'string',
-			enum: ['copyPaste', 'contextMenu'],
-			'default': 'copyPaste'
+		'terminal.integrated.rightClickCopyPaste': {
+			'description': nls.localize('terminal.integrated.rightClickCopyPaste', "Controls whether copy/paste happens on mouse right click in integrated terminal."),
+			'type': 'boolean',
+			'default': TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE
 		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
