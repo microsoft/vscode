@@ -400,10 +400,10 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		if (range) {
-			snippetController.insertSnippet(template, 0, 0);
+			snippetController.insertSnippetWithReplaceRange(template, range);
 		}
 		else {
-			snippetController.insertSnippetWithReplaceRange(template, range);
+			snippetController.insertSnippet(template, 0, 0);
 		}
 
 		return true;
