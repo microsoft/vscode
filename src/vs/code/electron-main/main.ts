@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc } from 'electron';
+import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
@@ -56,6 +56,17 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as fs from 'original-fs';
+
+
+ipc.on('vscode:fetchShellEnv', (event, windowId) => {
+	const win = BrowserWindow.fromId(windowId);
+	getShellEnvironment().then(shellEnv => {
+		win.webContents.send('vscode:acceptShellEnv', shellEnv);
+	}, err => {
+		win.webContents.send('vscode:acceptShellEnv', {});
+		console.error('Error fetching shell env', err);
+	});
+});
 
 function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
 	const logService = accessor.get(ILogService);

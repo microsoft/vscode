@@ -14,6 +14,15 @@ const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
 
+
+process.delayedEnv = new Promise(function (resolve) {
+	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		assign(process.env, shellEnv);
+		resolve(process.env);
+	});
+	ipc.send('vscode:fetchShellEnv', remote.getCurrentWindow().id);
+});
+
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
 		remote.getCurrentWebContents().openDevTools();
