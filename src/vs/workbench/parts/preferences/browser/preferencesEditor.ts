@@ -385,7 +385,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private settingHighlighter: SettingHighlighter;
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
-	private focusNextSettingRenderer: FocusNextSettingRenderer;
+	private filteredSettingsNavigationRenderer: FilteredSettingsNavigationRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private editSettingActionRenderer: EditSettingRenderer;
 	private settingsCountWidget: SettingsCountWidget;
@@ -402,7 +402,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor));
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
-		this.focusNextSettingRenderer = this._register(instantiationService.createInstance(FocusNextSettingRenderer, editor));
+		this.filteredSettingsNavigationRenderer = this._register(instantiationService.createInstance(FilteredSettingsNavigationRenderer, editor, this.settingHighlighter));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, defaultSettingsEditorModel, settingsEditorModel, this.settingHighlighter));
 		this._register(this.editSettingActionRenderer.onUpdateSetting(({setting, value}) => this.updatePreference(setting, value)));
 		this.settingsCountWidget = this._register(instantiationService.createInstance(SettingsCountWidget, editor, this.getCount(defaultSettingsEditorModel.settingsGroups)));
@@ -416,7 +416,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.editSettingActionRenderer.render(this.defaultSettingsEditorModel.settingsGroups);
 		this.settingsCountWidget.render();
 		this.hiddenAreasRenderer.render();
-		this.focusNextSettingRenderer.render([]);
+		this.filteredSettingsNavigationRenderer.render([]);
 		this.settingsGroupTitleRenderer.showGroup(1);
 	}
 
@@ -427,15 +427,15 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsCountWidget.show(this.getCount(filterResult.filteredGroups));
 
 		if (!filter) {
-			this.focusNextSettingRenderer.render([]);
+			this.filteredSettingsNavigationRenderer.render([]);
 			this.settingsGroupTitleRenderer.showGroup(1);
 		} else {
-			this.focusNextSettingRenderer.render(filterResult.filteredGroups);
+			this.filteredSettingsNavigationRenderer.render(filterResult.filteredGroups);
 		}
 	}
 
 	public focusNextSetting(): void {
-		const setting = this.focusNextSettingRenderer.focusNext();
+		const setting = this.filteredSettingsNavigationRenderer.next();
 		if (setting) {
 			this.settingsGroupTitleRenderer.showSetting(setting);
 		}
@@ -739,44 +739,25 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	}
 }
 
-export class FocusNextSettingRenderer extends Disposable {
+class FilteredSettingsNavigationRenderer extends Disposable {
 
 	private iterator: ArrayIterator<ISetting>;
-	private decorationIds: string[] = [];
 
-	constructor(private editor: ICodeEditor) {
+	constructor(private editor: ICodeEditor, private settingHighlighter: SettingHighlighter) {
 		super();
 	}
 
-	public focusNext(): ISetting {
-		this.clear();
+	public next(): ISetting {
 		let setting = this.iterator.next() || this.iterator.first();
 		if (setting) {
-			const model = this.editor.getModel();
-			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, [{
-					range: {
-						startLineNumber: setting.valueRange.startLineNumber,
-						startColumn: model.getLineMinColumn(setting.valueRange.startLineNumber),
-						endLineNumber: setting.valueRange.endLineNumber,
-						endColumn: model.getLineMaxColumn(setting.valueRange.endLineNumber)
-					},
-					options: {
-						stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-						className: 'rangeHighlight',
-						isWholeLine: true
-					}
-				}]);
-			});
-			this.editor.revealLinesInCenterIfOutsideViewport(setting.valueRange.startLineNumber, setting.valueRange.endLineNumber - 1);
+			this.settingHighlighter.highlight(setting, true, true);
 			return setting;
 		}
 		return null;
 	}
 
 	public render(filteredGroups: ISettingsGroup[]) {
-		this.clear();
-
+		this.settingHighlighter.clear(true);
 		const settings: ISetting[] = [];
 		for (const group of filteredGroups) {
 			for (const section of group.sections) {
@@ -784,17 +765,6 @@ export class FocusNextSettingRenderer extends Disposable {
 			}
 		}
 		this.iterator = new ArrayIterator<ISetting>(settings);
-	}
-
-	private clear() {
-		this.editor.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
-		});
-	}
-
-	public dispose() {
-		this.clear();
-		super.dispose();
 	}
 }
 
@@ -997,10 +967,15 @@ class SettingHighlighter extends Disposable {
 			resource: this.editor.getModel().uri,
 			isWholeLine
 		}, this.editor);
+
+		this.editor.revealLinesInCenterIfOutsideViewport(setting.valueRange.startLineNumber, setting.valueRange.endLineNumber - 1);
 	}
 
-	clear(): void {
+	clear(fix: boolean = false): void {
 		this.volatileHighlighter.removeHighlightRange();
+		if (fix) {
+			this.fixedHighlighter.removeHighlightRange();
+		}
 	}
 }
 
