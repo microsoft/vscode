@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IMode, IState, TokenizationRegistry } from 'vs/editor/common/modes';
-import { AbstractState, ITokenizationResult } from 'vs/editor/common/modes/abstractState';
-import { TokenizationSupport } from 'vs/editor/common/modes/supports/tokenizationSupport';
-import { LineStream } from 'vs/editor/common/modes/lineStream';
+import { IMode } from 'vs/editor/common/modes';
 
 let instanceCount = 0;
 function generateMockModeId(): string {
@@ -26,39 +23,5 @@ export class MockMode implements IMode {
 
 	public getId(): string {
 		return this._id;
-	}
-}
-
-export class StateForMockTokenizingMode extends AbstractState {
-
-	private _tokenType: string;
-
-	constructor(modeId: string, tokenType: string) {
-		super(modeId);
-		this._tokenType = tokenType;
-	}
-
-	public makeClone(): StateForMockTokenizingMode {
-		return this;
-	}
-
-	public equals(other: IState): boolean {
-		return true;
-	}
-
-	public tokenize(stream: LineStream): ITokenizationResult {
-		stream.advanceToEOS();
-		return { type: this._tokenType };
-	}
-}
-
-export class MockTokenizingMode extends MockMode {
-
-	constructor(tokenType: string) {
-		super();
-
-		TokenizationRegistry.register(this.getId(), new TokenizationSupport(null, this.getId(), {
-			getInitialState: () => new StateForMockTokenizingMode(this.getId(), tokenType)
-		}, false));
 	}
 }
