@@ -828,14 +828,23 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private onMouseMoved(mouseMoveEvent: IEditorMouseEvent): void {
-		if (mouseMoveEvent.event.target === this.editPreferenceWidgetForMouseMove.getDomNode() ||
-			mouseMoveEvent.event.target === this.editPreferenceWidgetForCusorPosition.getDomNode()
-		) {
-			this.onMouseOver(this.editPreferenceWidgetForMouseMove);
+		const editPreferenceWidget = this.getEditPreferenceWidgetUnderMouse(mouseMoveEvent);
+		if (editPreferenceWidget) {
+			this.onMouseOver(editPreferenceWidget);
 			return;
 		}
 		this.settingHighlighter.clear();
 		this.toggleEditPreferencesForMouseMoveDelayer.trigger(() => this.toggleEidtPreferenceWidgetForMouseMove(mouseMoveEvent));
+	}
+
+	private getEditPreferenceWidgetUnderMouse(mouseMoveEvent: IEditorMouseEvent): EditPreferenceWidget<ISetting> {
+		if (mouseMoveEvent.event.target === this.editPreferenceWidgetForMouseMove.getDomNode()) {
+			return this.editPreferenceWidgetForMouseMove;
+		}
+		if (mouseMoveEvent.event.target === this.editPreferenceWidgetForCusorPosition.getDomNode()) {
+			return this.editPreferenceWidgetForCusorPosition;
+		}
+		return null;
 	}
 
 	private toggleEidtPreferenceWidgetForMouseMove(mouseMoveEvent: IEditorMouseEvent): void {
