@@ -1070,6 +1070,7 @@ export class Workbench implements IPartService {
 			this.setSideBarHidden(true, true);
 			this.setActivityBarHidden(true, true);
 			this.setStatusBarHidden(true, true);
+			this.editorPart.setShowTabs(false);
 		} else {
 			if (this.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true);
