@@ -23,7 +23,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 export interface IState {
 	clone(): IState;
 	equals(other: IState): boolean;
-	getModeId(): string;
 }
 
 /**

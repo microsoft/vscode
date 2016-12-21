@@ -9,11 +9,9 @@ import { StackElement } from 'vscode-textmate';
 
 export class TMState implements IState {
 
-	private readonly _modeId: string;
 	public readonly ruleStack: StackElement;
 
-	constructor(modeId: string, ruleStack: StackElement) {
-		this._modeId = modeId;
+	constructor(ruleStack: StackElement) {
 		this.ruleStack = ruleStack;
 	}
 
@@ -25,9 +23,6 @@ export class TMState implements IState {
 		if (!other || !(other instanceof TMState)) {
 			return false;
 		}
-		if (this._modeId !== other._modeId) {
-			return false;
-		}
 		// Equals on `_ruleStack`
 		if (this.ruleStack === null && other.ruleStack === null) {
 			return true;
@@ -36,9 +31,5 @@ export class TMState implements IState {
 			return false;
 		}
 		return this.ruleStack.equals(other.ruleStack);
-	}
-
-	public getModeId(): string {
-		return this._modeId;
 	}
 }

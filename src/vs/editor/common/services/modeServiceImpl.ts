@@ -307,11 +307,9 @@ export class ModeServiceImpl implements IModeService {
 
 export class TokenizationState2Adapter implements modes.IState {
 
-	private readonly _modeId: string;
 	public readonly actual: modes.IState2;
 
-	constructor(modeId: string, actual: modes.IState2) {
-		this._modeId = modeId;
+	constructor(actual: modes.IState2) {
 		this.actual = actual;
 	}
 
@@ -320,19 +318,14 @@ export class TokenizationState2Adapter implements modes.IState {
 		if (actualClone === this.actual) {
 			return this;
 		}
-		return new TokenizationState2Adapter(this._modeId, actualClone);
+		return new TokenizationState2Adapter(actualClone);
 	}
 
 	public equals(other: modes.IState): boolean {
 		return (
 			other instanceof TokenizationState2Adapter
-			&& this._modeId === other._modeId
 			&& this.actual.equals(other.actual)
 		);
-	}
-
-	public getModeId(): string {
-		return this._modeId;
 	}
 }
 
@@ -347,7 +340,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public getInitialState(): modes.IState {
-		return new TokenizationState2Adapter(this._modeId, this._actual.getInitialState());
+		return new TokenizationState2Adapter(this._actual.getInitialState());
 	}
 
 	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
@@ -372,14 +365,14 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		if (actualResult.endState.equals(state.actual)) {
 			endState = state;
 		} else {
-			endState = new TokenizationState2Adapter(state.getModeId(), actualResult.endState);
+			endState = new TokenizationState2Adapter(actualResult.endState);
 		}
 
 		return {
 			tokens: tokens,
 			actualStopOffset: offsetDelta + line.length,
 			endState: endState,
-			modeTransitions: [new ModeTransition(offsetDelta, state.getModeId())],
+			modeTransitions: [new ModeTransition(offsetDelta, this._modeId)],
 		};
 	}
 }
