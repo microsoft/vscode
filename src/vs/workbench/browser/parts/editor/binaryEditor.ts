@@ -130,17 +130,3 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		super.dispose();
 	}
 }
-
-/**
- * An implementation of editor for binary files like images or videos.
- */
-export class BinaryResourceEditor extends BaseBinaryResourceEditor {
-
-	public static ID = 'workbench.editors.binaryResourceEditor';
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService
-	) {
-		super(BinaryResourceEditor.ID, telemetryService);
-	}
-}
