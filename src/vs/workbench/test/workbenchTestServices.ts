@@ -31,7 +31,7 @@ import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/li
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -336,14 +336,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onGroupOrientationChanged: Emitter<void>;
-	private _onShowTabsChanged: Emitter<void>;
+	private _onTabOptionsChanged: Emitter<ITabOptions>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
-		this._onShowTabsChanged = new Emitter<void>();
+		this._onTabOptionsChanged = new Emitter<ITabOptions>();
 
 		let services = new ServiceCollection();
 
@@ -379,8 +379,8 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onGroupOrientationChanged.event;
 	}
 
-	public get onShowTabsChanged(): Event<void> {
-		return this._onShowTabsChanged.event;
+	public get onTabOptionsChanged(): Event<ITabOptions> {
+		return this._onTabOptionsChanged.event;
 	}
 
 	public focusGroup(group: IEditorGroup): void;
@@ -432,8 +432,8 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this.stacksModel;
 	}
 
-	public areTabsShown(): boolean {
-		return true;
+	public getTabOptions(): ITabOptions {
+		return {};
 	}
 }
 
