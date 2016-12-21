@@ -130,6 +130,15 @@ export class DebugService implements debug.IDebugService {
 		lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
+			if (event.sourceConfig.launch) {
+				const names = this.configurationManager.getConfigurationNames();
+				if (names.every(name => name !== this.viewModel.selectedConfigurationName)) {
+					// Current selected configuration no longer exists - take the first configuration instead.
+					this.viewModel.setSelectedConfigurationName(names.length ? names[0] : undefined);
+				}
+			}
+		}));
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -566,14 +575,6 @@ export class DebugService implements debug.IDebugService {
 						}
 
 						return this.configurationManager.getConfiguration(configurationOrName).then(configuration => {
-							if (!configuration) {
-								return this.configurationManager.openConfigFile(false).then(openend => {
-									if (openend) {
-										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-									}
-								});
-							}
-
 							if (!this.configurationManager.getAdapter(configuration.type)) {
 								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
@@ -610,6 +611,12 @@ export class DebugService implements debug.IDebugService {
 									message: err.message,
 									actions: [this.taskService.configureAction(), CloseAction]
 								});
+							});
+						}, err => {
+							return this.configurationManager.openConfigFile(false).then(openend => {
+								if (openend) {
+									this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
+								}
 							});
 						});
 					})));
