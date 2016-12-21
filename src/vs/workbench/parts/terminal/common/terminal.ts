@@ -65,7 +65,7 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	getFontLigaturesEnabled(): boolean;
 	getCursorBlink(): boolean;
-	isRightClickCopyPaste(): boolean;
+	getRightClickCopyPaste(): boolean;
 	getCommandsToSkipShell(): string[];
 	getScrollback(): number;
 	getCwd(): string;

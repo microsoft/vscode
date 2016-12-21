@@ -138,7 +138,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return terminalConfig.cursorBlinking;
 	}
 
-	public isRightClickCopyPaste(): boolean {
+	public getRightClickCopyPaste(): boolean {
 		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return config.terminal.integrated.rightClickCopyPaste;
 	}
