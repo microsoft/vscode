@@ -37,35 +37,12 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IResourceInput {
-
-	/**
-	 * The resource URL of the resource to open.
-	 */
-	resource: URI;
-
-	/**
-	 * The encoding of the text input if known.
-	 */
-	encoding?: string;
+export interface IBaseResourceInput {
 
 	/**
 	 * Optional options to use when opening the text input.
 	 */
 	options?: ITextEditorOptions;
-}
-
-export interface IResourceDiffInput {
-
-	/**
-	 * The left hand side URI to open inside a diff editor.
-	 */
-	leftResource: URI;
-
-	/**
-	 * The right hand side URI to open inside a diff editor.
-	 */
-	rightResource: URI;
 
 	/**
 	 * Label to show for the diff editor
@@ -76,11 +53,45 @@ export interface IResourceDiffInput {
 	 * Description to show for the diff editor
 	 */
 	description?: string;
+}
+
+export interface IResourceInput extends IBaseResourceInput {
 
 	/**
-	 * Optional options to use when opening the text diff input.
+	 * The resource URL of the resource to open.
 	 */
-	options?: ITextEditorOptions;
+	resource: URI;
+
+	/**
+	 * The encoding of the text input if known.
+	 */
+	encoding?: string;
+}
+
+export interface IResourceDiffInput extends IBaseResourceInput {
+
+	/**
+	 * The left hand side URI to open inside a diff editor.
+	 */
+	leftResource: URI;
+
+	/**
+	 * The right hand side URI to open inside a diff editor.
+	 */
+	rightResource: URI;
+}
+
+export interface IResourceSideBySideInput extends IBaseResourceInput {
+
+	/**
+	 * The right hand side URI to open inside a side by side editor.
+	 */
+	masterResource: URI;
+
+	/**
+	 * The left hand side URI to open inside a side by side editor.
+	 */
+	detailResource: URI;
 }
 
 export interface IEditorControl {

@@ -15,7 +15,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
@@ -88,8 +88,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: IEditorInput, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
-	public openEditor(input: IResourceInput | IResourceDiffInput, position?: Position): TPromise<IEditor>;
-	public openEditor(input: IResourceInput | IResourceDiffInput, sideBySide?: boolean): TPromise<IEditor>;
+	public openEditor(input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, position?: Position): TPromise<IEditor>;
+	public openEditor(input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: any, arg2?: any, arg3?: any): TPromise<IEditor> {
 		if (!input) {
 			return TPromise.as<IEditor>(null);
@@ -112,7 +112,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Untyped Text Editor Support (required for code that uses this service below workbench level)
-		const textInput = <IResourceInput | IResourceDiffInput>input;
+		const textInput = <IResourceInput | IResourceDiffInput | IResourceSideBySideInput>input;
 		return this.createInput(textInput).then(typedInput => {
 			if (typedInput) {
 				return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
@@ -144,7 +144,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.openEditor(input, options, arg3);
 	}
 
-	public openEditors(editors: { input: IResourceInput | IResourceDiffInput, position: Position }[]): TPromise<IEditor[]>;
+	public openEditors(editors: { input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, position: Position }[]): TPromise<IEditor[]>;
 	public openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
@@ -162,7 +162,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public replaceEditors(editors: { toReplace: IResourceInput | IResourceDiffInput, replaceWith: IResourceInput | IResourceDiffInput }[]): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: { toReplace: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, replaceWith: IResourceInput | IResourceDiffInput | IResourceSideBySideInput }[]): TPromise<BaseEditor[]>;
 	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[]): TPromise<BaseEditor[]>;
 	public replaceEditors(editors: any[]): TPromise<BaseEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
@@ -195,12 +195,22 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	public createInput(input: IEditorInput): TPromise<EditorInput>;
-	public createInput(input: IResourceInput | IResourceDiffInput): TPromise<EditorInput>;
+	public createInput(input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput): TPromise<EditorInput>;
 	public createInput(input: any): TPromise<IEditorInput> {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
 			return TPromise.as<EditorInput>(input);
+		}
+
+		// Side by Side Support
+		const resourceSideBySideInput = <IResourceSideBySideInput>input;
+		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
+			return this.createInput({ resource: resourceSideBySideInput.masterResource }).then(masterInput => {
+				return this.createInput({ resource: resourceSideBySideInput.detailResource }).then(detailInput => {
+					return new SideBySideEditorInput(resourceSideBySideInput.label || masterInput.getName(), resourceSideBySideInput.description || masterInput.getDescription(), detailInput, masterInput);
+				});
+			});
 		}
 
 		// Diff Editor Support
