@@ -199,7 +199,7 @@ export class WorkbenchShell {
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: !this.contextService.getWorkspace(),
+			emptyWorkbench: !this.contextService.hasWorkspace(),
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
@@ -267,7 +267,7 @@ export class WorkbenchShell {
 		}, errors.onUnexpectedError);
 
 		// Storage Sevice
-		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.contextService.getWorkspace() && !this.environmentService.isExtensionDevelopment); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
+		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 

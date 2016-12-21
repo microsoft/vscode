@@ -144,7 +144,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query: IQueryOptions = {
-			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue,
 			cacheKey: cacheKey
@@ -186,7 +186,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private cacheQuery(cacheKey: string): ISearchQuery {
 		const options: IQueryOptions = {
-			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,

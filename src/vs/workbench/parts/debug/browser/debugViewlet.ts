@@ -66,7 +66,7 @@ export class DebugViewlet extends Viewlet {
 		super.create(parent);
 		this.$el = parent.div().addClass('debug-viewlet');
 
-		if (this.contextService.getWorkspace()) {
+		if (this.contextService.hasWorkspace()) {
 			const actionRunner = this.getActionRunner();
 			this.views = DebugViewRegistry.getDebugViews().map(viewConstructor => this.instantiationService.createInstance(
 				viewConstructor,

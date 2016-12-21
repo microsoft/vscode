@@ -126,7 +126,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openWorkspaceSettings(): TPromise<void> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return;
 		}
@@ -188,7 +188,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
-				if (this.contextService.getWorkspace()) {
+				if (this.contextService.hasWorkspace()) {
 					return this.contextService.toResource('.vscode/settings.json');
 				}
 		}

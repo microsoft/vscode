@@ -91,7 +91,7 @@ export function loadExperiments(contextService: IWorkspaceContextService, storag
 	const newUserDuration = 24 * 60 * 60 * 1000;
 	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
 	const isNewUser = !firstSessionDate || Date.now() - Date.parse(firstSessionDate) < newUserDuration;
-	if (!isNewUser || !!contextService.getWorkspace()) {
+	if (!isNewUser || contextService.hasWorkspace()) {
 		showNewUserWatermark = defaultExperiments.showNewUserWatermark;
 		openUntitledFile = defaultExperiments.openUntitledFile;
 	}

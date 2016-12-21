@@ -226,7 +226,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 	private loadWorkspaceConfigFiles(): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
 
 		// Return early if we don't have a workspace
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as(Object.create(null));
 		}
 

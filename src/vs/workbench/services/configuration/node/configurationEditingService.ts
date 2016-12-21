@@ -206,7 +206,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace if no workspace opened
-		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.getWorkspace()) {
+		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.hasWorkspace()) {
 			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED });
 		}
 
