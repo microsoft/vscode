@@ -469,7 +469,7 @@ class Tokenizer {
 
 		let endState: TMState;
 		// try to save an object if possible
-		if (textMateResult.ruleStack.equals(state.ruleStack)) {
+		if (state.ruleStack !== null && textMateResult.ruleStack.equals(state.ruleStack)) {
 			endState = state;
 		} else {
 			endState = new TMState(textMateResult.ruleStack);
