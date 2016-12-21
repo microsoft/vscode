@@ -305,30 +305,6 @@ export class ModeServiceImpl implements IModeService {
 	}
 }
 
-export class TokenizationState2Adapter implements modes.IState {
-
-	public readonly actual: modes.IState2;
-
-	constructor(actual: modes.IState2) {
-		this.actual = actual;
-	}
-
-	public clone(): TokenizationState2Adapter {
-		let actualClone = this.actual.clone();
-		if (actualClone === this.actual) {
-			return this;
-		}
-		return new TokenizationState2Adapter(actualClone);
-	}
-
-	public equals(other: modes.IState): boolean {
-		return (
-			other instanceof TokenizationState2Adapter
-			&& this.actual.equals(other.actual)
-		);
-	}
-}
-
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	private _modeId: string;
@@ -340,15 +316,11 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public getInitialState(): modes.IState {
-		return new TokenizationState2Adapter(this._actual.getInitialState());
+		return this._actual.getInitialState();
 	}
 
 	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
-		if (!(state instanceof TokenizationState2Adapter)) {
-			throw new Error('Unexpected state to tokenize with!');
-		}
-
-		let actualResult = this._actual.tokenize(line, state.actual);
+		let actualResult = this._actual.tokenize(line, state);
 		let tokens: Token[] = [];
 		actualResult.tokens.forEach((t) => {
 			if (typeof t.scopes === 'string') {
@@ -360,12 +332,12 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 			}
 		});
 
-		let endState: TokenizationState2Adapter;
+		let endState: modes.IState;
 		// try to save an object if possible
-		if (actualResult.endState.equals(state.actual)) {
+		if (actualResult.endState.equals(state)) {
 			endState = state;
 		} else {
-			endState = new TokenizationState2Adapter(actualResult.endState);
+			endState = actualResult.endState;
 		}
 
 		return {

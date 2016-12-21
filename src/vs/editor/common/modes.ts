@@ -20,14 +20,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 /**
  * @internal
  */
-export interface IState {
-	clone(): IState;
-	equals(other: IState): boolean;
-}
-
-/**
- * @internal
- */
 export interface IModeDescriptor {
 	id: string;
 }
@@ -82,16 +74,16 @@ export interface ILineTokens2 {
 	 * The tokenization end state.
 	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
 	 */
-	endState: IState2;
+	endState: IState;
 }
 /**
  * The state of the tokenizer between two lines.
  * It is useful to store flags such as in multiline comment, etc.
  * The model will clone the previous line's state and pass it in to tokenize the next line.
  */
-export interface IState2 {
-	clone(): IState2;
-	equals(other: IState2): boolean;
+export interface IState {
+	clone(): IState;
+	equals(other: IState): boolean;
 }
 /**
  * A "manual" provider of tokens.
@@ -100,11 +92,11 @@ export interface TokensProvider {
 	/**
 	 * The initial state of a language. Will be the state passed in to tokenize the first line.
 	 */
-	getInitialState(): IState2;
+	getInitialState(): IState;
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenize(line: string, state: IState2): ILineTokens2;
+	tokenize(line: string, state: IState): ILineTokens2;
 }
 
 /**
