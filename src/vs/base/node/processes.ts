@@ -486,37 +486,3 @@ export function createQueuedSender(childProcess: ChildProcess | NodeJS.Process):
 
 	return { send };
 }
-
-
-export interface IEnv {
-	addDelayedEnvironment(promise: TPromise<typeof process.env>): any;
-	ready: TPromise<void>;
-}
-
-export const env: IEnv = new class {
-
-	private _promises: TPromise<any>[] = [];
-
-	addDelayedEnvironment(promise: TPromise<typeof process.env>): any {
-		const p = TPromise.wrap(promise).then(env => {
-			// mixin new env
-			Objects.mixin(process.env, env, true);
-		});
-		this._promises.push(p);
-		const remove = () => {
-			const idx = this._promises.indexOf(p);
-			if (idx >= 0) {
-				this._promises.splice(idx, 1);
-			}
-		};
-		p.then(remove, remove);
-	}
-
-	get ready(): TPromise<void> {
-		if (this._promises.length === 0) {
-			return TPromise.as(undefined);
-		} else {
-			return TPromise.join(this._promises).then(() => this.ready);
-		}
-	}
-};
