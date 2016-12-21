@@ -15,6 +15,7 @@ import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
+import * as objects from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
@@ -23,7 +24,7 @@ import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { IEditorGroupService, GroupOrientation, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -83,12 +84,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private editorGroupsControl: IEditorGroupsControl;
 	private memento: any;
 	private stacks: EditorStacksModel;
-	private previewEditors: boolean;
+	private tabOptions: ITabOptions;
+	private doNotFireTabOptionsChanged: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 	private _onGroupOrientationChanged: Emitter<void>;
+	private _onTabOptionsChanged: Emitter<ITabOptions>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -114,6 +117,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
+		this._onTabOptionsChanged = new Emitter<ITabOptions>();
 
 		this.visibleEditors = [];
 
@@ -131,10 +135,21 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
 			const editorConfig = config.workbench.editor;
-
-			this.previewEditors = editorConfig.enablePreview;
+			this.tabOptions = {
+				previewEditors: editorConfig.enablePreview,
+				showIcons: editorConfig.showIcons,
+				showTabs: editorConfig.showTabs,
+				showTabCloseButton: editorConfig.showTabCloseButton
+			};
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
+		} else {
+			this.tabOptions = {
+				previewEditors: true,
+				showIcons: false,
+				showTabs: true,
+				showTabCloseButton: true
+			};
 		}
 
 		this.registerListeners();
@@ -154,7 +169,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// Pin all preview editors of the user chose to disable preview
 			const newPreviewEditors = editorConfig.enablePreview;
-			if (this.previewEditors !== newPreviewEditors && !newPreviewEditors) {
+			if (this.tabOptions.previewEditors !== newPreviewEditors && !newPreviewEditors) {
 				this.stacks.groups.forEach(group => {
 					if (group.previewEditor) {
 						this.pinEditor(group, group.previewEditor);
@@ -162,7 +177,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				});
 			}
 
-			this.previewEditors = newPreviewEditors;
+			const oldTabOptions = objects.clone(this.tabOptions);
+			this.tabOptions = {
+				previewEditors: newPreviewEditors,
+				showIcons: editorConfig.showIcons,
+				showTabCloseButton: editorConfig.showTabCloseButton,
+				showTabs: editorConfig.showTabs
+			};
+
+			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
+				this._onTabOptionsChanged.fire(this.tabOptions);
+			}
 		}
 	}
 
@@ -185,6 +210,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
+	public hideTabs(hidden: boolean): void {
+		this.doNotFireTabOptionsChanged = hidden;
+		if (hidden) {
+			this._onTabOptionsChanged.fire({ showTabs: false });
+		} else {
+			this._onTabOptionsChanged.fire(this.tabOptions);
+		}
+	}
+
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
 	}
@@ -199,6 +233,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public get onGroupOrientationChanged(): Event<void> {
 		return this._onGroupOrientationChanged.event;
+	}
+
+	public get onTabOptionsChanged(): Event<ITabOptions> {
+		return this._onTabOptionsChanged.event;
+	}
+
+	public getTabOptions(): ITabOptions {
+		return this.tabOptions;
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -246,7 +288,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
 		// stacks model gets updated if any of the UI updating fails with an error.
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
-		const pinned = !this.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
+		const pinned = !this.tabOptions.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
 		const active = (group.count === 0) || !options || !options.inactive;
 		group.openEditor(input, { active, pinned, index: options && options.index });
 

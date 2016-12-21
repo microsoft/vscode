@@ -1061,6 +1061,7 @@ export class Workbench implements IPartService {
 			this.setSideBarHidden(true, true);
 			this.setActivityBarHidden(true, true);
 			this.setStatusBarHidden(true, true);
+			this.editorPart.hideTabs(true);
 		} else {
 			if (this.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true);
@@ -1070,6 +1071,7 @@ export class Workbench implements IPartService {
 			}
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
+			this.editorPart.hideTabs(false);
 			const activeEditor = this.editorPart.getActiveEditor();
 			if (activeEditor) {
 				activeEditor.focus();
