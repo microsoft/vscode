@@ -152,14 +152,20 @@ export class ReplaceService implements IReplaceService {
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
 				const replaceModel = replaceModelRef.object.textEditorModel;
-				if (override) {
-					replaceModel.setValue(sourceModel.getValue());
-				} else {
-					replaceModel.undo();
+				let returnValue = TPromise.wrap(null);
+				// If model is disposed do not update
+				if (sourceModel && replaceModel) {
+					if (override) {
+						replaceModel.setValue(sourceModel.getValue());
+					} else {
+						replaceModel.undo();
+					}
+					returnValue = this.replace(fileMatch, null, replacePreviewUri);
 				}
-				sourceModelRef.dispose();
-				replaceModelRef.dispose();
-				return this.replace(fileMatch, null, replacePreviewUri);
+				return returnValue.then(() => {
+					sourceModelRef.dispose();
+					replaceModelRef.dispose();
+				});
 			});
 	}
 
