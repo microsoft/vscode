@@ -39,9 +39,10 @@ export class MonarchStackElementFactory {
 
 	public create(parent: MonarchStackElement, state: string): MonarchStackElement {
 		if (parent !== null && parent.depth >= this._maxCacheDepth) {
+			// no caching above a certain depth
 			return new MonarchStackElement(parent, state);
 		}
-		let stackElementId = MonarchStackElementFactory._getStackElementId(parent);
+		let stackElementId = MonarchStackElement.getStackElementId(parent);
 		if (stackElementId.length > 0) {
 			stackElementId += '|';
 		}
@@ -53,18 +54,6 @@ export class MonarchStackElementFactory {
 		}
 		result = new MonarchStackElement(parent, state);
 		this._entries[stackElementId] = result;
-		return result;
-	}
-
-	private static _getStackElementId(element: MonarchStackElement): string {
-		let result = '';
-		while (element !== null) {
-			if (result.length > 0) {
-				result += '|';
-			}
-			result += element.state;
-			element = element.parent;
-		}
 		return result;
 	}
 }
@@ -79,6 +68,18 @@ export class MonarchStackElement {
 		this.parent = parent;
 		this.state = state;
 		this.depth = (this.parent ? this.parent.depth : 0) + 1;
+	}
+
+	public static getStackElementId(element: MonarchStackElement): string {
+		let result = '';
+		while (element !== null) {
+			if (result.length > 0) {
+				result += '|';
+			}
+			result += element.state;
+			element = element.parent;
+		}
+		return result;
 	}
 
 	private static _equals(a: MonarchStackElement, b: MonarchStackElement): boolean {
@@ -149,6 +150,45 @@ export class EmbeddedModeData {
 	}
 }
 
+/**
+ * Reuse the same line states up to a certain depth.
+ */
+export class MonarchLineStateFactory {
+
+	private static _INSTANCE = new MonarchLineStateFactory(CACHE_STACK_DEPTH);
+	public static create(stack: MonarchStackElement, embeddedModeData: EmbeddedModeData): MonarchLineState {
+		return this._INSTANCE.create(stack, embeddedModeData);
+	}
+
+	private readonly _maxCacheDepth: number;
+	private readonly _entries: { [stackElementId: string]: MonarchLineState; };
+
+	constructor(maxCacheDepth: number) {
+		this._maxCacheDepth = maxCacheDepth;
+		this._entries = Object.create(null);
+	}
+
+	public create(stack: MonarchStackElement, embeddedModeData: EmbeddedModeData): MonarchLineState {
+		if (embeddedModeData !== null) {
+			// no caching when embedding
+			return new MonarchLineState(stack, embeddedModeData);
+		}
+		if (stack !== null && stack.depth >= this._maxCacheDepth) {
+			// no caching above a certain depth
+			return new MonarchLineState(stack, embeddedModeData);
+		}
+		let stackElementId = MonarchStackElement.getStackElementId(stack);
+
+		let result = this._entries[stackElementId];
+		if (result) {
+			return result;
+		}
+		result = new MonarchLineState(stack, null);
+		this._entries[stackElementId] = result;
+		return result;
+	}
+}
+
 export class MonarchLineState implements modes.IState {
 
 	public readonly stack: MonarchStackElement;
@@ -168,7 +208,7 @@ export class MonarchLineState implements modes.IState {
 		if (embeddedModeDataClone === this.embeddedModeData) {
 			return this;
 		}
-		return new MonarchLineState(this.stack, this.embeddedModeData);
+		return MonarchLineStateFactory.create(this.stack, this.embeddedModeData);
 	}
 
 	public equals(other: modes.IState): boolean {
@@ -225,7 +265,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	public getInitialState(): modes.IState {
 		let rootState = MonarchStackElementFactory.create(null, this._lexer.start);
-		return new MonarchLineState(rootState, null);
+		return MonarchLineStateFactory.create(rootState, null);
 	}
 
 	public tokenize(line: string, _lineState: modes.IState, offsetDelta: number): modes.ILineTokens {
@@ -308,7 +348,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				tokens: prependTokens.concat(nestedModeLineTokens.tokens),
 				actualStopOffset: nestedModeLineTokens.actualStopOffset,
 				modeTransitions: prependModeTransitions.concat(nestedModeLineTokens.modeTransitions),
-				endState: new MonarchLineState(lineState.stack, new EmbeddedModeData(lineState.embeddedModeData.modeId, nestedModeLineTokens.endState))
+				endState: MonarchLineStateFactory.create(lineState.stack, new EmbeddedModeData(lineState.embeddedModeData.modeId, nestedModeLineTokens.endState))
 			};
 		}
 
@@ -591,11 +631,11 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				if (pos < lineLength) {
 					// there is content from the embedded mode on this line
 					let restOfLine = line.substr(pos);
-					return this._nestedTokenize(restOfLine, new MonarchLineState(stack, embeddedModeData), offsetDelta + pos, prependTokens, prependModeTransitions);
+					return this._nestedTokenize(restOfLine, MonarchLineStateFactory.create(stack, embeddedModeData), offsetDelta + pos, prependTokens, prependModeTransitions);
 				} else {
 					return {
 						tokens: prependTokens,
-						endState: new MonarchLineState(stack, embeddedModeData),
+						endState: MonarchLineStateFactory.create(stack, embeddedModeData),
 						actualStopOffset: offsetDelta + line.length,
 						modeTransitions: prependModeTransitions
 					};
@@ -605,7 +645,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 		return {
 			tokens: prependTokens,
-			endState: new MonarchLineState(stack, embeddedModeData),
+			endState: MonarchLineStateFactory.create(stack, embeddedModeData),
 			actualStopOffset: offsetDelta + line.length,
 			modeTransitions: prependModeTransitions
 		};
