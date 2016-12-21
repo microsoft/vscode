@@ -30,7 +30,7 @@ import { CollapseAction, CollapsibleViewletView } from 'vs/workbench/browser/vie
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -48,8 +48,6 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private static MEMENTO_LAST_ACTIVE_FILE_RESOURCE = 'explorer.memento.lastActiveFileResource';
 	private static MEMENTO_EXPANDED_FOLDER_RESOURCES = 'explorer.memento.expandedFolderResources';
-
-	private workspace: IWorkspace;
 
 	private explorerViewer: ITree;
 	private filter: FileFilter;
@@ -87,8 +85,6 @@ export class ExplorerView extends CollapsibleViewletView {
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
-		this.workspace = contextService.getWorkspace();
-
 		this.settings = settings;
 		this.viewletState = viewletState;
 		this.actionRunner = actionRunner;
@@ -103,7 +99,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.workspace.name).title(labels.getPathLabel(this.workspace.resource.fsPath)).appendTo(titleDiv);
+		$('span').text(this.contextService.getWorkspace().name).title(labels.getPathLabel(this.contextService.getWorkspace().resource.fsPath)).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}
@@ -665,7 +661,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Load Root Stat with given target path configured
 		const options: IResolveFileOptions = { resolveTo: targetsToResolve };
-		const promise = this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
+		const promise = this.fileService.resolveFile(this.contextService.getWorkspace().resource, options).then(stat => {
 			let explorerPromise: TPromise<void>;
 
 			// Convert to model
@@ -704,7 +700,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	 */
 	private getResolvedDirectories(stat: FileStat, resolvedDirectories: URI[]): void {
 		if (stat.isDirectoryResolved) {
-			if (stat.resource.toString() !== this.workspace.resource.toString()) {
+			if (stat.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
 
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
@@ -733,7 +729,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public select(resource: URI, reveal: boolean = this.autoReveal): TPromise<void> {
 
 		// Require valid path
-		if (!resource || resource.toString() === this.workspace.resource.toString()) {
+		if (!resource || resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			return TPromise.as(null);
 		}
 
@@ -756,7 +752,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
-		return this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
+		return this.fileService.resolveFile(this.contextService.getWorkspace().resource, options).then(stat => {
 
 			// Convert to model
 			const modelStat = FileStat.create(stat, options.resolveTo);
@@ -819,7 +815,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		const root = this.getInput();
 		if (root) {
 			const expanded = this.explorerViewer.getExpandedElements()
-				.filter((e: FileStat) => e.resource.toString() !== this.workspace.resource.toString())
+				.filter((e: FileStat) => e.resource.toString() !== this.contextService.getWorkspace().resource.toString())
 				.map((e: FileStat) => e.resource.toString());
 
 			this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;

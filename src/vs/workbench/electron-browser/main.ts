@@ -145,7 +145,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 
 			// Open Shell
 			timerService.beforeWorkbenchOpen = new Date();
-			const shell = new WorkbenchShell(document.body, workspace, {
+			const shell = new WorkbenchShell(document.body, {
 				configurationService,
 				contextService,
 				environmentService,
