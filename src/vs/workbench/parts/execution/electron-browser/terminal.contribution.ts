@@ -19,7 +19,7 @@ import { ITerminalService } from 'vs/workbench/parts/execution/common/execution'
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
@@ -88,9 +88,9 @@ export class OpenConsoleAction extends Action {
 
 		// Otherwise check if we have an active file open
 		if (!pathToOpen) {
-			const file = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 			if (file) {
-				pathToOpen = paths.dirname(file.getResource().fsPath); // take parent folder of file
+				pathToOpen = paths.dirname(file.fsPath); // take parent folder of file
 			}
 		}
 

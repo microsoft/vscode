@@ -177,7 +177,7 @@ export class BackupFileService implements IBackupFileService {
 				return void 0;
 			}
 
-			return this.fileService.del(backupResource).then(() => model.remove(backupResource));
+			return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
 		});
 	}
 
@@ -187,7 +187,7 @@ export class BackupFileService implements IBackupFileService {
 				return void 0;
 			}
 
-			return this.fileService.del(Uri.file(this.backupWorkspacePath)).then(() => model.clear());
+			return pfs.del(this.backupWorkspacePath).then(() => model.clear());
 		});
 	}
 

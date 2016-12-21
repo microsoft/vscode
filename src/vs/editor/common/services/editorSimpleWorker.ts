@@ -162,6 +162,8 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 	}
 
 	public getValueInRange(range: editorCommon.IRange): string {
+		range = this._validateRange(range);
+
 		if (range.startLineNumber === range.endLineNumber) {
 			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
 		}
@@ -199,6 +201,27 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 			lineNumber: 1 + out.index,
 			column: 1 + Math.min(out.remainder, lineLength)
 		};
+	}
+
+	private _validateRange(range: editorCommon.IRange): editorCommon.IRange {
+
+		const start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+		const end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
+
+		if (start.lineNumber !== range.startLineNumber
+			|| start.column !== range.startColumn
+			|| end.lineNumber !== range.endLineNumber
+			|| end.column !== range.endColumn) {
+
+			return {
+				startLineNumber: start.lineNumber,
+				startColumn: start.column,
+				endLineNumber: end.lineNumber,
+				endColumn: end.column
+			};
+		}
+
+		return range;
 	}
 
 	private _validatePosition(position: editorCommon.IPosition): editorCommon.IPosition {

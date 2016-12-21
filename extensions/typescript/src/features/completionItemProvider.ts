@@ -8,10 +8,14 @@
 import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace, ProviderResult } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
+import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, FileLocationRequestArgs } from '../protocol';
 import * as Previewer from './previewer';
+
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
 
@@ -30,9 +34,10 @@ class MyCompletionItem extends CompletionItem {
 			// We convert to 0-based indexing.
 			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
 		} else {
-			const text = document.getText(new Range(position.line, Math.max(0, position.character - entry.name.length), position.line, position.character));
-			for (let i = entry.name.length; i >= 0; --i) {
-				if ((text as any).endsWith(entry.name.substr(0, i))) {
+			const text = document.getText(new Range(position.line, Math.max(0, position.character - entry.name.length), position.line, position.character)).toLowerCase();
+			const entryName = entry.name.toLowerCase();
+			for (let i = entryName.length; i >= 0; --i) {
+				if (text.endsWith(entryName.substr(0, i))) {
 					this.range = new Range(position.line, Math.max(0, position.character - i), position.line, position.character);
 					break;
 				}
@@ -61,16 +66,19 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.enum:
 				return CompletionItemKind.Enum;
 			case PConst.Kind.module:
+			case PConst.Kind.externalModuleName:
 				return CompletionItemKind.Module;
 			case PConst.Kind.class:
+			case PConst.Kind.type:
 				return CompletionItemKind.Class;
 			case PConst.Kind.interface:
 				return CompletionItemKind.Interface;
 			case PConst.Kind.warning:
-			case PConst.Kind.directory:
 			case PConst.Kind.file:
 			case PConst.Kind.script:
 				return CompletionItemKind.File;
+			case PConst.Kind.directory:
+				return CompletionItemKind.Folder;
 		}
 
 		return CompletionItemKind.Property;
@@ -92,10 +100,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	public sortBy = [{ type: 'reference', partSeparator: '/' }];
 
 	private client: ITypescriptServiceClient;
+	private typingsStatus: TypingsStatus;
 	private config: Configuration;
 
-	constructor(client: ITypescriptServiceClient) {
+	constructor(client: ITypescriptServiceClient, typingsStatus: TypingsStatus) {
 		this.client = client;
+		this.typingsStatus = typingsStatus;
 		this.config = { useCodeSnippetsOnMethodSuggest: false };
 	}
 
@@ -106,6 +116,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
+		if (this.typingsStatus.isAcquiringTypings) {
+			return Promise.reject({
+				label: localize('acquiringTypingsLabel', 'Acquiring typings...'),
+				detail: localize('acquiringTypingsDetail', 'Acquiring typings definitions for IntelliSense.')
+			});
+		}
+
 		let filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve<CompletionItem[]>([]);

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
-	var r = filter(word, wordToMatchAgainst);
+	let r = filter(word, wordToMatchAgainst);
 	assert(r);
 	if (highlights) {
 		assert.deepEqual(r, highlights);
@@ -21,8 +21,8 @@ function filterNotOk(filter, word, suggestion) {
 
 suite('Filters', () => {
 	test('or', function () {
-		var filter, counters;
-		var newFilter = function (i, r) {
+		let filter, counters;
+		let newFilter = function (i, r) {
 			return function () { counters[i]++; return r; };
 		};
 

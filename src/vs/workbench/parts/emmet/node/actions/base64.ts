@@ -54,7 +54,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			return;
 		}
 
-		if (!workspaceContext.getWorkspace()) {
+		if (!workspaceContext.hasWorkspace()) {
 			const message = nls.localize('noWorkspace', "Decoding a data:URL image is only available inside a workspace folder.");
 			messageService.show(Severity.Info, message);
 			return;

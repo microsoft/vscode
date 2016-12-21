@@ -7,7 +7,6 @@
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
@@ -17,17 +16,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import Event, { Emitter } from 'vs/base/common/event';
-
-/**
- * @internal
- */
-export interface IState {
-	clone(): IState;
-	equals(other: IState): boolean;
-	getModeId(): string;
-	getStateData(): IState;
-	setStateData(state: IState): void;
-}
 
 /**
  * @internal
@@ -86,20 +74,16 @@ export interface ILineTokens2 {
 	 * The tokenization end state.
 	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
 	 */
-	endState: IState2;
-	/**
-	 * An optional promise to force the model to retokenize this line (e.g. missing information at the point of tokenization)
-	 */
-	retokenize?: TPromise<void>;
+	endState: IState;
 }
 /**
  * The state of the tokenizer between two lines.
  * It is useful to store flags such as in multiline comment, etc.
  * The model will clone the previous line's state and pass it in to tokenize the next line.
  */
-export interface IState2 {
-	clone(): IState2;
-	equals(other: IState2): boolean;
+export interface IState {
+	clone(): IState;
+	equals(other: IState): boolean;
 }
 /**
  * A "manual" provider of tokens.
@@ -108,11 +92,11 @@ export interface TokensProvider {
 	/**
 	 * The initial state of a language. Will be the state passed in to tokenize the first line.
 	 */
-	getInitialState(): IState2;
+	getInitialState(): IState;
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenize(line: string, state: IState2): ILineTokens2;
+	tokenize(line: string, state: IState): ILineTokens2;
 }
 
 /**
@@ -167,7 +151,8 @@ export type SuggestionType = 'method'
 	| 'color'
 	| 'file'
 	| 'reference'
-	| 'customcolor';
+	| 'customcolor'
+	| 'folder';
 
 /**
  * @internal

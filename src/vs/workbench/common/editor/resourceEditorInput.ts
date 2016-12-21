@@ -39,6 +39,10 @@ export class ResourceEditorInput extends EditorInput {
 		this.resource = resource;
 	}
 
+	getResource(): URI {
+		return this.resource;
+	}
+
 	getTypeId(): string {
 		return ResourceEditorInput.ID;
 	}

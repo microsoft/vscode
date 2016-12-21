@@ -343,6 +343,12 @@ export interface IConfigurationManager {
 	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
 
 	/**
+	 * Returns the names of all configurations and compounds.
+	 * Ignores configurations which are invalid.
+	 */
+	getConfigurationNames(): string[];
+
+	/**
 	 * Returns a compound with the specified name.
 	 * Returns null if there is no compound with the specified name.
 	 */

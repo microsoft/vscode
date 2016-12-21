@@ -31,7 +31,7 @@ import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { WorkbenchComponent } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -782,7 +782,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		history.forEach(input => {
 			let resource: URI;
 			if (input instanceof EditorInput) {
-				resource = getUntitledOrFileResource(input);
+				resource = toResource(input, { filter: ['file', 'untitled'] });
 			} else {
 				resource = (input as IResourceInput).resource;
 			}
@@ -1088,7 +1088,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		this.input = input;
 
 		if (input instanceof EditorInput) {
-			this.resource = getUntitledOrFileResource(input);
+			this.resource = toResource(input, { filter: ['file', 'untitled'] });
 			this.label = input.getName();
 			this.description = input.getDescription();
 			this.dirty = input.isDirty();

@@ -18,8 +18,8 @@ export class ToggleTabFocusModeAction extends EditorAction {
 	constructor() {
 		super({
 			id: ToggleTabFocusModeAction.ID,
-			label: nls.localize('toggle.tabfocusmode', "Toggle Use of Tab Key for Setting Focus"),
-			alias: 'Toggle Use of Tab Key for Setting Focus',
+			label: nls.localize('toggle.tabMovesFocus', "Toggle Tab Key Moves Focus"),
+			alias: 'Toggle Tab Key Moves Focus',
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,

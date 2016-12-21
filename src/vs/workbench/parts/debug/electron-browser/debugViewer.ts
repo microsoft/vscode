@@ -18,7 +18,7 @@ import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -324,7 +324,8 @@ export class CallStackController extends BaseDebugController {
 					options: {
 						preserveFocus,
 						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
-						revealIfVisible: true
+						revealIfVisible: true,
+						revealInCenterIfOutsideViewport: true
 					},
 				}, sideBySide);
 			}
@@ -1053,7 +1054,10 @@ export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
 		if (target instanceof Expression || target instanceof Model) {
-			return DRAG_OVER_ACCEPT;
+			return {
+				accept: true,
+				autoExpand: false
+			};
 		}
 
 		return DRAG_OVER_REJECT;
@@ -1364,7 +1368,8 @@ export class BreakpointsController extends BaseDebugController {
 			options: {
 				preserveFocus,
 				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
-				revealIfVisible: true
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}

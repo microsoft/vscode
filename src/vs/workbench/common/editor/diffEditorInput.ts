@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
 import { EditorModel, EditorInput, SideBySideEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
@@ -100,11 +97,4 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		}
 		super.dispose();
 	}
-}
-
-export function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string {
-	const leftName = getPathLabel(res1.fsPath, context);
-	const rightName = getPathLabel(res2.fsPath, context);
-
-	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
 }
