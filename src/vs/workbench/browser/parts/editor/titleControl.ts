@@ -17,14 +17,14 @@ import { BaseEditor, IEditorInputActionContext } from 'vs/workbench/browser/part
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
-import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
 import { EventType as BaseEventType } from 'vs/base/common/events';
 import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, ITabOptions } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -77,10 +77,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private parent: HTMLElement;
 
-	private previewEditors: boolean;
-	private showTabs: boolean;
-	protected showTabCloseButton: boolean;
-
+	protected tabOptions: ITabOptions;
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
 	protected editorActionsToolbar: ToolBar;
@@ -111,7 +108,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
-		this.updateTabOptions(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.tabOptions = this.editorGroupService.getTabOptions();
 
 		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
 		this.toDispose.push(this.scheduler);
@@ -142,8 +139,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.updateTabOptions(e.config)));
-		this.toDispose.push(this.editorGroupService.onShowTabsChanged(() => this.updateTabOptions(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
+		this.toDispose.push(this.editorGroupService.onTabOptionsChanged(options => this.tabOptions = options));
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
 	}
 
@@ -151,12 +147,6 @@ export abstract class TitleControl implements ITitleAreaControl {
 		if (e.structural) {
 			this.updateSplitActionEnablement();
 		}
-	}
-
-	private updateTabOptions(config: IWorkbenchEditorConfiguration): void {
-		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
-		this.showTabs = this.editorGroupService.areTabsShown();
-		this.showTabCloseButton = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButton;
 	}
 
 	private updateSplitActionEnablement(): void {
@@ -384,7 +374,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			secondaryEditorActions = prepareActions(editorActions.secondary);
 		}
 
-		if (this.showTabs) {
+		if (this.tabOptions.showTabs) {
 			if (secondaryEditorActions.length > 0) {
 				secondaryEditorActions.push(new Separator());
 			}
@@ -394,7 +384,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		}
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
-		if (!this.showTabs) {
+		if (!this.tabOptions.showTabs) {
 			primaryEditorActionIds.push(this.closeEditorAction.id); // always show "Close" when tabs are disabled
 		}
 
@@ -408,7 +398,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
 
-			if (!this.showTabs) {
+			if (!this.tabOptions.showTabs) {
 				this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
 			}
 
@@ -475,13 +465,13 @@ export abstract class TitleControl implements ITitleAreaControl {
 			this.closeOtherEditorsAction
 		];
 
-		if (this.showTabs) {
+		if (this.tabOptions.showTabs) {
 			actions.push(this.closeRightEditorsAction);
 		}
 
 		actions.push(this.closeEditorsInGroupAction);
 
-		if (this.previewEditors) {
+		if (this.tabOptions.previewEditors) {
 			actions.push(new Separator(), this.pinEditorAction);
 		}
 
