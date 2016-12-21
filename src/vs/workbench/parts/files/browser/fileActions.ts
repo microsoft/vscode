@@ -26,7 +26,6 @@ import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -1213,7 +1212,6 @@ export class CompareResourcesAction extends Action {
 	constructor(
 		resource: URI,
 		tree: ITree,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
@@ -1271,8 +1269,7 @@ export class CompareResourcesAction extends Action {
 
 		return this.editorService.openEditor({
 			leftResource: globalResourceToCompare,
-			rightResource: this.resource,
-			label: toDiffLabel(globalResourceToCompare, this.resource, this.contextService)
+			rightResource: this.resource
 		});
 	}
 }

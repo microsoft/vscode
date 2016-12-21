@@ -11,7 +11,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorInputAction } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -186,7 +185,6 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ICommandService commandService: ICommandService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.model = model;
@@ -204,7 +202,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					const name = paths.basename(resource.fsPath);
 					const editorLabel = nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.environmentService.appNameLong);
 
-					return commandService.executeCommand('_workbench.diff', [URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), resource, editorLabel]).then(() => {
+					return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel }).then(() => {
 
 						// We have to bring the model into conflict resolution mode to prevent subsequent save erros when the user makes edits
 						this.model.setConflictResolutionMode();

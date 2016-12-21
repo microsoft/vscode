@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -18,7 +17,6 @@ import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/
 import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -128,16 +126,23 @@ export class ReplaceService implements IReplaceService {
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		this.telemetryService.publicLog('replace.open.previewEditor');
 		const fileMatch = element instanceof Match ? element.parent() : element;
-		return this.createInput(fileMatch).then((editorInput) => {
-			this.editorService.openEditor(editorInput, { preserveFocus, pinned, revealIfVisible: true })
-				.then(editor => {
-					this.updateReplacePreview(fileMatch).then(() => {
-						let editorControl = (<IDiffEditor>editor.getControl());
-						if (element instanceof Match) {
-							editorControl.revealLineInCenter(element.range().startLineNumber);
-						}
-					});
-				}, errors.onUnexpectedError);
+
+		return this.editorService.openEditor({
+			leftResource: fileMatch.resource(),
+			rightResource: this.getReplacePreviewUri(fileMatch),
+			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
+			options: {
+				preserveFocus,
+				pinned,
+				revealIfVisible: true
+			}
+		}).then(editor => {
+			this.updateReplacePreview(fileMatch).then(() => {
+				let editorControl = (<IDiffEditor>editor.getControl());
+				if (element instanceof Match) {
+					editorControl.revealLineInCenter(element.range().startLineNumber);
+				}
+			});
 		}, errors.onUnexpectedError);
 	}
 
@@ -166,13 +171,6 @@ export class ReplaceService implements IReplaceService {
 			newText: text
 		};
 		return resourceEdit;
-	}
-
-	private createInput(fileMatch: FileMatch): TPromise<DiffEditorInput> {
-		return TPromise.join([this.editorService.createInput({ resource: fileMatch.resource() }), this.editorService.createInput({ resource: this.getReplacePreviewUri(fileMatch) })])
-			.then(([left, right]) => {
-				return new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), '', <EditorInput>left, <EditorInput>right);
-			});
 	}
 
 	private getReplacePreviewUri(fileMatch: FileMatch): URI {
