@@ -17,19 +17,69 @@ import { Token } from 'vs/editor/common/core/token';
 import { NullState, nullTokenize, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 
-export class MonarchStateStackElement {
+/**
+ * Reuse the same stack elements up to a certain depth.
+ */
+export class MonarchStackElementFactory {
 
-	public readonly parent: MonarchStateStackElement;
+	private static _INSTANCE = new MonarchStackElementFactory(5);
+	public static create(parent: MonarchStackElement, state: string): MonarchStackElement {
+		return this._INSTANCE.create(parent, state);
+	}
+
+	private readonly _maxCacheDepth: number;
+	private readonly _entries: { [stackElementId: string]: MonarchStackElement; };
+
+	constructor(maxCacheDepth: number) {
+		this._maxCacheDepth = maxCacheDepth;
+		this._entries = Object.create(null);
+	}
+
+	public create(parent: MonarchStackElement, state: string): MonarchStackElement {
+		if (parent !== null && parent.depth >= this._maxCacheDepth) {
+			return new MonarchStackElement(parent, state);
+		}
+		let stackElementId = MonarchStackElementFactory._getStackElementId(parent);
+		if (stackElementId.length > 0) {
+			stackElementId += '|';
+		}
+		stackElementId += state;
+
+		let result = this._entries[stackElementId];
+		if (result) {
+			return result;
+		}
+		result = new MonarchStackElement(parent, state);
+		this._entries[stackElementId] = result;
+		return result;
+	}
+
+	private static _getStackElementId(element: MonarchStackElement): string {
+		let result = '';
+		while (element !== null) {
+			if (result.length > 0) {
+				result += '|';
+			}
+			result += element.state;
+			element = element.parent;
+		}
+		return result;
+	}
+}
+
+export class MonarchStackElement {
+
+	public readonly parent: MonarchStackElement;
 	public readonly state: string;
 	public readonly depth: number;
 
-	constructor(parent: MonarchStateStackElement, state: string) {
+	constructor(parent: MonarchStackElement, state: string) {
 		this.parent = parent;
 		this.state = state;
 		this.depth = (this.parent ? this.parent.depth : 0) + 1;
 	}
 
-	private static _equals(a: MonarchStateStackElement, b: MonarchStateStackElement): boolean {
+	private static _equals(a: MonarchStackElement, b: MonarchStackElement): boolean {
 		while (a !== null && b !== null) {
 			if (a === b) {
 				return true;
@@ -46,15 +96,15 @@ export class MonarchStateStackElement {
 		return false;
 	}
 
-	public equals(other: MonarchStateStackElement): boolean {
-		return MonarchStateStackElement._equals(this, other);
+	public equals(other: MonarchStackElement): boolean {
+		return MonarchStackElement._equals(this, other);
 	}
 
-	public push(state: string): MonarchStateStackElement {
-		return new MonarchStateStackElement(this, state);
+	public push(state: string): MonarchStackElement {
+		return MonarchStackElementFactory.create(this, state);
 	}
 
-	public pop(): MonarchStateStackElement {
+	public pop(): MonarchStackElement {
 		return this.parent;
 	}
 
@@ -72,28 +122,28 @@ export class MonarchStateStackElement {
 		}
 	}
 
-	public popall(): MonarchStateStackElement {
-		let result: MonarchStateStackElement = this;
+	public popall(): MonarchStackElement {
+		let result: MonarchStackElement = this;
 		while (result.parent) {
 			result = result.parent;
 		}
 		return result;
 	}
 
-	public switchTo(state: string): MonarchStateStackElement {
-		return new MonarchStateStackElement(this.parent, state);
+	public switchTo(state: string): MonarchStackElement {
+		return MonarchStackElementFactory.create(this.parent, state);
 	}
 }
 
 export class MonarchLineState implements modes.IState {
 
 	private readonly _modeId: string;
-	public readonly stack: MonarchStateStackElement;
+	public readonly stack: MonarchStackElement;
 	public readonly embeddedModeState: modes.IState;
 
 	constructor(
 		modeId: string,
-		stack: MonarchStateStackElement,
+		stack: MonarchStackElement,
 		embeddedModeState: modes.IState
 	) {
 		if (!stack) {
@@ -159,7 +209,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public getInitialState(): modes.IState {
-		let rootState = new MonarchStateStackElement(null, this._lexer.start);
+		let rootState = MonarchStackElementFactory.create(null, this._lexer.start);
 		return new MonarchLineState(this._modeId, rootState, null);
 	}
 
