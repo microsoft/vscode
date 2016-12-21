@@ -527,7 +527,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const globalElablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, false);
-		if (enable && this.workspaceContextService.getWorkspace()) {
+		if (enable && this.workspaceContextService.hasWorkspace()) {
 			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, true);
 			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}
@@ -678,7 +678,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		if (extension.gallery && this.installing.some(e => e.extension.gallery.id === extension.gallery.id)) {
+		if (extension.gallery && this.installing.some(e => e.extension.gallery && e.extension.gallery.id === extension.gallery.id)) {
 			return ExtensionState.Installing;
 		}
 

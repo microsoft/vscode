@@ -10,11 +10,9 @@ import Event from 'vs/base/common/event';
 import { IRawText } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
-import { IFileStat, IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
+import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { Event as BaseEvent, PropertyChangeEvent } from 'vs/base/common/events';
-
 
 /**
  * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
@@ -44,60 +42,6 @@ export enum ModelState {
 	PENDING_SAVE,
 	CONFLICT,
 	ERROR
-}
-
-/**
- * Local file change events are being emitted when a file is added, removed, moved or its contents got updated. These events
- * are being emitted from within the workbench and are not reflecting the truth on the disk file system. For that, please
- * use FileChangesEvent instead.
- */
-export class LocalFileChangeEvent extends PropertyChangeEvent {
-
-	constructor(before?: IFileStat, after?: IFileStat, originalEvent?: BaseEvent) {
-		super(null, before, after, originalEvent);
-	}
-
-	/**
-	 * Returns the meta information of the file before the event occurred or null if the file is new.
-	 */
-	public getBefore(): IFileStat {
-		return this.oldValue;
-	}
-
-	/**
-	 * Returns the meta information of the file after the event occurred or null if the file got deleted.
-	 */
-	public getAfter(): IFileStat {
-		return this.newValue;
-	}
-
-	/**
-	 * Indicates if the file was added as a new file.
-	 */
-	public gotAdded(): boolean {
-		return !this.oldValue && !!this.newValue;
-	}
-
-	/**
-	 * Indicates if the file was moved to a different path.
-	 */
-	public gotMoved(): boolean {
-		return !!this.oldValue && !!this.newValue && this.oldValue.resource.toString() !== this.newValue.resource.toString();
-	}
-
-	/**
-	 * Indicates if the files metadata was updated.
-	 */
-	public gotUpdated(): boolean {
-		return !!this.oldValue && !!this.newValue && !this.gotMoved() && this.oldValue !== this.newValue;
-	}
-
-	/**
-	 * Indicates if the file was deleted.
-	 */
-	public gotDeleted(): boolean {
-		return !!this.oldValue && !this.newValue;
-	}
 }
 
 export enum StateChange {

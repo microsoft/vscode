@@ -22,8 +22,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
-import { IEventService } from 'vs/platform/event/common/event';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -85,12 +84,12 @@ export class DebugService implements debug.IDebugService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEventService eventService: IEventService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
 		@ITaskService private taskService: ITaskService,
+		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
@@ -107,11 +106,11 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
 
-		this.registerListeners(eventService, lifecycleService);
+		this.registerListeners(lifecycleService);
 	}
 
-	private registerListeners(eventService: IEventService, lifecycleService: ILifecycleService): void {
-		this.toDispose.push(eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+	private registerListeners(lifecycleService: ILifecycleService): void {
+		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		if (this.taskService) {
 			this.toDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, (e: TaskEvent) => {
@@ -131,6 +130,15 @@ export class DebugService implements debug.IDebugService {
 		lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
+			if (event.sourceConfig.launch) {
+				const names = this.configurationManager.getConfigurationNames();
+				if (names.every(name => name !== this.viewModel.selectedConfigurationName)) {
+					// Current selected configuration no longer exists - take the first configuration instead.
+					this.viewModel.setSelectedConfigurationName(names.length ? names[0] : undefined);
+				}
+			}
+		}));
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -155,7 +163,7 @@ export class DebugService implements debug.IDebugService {
 			return;
 		}
 
-		// a plugin logged output, show it inside the REPL
+		// an extension logged output, show it inside the REPL
 		if (broadcast.channel === EXTENSION_LOG_BROADCAST_CHANNEL) {
 			let extensionOutput: ILogEntry = broadcast.payload;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
@@ -279,7 +287,8 @@ export class DebugService implements debug.IDebugService {
 								resource: stackFrameToFocus.source.uri,
 								options: {
 									selection: { startLineNumber: stackFrameToFocus.lineNumber, startColumn: 1 },
-									revealIfVisible: true
+									revealIfVisible: true,
+									revealInCenterIfOutsideViewport: true
 								}
 							});
 						} else {
@@ -421,7 +430,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public get state(): debug.State {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return debug.State.Disabled;
 		}
 
@@ -447,7 +456,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public get enabled(): boolean {
-		return !!this.contextService.getWorkspace();
+		return this.contextService.hasWorkspace();
 	}
 
 	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
@@ -566,14 +575,6 @@ export class DebugService implements debug.IDebugService {
 						}
 
 						return this.configurationManager.getConfiguration(configurationOrName).then(configuration => {
-							if (!configuration) {
-								return this.configurationManager.openConfigFile(false).then(openend => {
-									if (openend) {
-										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-									}
-								});
-							}
-
 							if (!this.configurationManager.getAdapter(configuration.type)) {
 								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
@@ -610,6 +611,12 @@ export class DebugService implements debug.IDebugService {
 									message: err.message,
 									actions: [this.taskService.configureAction(), CloseAction]
 								});
+							});
+						}, err => {
+							return this.configurationManager.openConfigFile(false).then(openend => {
+								if (openend) {
+									this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
+								}
 							});
 						});
 					})));

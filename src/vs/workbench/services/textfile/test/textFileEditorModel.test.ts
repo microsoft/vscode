@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IEventService } from 'vs/platform/event/common/event';
 import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
@@ -19,7 +18,7 @@ import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/com
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
-	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
@@ -95,10 +94,6 @@ suite('Files - TextFileEditorModel', () => {
 	test('Load does not trigger save', function (done) {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
 		assert.equal(model.getState(), ModelState.SAVED);
-
-		accessor.eventService.addListener2('files:internalFileChanged', () => {
-			assert.ok(false);
-		});
 
 		model.onDidStateChange(e => {
 			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);

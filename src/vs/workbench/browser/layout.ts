@@ -13,7 +13,6 @@ import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/serv
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -85,7 +84,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		},
 		quickopen: QuickOpenController,
 		@IStorageService private storageService: IStorageService,
-		@IEventService eventService: IEventService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,

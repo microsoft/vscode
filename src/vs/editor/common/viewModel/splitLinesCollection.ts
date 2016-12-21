@@ -44,7 +44,7 @@ export interface IModel {
 
 export interface ISplitLine {
 	isVisible(): boolean;
-	setVisible(isVisible: boolean): void;
+	setVisible(isVisible: boolean): ISplitLine;
 	getOutputLineCount(): number;
 	getOutputLineContent(model: IModel, myLineNumber: number, outputLineIndex: number): string;
 	getOutputLineMinColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number;
@@ -54,69 +54,95 @@ export interface ISplitLine {
 	getOutputPositionOfInputPosition(deltaLineNumber: number, inputColumn: number): Position;
 }
 
-class IdentitySplitLine implements ISplitLine {
+class VisibleIdentitySplitLine implements ISplitLine {
 
-	private _isVisible: boolean;
+	public static INSTANCE = new VisibleIdentitySplitLine();
 
-	public constructor(isVisible: boolean) {
-		this._isVisible = isVisible;
-	}
+	private constructor() { }
 
 	public isVisible(): boolean {
-		return this._isVisible;
+		return true;
 	}
 
-	public setVisible(isVisible: boolean): void {
-		this._isVisible = isVisible;
+	public setVisible(isVisible: boolean): ISplitLine {
+		if (isVisible) {
+			return this;
+		}
+		return InvisibleIdentitySplitLine.INSTANCE;
 	}
 
 	public getOutputLineCount(): number {
-		if (!this._isVisible) {
-			return 0;
-		}
 		return 1;
 	}
 
 	public getOutputLineContent(model: IModel, myLineNumber: number, outputLineIndex: number): string {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
 		return model.getLineContent(myLineNumber);
 	}
 
 	public getOutputLineMinColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
 		return model.getLineMinColumn(myLineNumber);
 	}
 
 	public getOutputLineMaxColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
 		return model.getLineMaxColumn(myLineNumber);
 	}
 
 	public getOutputLineTokens(model: IModel, myLineNumber: number, outputLineIndex: number): ViewLineTokens {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
 		return IdentityFilteredLineTokens.create(model.getLineTokens(myLineNumber, true), model.getLineMaxColumn(myLineNumber) - 1);
 	}
 
 	public getInputColumnOfOutputPosition(outputLineIndex: number, outputColumn: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
 		return outputColumn;
 	}
 
 	public getOutputPositionOfInputPosition(deltaLineNumber: number, inputColumn: number): Position {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
 		return new Position(deltaLineNumber, inputColumn);
+	}
+}
+
+class InvisibleIdentitySplitLine implements ISplitLine {
+
+	public static INSTANCE = new InvisibleIdentitySplitLine();
+
+	private constructor() { }
+
+	public isVisible(): boolean {
+		return false;
+	}
+
+	public setVisible(isVisible: boolean): ISplitLine {
+		if (!isVisible) {
+			return this;
+		}
+		return VisibleIdentitySplitLine.INSTANCE;
+	}
+
+	public getOutputLineCount(): number {
+		return 0;
+	}
+
+	public getOutputLineContent(model: IModel, myLineNumber: number, outputLineIndex: number): string {
+		throw new Error('Not supported');
+	}
+
+	public getOutputLineMinColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number {
+		throw new Error('Not supported');
+	}
+
+	public getOutputLineMaxColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number {
+		throw new Error('Not supported');
+	}
+
+	public getOutputLineTokens(model: IModel, myLineNumber: number, outputLineIndex: number): ViewLineTokens {
+		throw new Error('Not supported');
+	}
+
+	public getInputColumnOfOutputPosition(outputLineIndex: number, outputColumn: number): number {
+		throw new Error('Not supported');
+	}
+
+	public getOutputPositionOfInputPosition(deltaLineNumber: number, inputColumn: number): Position {
+		throw new Error('Not supported');
 	}
 }
 
@@ -141,8 +167,9 @@ export class SplitLine implements ISplitLine {
 		return this._isVisible;
 	}
 
-	public setVisible(isVisible: boolean): void {
+	public setVisible(isVisible: boolean): ISplitLine {
 		this._isVisible = isVisible;
+		return this;
 	}
 
 	public getOutputLineCount(): number {
@@ -245,7 +272,10 @@ function createSplitLine(linePositionMapperFactory: ILineMapperFactory, text: st
 	let positionMapper = linePositionMapperFactory.createLineMapping(text, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 	if (positionMapper === null) {
 		// No mapping needed
-		return new IdentitySplitLine(isVisible);
+		if (isVisible) {
+			return VisibleIdentitySplitLine.INSTANCE;
+		}
+		return InvisibleIdentitySplitLine.INSTANCE;
 	} else {
 		return new SplitLine(positionMapper, isVisible);
 	}
@@ -408,13 +438,13 @@ export class SplitLinesCollection implements ILinesCollection {
 			if (lineNumber >= hiddenAreaStart && lineNumber <= hiddenAreaEnd) {
 				// Line should be hidden
 				if (this.lines[i].isVisible()) {
-					this.lines[i].setVisible(false);
+					this.lines[i] = this.lines[i].setVisible(false);
 					lineChanged = true;
 				}
 			} else {
 				// Line should be visible
 				if (!this.lines[i].isVisible()) {
-					this.lines[i].setVisible(true);
+					this.lines[i] = this.lines[i].setVisible(true);
 					lineChanged = true;
 				}
 			}

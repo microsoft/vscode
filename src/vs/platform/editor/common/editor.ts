@@ -37,7 +37,25 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IResourceInput {
+export interface IBaseResourceInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+
+	/**
+	 * Label to show for the diff editor
+	 */
+	label?: string;
+
+	/**
+	 * Description to show for the diff editor
+	 */
+	description?: string;
+}
+
+export interface IResourceInput extends IBaseResourceInput {
 
 	/**
 	 * The resource URL of the resource to open.
@@ -48,11 +66,32 @@ export interface IResourceInput {
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;
+}
+
+export interface IResourceDiffInput extends IBaseResourceInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * The left hand side URI to open inside a diff editor.
 	 */
-	options?: ITextEditorOptions;
+	leftResource: URI;
+
+	/**
+	 * The right hand side URI to open inside a diff editor.
+	 */
+	rightResource: URI;
+}
+
+export interface IResourceSideBySideInput extends IBaseResourceInput {
+
+	/**
+	 * The right hand side URI to open inside a side by side editor.
+	 */
+	masterResource: URI;
+
+	/**
+	 * The left hand side URI to open inside a side by side editor.
+	 */
+	detailResource: URI;
 }
 
 export interface IEditorControl {
@@ -198,4 +237,9 @@ export interface ITextEditorOptions extends IEditorOptions {
 		endLineNumber?: number;
 		endColumn?: number;
 	};
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	revealInCenterIfOutsideViewport?: boolean;
 }

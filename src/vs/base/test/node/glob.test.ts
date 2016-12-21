@@ -63,7 +63,7 @@ suite('Glob', () => {
 	// });
 
 	test('simple', function () {
-		var p = 'node_modules';
+		let p = 'node_modules';
 
 		assert(glob.match(p, 'node_modules'));
 		assert(!glob.match(p, 'node_module'));
@@ -98,7 +98,7 @@ suite('Glob', () => {
 	});
 
 	test('dot hidden', function () {
-		var p = '.*';
+		let p = '.*';
 
 		assert(glob.match(p, '.git'));
 		assert(glob.match(p, '.hidden.txt'));
@@ -138,7 +138,7 @@ suite('Glob', () => {
 	});
 
 	test('file pattern', function () {
-		var p = '*.js';
+		let p = '*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(!glob.match(p, 'folder/foo.js'));
@@ -167,7 +167,7 @@ suite('Glob', () => {
 	});
 
 	test('star', function () {
-		var p = 'node*modules';
+		let p = 'node*modules';
 
 		assert(glob.match(p, 'node_modules'));
 		assert(glob.match(p, 'node_super_modules'));
@@ -184,7 +184,7 @@ suite('Glob', () => {
 	});
 
 	test('questionmark', function () {
-		var p = 'node?modules';
+		let p = 'node?modules';
 
 		assert(glob.match(p, 'node_modules'));
 		assert(!glob.match(p, 'node_super_modules'));
@@ -201,7 +201,7 @@ suite('Glob', () => {
 	});
 
 	test('globstar', function () {
-		var p = '**/*.js';
+		let p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, 'folder/foo.js'));
@@ -301,7 +301,7 @@ suite('Glob', () => {
 	});
 
 	test('brace expansion', function () {
-		var p = '*.{html,js}';
+		let p = '*.{html,js}';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, 'foo.html'));
@@ -393,10 +393,10 @@ suite('Glob', () => {
 	});
 
 	test('expression support (single)', function () {
-		var siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
+		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		var expression: glob.IExpression = {
+		let expression: glob.IExpression = {
 			'**/*.js': {
 				when: '$(basename).ts'
 			}
@@ -428,10 +428,10 @@ suite('Glob', () => {
 	});
 
 	test('expression support (multiple)', function () {
-		var siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
+		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		var expression: glob.IExpression = {
+		let expression: glob.IExpression = {
 			'**/*.js': { when: '$(basename).ts' },
 			'**/*.as': true,
 			'**/*.foo': false,
@@ -446,7 +446,7 @@ suite('Glob', () => {
 	});
 
 	test('brackets', function () {
-		var p = 'foo.[0-9]';
+		let p = 'foo.[0-9]';
 
 		assert(glob.match(p, 'foo.5'));
 		assert(glob.match(p, 'foo.8'));
@@ -462,13 +462,13 @@ suite('Glob', () => {
 	});
 
 	test('full path', function () {
-		var p = 'testing/this/foo.txt';
+		let p = 'testing/this/foo.txt';
 
 		assert(glob.match(p, nativeSep('testing/this/foo.txt')));
 	});
 
 	test('prefix agnostic', function () {
-		var p = '**/*.js';
+		let p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, '/foo.js'));
@@ -512,7 +512,7 @@ suite('Glob', () => {
 	});
 
 	test('cached properly', function () {
-		var p = '**/*.js';
+		let p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, 'testing/foo.js'));
@@ -572,7 +572,7 @@ suite('Glob', () => {
 	});
 
 	test('invalid glob', function () {
-		var p = '**/*(.js';
+		let p = '**/*(.js';
 
 		assert(!glob.match(p, 'foo.js'));
 	});
@@ -590,13 +590,13 @@ suite('Glob', () => {
 	});
 
 	test('expression with disabled glob', function () {
-		var expr = { '**/*.js': false };
+		let expr = { '**/*.js': false };
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), null);
 	});
 
 	test('expression with two non-trivia globs', function () {
-		var expr = {
+		let expr = {
 			'**/*.j?': true,
 			'**/*.t?': true
 		};
@@ -606,19 +606,19 @@ suite('Glob', () => {
 	});
 
 	test('expression with empty glob', function () {
-		var expr = { '': true };
+		let expr = { '': true };
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), null);
 	});
 
 	test('expression with other falsy value', function () {
-		var expr = { '**/*.js': 0 };
+		let expr = { '**/*.js': 0 };
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
 	});
 
 	test('expression with two basename globs', function () {
-		var expr = {
+		let expr = {
 			'**/bar': true,
 			'**/baz': true
 		};
@@ -631,13 +631,13 @@ suite('Glob', () => {
 	});
 
 	test('expression with two basename globs and a siblings expression', function () {
-		var expr = {
+		let expr = {
 			'**/bar': true,
 			'**/baz': true,
 			'**/*.js': { when: '$(basename).ts' }
 		};
 
-		var sibilings = () => ['foo.ts', 'foo.js', 'foo', 'bar'];
+		let sibilings = () => ['foo.ts', 'foo.js', 'foo', 'bar'];
 
 		assert.strictEqual(glob.match(expr, 'bar', sibilings), '**/bar');
 		assert.strictEqual(glob.match(expr, 'foo', sibilings), null);
@@ -649,7 +649,7 @@ suite('Glob', () => {
 	});
 
 	test('expression with multipe basename globs', function () {
-		var expr = {
+		let expr = {
 			'**/bar': true,
 			'{**/baz,**/foo}': true
 		};
@@ -689,8 +689,8 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/bar', 'bar'), false);
 		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/foo', 'foo'), true);
 
-		var expr = { '**/*.js': { when: '$(basename).ts' } };
-		var sibilings = () => ['foo.ts', 'foo.js'];
+		let expr = { '**/*.js': { when: '$(basename).ts' } };
+		let sibilings = () => ['foo.ts', 'foo.js'];
 
 		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', sibilings), null);
 		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', sibilings), '**/*.js');

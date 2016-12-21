@@ -14,6 +14,32 @@ const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
 
+
+process.lazyEnv = new Promise(function (resolve) {
+
+	const origEnv = process.env;
+
+	// warn about missing environment variables
+	// while we are resolve lazyEnv
+	process.env = new Proxy(origEnv, {
+		get: function (target, name) {
+			const result = target[name];
+			if (typeof result === 'undefined') {
+				console.warn('process.env[\'' + name + '\'] is undefined AND \'process.lazyEnv\' is NOT READY yet.');
+			}
+			return result;
+		}
+	});
+
+	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		// store process.env, mixin shellEnv, done
+		process.env = origEnv;
+		assign(process.env, shellEnv);
+		resolve(process.env);
+	});
+	ipc.send('vscode:fetchShellEnv', remote.getCurrentWindow().id);
+});
+
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
 		remote.getCurrentWebContents().openDevTools();
@@ -186,13 +212,17 @@ function main() {
 		], function () {
 			timers.afterLoadWorkbenchMain = new Date();
 
-			require('vs/workbench/electron-browser/main')
-				.startup(configuration)
-				.done(function () {
-					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
-				}, function (error) {
-					onError(error, enableDeveloperTools);
-				});
+			process.lazyEnv.then(function () {
+
+				require('vs/workbench/electron-browser/main')
+					.startup(configuration)
+					.done(function () {
+						unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
+					}, function (error) {
+						onError(error, enableDeveloperTools);
+					});
+			});
+
 		});
 	});
 }

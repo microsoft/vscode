@@ -20,7 +20,6 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -56,7 +55,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IStorageService private _storageService: IStorageService,
 		@IMessageService private _messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEventService private _eventService: IEventService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IThemeService private themeService: IThemeService,
 		@ITextFileService private textFileService: ITextFileService
@@ -81,10 +79,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public get messageService() {
 		return this._messageService;
-	}
-
-	public get eventService(): IEventService {
-		return this._eventService;
 	}
 
 	public get editorService() {

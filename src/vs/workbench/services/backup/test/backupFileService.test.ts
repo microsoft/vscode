@@ -49,7 +49,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.cre
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null);
+		const fileService = new FileService(workspace.fsPath, { disableWatcher: true });
 		const environmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
 		const backupService: IBackupService = {
 			_serviceBrand: null,

@@ -20,7 +20,6 @@ import platform = require('vs/base/common/platform');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditor } from 'vs/platform/editor/common/editor';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IMessageService, IConfirmation, IChoiceService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
@@ -308,15 +307,13 @@ export class GlobalStageAction extends BaseStageAction {
 
 export abstract class BaseUndoAction extends GitAction {
 
-	private eventService: IEventService;
 	private editorService: IWorkbenchEditorService;
 	private messageService: IMessageService;
 	private fileService: IFileService;
 	private contextService: IWorkspaceContextService;
 
-	constructor(id: string, label: string, className: string, gitService: IGitService, eventService: IEventService, messageService: IMessageService, fileService: IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, className: string, gitService: IGitService, messageService: IMessageService, fileService: IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
 		super(id, label, className, gitService);
-		this.eventService = eventService;
 		this.editorService = editorService;
 		this.messageService = messageService;
 		this.fileService = fileService;
@@ -325,7 +322,7 @@ export abstract class BaseUndoAction extends GitAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && !!this.eventService && !!this.editorService && !!this.fileService;
+		return super.isEnabled() && !!this.editorService && !!this.fileService;
 	}
 
 	public run(context?: any): Promise {
@@ -451,7 +448,6 @@ export abstract class BaseUndoAction extends GitAction {
 	}
 
 	public dispose(): void {
-		this.eventService = null;
 		this.editorService = null;
 		this.fileService = null;
 
@@ -461,8 +457,8 @@ export abstract class BaseUndoAction extends GitAction {
 
 export class UndoAction extends BaseUndoAction {
 	static ID = 'workbench.action.git.undo';
-	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
+	constructor( @IGitService gitService: IGitService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, messageService, fileService, editorService, contextService);
 	}
 }
 
@@ -470,8 +466,8 @@ export class GlobalUndoAction extends BaseUndoAction {
 
 	static ID = 'workbench.action.git.undoAll';
 
-	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
+	constructor( @IGitService gitService: IGitService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, messageService, fileService, editorService, contextService);
 	}
 
 	protected isEnabled(): boolean {

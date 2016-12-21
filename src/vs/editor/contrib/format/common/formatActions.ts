@@ -208,7 +208,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
 			alias: 'Format Code',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentFormattingProvider, EditorContextKeys.HasNonEmptySelection),
+			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.HasNonEmptySelection),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
