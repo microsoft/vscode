@@ -7,9 +7,8 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorCommon';
@@ -72,10 +71,9 @@ function registerActiveEditorMoveCommand(): void {
 }
 
 function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor): void {
-	const config = <IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration();
-	const tabsShown = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+	const showTabs = accessor.get(IEditorGroupService).getTabOptions().showTabs;
 	args.to = args.to || ActiveEditorMovePositioning.RIGHT;
-	args.by = tabsShown ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
+	args.by = showTabs ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
 	args.value = types.isUndefined(args.value) ? 1 : args.value;
 
 	const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
