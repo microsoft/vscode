@@ -11,7 +11,7 @@ import { ITypescriptServiceClient } from '../typescriptService';
 const typingsInstallTimeout = 30 * 1000;
 
 export default class TypingsStatus extends vscode.Disposable {
-	private _acquiringTypings: Map<NodeJS.Timer> = Object.create({});
+	private _acquiringTypings: { [eventId: string]: NodeJS.Timer } = Object.create({});
 	private _client: ITypescriptServiceClient;
 	private _subscriptions: vscode.Disposable[] = [];
 
