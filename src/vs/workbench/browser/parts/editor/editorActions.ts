@@ -15,7 +15,7 @@ import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry,
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -356,6 +356,10 @@ export class FocusPreviousGroup extends Action {
 		let nextPosition: Position = Position.ONE;
 		if (activeEditor.position === Position.THREE) {
 			nextPosition = Position.TWO;
+		} else if (activeEditor.position === Position.ONE) {
+			// Get the last active position
+			const lastPosition = this.editorGroupService.getStacksModel().groups.length - 1;
+			nextPosition = lastPosition;
 		}
 
 		// Focus next position if provided
@@ -391,7 +395,9 @@ export class FocusNextGroup extends Action {
 		// Find the next position to the right/bottom to use
 		let nextPosition: Position;
 		const activeEditor = this.editorService.getActiveEditor();
-		if (!activeEditor) {
+
+		const lastPosition = POSITIONS[POSITIONS.length - 1];
+		if (!activeEditor || activeEditor.position === lastPosition) {
 			nextPosition = Position.ONE;
 		} else if (activeEditor.position === Position.ONE) {
 			nextPosition = Position.TWO;
