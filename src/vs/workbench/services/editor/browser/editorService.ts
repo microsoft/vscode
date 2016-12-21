@@ -18,8 +18,10 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import nls = require('vs/nls');
+import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
 
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -240,10 +242,12 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Treat an URI as ResourceEditorInput
 		else if (resourceInput.resource instanceof URI) {
-			return TPromise.as(this.instantiationService.createInstance(ResourceEditorInput,
-				basename(resourceInput.resource.fsPath),
-				dirname(resourceInput.resource.fsPath),
-				resourceInput.resource));
+			return TPromise.as(this.instantiationService.createInstance(
+				ResourceEditorInput,
+				resourceInput.label || basename(resourceInput.resource.fsPath),
+				resourceInput.description || dirname(resourceInput.resource.fsPath),
+				resourceInput.resource
+			));
 		}
 
 		return TPromise.as<EditorInput>(null);
@@ -257,6 +261,13 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return typedFileInput;
 		});
 	}
+}
+
+function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string {
+	const leftName = getPathLabel(res1.fsPath, context);
+	const rightName = getPathLabel(res2.fsPath, context);
+
+	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
 }
 
 export interface IDelegatingWorkbenchEditorServiceHandler {
