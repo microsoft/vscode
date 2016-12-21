@@ -11,7 +11,6 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstance, ITerminalService, IShell, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
@@ -44,8 +43,7 @@ export class TerminalService implements ITerminalService {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IPanelService private _panelService: IPanelService,
-		@IPartService private _partService: IPartService,
-		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService
+		@IPartService private _partService: IPartService
 	) {
 		this._terminalInstances = [];
 		this._activeTerminalInstanceIndex = 0;
@@ -72,7 +70,6 @@ export class TerminalService implements ITerminalService {
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
-			this._workspaceContextService.getWorkspace(),
 			name,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
