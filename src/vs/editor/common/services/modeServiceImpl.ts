@@ -20,7 +20,6 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import { Token } from 'vs/editor/common/core/token';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 
@@ -308,46 +307,32 @@ export class ModeServiceImpl implements IModeService {
 
 export class TokenizationState2Adapter implements modes.IState {
 
-	private _modeId: string;
-	private _actual: modes.IState2;
-	private _stateData: modes.IState;
+	private readonly _modeId: string;
+	public readonly actual: modes.IState2;
 
-	constructor(modeId: string, actual: modes.IState2, stateData: modes.IState) {
+	constructor(modeId: string, actual: modes.IState2) {
 		this._modeId = modeId;
-		this._actual = actual;
-		this._stateData = stateData;
+		this.actual = actual;
 	}
 
-	public get actual(): modes.IState2 { return this._actual; }
-
 	public clone(): TokenizationState2Adapter {
-		return new TokenizationState2Adapter(this._modeId, this._actual.clone(), AbstractState.safeClone(this._stateData));
+		let actualClone = this.actual.clone();
+		if (actualClone === this.actual) {
+			return this;
+		}
+		return new TokenizationState2Adapter(this._modeId, actualClone);
 	}
 
 	public equals(other: modes.IState): boolean {
-		if (other instanceof TokenizationState2Adapter) {
-			if (!this._actual.equals(other._actual)) {
-				return false;
-			}
-			return AbstractState.safeEquals(this._stateData, other._stateData);
-		}
-		return false;
+		return (
+			other instanceof TokenizationState2Adapter
+			&& this._modeId === other._modeId
+			&& this.actual.equals(other.actual)
+		);
 	}
 
 	public getModeId(): string {
 		return this._modeId;
-	}
-
-	public tokenize(stream: any): any {
-		throw new Error('Unexpected tokenize call!');
-	}
-
-	public getStateData(): modes.IState {
-		return this._stateData;
-	}
-
-	public setStateData(stateData: modes.IState): void {
-		this._stateData = stateData;
 	}
 }
 
@@ -362,32 +347,41 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public getInitialState(): modes.IState {
-		return new TokenizationState2Adapter(this._modeId, this._actual.getInitialState(), null);
+		return new TokenizationState2Adapter(this._modeId, this._actual.getInitialState());
 	}
 
 	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
-		if (state instanceof TokenizationState2Adapter) {
-			let actualResult = this._actual.tokenize(line, state.actual);
-			let tokens: Token[] = [];
-			actualResult.tokens.forEach((t) => {
-				if (typeof t.scopes === 'string') {
-					tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
-				} else if (Array.isArray(t.scopes) && t.scopes.length === 1) {
-					tokens.push(new Token(t.startIndex + offsetDelta, t.scopes[0]));
-				} else {
-					throw new Error('Only token scopes as strings or of precisely 1 length are supported at this time!');
-				}
-			});
-			return {
-				tokens: tokens,
-				actualStopOffset: offsetDelta + line.length,
-				endState: new TokenizationState2Adapter(state.getModeId(), actualResult.endState, state.getStateData()),
-				modeTransitions: [new ModeTransition(offsetDelta, state.getModeId())],
-			};
+		if (!(state instanceof TokenizationState2Adapter)) {
+			throw new Error('Unexpected state to tokenize with!');
 		}
-		throw new Error('Unexpected state to tokenize with!');
-	}
 
+		let actualResult = this._actual.tokenize(line, state.actual);
+		let tokens: Token[] = [];
+		actualResult.tokens.forEach((t) => {
+			if (typeof t.scopes === 'string') {
+				tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
+			} else if (Array.isArray(t.scopes) && t.scopes.length === 1) {
+				tokens.push(new Token(t.startIndex + offsetDelta, t.scopes[0]));
+			} else {
+				throw new Error('Only token scopes as strings or of precisely 1 length are supported at this time!');
+			}
+		});
+
+		let endState: TokenizationState2Adapter;
+		// try to save an object if possible
+		if (actualResult.endState.equals(state.actual)) {
+			endState = state;
+		} else {
+			endState = new TokenizationState2Adapter(state.getModeId(), actualResult.endState);
+		}
+
+		return {
+			tokens: tokens,
+			actualStopOffset: offsetDelta + line.length,
+			endState: endState,
+			modeTransitions: [new ModeTransition(offsetDelta, state.getModeId())],
+		};
+	}
 }
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {

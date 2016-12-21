@@ -101,7 +101,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 				{ startIndex: 41, endIndex: 50, scopes: ['source.html', 'script.tag.close'] },
 				{ startIndex: 50, endIndex: 54, scopes: ['source.html'] },
 			],
-			new TMState('html', null, null)
+			new TMState('html', null)
 		);
 
 		let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });
@@ -389,7 +389,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 
 		for (let i = 0, len = tests.length; i < len; i++) {
 			let test = tests[i];
-			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('html', null, null));
+			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('html', null));
 
 			let actualTokens = actual.tokens.map((t) => { return { startIndex: t.startIndex, type: t.type }; });
 			let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });
@@ -828,7 +828,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 
 		for (let i = 0, len = tests.length; i < len; i++) {
 			let test = tests[i];
-			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('html', null, null));
+			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('html', null));
 
 			let actualTokens = actual.tokens.map((t) => { return { startIndex: t.startIndex, type: t.type }; });
 			let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });
@@ -896,7 +896,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 
 		for (let i = 0, len = tests.length; i < len; i++) {
 			let test = tests[i];
-			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('scss', null, null));
+			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('scss', null));
 
 			let actualTokens = actual.tokens.map((t) => { return { startIndex: t.startIndex, type: t.type }; });
 			let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });

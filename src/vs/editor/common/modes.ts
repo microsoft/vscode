@@ -24,8 +24,6 @@ export interface IState {
 	clone(): IState;
 	equals(other: IState): boolean;
 	getModeId(): string;
-	getStateData(): IState;
-	setStateData(state: IState): void;
 }
 
 /**

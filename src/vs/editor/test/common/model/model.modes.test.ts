@@ -32,8 +32,6 @@ suite('Editor Model - Model Modes 1', () => {
 		clone(): modes.IState { return this; }
 		equals(other: modes.IState): boolean { return this === other; }
 		getModeId(): string { return LANGUAGE_ID; }
-		getStateData(): modes.IState { throw new Error('Not implemented'); }
-		setStateData(state: modes.IState): void { throw new Error('Not implemented'); }
 	}
 
 	modes.TokenizationRegistry.register(LANGUAGE_ID, {
@@ -182,9 +180,6 @@ suite('Editor Model - Model Modes 2', () => {
 		getModeId(): string {
 			return LANGUAGE_ID;
 		}
-
-		getStateData(): modes.IState { throw new Error('Not implemented'); }
-		setStateData(state: modes.IState): void { throw new Error('Not implemented'); }
 	}
 
 	modes.TokenizationRegistry.register(LANGUAGE_ID, {
@@ -309,8 +304,6 @@ suite('Editor Model - Token Iterator', () => {
 		clone(): modes.IState { return this; }
 		equals(other: modes.IState): boolean { return this === other; }
 		getModeId(): string { return LANGUAGE_ID; }
-		getStateData(): modes.IState { throw new Error('Not implemented'); }
-		setStateData(state: modes.IState): void { throw new Error('Not implemented'); }
 	}
 
 	modes.TokenizationRegistry.register(LANGUAGE_ID, {

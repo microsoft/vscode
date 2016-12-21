@@ -23,7 +23,7 @@ function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
 		return tokenizationSupport;
 	}
 	return {
-		getInitialState: () => new NullState(null, null),
+		getInitialState: () => new NullState(null),
 		tokenize: (buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
 	};
 }
