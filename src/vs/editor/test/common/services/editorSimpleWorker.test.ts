@@ -130,4 +130,34 @@ suite('EditorSimpleWorker', () => {
 			assert.deepEqual(first.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 4 });
 		});
 	});
+
+	test('MoreMinimal, issue #15385 newline changes and other', function () {
+
+		let model = worker.addModel([
+			'package main',	// 1
+			'func foo() {',	// 2
+			'}'				// 3
+		]);
+
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }], []).then(edits => {
+			assert.equal(edits.length, 1);
+			const [first] = edits;
+			assert.equal(first.text, '\n');
+			assert.deepEqual(first.range, { startLineNumber: 3, startColumn: 2, endLineNumber: 3, endColumn: 2 });
+		});
+	});
+
+
+	test('ICommonModel#getValueInRange, issue #17424', function () {
+
+		let model = worker.addModel([
+			'package main',	// 1
+			'func foo() {',	// 2
+			'}'				// 3
+		]);
+
+		const value = model.getValueInRange({ startLineNumber: 3, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+		assert.equal(value, '}');
+	});
+
 });
