@@ -281,7 +281,7 @@ export class MainProcessTextMateSyntax {
 function createTokenizationSupport(languageRegistration: TMLanguageRegistration, modeId: string, grammar: IGrammar): ITokenizationSupport {
 	var tokenizer = new Tokenizer(languageRegistration, modeId, grammar);
 	return {
-		getInitialState: () => new TMState(modeId, null),
+		getInitialState: () => new TMState(null),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState>state, offsetDelta, stopAtOffset)
 	};
 }
@@ -460,7 +460,7 @@ class Tokenizer {
 		if (line.length >= 20000 || depth(state.ruleStack) > 100) {
 			return new RawLineTokens(
 				[new Token(offsetDelta, '')],
-				[new ModeTransition(offsetDelta, state.getModeId())],
+				[new ModeTransition(offsetDelta, this._modeId)],
 				offsetDelta,
 				state
 			);
@@ -472,15 +472,14 @@ class Tokenizer {
 		if (textMateResult.ruleStack.equals(state.ruleStack)) {
 			endState = state;
 		} else {
-			endState = new TMState(state.getModeId(), textMateResult.ruleStack);
+			endState = new TMState(textMateResult.ruleStack);
 		}
 
-		return decodeTextMateTokens(line, offsetDelta, this._decodeMap, textMateResult.tokens, endState);
+		return decodeTextMateTokens(this._modeId, this._decodeMap, line, offsetDelta, textMateResult.tokens, endState);
 	}
 }
 
-export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMap: DecodeMap, resultTokens: IToken[], resultState: TMState): RawLineTokens {
-	const topLevelModeId = resultState.getModeId();
+export function decodeTextMateTokens(topLevelModeId: string, decodeMap: DecodeMap, line: string, offsetDelta: number, resultTokens: IToken[], resultState: TMState): RawLineTokens {
 
 	// Create the result early and fill in the tokens later
 	let tokens: Token[] = [];

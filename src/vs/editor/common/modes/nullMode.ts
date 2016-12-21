@@ -8,29 +8,18 @@ import { IState, ILineTokens } from 'vs/editor/common/modes';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 
-export class NullState implements IState {
-
-	private readonly _modeId: string;
-
-	constructor(modeId: string) {
-		this._modeId = modeId;
-	}
+class NullStateImpl implements IState {
 
 	public clone(): IState {
 		return this;
 	}
 
 	public equals(other: IState): boolean {
-		return (
-			other instanceof NullState
-			&& this._modeId === other._modeId
-		);
-	}
-
-	public getModeId(): string {
-		return this._modeId;
+		return (this === other);
 	}
 }
+
+export const NULL_STATE: IState = new NullStateImpl();
 
 export const NULL_MODE_ID = 'vs.editor.nullMode';
 

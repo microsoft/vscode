@@ -31,7 +31,6 @@ suite('Editor Model - Model Modes 1', () => {
 	class ModelState1 implements modes.IState {
 		clone(): modes.IState { return this; }
 		equals(other: modes.IState): boolean { return this === other; }
-		getModeId(): string { return LANGUAGE_ID; }
 	}
 
 	modes.TokenizationRegistry.register(LANGUAGE_ID, {
@@ -176,10 +175,6 @@ suite('Editor Model - Model Modes 2', () => {
 		equals(other: modes.IState): boolean {
 			return (other instanceof ModelState2) && other.prevLineContent === this.prevLineContent;
 		}
-
-		getModeId(): string {
-			return LANGUAGE_ID;
-		}
 	}
 
 	modes.TokenizationRegistry.register(LANGUAGE_ID, {
@@ -303,7 +298,6 @@ suite('Editor Model - Token Iterator', () => {
 	class NState implements modes.IState {
 		clone(): modes.IState { return this; }
 		equals(other: modes.IState): boolean { return this === other; }
-		getModeId(): string { return LANGUAGE_ID; }
 	}
 
 	modes.TokenizationRegistry.register(LANGUAGE_ID, {

@@ -7,7 +7,7 @@
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { NullState, nullTokenize } from 'vs/editor/common/modes/nullMode';
+import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 
 export function tokenizeToHtmlContent(text: string, languageId: string): IHTMLContentElement {
 	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(languageId));
@@ -23,7 +23,7 @@ function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
 		return tokenizationSupport;
 	}
 	return {
-		getInitialState: () => new NullState(null),
+		getInitialState: () => NULL_STATE,
 		tokenize: (buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
 	};
 }
