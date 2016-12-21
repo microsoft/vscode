@@ -262,45 +262,63 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return config.compounds.filter(compound => compound.name === name).pop();
 	}
 
+	public getConfigurationNames(): string[] {
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
+		if (!config || !config.configurations) {
+			return [];
+		} else {
+			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
+			if (names.length > 0 && config.compounds) {
+				if (config.compounds) {
+					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
+						.map(compound => compound.name));
+				}
+			}
+
+			return names;
+		}
+	}
+
 	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
 		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
 
-		let result: debug.IConfig = null;
+		let result: debug.IConfig;
 		if (types.isObject(nameOrConfig)) {
 			result = objects.deepClone(nameOrConfig) as debug.IConfig;
 		} else {
-			if (!config || !config.configurations) {
-				return TPromise.as(null);
+			if (!nameOrConfig || !config || !config.configurations || !config.configurations.length) {
+				return TPromise.wrapError(new Error());
 			}
-			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-			const filtered = config.configurations.filter(cfg => cfg.name === nameOrConfig);
 
-			result = filtered.length === 1 ? filtered[0] : config.configurations[0];
-			result = objects.deepClone(result);
+			const filtered = config.configurations.filter(cfg => cfg && cfg.name === nameOrConfig);
+			if (filtered.length !== 1) {
+				const message = filtered.length === 0 ? nls.localize('configurationDoesNotExist', "Configuration '{0}' does not exist.", nameOrConfig)
+					: nls.localize('configuraitonNotUnique', "There are multiple configurations with name '{0}'.", nameOrConfig);
+				return TPromise.wrapError(new Error(message));
+			}
+
+			result = objects.deepClone(filtered[0]);
 		}
 
-		if (result) {
-			// Set operating system specific properties #1873
-			const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
-				if (flag && osConfig) {
-					Object.keys(osConfig).forEach(key => {
-						result[key] = osConfig[key];
-					});
-				}
-			};
-			setOSProperties(isWindows, result.windows);
-			setOSProperties(isMacintosh, result.osx);
-			setOSProperties(isLinux, result.linux);
+		// Set operating system specific properties #1873
+		const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
+			if (flag && osConfig) {
+				Object.keys(osConfig).forEach(key => {
+					result[key] = osConfig[key];
+				});
+			}
+		};
+		setOSProperties(isWindows, result.windows);
+		setOSProperties(isMacintosh, result.osx);
+		setOSProperties(isLinux, result.linux);
 
-			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			Object.keys(result).forEach(key => {
-				result[key] = this.configurationResolverService.resolveAny(result[key]);
-			});
+		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+		Object.keys(result).forEach(key => {
+			result[key] = this.configurationResolverService.resolveAny(result[key]);
+		});
 
-			const adapter = this.getAdapter(result.type);
-			return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
-		}
-		return TPromise.as(null);
+		const adapter = this.getAdapter(result.type);
+		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
