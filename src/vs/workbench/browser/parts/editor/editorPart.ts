@@ -85,6 +85,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private tabOptions: ITabOptions;
+	private doNotFireTabOptionsChanged: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
@@ -184,7 +185,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showTabs: editorConfig.showTabs
 			};
 
-			if (!objects.equals(oldTabOptions, this.tabOptions)) {
+			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
 				this._onTabOptionsChanged.fire(this.tabOptions);
 			}
 		}
@@ -207,6 +208,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onEditorClosed(event: GroupEvent): void {
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
+	}
+
+	public hideTabs(hidden: boolean): void {
+		this.doNotFireTabOptionsChanged = hidden;
+		if (hidden) {
+			this._onTabOptionsChanged.fire({ showTabs: false });
+		} else {
+			this._onTabOptionsChanged.fire(this.tabOptions);
+		}
 	}
 
 	public get onEditorsChanged(): Event<void> {
