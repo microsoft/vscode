@@ -9,8 +9,8 @@ import { TMState } from 'vs/editor/node/textMate/TMState';
 
 suite('Editor Modes - TMState', () => {
 	test('Bug #16982: Cannot read property \'length\' of null', () => {
-		var s1 = new TMState(null, null, null);
-		var s2 = new TMState(null, null, null);
+		var s1 = new TMState(null, null);
+		var s2 = new TMState(null, null);
 		assert.equal(s1.equals(s2), true);
 	});
 });

@@ -264,8 +264,6 @@ suite('TextModelWithTokens regression tests', () => {
 			clone(): IState { return this; }
 			equals(other: IState): boolean { return true; }
 			getModeId(): string { throw new Error('Not implemented'); }
-			getStateData(): IState { throw new Error('Not implemented'); }
-			setStateData(state: IState): void { throw new Error('Not implemented'); }
 		}
 		class IndicisiveMode extends MockMode {
 			constructor() {

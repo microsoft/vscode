@@ -281,7 +281,7 @@ export class MainProcessTextMateSyntax {
 function createTokenizationSupport(languageRegistration: TMLanguageRegistration, modeId: string, grammar: IGrammar): ITokenizationSupport {
 	var tokenizer = new Tokenizer(languageRegistration, modeId, grammar);
 	return {
-		getInitialState: () => new TMState(modeId, null, null),
+		getInitialState: () => new TMState(modeId, null),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState>state, offsetDelta, stopAtOffset)
 	};
 }
@@ -457,7 +457,7 @@ class Tokenizer {
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
 		// Do not attempt to tokenize if a line has over 20k
 		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
-		if (line.length >= 20000 || depth(state.getRuleStack()) > 100) {
+		if (line.length >= 20000 || depth(state.ruleStack) > 100) {
 			return new RawLineTokens(
 				[new Token(offsetDelta, '')],
 				[new ModeTransition(offsetDelta, state.getModeId())],
@@ -465,11 +465,17 @@ class Tokenizer {
 				state
 			);
 		}
-		let freshState = state.clone();
-		let textMateResult = this._grammar.tokenizeLine(line, freshState.getRuleStack());
-		freshState.setRuleStack(textMateResult.ruleStack);
+		let textMateResult = this._grammar.tokenizeLine(line, state.ruleStack);
 
-		return decodeTextMateTokens(line, offsetDelta, this._decodeMap, textMateResult.tokens, freshState);
+		let endState: TMState;
+		// try to save an object if possible
+		if (textMateResult.ruleStack.equals(state.ruleStack)) {
+			endState = state;
+		} else {
+			endState = new TMState(state.getModeId(), textMateResult.ruleStack);
+		}
+
+		return decodeTextMateTokens(line, offsetDelta, this._decodeMap, textMateResult.tokens, endState);
 	}
 }
 

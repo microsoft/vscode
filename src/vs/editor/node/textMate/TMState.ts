@@ -5,64 +5,40 @@
 'use strict';
 
 import { IState } from 'vs/editor/common/modes';
-import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import { StackElement } from 'vscode-textmate';
 
 export class TMState implements IState {
 
-	private _modeId: string;
-	private _parentEmbedderState: IState;
-	private _ruleStack: StackElement;
+	private readonly _modeId: string;
+	public readonly ruleStack: StackElement;
 
-	constructor(modeId: string, parentEmbedderState: IState, ruleStack: StackElement) {
+	constructor(modeId: string, ruleStack: StackElement) {
 		this._modeId = modeId;
-		this._parentEmbedderState = parentEmbedderState;
-		this._ruleStack = ruleStack;
+		this.ruleStack = ruleStack;
 	}
 
 	public clone(): TMState {
-		let parentEmbedderStateClone = AbstractState.safeClone(this._parentEmbedderState);
-		return new TMState(this._modeId, parentEmbedderStateClone, this._ruleStack);
+		return this;
 	}
 
 	public equals(other: IState): boolean {
 		if (!other || !(other instanceof TMState)) {
 			return false;
 		}
-		var otherState = <TMState>other;
-
-		// Equals on `_parentEmbedderState`
-		if (!AbstractState.safeEquals(this._parentEmbedderState, otherState._parentEmbedderState)) {
+		if (this._modeId !== other._modeId) {
 			return false;
 		}
-
 		// Equals on `_ruleStack`
-		if (this._ruleStack === null && otherState._ruleStack === null) {
+		if (this.ruleStack === null && other.ruleStack === null) {
 			return true;
 		}
-		if (this._ruleStack === null || otherState._ruleStack === null) {
+		if (this.ruleStack === null || other.ruleStack === null) {
 			return false;
 		}
-		return this._ruleStack.equals(otherState._ruleStack);
+		return this.ruleStack.equals(other.ruleStack);
 	}
 
 	public getModeId(): string {
 		return this._modeId;
-	}
-
-	public getStateData(): IState {
-		return this._parentEmbedderState;
-	}
-
-	public setStateData(state: IState): void {
-		this._parentEmbedderState = state;
-	}
-
-	public getRuleStack(): StackElement {
-		return this._ruleStack;
-	}
-
-	public setRuleStack(ruleStack: StackElement): void {
-		this._ruleStack = ruleStack;
 	}
 }
