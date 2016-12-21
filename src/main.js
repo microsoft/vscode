@@ -111,6 +111,33 @@ function getNLSConfiguration() {
 	return resolvedLocale ? resolvedLocale : { locale: initialLocale, availableLanguages: {} };
 }
 
+function getNodeCachedDataDir() {
+
+	// IEnvironmentService.isBuilt
+	if (process.env['VSCODE_DEV']) {
+		return Promise.resolve();
+	}
+
+	function ensureDir(dir) {
+		return new Promise(function (resolve, reject) {
+			fs.mkdir(dir, function (err) {
+				if (err && err.code !== 'EEXIST') {
+					reject(err);
+				} else {
+					resolve(dir);
+				}
+			});
+		});
+	}
+
+	var basedir = path.join(app.getPath('userData'), 'CachedData');
+	return ensureDir(basedir).then(function () {
+		var version = require(path.join(__dirname, '../package.json')).version;
+		var cachedDataDir = path.join(basedir, version);
+		return ensureDir(cachedDataDir);
+	});
+}
+
 // Set userData path before app 'ready' event and call to process.chdir
 var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
 app.setPath('userData', userData);
@@ -149,9 +176,17 @@ global.getOpenUrls = function () {
 	return openUrls;
 };
 
+
+var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
+	process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
+});
+
 // Load our code once ready
 app.once('ready', function () {
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
+
+	nodeCachedDataDir.then(function () {
+		require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
+	});
 });
