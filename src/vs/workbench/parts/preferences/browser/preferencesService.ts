@@ -135,8 +135,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	openGlobalKeybindingSettings(): TPromise<void> {
 		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		return this.editorService.createInput({ resource: PreferencesService.DEFAULT_KEY_BINDINGS_URI })
-			.then(leftHandInput => this.openTwoEditors(<EditorInput>leftHandInput, URI.file(this.environmentService.appKeybindingsPath), emptyContents)).then(() => null);
+		return this.openTwoEditors(PreferencesService.DEFAULT_KEY_BINDINGS_URI, URI.file(this.environmentService.appKeybindingsPath), emptyContents).then(() => null);
 	}
 
 	private openEditableSettings(configurationTarget: ConfigurationTarget): TPromise<IEditor> {
@@ -203,9 +202,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			switch (choice) {
 				case 0:
 					const editorCount = this.editorService.getVisibleEditors().length;
-					return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then(typedInput => {
-						return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.THREE : editorCount === 1 ? Position.TWO : void 0);
-					});
+					return this.editorService.openEditor({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH), options: { pinned: true } }, editorCount === 2 ? Position.THREE : editorCount === 1 ? Position.TWO : void 0);
 				case 1:
 					this.storageService.store(SETTINGS_INFO_IGNORE_KEY, true, StorageScope.WORKSPACE);
 				default:
@@ -250,17 +247,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
-	private openTwoEditors(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<void> {
+	private openTwoEditors(leftHandDefault: URI, editableResource: URI, defaultEditableContents: string): TPromise<void> {
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
-			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
-				const editors = [
-					{ input: leftHandDefaultInput, position: Position.ONE, options: { pinned: true } },
-					{ input: typedRightHandEditableInput, position: Position.TWO, options: { pinned: true } }
-				];
-				return this.editorService.openEditors(editors).then(result => {
-					this.editorGroupService.focusGroup(Position.TWO);
-				});
+			return this.editorService.openEditors([
+				{ input: { resource: leftHandDefault, options: { pinned: true } }, position: Position.ONE },
+				{ input: { resource: editableResource, options: { pinned: true } }, position: Position.TWO },
+			]).then(() => {
+				this.editorGroupService.focusGroup(Position.TWO);
 			});
 		});
 	}
