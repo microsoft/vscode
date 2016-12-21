@@ -221,7 +221,7 @@ export class SearchViewlet extends Viewlet {
 		}).getHTMLElement();
 
 		this.messages = builder.div({ 'class': 'messages' }).hide().clone();
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 
@@ -580,7 +580,7 @@ export class SearchViewlet extends Viewlet {
 	public clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 		this.searchWidget.clear();
@@ -748,7 +748,7 @@ export class SearchViewlet extends Viewlet {
 		let includes: IExpression = this.inputPatternIncludes.getGlob();
 
 		let options: IQueryOptions = {
-			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
@@ -882,7 +882,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						if (this.contextService.getWorkspace()) {
+						if (this.contextService.hasWorkspace()) {
 							this.preferencesService.openWorkspaceSettings().done(() => null, errors.onUnexpectedError);
 						} else {
 							this.preferencesService.openGlobalSettings().done(() => null, errors.onUnexpectedError);
@@ -890,7 +890,7 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 
-				if (!this.contextService.getWorkspace()) {
+				if (!this.contextService.hasWorkspace()) {
 					this.searchWithoutFolderMessage(div);
 				}
 			} else {

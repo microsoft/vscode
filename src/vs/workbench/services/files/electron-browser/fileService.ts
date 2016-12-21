@@ -67,7 +67,7 @@ export class FileService implements IFileService {
 		// adjust encodings
 		const encodingOverride: IEncodingOverride[] = [];
 		encodingOverride.push({ resource: uri.file(environmentService.appSettingsHome), encoding: encoding.UTF8 });
-		if (this.contextService.getWorkspace()) {
+		if (this.contextService.hasWorkspace()) {
 			encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
 		}
 

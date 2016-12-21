@@ -109,7 +109,7 @@ export class FileDataSource implements IDataSource {
 		}
 
 		// Return if root reached
-		if (this.contextService.getWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
+		if (this.contextService.hasWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			return TPromise.as(null);
 		}
 

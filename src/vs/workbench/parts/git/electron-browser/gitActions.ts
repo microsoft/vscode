@@ -69,7 +69,7 @@ export class CloneAction extends Action {
 				const clone = always(this.gitService.clone(url, result[0]), () => promise.cancel());
 
 				return clone.then(path => {
-					const forceNewWindow = !!this.workspaceService.getWorkspace();
+					const forceNewWindow = this.workspaceService.hasWorkspace();
 					return this.windowsService.windowOpen([path], forceNewWindow);
 
 				}).then<void>(null, e => {

@@ -92,7 +92,7 @@ class AbstractTaskAction extends Action {
 	}
 
 	protected canRun(): boolean {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('AbstractTaskAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return false;
 		}
@@ -197,7 +197,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 	}
 
 	public run(event?: any): TPromise<IEditor> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('ConfigureTaskRunnerAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return TPromise.as(undefined);
 		}
@@ -678,7 +678,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private get taskSystemPromise(): TPromise<ITaskSystem> {
 		if (!this._taskSystemPromise) {
-			if (!this.contextService.getWorkspace()) {
+			if (!this.contextService.hasWorkspace()) {
 				this._taskSystem = new NullTaskSystem();
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {

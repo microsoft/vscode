@@ -123,7 +123,7 @@ export class CloseFolderAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
 			return TPromise.as(null);
 		}
@@ -483,7 +483,7 @@ export class OpenRecentAction extends Action {
 		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
 
-		const hasWorkspace = !!this.contextService.getWorkspace();
+		const hasWorkspace = this.contextService.hasWorkspace();
 
 		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },

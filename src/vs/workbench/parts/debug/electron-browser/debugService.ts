@@ -430,7 +430,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public get state(): debug.State {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return debug.State.Disabled;
 		}
 
@@ -456,7 +456,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public get enabled(): boolean {
-		return !!this.contextService.getWorkspace();
+		return this.contextService.hasWorkspace();
 	}
 
 	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {

@@ -527,7 +527,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const globalElablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, false);
-		if (enable && this.workspaceContextService.getWorkspace()) {
+		if (enable && this.workspaceContextService.hasWorkspace()) {
 			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, true);
 			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}
