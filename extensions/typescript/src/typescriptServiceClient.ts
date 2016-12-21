@@ -103,6 +103,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
 	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	private _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
@@ -151,6 +153,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
 		return this._onProjectLanguageServiceStateChanged.event;
+	}
+
+	get onDidBeginInstallTypings(): Event<Proto.BeginInstallTypesEventBody> {
+		return this._onDidBeginInstallTypings.event;
+	}
+
+	get onDidEndInstallTypings(): Event<Proto.EndInstallTypesEventBody> {
+		return this._onDidEndInstallTypings.event;
 	}
 
 	private get output(): OutputChannel {
@@ -694,6 +704,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
 					if (data) {
 						this._onProjectLanguageServiceStateChanged.fire(data);
+					}
+				} else if (event.event === 'beginInstallTypes') {
+					const data = (event as Proto.BeginInstallTypesEvent).body;
+					if (data) {
+						this._onDidBeginInstallTypings.fire(data);
+					}
+				} else if (event.event === 'endInstallTypes') {
+					const data = (event as Proto.EndInstallTypesEvent).body;
+					if (data) {
+						this._onDidEndInstallTypings.fire(data);
 					}
 				}
 			} else {

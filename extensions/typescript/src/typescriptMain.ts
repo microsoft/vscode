@@ -36,9 +36,10 @@ import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 
-import * as VersionStatus from './utils/versionStatus';
-import * as ProjectStatus from './utils/projectStatus';
 import * as BuildStatus from './utils/buildStatus';
+import * as ProjectStatus from './utils/projectStatus';
+import TypingsStatus from './utils/typingsStatus';
+import * as VersionStatus from './utils/versionStatus';
 
 interface LanguageDescription {
 	id: string;
@@ -105,6 +106,7 @@ class LanguageProvider {
 	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
 	private formattingProviderRegistration: Disposable | null;
+	private typingsStatus: TypingsStatus;
 
 	private _validate: boolean;
 
@@ -122,6 +124,7 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
+		this.typingsStatus = new TypingsStatus(client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
@@ -137,7 +140,7 @@ class LanguageProvider {
 	private registerProviders(client: TypeScriptServiceClient): void {
 		let config = workspace.getConfiguration(this.id);
 
-		this.completionItemProvider = new CompletionItemProvider(client);
+		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration(config);
 
 		let hoverProvider = new HoverProvider(client);
