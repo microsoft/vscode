@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 
 export const DEFAULT_TERMINAL_LINUX_READY = new TPromise<string>(c => {
 	if (env.isLinux) {
-		pfs.exists('/etc/debian_version').then(isDebian => {
+		TPromise.join([pfs.exists('/etc/debian_version'), process.lazyEnv]).then(([isDebian]) => {
 			if (isDebian) {
 				c('x-terminal-emulator');
 			} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {

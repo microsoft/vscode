@@ -11,7 +11,7 @@ import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { getResource } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { getPathLabel } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -146,7 +146,7 @@ export class EditorLabel extends ResourceLabel {
 
 	public setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setLabel({
-			resource: getResource(editor),
+			resource: toResource(editor, { supportSideBySide: true }),
 			name: editor.getName(),
 			description: editor.getDescription()
 		}, options);

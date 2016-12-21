@@ -471,7 +471,7 @@ export class FileService implements IFileService {
 	public del(resource: uri): TPromise<void> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return nfcall(extfs.del, absolutePath, this.tmpPath).then(() => {
+		return pfs.del(absolutePath, this.tmpPath).then(() => {
 
 			// Events
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));

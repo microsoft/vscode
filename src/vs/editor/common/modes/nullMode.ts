@@ -7,55 +7,19 @@
 import { IState, ILineTokens } from 'vs/editor/common/modes';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
-import { ITokenizationResult } from 'vs/editor/common/modes/abstractState';
-import { LineStream } from 'vs/editor/common/modes/lineStream';
 
-export class NullState implements IState {
-
-	private modeId: string;
-	private stateData: IState;
-
-	constructor(modeId: string, stateData: IState) {
-		this.modeId = modeId;
-		this.stateData = stateData;
-	}
+class NullStateImpl implements IState {
 
 	public clone(): IState {
-		let stateDataClone: IState = (this.stateData ? this.stateData.clone() : null);
-		return new NullState(this.modeId, stateDataClone);
+		return this;
 	}
 
 	public equals(other: IState): boolean {
-		if (this.modeId !== other.getModeId()) {
-			return false;
-		}
-		let otherStateData = other.getStateData();
-		if (!this.stateData && !otherStateData) {
-			return true;
-		}
-		if (this.stateData && otherStateData) {
-			return this.stateData.equals(otherStateData);
-		}
-		return false;
-	}
-
-	public getModeId(): string {
-		return this.modeId;
-	}
-
-	public tokenize(stream: LineStream): ITokenizationResult {
-		stream.advanceToEOS();
-		return { type: '' };
-	}
-
-	public getStateData(): IState {
-		return this.stateData;
-	}
-
-	public setStateData(stateData: IState): void {
-		this.stateData = stateData;
+		return (this === other);
 	}
 }
+
+export const NULL_STATE: IState = new NullStateImpl();
 
 export const NULL_MODE_ID = 'vs.editor.nullMode';
 

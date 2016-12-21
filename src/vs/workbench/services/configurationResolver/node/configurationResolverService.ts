@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -82,12 +82,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		if (!input) {
 			return '';
 		}
-		let fileEditorInput = asFileEditorInput(input);
-		if (!fileEditorInput) {
+		let fileResource = toResource(input, { filter: 'file' });
+		if (!fileResource) {
 			return '';
 		}
-		let resource = fileEditorInput.getResource();
-		return paths.normalize(resource.fsPath, true);
+		return paths.normalize(fileResource.fsPath, true);
 	}
 
 	public resolve(value: string): string;

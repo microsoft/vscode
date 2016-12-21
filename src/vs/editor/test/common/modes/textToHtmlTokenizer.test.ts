@@ -5,12 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { AbstractState, ITokenizationResult } from 'vs/editor/common/modes/abstractState';
-import { TokenizationSupport } from 'vs/editor/common/modes/supports/tokenizationSupport';
+import { TokenizationRegistry, IState, ILineTokens } from 'vs/editor/common/modes';
 import { tokenizeToHtmlContent } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LineStream } from 'vs/editor/common/modes/lineStream';
+import { Token } from 'vs/editor/common/core/token';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	test('TextToHtmlTokenizer', () => {
@@ -58,28 +56,28 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 });
 
-class State extends AbstractState {
-
-	constructor(modeId: string) {
-		super(modeId);
-	}
-
-	public makeClone(): AbstractState {
-		return new State(this.getModeId());
-	}
-
-	public tokenize(stream: LineStream): ITokenizationResult {
-		let chr = stream.peek();
-		stream.advance(1);
-		return { type: chr === '.' ? '' : 'text' };
-	}
-}
-
 class Mode extends MockMode {
 	constructor() {
 		super();
-		TokenizationRegistry.register(this.getId(), new TokenizationSupport(null, this.getId(), {
-			getInitialState: () => new State(this.getId())
-		}, false));
+		TokenizationRegistry.register(this.getId(), {
+			getInitialState: (): IState => null,
+			tokenize: (line: string, state: IState): ILineTokens => {
+				let tokens: Token[] = [];
+				for (let i = 0; i < line.length; i++) {
+					let chr = line.charAt(i);
+					let type = chr === '.' ? '' : 'text';
+					if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
+						continue;
+					}
+					tokens.push(new Token(i, type));
+				}
+				return {
+					tokens: tokens,
+					actualStopOffset: -1,
+					endState: null,
+					modeTransitions: null
+				};
+			}
+		});
 	}
 }

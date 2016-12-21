@@ -4259,10 +4259,6 @@ declare module monaco.languages {
          * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
          */
         endState: IState;
-        /**
-         * An optional promise to force the model to retokenize this line (e.g. missing information at the point of tokenization)
-         */
-        retokenize?: Promise<void>;
     }
 
     /**
