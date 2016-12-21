@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
@@ -17,14 +16,12 @@ export class RawLineTokens implements modes.ILineTokens {
 	modeTransitions: ModeTransition[];
 	actualStopOffset: number;
 	endState: modes.IState;
-	retokenize: TPromise<void>;
 
 	constructor(tokens: Token[], modeTransitions: ModeTransition[], actualStopOffset: number, endState: modes.IState) {
 		this.tokens = tokens;
 		this.modeTransitions = modeTransitions;
 		this.actualStopOffset = actualStopOffset;
 		this.endState = endState;
-		this.retokenize = null;
 	}
 }
 

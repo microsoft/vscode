@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { $, Builder, Dimension } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
@@ -22,6 +23,9 @@ import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/p
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import env = require('vs/base/common/platform');
+import { Button } from 'vs/base/browser/ui/button/button';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 
 export class DebugViewlet extends Viewlet {
 
@@ -33,6 +37,7 @@ export class DebugViewlet extends Viewlet {
 	private $el: Builder;
 	private splitView: SplitView;
 	private views: IViewletView[];
+	private openFolderButton: Button;
 
 	private lastFocusedView: IViewletView;
 
@@ -78,12 +83,27 @@ export class DebugViewlet extends Viewlet {
 				this.lastFocusedView = view;
 			}));
 		} else {
-			this.$el.append($([
+			const noworkspace = $([
 				'<div class="noworkspace-view">',
-				'<p>', nls.localize('noWorkspace', "There is no currently opened folder."), '</p>',
+				'<p>', nls.localize('noWorkspaceHelp', "You have not yet opened a folder."), '</p>',
 				'<p>', nls.localize('pleaseRestartToDebug', "Open a folder in order to start debugging."), '</p>',
 				'</div>'
-			].join('')));
+			].join(''));
+
+			this.openFolderButton = new Button(noworkspace);
+			this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
+			this.openFolderButton.addListener2('click', () => {
+				const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+				const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+				this.actionRunner.run(action).done(() => {
+					action.dispose();
+				}, err => {
+					action.dispose();
+					errors.onUnexpectedError(err);
+				});
+			});
+
+			this.$el.append(noworkspace);
 		}
 
 		return TPromise.as(null);
@@ -111,6 +131,11 @@ export class DebugViewlet extends Viewlet {
 
 		if (this.views.length > 0) {
 			this.views[0].focusBody();
+			return;
+		}
+
+		if (this.openFolderButton) {
+			this.openFolderButton.getElement().focus();
 		}
 	}
 

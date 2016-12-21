@@ -10,7 +10,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, IZenModeOptions } from 'vs/workbench/services/part/common/partService';
 
 class ToggleZenMode extends Action {
 
@@ -26,8 +26,8 @@ class ToggleZenMode extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	public run(): TPromise<any> {
-		this.partService.toggleZenMode();
+	public run(options: IZenModeOptions): TPromise<any> {
+		this.partService.toggleZenMode(options);
 		return TPromise.as(null);
 	}
 }

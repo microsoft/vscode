@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc } from 'electron';
+import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
@@ -17,6 +17,7 @@ import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { LifecycleService, ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
+import { getShellEnvironment } from 'vs/code/electron-main/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { UpdateService } from 'vs/platform/update/electron-main/updateService';
@@ -44,7 +45,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
@@ -56,7 +56,17 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as fs from 'original-fs';
-import * as cp from 'child_process';
+
+
+ipc.on('vscode:fetchShellEnv', (event, windowId) => {
+	const win = BrowserWindow.fromId(windowId);
+	getShellEnvironment().then(shellEnv => {
+		win.webContents.send('vscode:acceptShellEnv', shellEnv);
+	}, err => {
+		win.webContents.send('vscode:acceptShellEnv', {});
+		console.error('Error fetching shell env', err);
+	});
+});
 
 function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
 	const logService = accessor.get(ILogService);
@@ -341,80 +351,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-function getUnixShellEnvironment(): TPromise<platform.IProcessEnvironment> {
-	const promise = new TPromise((c, e) => {
-		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
-		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
-		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-		const regex = new RegExp(mark + '(.*)' + mark);
-
-		const env = assign({}, process.env, {
-			ELECTRON_RUN_AS_NODE: '1',
-			ELECTRON_NO_ATTACH_CONSOLE: '1'
-		});
-
-		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
-			detached: true,
-			stdio: ['ignore', 'pipe', process.stderr],
-			env
-		});
-
-		const buffers: Buffer[] = [];
-		child.on('error', () => c({}));
-		child.stdout.on('data', b => buffers.push(b));
-
-		child.on('close', (code: number, signal: any) => {
-			if (code !== 0) {
-				return e(new Error('Failed to get environment'));
-			}
-
-			const raw = Buffer.concat(buffers).toString('utf8');
-			const match = regex.exec(raw);
-			const rawStripped = match ? match[1] : '{}';
-
-			try {
-				const env = JSON.parse(rawStripped);
-
-				if (runAsNode) {
-					env['ELECTRON_RUN_AS_NODE'] = runAsNode;
-				} else {
-					delete env['ELECTRON_RUN_AS_NODE'];
-				}
-
-				if (noAttach) {
-					env['ELECTRON_NO_ATTACH_CONSOLE'] = noAttach;
-				} else {
-					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
-				}
-
-				c(env);
-			} catch (err) {
-				e(err);
-			}
-		});
-	});
-
-	// swallow errors
-	return promise.then(null, () => ({}));
-}
-
-/**
- * We eed to get the environment from a user's shell.
- * This should only be done when Code itself is not launched
- * from within a shell.
- */
-function getShellEnvironment(): TPromise<platform.IProcessEnvironment> {
-	if (process.env['VSCODE_CLI'] === '1') {
-		return TPromise.as({});
-	}
-
-	if (platform.isWindows) {
-		return TPromise.as({});
-	}
-
-	return getUnixShellEnvironment();
-}
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
@@ -455,31 +391,22 @@ function start(): void {
 
 	const instantiationService = createServices(args);
 
-	// On some platforms we need to manually read from the global environment variables
-	// and assign them to the process environment (e.g. when doubleclick app on Mac)
-	return getShellEnvironment().then(shellEnv => {
-		// Patch `process.env` with the user's shell environment
-		assign(process.env, shellEnv);
 
-		return instantiationService.invokeFunction(accessor => {
-			const environmentService = accessor.get(IEnvironmentService);
-			const instanceEnv = {
-				VSCODE_PID: String(process.pid),
-				VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-				VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
-				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
-			};
+	return instantiationService.invokeFunction(accessor => {
+		const environmentService = accessor.get(IEnvironmentService);
+		const instanceEnv: typeof process.env = {
+			VSCODE_PID: String(process.pid),
+			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+			VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
+			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+		};
 
-			// Patch `process.env` with the instance's environment
-			assign(process.env, instanceEnv);
+		// Patch `process.env` with the instance's environment
+		assign(process.env, instanceEnv);
 
-			// Collect all environment patches to send to other processes
-			const env = assign({}, shellEnv, instanceEnv);
-
-			return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
-				.then(() => instantiationService.invokeFunction(setupIPC))
-				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
-		});
+		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
+			.then(() => instantiationService.invokeFunction(setupIPC))
+			.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, instanceEnv));
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 

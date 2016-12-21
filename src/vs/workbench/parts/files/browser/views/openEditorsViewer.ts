@@ -22,7 +22,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { UntitledEditorInput, IEditorGroup, IEditorStacksModel, getUntitledOrFileResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, IEditorStacksModel, toResource } from 'vs/workbench/common/editor';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { asFileResource } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -65,7 +66,7 @@ export class OpenEditor {
 	}
 
 	public getResource(): uri {
-		return getUntitledOrFileResource(this.editor, true);
+		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
 	}
 }
 

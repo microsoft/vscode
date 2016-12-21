@@ -448,10 +448,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return (<GitEditorInputs.NativeGitIndexStringEditorInput>input).getFileStatus() || null;
 		}
 
-		const fileInput = WorkbenchEditorCommon.asFileEditorInput(input);
-		if (fileInput) {
-			const resource = fileInput.getResource();
-
+		const resource = WorkbenchEditorCommon.toResource(input, { filter: 'file' });
+		if (resource) {
 			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
 			if (!workspaceRoot || !paths.isEqualOrParent(resource.fsPath, workspaceRoot)) {
 				return null; // out of workspace not yet supported
