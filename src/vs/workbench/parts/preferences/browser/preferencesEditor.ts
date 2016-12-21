@@ -685,9 +685,9 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				});
 			} else {
 				for (const section of group.sections) {
-					if (section.descriptionRange) {
-						if (!this.containsLine(section.descriptionRange.startLineNumber, filteredGroup)) {
-							notMatchesRanges.push(this.createCompleteRange(section.descriptionRange, model));
+					if (section.titleRange) {
+						if (!this.containsLine(section.titleRange.startLineNumber, filteredGroup)) {
+							notMatchesRanges.push(this.createCompleteRange(section.titleRange, model));
 						}
 					}
 					for (const setting of section.settings) {
@@ -707,7 +707,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		}
 
 		for (const section of settingsGroup.sections) {
-			if (section.descriptionRange && lineNumber >= section.descriptionRange.startLineNumber && lineNumber <= section.descriptionRange.endLineNumber) {
+			if (section.titleRange && lineNumber >= section.titleRange.startLineNumber && lineNumber <= section.titleRange.endLineNumber) {
 				return true;
 			}
 

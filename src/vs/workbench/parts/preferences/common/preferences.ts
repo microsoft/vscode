@@ -19,8 +19,8 @@ export interface ISettingsGroup {
 }
 
 export interface ISettingsSection {
-	descriptionRange?: IRange;
-	description?: string;
+	titleRange?: IRange;
+	title?: string;
 	settings: ISetting[];
 }
 
@@ -30,8 +30,8 @@ export interface ISetting {
 	keyRange: IRange;
 	value: any;
 	valueRange: IRange;
-	description: string;
-	descriptionRange: IRange;
+	description: string[];
+	descriptionRanges: IRange[];
 }
 
 export interface IFilterResult {
