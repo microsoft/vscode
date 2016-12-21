@@ -118,23 +118,16 @@ function getNodeCachedDataDir() {
 		return Promise.resolve();
 	}
 
-	function ensureDir(dir) {
-		return new Promise(function (resolve, reject) {
-			fs.mkdir(dir, function (err) {
-				if (err && err.code !== 'EEXIST') {
-					reject(err);
-				} else {
-					resolve(dir);
-				}
-			});
-		});
-	}
+	var dir = path.join(app.getPath('userData'), 'CachedData');
 
-	var basedir = path.join(app.getPath('userData'), 'CachedData');
-	return ensureDir(basedir).then(function () {
-		var version = require(path.join(__dirname, '../package.json')).version;
-		var cachedDataDir = path.join(basedir, version);
-		return ensureDir(cachedDataDir);
+	return new Promise(function (resolve, reject) {
+		fs.mkdir(dir, function (err) {
+			if (err && err.code !== 'EEXIST') {
+				reject(err);
+			} else {
+				resolve(dir);
+			}
+		});
 	});
 }
 
@@ -177,6 +170,8 @@ global.getOpenUrls = function () {
 };
 
 
+// use '<UserData>/CachedData'-directory to store
+// node/v8 cached data.
 var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 	process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
 });
