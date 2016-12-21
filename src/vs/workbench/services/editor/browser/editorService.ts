@@ -138,9 +138,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	/**
 	 * Allow subclasses to implement their own behavior for opening editor (see below).
 	 */
-	protected doOpenEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
-	protected doOpenEditor(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
-	protected doOpenEditor(input: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
+	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
+	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
+	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
 		return this.editorPart.openEditor(input, options, arg3);
 	}
 
@@ -148,7 +148,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
-			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
+			const typedInputs: { input: IEditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
 				const options = editors[index].input instanceof EditorInput ? this.toOptions(editors[index].options) : TextEditorOptions.from(editors[index].input);
 
 				return {
@@ -163,11 +163,11 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	public replaceEditors(editors: { toReplace: IResourceInput | IResourceDiffInput, replaceWith: IResourceInput | IResourceDiffInput }[]): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: IEditorOptions }[]): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[]): TPromise<BaseEditor[]>;
 	public replaceEditors(editors: any[]): TPromise<BaseEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
 			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
-				const typedReplacements: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
+				const typedReplacements: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
 					const options = editor.toReplace instanceof EditorInput ? this.toOptions(editor.options) : TextEditorOptions.from(editor.replaceWith);
 
 					return {
@@ -194,7 +194,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeAllEditors(except);
 	}
 
-	public createInput(input: EditorInput): TPromise<EditorInput>;
+	public createInput(input: IEditorInput): TPromise<EditorInput>;
 	public createInput(input: IResourceInput | IResourceDiffInput): TPromise<EditorInput>;
 	public createInput(input: any): TPromise<IEditorInput> {
 
@@ -250,8 +250,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 }
 
 export interface IDelegatingWorkbenchEditorServiceHandler {
-	(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
+	(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
+	(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 }
 
 /**
@@ -281,9 +281,9 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 		this.handler = handler;
 	}
 
-	protected doOpenEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
-	protected doOpenEditor(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
-	protected doOpenEditor(input: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
+	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
+	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
+	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
 		return this.handler(input, options, arg3).then(editor => {
 			if (editor) {
 				return TPromise.as<BaseEditor>(editor);

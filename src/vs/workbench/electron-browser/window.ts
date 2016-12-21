@@ -21,7 +21,7 @@ import { extractResources } from 'vs/base/browser/dnd';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { toResource, EditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -29,7 +29,6 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IWindowsService, IWindowService, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -45,7 +44,6 @@ import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenR
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
 import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
@@ -91,7 +89,6 @@ export class ElectronWindow {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 	) {
 		this.win = win;
@@ -382,10 +379,8 @@ export class ElectronWindow {
 		return this.partService.joinCreation().then(() => {
 
 			// In diffMode we open 2 resources as diff
-			if (diffMode) {
-				return TPromise.join(resources.map(f => this.editorService.createInput(f))).then((inputs: EditorInput[]) => {
-					return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(resources[0].resource, resources[1].resource, this.contextService), null, inputs[0], inputs[1]));
-				});
+			if (diffMode && resources.length === 2) {
+				return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource });
 			}
 
 			// For one file, just put it into the current active editor
