@@ -8,10 +8,14 @@
 import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace, ProviderResult } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
+import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, FileLocationRequestArgs } from '../protocol';
 import * as Previewer from './previewer';
+
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
 
@@ -96,10 +100,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	public sortBy = [{ type: 'reference', partSeparator: '/' }];
 
 	private client: ITypescriptServiceClient;
+	private typingsStatus: TypingsStatus;
 	private config: Configuration;
 
-	constructor(client: ITypescriptServiceClient) {
+	constructor(client: ITypescriptServiceClient, typingsStatus: TypingsStatus) {
 		this.client = client;
+		this.typingsStatus = typingsStatus;
 		this.config = { useCodeSnippetsOnMethodSuggest: false };
 	}
 
@@ -110,6 +116,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
+		if (this.typingsStatus.isAcquiringTypings) {
+			return Promise.reject({
+				label: localize('acquiringTypingsLabel', 'Acquiring typings...'),
+				detail: localize('acquiringTypingsDetail', 'Acquiring typings definitions for IntelliSense.')
+			});
+		}
+
 		let filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve<CompletionItem[]>([]);
