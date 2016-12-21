@@ -138,6 +138,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return terminalConfig.cursorBlinking;
 	}
 
+	public getRightClickCopyPaste(): boolean {
+		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.rightClickCopyPaste;
+	}
+
 	public getShell(): IShell {
 		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		let shell: IShell = {

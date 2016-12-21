@@ -195,12 +195,20 @@ export class TerminalInstance implements ITerminalInstance {
 		this.updateConfig();
 	}
 
+	public hasSelection(): boolean {
+		return !document.getSelection().isCollapsed;
+	}
+
 	public copySelection(): void {
 		if (document.activeElement.classList.contains('xterm')) {
 			document.execCommand('copy');
 		} else {
 			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
 		}
+	}
+
+	public clearSelection(): void {
+		document.getSelection().empty();
 	}
 
 	public dispose(): void {
