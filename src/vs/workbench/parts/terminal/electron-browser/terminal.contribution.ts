@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS, TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -72,6 +72,11 @@ configurationRegistry.registerConfiguration({
 				'type': 'string'
 			},
 			'default': []
+		},
+		'terminal.integrated.rightClickCopyPaste': {
+			'description': nls.localize('terminal.integrated.rightClickCopyPaste', "When set, this will prevent the context menu from appearing when right clicking within the terminal, instead it will copy when there is a selection and paste when there is no selection."),
+			'type': 'boolean',
+			'default': TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE
 		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),

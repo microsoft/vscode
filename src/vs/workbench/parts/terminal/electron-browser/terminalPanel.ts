@@ -149,25 +149,30 @@ export class TerminalPanel extends Panel {
 				// occurs on the selection itself.
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
-				// Trigger the context menu on right click
-				let anchor: HTMLElement | { x: number, y: number } = this._parentDomElement;
-				if (event instanceof MouseEvent) {
-					const standardEvent = new StandardMouseEvent(event);
-					anchor = { x: standardEvent.posx, y: standardEvent.posy };
-				}
-
-				this._contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => TPromise.as(this._getContextMenuActions()),
-					getActionsContext: () => this._parentDomElement,
-					getKeyBinding: (action) => {
-						const opts = this._keybindingService.lookupKeybindings(action.id);
-						if (opts.length > 0) {
-							return opts[0]; // only take the first one
-						}
-						return null;
+				if (this._terminalService.configHelper.getRightClickCopyPaste()) {
+					let terminal = this._terminalService.getActiveInstance();
+					if (terminal.hasSelection()) {
+						terminal.copySelection();
+						terminal.clearSelection();
+					} else {
+						terminal.paste();
 					}
-				});
+				} else {
+					const standardEvent = new StandardMouseEvent(event);
+					let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+					this._contextMenuService.showContextMenu({
+						getAnchor: () => anchor,
+						getActions: () => TPromise.as(this._getContextMenuActions()),
+						getActionsContext: () => this._parentDomElement,
+						getKeyBinding: (action) => {
+							const opts = this._keybindingService.lookupKeybindings(action.id);
+							if (opts.length > 0) {
+								return opts[0]; // only take the first one
+							}
+							return null;
+						}
+					});
+				}
 			}
 		}));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
