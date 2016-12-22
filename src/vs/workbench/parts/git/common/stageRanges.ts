@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IChange, IModel } from 'vs/editor/common/editorCommon';
+import { IChange, IModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 function sortChanges(changes: IChange[]): void {
 	changes.sort((left, right) => {
@@ -142,4 +144,23 @@ export function applyChangesToModel(original: IModel, modified: IModel, changes:
 	}
 
 	return result;
+}
+
+export function getChangeRevertEdits(original: IModel, modified: IModel, changes: IChange[]): IIdentifiedSingleEditOperation[] {
+	sortChanges(changes);
+
+	return changes.map(change => {
+		if (isInsertion(change)) {
+			// Delete the inserted range
+			return EditOperation.delete(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1));
+		} else if (isDeletion(change)) {
+			// Get the original lines and insert at the deleted position
+			const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
+			return EditOperation.insert(new Position(change.modifiedStartLineNumber + 1, 1), value);
+		} else {
+			// Get the original lines and replace the new lines with it
+			const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
+			return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1), value);
+		}
+	});
 }
