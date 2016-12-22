@@ -63,8 +63,6 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onModelChanged(): void {
-
-		this.removeDecorations();
 		this._callOnModelChange = dispose(this._callOnModelChange);
 
 		var model = this.editor.getModel();
@@ -733,6 +731,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			const model = ref.object;
 			if (model) {
 				this._previewModelReference = ref;
+				this._decorationsManager.removeDecorations();
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
