@@ -9,11 +9,8 @@
 	background-color: #F3F3F3;
 	box-shadow: 0 5px 8px #A8A8A8;
 	position: absolute;
-	top: 0;
 	z-index: 200;
 	height: 32px;
-	left: 50%;
-	margin-left: -96px;
 	display: flex;
 	padding-left: 7px;
 }
