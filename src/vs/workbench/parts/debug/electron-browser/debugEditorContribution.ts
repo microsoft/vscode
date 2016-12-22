@@ -19,14 +19,13 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 
@@ -54,7 +53,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IDebugService private debugService: IDebugService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -128,7 +126,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
-			var showBreakpointHintAtLineNumber = -1;
+			let showBreakpointHintAtLineNumber = -1;
 			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				if (!e.target.detail) {
 					// is not after last line
@@ -140,7 +138,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(() => this.onDebugStateUpdate()));
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame((sf) => this.onFocusStackFrame(sf)));
 
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
@@ -154,6 +152,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
+			const sf = this.debugService.getViewModel().focusedStackFrame;
+			this.editor.updateOptions({ hover: !sf || this.editor.getModel().uri.toString() !== sf.source.uri.toString() });
 			this.closeBreakpointWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
@@ -166,11 +166,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	public showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
-		return this.hoverWidget.showAt(range, hoveringOver, focus);
+		const sf = this.debugService.getViewModel().focusedStackFrame;
+		if (sf && sf.source.uri.toString() === this.editor.getModel().uri.toString()) {
+			return this.hoverWidget.showAt(range, hoveringOver, focus);
+		}
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
-		var newDecoration: IModelDeltaDecoration[] = [];
+		const newDecoration: IModelDeltaDecoration[] = [];
 		if (showBreakpointHintAtLineNumber !== -1) {
 			newDecoration.push({
 				options: DebugEditorContribution.BREAKPOINT_HELPER_DECORATION,
@@ -186,14 +189,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.breakpointHintDecoration = this.editor.deltaDecorations(this.breakpointHintDecoration, newDecoration);
 	}
 
-	private onDebugStateUpdate(): void {
-		const state = this.debugService.state;
-		if (state !== State.Stopped) {
+	private onFocusStackFrame(sf: IStackFrame): void {
+		if (sf && sf.source.uri.toString() === this.editor.getModel().uri.toString()) {
+			this.editor.updateOptions({ hover: false });
+		} else {
+			this.editor.updateOptions({ hover: true });
 			this.hideHoverWidget();
 		}
-		this.codeEditorService.listCodeEditors().forEach(e => {
-			e.updateOptions({ hover: state !== State.Stopped });
-		});
 	}
 
 	private hideHoverWidget(): void {
