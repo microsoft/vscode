@@ -20,7 +20,7 @@ import gitcontrib = require('vs/workbench/parts/git/browser/gitWorkbenchContribu
 import diffei = require('vs/workbench/common/editor/diffEditorInput');
 import { IGitService, Status, IFileStatus, StatusType } from 'vs/workbench/parts/git/common/git';
 import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
-import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
+import { getSelectedChanges, applyChangesToModel, getChangeRevertEdits } from 'vs/workbench/parts/git/common/stageRanges';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
@@ -473,6 +473,59 @@ export class UnstageRangesAction extends BaseStageRangesAction {
 	}
 }
 
+export class RevertRangesAction extends baseeditor.EditorInputAction {
+	static ID = 'workbench.action.git.revertRanges';
+	static LABEL = nls.localize('revertSelectedLines', "Revert Selected Lines");
+
+	private editorService: IWorkbenchEditorService;
+	private editor: editorbrowser.IDiffEditor;
+
+	constructor(editor: tdeditor.TextDiffEditor, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(RevertRangesAction.ID, RevertRangesAction.LABEL);
+
+		this.editorService = editorService;
+		this.editor = editor.getControl();
+		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.onDidUpdateDiff(() => this.updateEnablement());
+		this.class = 'git-action revert-ranges';
+	}
+
+	public isEnabled(): boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!this.editorService) {
+			return false;
+		}
+
+		const changes = this.editor.getLineChanges();
+		const selections = this.editor.getSelections();
+
+		if (!changes || !selections || selections.length === 0) {
+			return false;
+		}
+
+		return getSelectedChanges(changes, selections).length > 0;
+	}
+
+	public run(): TPromise<any> {
+		const selections = this.editor.getSelections();
+		const changes = getSelectedChanges(this.editor.getLineChanges(), selections);
+		const {original, modified} = this.editor.getModel();
+
+		const revertEdits = getChangeRevertEdits(original, modified, changes);
+		modified.pushEditOperations(selections, revertEdits, () => selections);
+		modified.pushStackElement();
+
+		return TPromise.wrap(null);
+	}
+
+	private updateEnablement(): void {
+		this.enabled = this.isEnabled();
+	}
+}
+
 class FileEditorActionContributor extends baseeditor.EditorInputActionContributor {
 	private instantiationService: IInstantiationService;
 
@@ -527,7 +580,9 @@ class GitWorkingTreeDiffEditorActionContributor extends baseeditor.EditorInputAc
 			return [this.instantiationService.createInstance(UnstageRangesAction, <tdeditor.TextDiffEditor>context.editor)];
 		}
 
-		return [this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor)];
+		return [
+			this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor),
+			this.instantiationService.createInstance(RevertRangesAction, <tdeditor.TextDiffEditor>context.editor)];
 	}
 }
 
