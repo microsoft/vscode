@@ -152,7 +152,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			const sf = this.debugService.getViewModel().focusedStackFrame;
-			this.editor.updateOptions({ hover: !sf || this.editor.getModel().uri.toString() !== sf.source.uri.toString() });
+			const model = this.editor.getModel();
+			this.editor.updateOptions({ hover: !sf || !model || model.uri.toString() !== sf.source.uri.toString() });
 			this.closeBreakpointWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
@@ -166,7 +167,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	public showHover(range: Range, focus: boolean): TPromise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
-		if (sf && sf.source.uri.toString() === this.editor.getModel().uri.toString()) {
+		const model = this.editor.getModel();
+		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
 			return this.hoverWidget.showAt(range, focus);
 		}
 	}
@@ -189,7 +191,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private onFocusStackFrame(sf: IStackFrame): void {
-		if (sf && sf.source.uri.toString() === this.editor.getModel().uri.toString()) {
+		const model = this.editor.getModel();
+		if (model && sf && sf.source.uri.toString() === model.uri.toString()) {
 			this.editor.updateOptions({ hover: false });
 		} else {
 			this.editor.updateOptions({ hover: true });
