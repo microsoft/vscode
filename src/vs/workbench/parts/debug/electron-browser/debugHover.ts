@@ -154,10 +154,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
-		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== this.editor.getModel().uri.toString())) {
-			return;
-		}
 
 		const process = this.debugService.getViewModel().focusedProcess;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
@@ -167,7 +163,7 @@ export class DebugHoverWidget implements IContentWidget {
 		let promise: TPromise<IExpression>;
 		if (process.session.configuration.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
-			promise = result.evaluate(process, focusedStackFrame, 'hover').then(() => result);
+			promise = result.evaluate(process, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
 			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word), expressionRange);
 		}
