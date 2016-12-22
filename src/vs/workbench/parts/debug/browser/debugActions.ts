@@ -12,7 +12,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, State, IProcess, SessionRequestType, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
-import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
+import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -130,8 +130,11 @@ export class RestartAction extends AbstractDebugAction {
 		this.updateLabel(process && process.session.requestType === SessionRequestType.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
-	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
+	public run(process: IProcess): TPromise<any> {
+		if (!(process instanceof Process)) {
+			process = this.debugService.getViewModel().focusedProcess;
+		}
+
 		return this.debugService.restartProcess(process);
 	}
 
@@ -211,8 +214,11 @@ export class StopAction extends AbstractDebugAction {
 		super(id, label, 'debug-action stop', debugService, keybindingService, 80);
 	}
 
-	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
+	public run(process: IProcess): TPromise<any> {
+		if (!(process instanceof Process)) {
+			process = this.debugService.getViewModel().focusedProcess;
+		}
+
 		return process ? process.session.disconnect(false, true) : TPromise.as(null);
 	}
 
