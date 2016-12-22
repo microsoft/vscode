@@ -22,7 +22,6 @@ import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService, UnloadReason } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -149,8 +148,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
 	public ready(initialUserEnv: platform.IProcessEnvironment): void {
@@ -736,8 +734,7 @@ export class WindowsManager implements IWindowsMainService {
 				this.logService,
 				this.environmentService,
 				this.configurationService,
-				this.storageService,
-				this.telemetryService
+				this.storageService
 			);
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
