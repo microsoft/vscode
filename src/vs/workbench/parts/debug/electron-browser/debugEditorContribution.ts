@@ -40,7 +40,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private showHoverScheduler: RunOnceScheduler;
 	private hideHoverScheduler: RunOnceScheduler;
 	private hoverRange: Range;
-	private hoveringOver: string;
 
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
@@ -59,7 +58,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
 		this.toDispose = [];
-		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, this.hoveringOver, false), HOVER_DELAY);
+		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
@@ -165,10 +164,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		return EDITOR_CONTRIBUTION_ID;
 	}
 
-	public showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
+	public showHover(range: Range, focus: boolean): TPromise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		if (sf && sf.source.uri.toString() === this.editor.getModel().uri.toString()) {
-			return this.hoverWidget.showAt(range, hoveringOver, focus);
+			return this.hoverWidget.showAt(range, focus);
 		}
 	}
 
@@ -203,7 +202,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverScheduler.schedule();
 		}
 		this.showHoverScheduler.cancel();
-		this.hoveringOver = null;
 	}
 
 	// hover business
@@ -229,10 +227,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			const wordAtPosition = this.editor.getModel().getWordAtPosition(mouseEvent.target.range.getStartPosition());
-			if (wordAtPosition && this.hoveringOver !== wordAtPosition.word) {
+			if (!mouseEvent.target.range.equalsRange(this.hoverRange)) {
 				this.hoverRange = mouseEvent.target.range;
-				this.hoveringOver = wordAtPosition.word;
 				this.showHoverScheduler.schedule();
 			}
 		} else {

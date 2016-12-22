@@ -483,7 +483,7 @@ export interface IDebugService {
 
 // Editor interfaces
 export interface IDebugEditorContribution extends IEditorContribution {
-	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
+	showHover(range: Range, focus: boolean): TPromise<void>;
 	showBreakpointWidget(lineNumber: number): void;
 	closeBreakpointWidget(): void;
 }

@@ -152,7 +152,7 @@ export class DebugHoverWidget implements IContentWidget {
 			new Range(range.startLineNumber, 0, range.endLineNumber, 0);
 	}
 
-	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
+	public showAt(range: Range, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 
 		const process = this.debugService.getViewModel().focusedProcess;
