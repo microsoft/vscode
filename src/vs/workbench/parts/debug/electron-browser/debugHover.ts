@@ -204,8 +204,18 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
-			// no expensive scopes and if a range of scope is defined it needs to contain the variable
-			.then(scopes => scopes.filter(scope => !scope.expensive && (!scope.range || Range.containsRange(scope.range, expressionRange))))
+			.then(scopes => scopes.filter(scope => !scope.expensive))
+			.then(scopes => {
+				// no expensive scopes and if a range of scope is defined it needs to contain the variable
+				const haveRangeInfo = scopes.some(s => !!s.range);
+				if (!haveRangeInfo) {
+					return scopes;
+				}
+
+				// Find the most specific scope containing the range #16632
+				return [scopes.filter(scope => Range.containsRange(scope.range, expressionRange))
+					.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
+			})
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
