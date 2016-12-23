@@ -705,7 +705,7 @@ export class SelectActionItem extends BaseActionItem {
 		this.registerListeners();
 	}
 
-	public setOptions(options: string[], selected: number): void {
+	public setOptions(options: string[], selected?: number): void {
 		this.selectBox.setOptions(options, selected);
 	}
 
