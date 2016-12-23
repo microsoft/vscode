@@ -815,6 +815,7 @@ export class DebugService implements debug.IDebugService {
 		if (process.session.configuration.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
+		const preserveFocus = process.getId() === this.viewModel.focusedProcess.getId();
 
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
@@ -823,10 +824,12 @@ export class DebugService implements debug.IDebugService {
 				}, 300);
 			})
 		).then(() => {
-			// Restart should preserve the focused process
-			const restartedProcess = this.model.getProcesses().filter(p => p.name === process.name).pop();
-			if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
-				this.focusStackFrameAndEvaluate(null, restartedProcess);
+			if (preserveFocus) {
+				// Restart should preserve the focused process
+				const restartedProcess = this.model.getProcesses().filter(p => p.name === process.name).pop();
+				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
+					this.focusStackFrameAndEvaluate(null, restartedProcess);
+				}
 			}
 		});
 	}
