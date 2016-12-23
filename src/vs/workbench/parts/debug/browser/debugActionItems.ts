@@ -21,6 +21,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
+	private start: HTMLElement;
 	private selectBox: SelectBox;
 	private toDispose: lifecycle.IDisposable[];
 
@@ -50,28 +51,28 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	public render(container: HTMLElement): void {
 		this.container = container;
 		dom.addClass(container, 'start-debug-action-item');
-		const icon = dom.append(container, $('.icon'));
-		icon.title = this.action.label;
-		icon.tabIndex = 0;
+		this.start = dom.append(container, $('.icon'));
+		this.start.title = this.action.label;
+		this.start.tabIndex = 0;
 
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.CLICK, () => {
-			icon.blur();
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
+			this.start.blur();
 			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_DOWN, () => {
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, () => {
 			if (this.selectBox.enabled) {
-				dom.addClass(icon, 'active');
+				dom.addClass(this.start, 'active');
 			}
 		}));
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_UP, () => {
-			dom.removeClass(icon, 'active');
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
+			dom.removeClass(this.start, 'active');
 		}));
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_OUT, () => {
-			dom.removeClass(icon, 'active');
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_OUT, () => {
+			dom.removeClass(this.start, 'active');
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
 				this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
@@ -91,7 +92,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	public focus(): void {
-		this.container.focus();
+		this.start.focus();
 	}
 
 	public blur(): void {
