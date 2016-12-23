@@ -151,8 +151,17 @@ export function getChangeRevertEdits(original: IModel, modified: IModel, changes
 
 	return changes.map(change => {
 		if (isInsertion(change)) {
-			// Delete the inserted range
-			return EditOperation.delete(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1));
+			// Delete inserted range
+			if (change.modifiedEndLineNumber === modified.getLineCount()) {
+				// Delete range from end of line, with leading newline
+				const prevLine = change.modifiedStartLineNumber - 1;
+				const prevLineLength = modified.getLineMaxColumn(prevLine);
+				const lineLength = modified.getLineMaxColumn(change.modifiedEndLineNumber);
+				return EditOperation.delete(new Range(prevLine, prevLineLength, change.modifiedEndLineNumber, lineLength));
+			} else {
+				// Delete range inserted elsewhere, with trailing newline
+				return EditOperation.delete(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1));
+			}
 		} else if (isDeletion(change)) {
 			// Get the original lines and insert at the deleted position
 			const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
