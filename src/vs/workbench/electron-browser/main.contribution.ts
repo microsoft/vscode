@@ -204,10 +204,11 @@ let properties: { [path: string]: IJSONSchema; } = {
 };
 
 if (platform.isWindows || platform.isLinux) {
-	properties['window.autoHideMenuBar'] = {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('autoHideMenuBar', "If set to false, the menu bar will no longer be shown when pressing the alt key (linux / windows only)")
+	properties['window.menuBarVisibility'] = {
+		'type': 'string',
+		'enum': ['visible', 'toggle', 'hidden'],
+		'default': 'visible',
+		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that a single press of the alt key will show and hide the menu bar.")
 	};
 }
 

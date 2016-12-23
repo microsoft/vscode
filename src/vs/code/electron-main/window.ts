@@ -231,9 +231,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 
-		if (this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
-			this.setMenuBarVisibility(false); // respect configured menu bar visibility
-		}
+		// respect configured menu bar visibility
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		this.setMenuBarVisibility(windowConfig && windowConfig.menuBarVisibility);
 
 		this.registerListeners();
 	}
@@ -645,25 +645,36 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 		this.win.setFullScreen(willBeFullScreen);
 
-		// Windows & Linux: Hide the menu bar but still allow to bring it up by pressing the Alt key
-		if (platform.isWindows || platform.isLinux) {
-			if (willBeFullScreen) {
-				this.setMenuBarVisibility(false);
-			} else {
-				this.setMenuBarVisibility(!this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
-			}
-		}
+		// respect configured menu bar visibility
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		this.setMenuBarVisibility(windowConfig && windowConfig.menuBarVisibility);
 	}
 
-	public setMenuBarVisibility(visible: boolean): void {
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-		let autoHideMenuBar = windowConfig && windowConfig.autoHideMenuBar;
-		if (typeof autoHideMenuBar !== 'boolean') {
-			autoHideMenuBar = true;
-		};
+	public setMenuBarVisibility(visibility: '' | 'visible' | 'toggle' | 'hidden'): void {
 
-		this.win.setMenuBarVisibility(visible);
-		this.win.setAutoHideMenuBar(autoHideMenuBar ? !visible : false);
+		switch (visibility) {
+			case ('visible'): {
+				this.win.setMenuBarVisibility(true);
+				this.win.setAutoHideMenuBar(false);
+				break;
+			}
+			case ('toggle'): {
+				this.win.setMenuBarVisibility(false);
+				this.win.setAutoHideMenuBar(true);
+				break;
+			}
+			case ('hidden'): {
+				this.win.setMenuBarVisibility(false);
+				this.win.setAutoHideMenuBar(false);
+				break;
+			}
+			default: {
+				// default to visible
+				this.win.setMenuBarVisibility(true);
+				this.win.setAutoHideMenuBar(false);
+				break;
+			}
+		};
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {
