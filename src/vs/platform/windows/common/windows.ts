@@ -94,5 +94,5 @@ export interface IWindowSettings {
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
 	autoDetectHighContrast: boolean;
-	autoHideMenuBar: boolean;
+	menuBarVisibility: 'visible' | 'toggle' | 'hidden';
 }

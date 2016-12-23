@@ -70,9 +70,9 @@ interface INativeOpenDialogOptions {
 	window?: VSCodeWindow;
 }
 
-interface IConfiguration extends IWindowSettings {
+interface IConfiguration {
 	window: {
-		autoHideMenuBar: boolean;
+		menuBarVisibility: 'visible' | 'toggle' | 'hidden';
 	};
 }
 
@@ -135,7 +135,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
-	private currentAutoHideMenuBar: boolean;
+	private currentMenuBarVisibility: '' | 'visible' | 'toggle' | 'hidden';
 
 	private _onRecentPathsChange = new Emitter<void>();
 	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
@@ -264,13 +264,11 @@ export class WindowsManager implements IWindowsMainService {
 
 	private onConfigurationUpdated(config: IConfiguration): void {
 
-		let newAutoHideMenuBar = config && config.window && config.window.autoHideMenuBar;
-		if (typeof newAutoHideMenuBar !== 'boolean') {
-			newAutoHideMenuBar = true;
-		}
-		if (newAutoHideMenuBar !== this.currentAutoHideMenuBar) {
-			this.currentAutoHideMenuBar = newAutoHideMenuBar;
-			this.getWindows().forEach(w => w.win.setAutoHideMenuBar(this.currentAutoHideMenuBar));
+		let newMenuBarVisibility = config && config.window && config.window.menuBarVisibility;
+
+		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+			this.currentMenuBarVisibility = newMenuBarVisibility;
+			this.getWindows().forEach(w => w.setMenuBarVisibility(newMenuBarVisibility));
 		}
 	};
 
@@ -1167,18 +1165,15 @@ export class WindowsManager implements IWindowsMainService {
 		const newMenuBarHidden = !menuBarHidden;
 
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-		let autoHideMenuBar = windowConfig && windowConfig.autoHideMenuBar;
-		if (typeof autoHideMenuBar !== 'boolean') {
-			autoHideMenuBar = true;
-		};
+		let menuBarVisibility = windowConfig && windowConfig.menuBarVisibility;
 
 		this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
 
 		// Update across windows
-		WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
+		WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(menuBarVisibility));
 
 		// Inform user if menu bar is now hidden
-		if (newMenuBarHidden && autoHideMenuBar) {
+		if (newMenuBarHidden && menuBarVisibility === 'toggle') {
 			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
