@@ -126,7 +126,6 @@ export interface IVSCodeWindow {
 
 export class VSCodeWindow implements IVSCodeWindow {
 
-	public static menuBarHiddenKey = 'menuBarHidden';
 	public static colorThemeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;

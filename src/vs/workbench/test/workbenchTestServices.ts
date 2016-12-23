@@ -690,10 +690,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	toggleMenuBar(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	isMaximized(): TPromise<boolean> {
 		return TPromise.as(void 0);
 	}
@@ -793,9 +789,6 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-	toggleMenuBar(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	quit(): TPromise<void> {
