@@ -186,7 +186,7 @@ export class ToggleMenuBarAction extends Action {
 
 	public run(): TPromise<any> {
 		let currentVisibilityValue = this.configurationService.lookup(ToggleMenuBarAction.menuBarVisibilityKey).value;
-		if (typeof(currentVisibilityValue) !== 'string') {
+		if (typeof (currentVisibilityValue) !== 'string') {
 			currentVisibilityValue = 'visible';
 		}
 
