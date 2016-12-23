@@ -269,7 +269,9 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		this.focusStackFrame(element, event, true);
+		if (element instanceof StackFrame) {
+			this.focusStackFrame(element, event, true);
+		}
 
 		return super.onLeftClick(tree, element, event);
 	}
@@ -279,7 +281,9 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		this.focusStackFrame(element, event, false);
+		if (element instanceof StackFrame) {
+			this.focusStackFrame(element, event, false);
+		}
 
 		return super.onEnter(tree, event);
 	}
@@ -302,33 +306,18 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	private focusStackFrame(element: any, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		let stackFrame: debug.IStackFrame;
-		let process: debug.IProcess;
-		if (element instanceof StackFrame) {
-			stackFrame = element;
-			process = element.thread.process;
-		}
-		if (element instanceof Thread) {
-			process = element.process;
-		}
-		if (element instanceof Process) {
-			process = element;
-		}
-
-		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).then(() => {
-			if (stackFrame) {
-				const sideBySide = (event && (event.ctrlKey || event.metaKey));
-				return this.editorService.openEditor({
-					resource: stackFrame.source.uri,
-					options: {
-						preserveFocus,
-						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
-						revealIfVisible: true,
-						revealInCenterIfOutsideViewport: true
-					},
-				}, sideBySide);
-			}
+	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
+			const sideBySide = (event && (event.ctrlKey || event.metaKey));
+			return this.editorService.openEditor({
+				resource: stackFrame.source.uri,
+				options: {
+					preserveFocus,
+					selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
+					revealIfVisible: true,
+					revealInCenterIfOutsideViewport: true
+				},
+			}, sideBySide);
 		}, errors.onUnexpectedError);
 	}
 }
