@@ -709,6 +709,10 @@ export class SelectActionItem extends BaseActionItem {
 		this.selectBox.setOptions(options, selected);
 	}
 
+	public select(index: number): void {
+		this.selectBox.select(index);
+	}
+
 	private registerListeners(): void {
 		this.toDispose.push(this.selectBox.onDidSelect(selected => {
 			this.actionRunner.run(this._action, this.getActionContext(selected)).done();
@@ -733,10 +737,6 @@ export class SelectActionItem extends BaseActionItem {
 
 	public render(container: HTMLElement): void {
 		this.selectBox.render(container);
-	}
-
-	protected getSelected(): string {
-		return this.selectBox.getSelected();
 	}
 
 	public dispose(): void {
