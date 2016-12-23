@@ -8,6 +8,7 @@
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
+import nls = require('vs/nls');
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -661,6 +662,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 			case ('toggle'): {
 				this.win.setMenuBarVisibility(false);
 				this.win.setAutoHideMenuBar(true);
+
+				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
 				break;
 			}
 			case ('hidden'): {
