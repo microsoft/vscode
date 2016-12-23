@@ -291,8 +291,6 @@ export class DebugService implements debug.IDebugService {
 									revealInCenterIfOutsideViewport: true
 								}
 							});
-						} else {
-							this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 						}
 					});
 				}
@@ -319,7 +317,12 @@ export class DebugService implements debug.IDebugService {
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidContinued(event => {
-			this.transitionToRunningState(session, event.body.allThreadsContinued ? undefined : event.body.threadId);
+			const threadId = event.body.allThreadsContinued ? undefined : event.body.threadId;
+			this.model.clearThreads(session.getId(), false, threadId);
+			if (this.viewModel.focusedProcess.getId() === session.getId()) {
+				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
+			}
+			this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidOutput(event => {
@@ -669,8 +672,7 @@ export class DebugService implements debug.IDebugService {
 				this.viewModel.setMultiProcessView(true);
 			}
 			if (!this.viewModel.focusedProcess) {
-				this.viewModel.setFocusedStackFrame(null, process);
-				this._onDidChangeState.fire();
+				this.focusStackFrameAndEvaluate(null, process);
 			}
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {
@@ -714,7 +716,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
-				this.transitionToRunningState(session);
+				this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
 
 				this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
@@ -840,7 +842,9 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.model.removeProcess(session.getId());
-		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		if (this.viewModel.focusedProcess.getId() === session.getId()) {
+			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		}
 		this.setStateAndEmit(session.getId(), debug.State.Inactive);
 
 		if (this.model.getProcesses().length === 0) {
@@ -871,12 +875,6 @@ export class DebugService implements debug.IDebugService {
 
 	public getConfigurationManager(): debug.IConfigurationManager {
 		return this.configurationManager;
-	}
-
-	private transitionToRunningState(session: RawDebugSession, threadId?: number): void {
-		this.model.clearThreads(session.getId(), false, threadId);
-		this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
-		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 	}
 
 	private sendAllBreakpoints(process?: debug.IProcess): TPromise<any> {
