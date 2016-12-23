@@ -277,7 +277,7 @@ export class DebugService implements debug.IDebugService {
 				if (thread) {
 					thread.fetchCallStack().then(callStack => {
 						if (callStack.length > 0 && !this.viewModel.focusedStackFrame) {
-							// focus first stack frame from top that has source location if no other stack frame is focussed 
+							// focus first stack frame from top that has source location if no other stack frame is focussed
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
 							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
@@ -822,7 +822,13 @@ export class DebugService implements debug.IDebugService {
 					this.createProcess(process.name).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		);
+		).then(() => {
+			// Restart should preserve the focused process
+			const restartedProcess = this.model.getProcesses().filter(p => p.name === process.name).pop();
+			if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
+				this.focusStackFrameAndEvaluate(null, restartedProcess);
+			}
+		});
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {
