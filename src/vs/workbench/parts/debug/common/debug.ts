@@ -235,7 +235,6 @@ export interface IViewModel extends ITreeElement {
 	isMultiProcessView(): boolean;
 
 	onDidFocusStackFrame: Event<IStackFrame>;
-	onDidFocusProcess: Event<IProcess>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 	/**

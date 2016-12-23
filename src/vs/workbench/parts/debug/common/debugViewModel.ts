@@ -13,7 +13,6 @@ export class ViewModel implements debug.IViewModel {
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
-	private _onDidFocusProcess: Emitter<debug.IProcess>;
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
 	private _onDidSelectConfigurationName: Emitter<string>;
@@ -22,7 +21,6 @@ export class ViewModel implements debug.IViewModel {
 
 	constructor(private _selectedConfigurationName: string) {
 		this._onDidFocusStackFrame = new Emitter<debug.IStackFrame>();
-		this._onDidFocusProcess = new Emitter<debug.IProcess>();
 		this._onDidSelectExpression = new Emitter<debug.IExpression>();
 		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
 		this._onDidSelectConfigurationName = new Emitter<string>();
@@ -55,15 +53,10 @@ export class ViewModel implements debug.IViewModel {
 		this._focusedStackFrame = stackFrame;
 		this._focusedProcess = process;
 		this._onDidFocusStackFrame.fire(stackFrame);
-		this._onDidFocusProcess.fire(process);
 	}
 
 	public get onDidFocusStackFrame(): Event<debug.IStackFrame> {
 		return this._onDidFocusStackFrame.event;
-	}
-
-	public get onDidFocusProcess(): Event<debug.IProcess> {
-		return this._onDidFocusProcess.event;
 	}
 
 	public getSelectedExpression(): debug.IExpression {
