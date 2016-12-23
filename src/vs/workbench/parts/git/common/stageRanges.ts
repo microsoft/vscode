@@ -152,19 +152,11 @@ export function getChangeRevertEdits(original: IModel, modified: IModel, changes
 	return changes.map(change => {
 		if (isInsertion(change)) {
 			// Delete inserted range
-			if (change.modifiedEndLineNumber === modified.getLineCount()) {
-				// Delete range from end of line, with leading newline
-				const prevLine = change.modifiedStartLineNumber - 1;
-				const prevLineLength = modified.getLineMaxColumn(prevLine);
-				const lineLength = modified.getLineMaxColumn(change.modifiedEndLineNumber);
-				return EditOperation.delete(new Range(prevLine, prevLineLength, change.modifiedEndLineNumber, lineLength));
-			} else {
-				// Delete range inserted elsewhere, with trailing newline
-				return EditOperation.delete(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1));
-			}
+			const fullRange = getLinesRangeWithOneSurroundingNewline(modified, change.modifiedStartLineNumber, change.modifiedEndLineNumber);
+			return EditOperation.delete(fullRange);
 		} else if (isDeletion(change)) {
 			// Get the original lines and insert at the deleted position
-			const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
+			const value = original.getValueInRange(getLinesRangeWithOneSurroundingNewline(original, change.originalStartLineNumber, change.originalEndLineNumber));
 			return EditOperation.insert(new Position(change.modifiedStartLineNumber + 1, 1), value);
 		} else {
 			// Get the original lines and replace the new lines with it
@@ -172,4 +164,18 @@ export function getChangeRevertEdits(original: IModel, modified: IModel, changes
 			return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1), value);
 		}
 	});
+}
+
+function getLinesRangeWithOneSurroundingNewline(model: IModel, startLine: number, endLine: number): Range {
+	let startColumn = 1;
+	let endColumn = model.getLineMaxColumn(endLine);
+	if (endLine < model.getLineCount()) {
+		endLine++;
+		endColumn = 1;
+	} else if (startLine > 1) {
+		startLine--;
+		startColumn = model.getLineMaxColumn(startLine);
+	}
+
+	return new Range(startLine, startColumn, endLine, endColumn);
 }
