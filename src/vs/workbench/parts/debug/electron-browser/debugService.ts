@@ -668,9 +668,6 @@ export class DebugService implements debug.IDebugService {
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
 			const process = this.model.addProcess(configuration.name, session);
 
-			if (this.model.getProcesses().length > 1) {
-				this.viewModel.setMultiProcessView(true);
-			}
 			if (!this.viewModel.focusedProcess) {
 				this.focusStackFrameAndEvaluate(null, process);
 			}
@@ -717,6 +714,9 @@ export class DebugService implements debug.IDebugService {
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
 				this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
+				if (this.model.getProcesses().length > 1) {
+					this.viewModel.setMultiProcessView(true);
+				}
 
 				this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
