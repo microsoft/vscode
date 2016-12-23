@@ -736,6 +736,19 @@ export class CommitAction extends BaseCommitAction {
 	}
 }
 
+export class CommitAmendAction extends BaseCommitAction {
+
+	static ID = 'workbench.action.git.commitAmend';
+
+	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
+		super(commitState, CommitAction.ID, nls.localize('commitStagedAmend', "Commit Staged (Amend)"), 'git-action commit-amend', gitService);
+	}
+
+	protected commit(): Promise {
+		return this.gitService.commit(this.commitState.getCommitMessage(), true);
+	}
+}
+
 export class CommitSignedOffAction extends BaseCommitAction {
 
 	static ID = 'workbench.action.git.commitSignedOff';
