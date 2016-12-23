@@ -9,6 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
+import * as arrays from 'vs/base/common/arrays';
 
 export class SelectBox extends Widget {
 
@@ -40,13 +41,15 @@ export class SelectBox extends Widget {
 		return this._onDidSelect.event;
 	}
 
-	public setOptions(options: string[], selected: number): void {
-		this.options = options;
+	public setOptions(options: string[], selected?: number): void {
+		if (!arrays.equals(this.options, options)) {
+			this.options = options;
 
-		this.selectElement.options.length = 0;
-		this.options.forEach((option) => {
-			this.selectElement.add(this.createOption(option));
-		});
+			this.selectElement.options.length = 0;
+			this.options.forEach((option) => {
+				this.selectElement.add(this.createOption(option));
+			});
+		}
 		this.select(selected);
 	}
 
