@@ -122,7 +122,7 @@ var AMDLoader;
         };
         Utilities.NEXT_ANONYMOUS_ID = 1;
         return Utilities;
-    }());
+    } ());
     AMDLoader.Utilities = Utilities;
     var ConfigurationOptionsUtil = (function () {
         function ConfigurationOptionsUtil() {
@@ -248,7 +248,7 @@ var AMDLoader;
             return ConfigurationOptionsUtil.validateConfigurationOptions(result);
         };
         return ConfigurationOptionsUtil;
-    }());
+    } ());
     AMDLoader.ConfigurationOptionsUtil = ConfigurationOptionsUtil;
     var Configuration = (function () {
         function Configuration(options) {
@@ -542,7 +542,7 @@ var AMDLoader;
             this.options.onError(err);
         };
         return Configuration;
-    }());
+    } ());
     AMDLoader.Configuration = Configuration;
     // ------------------------------------------------------------------------
     // ModuleIdResolver
@@ -622,7 +622,7 @@ var AMDLoader;
             this._config.onError(err);
         };
         return ModuleIdResolver;
-    }());
+    } ());
     AMDLoader.ModuleIdResolver = ModuleIdResolver;
     // ------------------------------------------------------------------------
     // Module
@@ -852,7 +852,7 @@ var AMDLoader;
             return this._unresolvedDependenciesCount === 0;
         };
         return Module;
-    }());
+    } ());
     AMDLoader.Module = Module;
     // ------------------------------------------------------------------------
     // LoaderEvent
@@ -879,7 +879,7 @@ var AMDLoader;
             this.timestamp = timestamp;
         }
         return LoaderEvent;
-    }());
+    } ());
     AMDLoader.LoaderEvent = LoaderEvent;
     var LoaderEventRecorder = (function () {
         function LoaderEventRecorder(loaderAvailableTimestamp) {
@@ -892,7 +892,7 @@ var AMDLoader;
             return this._events;
         };
         return LoaderEventRecorder;
-    }());
+    } ());
     AMDLoader.LoaderEventRecorder = LoaderEventRecorder;
     var NullLoaderEventRecorder = (function () {
         function NullLoaderEventRecorder() {
@@ -905,7 +905,7 @@ var AMDLoader;
         };
         NullLoaderEventRecorder.INSTANCE = new NullLoaderEventRecorder();
         return NullLoaderEventRecorder;
-    }());
+    } ());
     AMDLoader.NullLoaderEventRecorder = NullLoaderEventRecorder;
     var ModuleManager = (function () {
         function ModuleManager(scriptLoader) {
@@ -1540,7 +1540,7 @@ var AMDLoader;
             }
         };
         return ModuleManager;
-    }());
+    } ());
     AMDLoader.ModuleManager = ModuleManager;
     /**
      * Load `scriptSrc` only once (avoid multiple <script> tags)
@@ -1581,41 +1581,15 @@ var AMDLoader;
             }
         };
         return OnlyOnceScriptLoader;
-    }());
+    } ());
     var BrowserScriptLoader = (function () {
         function BrowserScriptLoader() {
         }
         /**
          * Attach load / error listeners to a script element and remove them when either one has fired.
-         * Implemented for browssers supporting 'onreadystatechange' events, such as IE8 or IE9
-         */
-        BrowserScriptLoader.prototype.attachListenersV1 = function (script, callback, errorback) {
-            var unbind = function () {
-                script.detachEvent('onreadystatechange', loadEventListener);
-                if (script.addEventListener) {
-                    script.removeEventListener('error', errorEventListener);
-                }
-            };
-            var loadEventListener = function (e) {
-                if (script.readyState === 'loaded' || script.readyState === 'complete') {
-                    unbind();
-                    callback();
-                }
-            };
-            var errorEventListener = function (e) {
-                unbind();
-                errorback(e);
-            };
-            script.attachEvent('onreadystatechange', loadEventListener);
-            if (script.addEventListener) {
-                script.addEventListener('error', errorEventListener);
-            }
-        };
-        /**
-         * Attach load / error listeners to a script element and remove them when either one has fired.
          * Implemented for browssers supporting HTML5 standard 'load' and 'error' events.
          */
-        BrowserScriptLoader.prototype.attachListenersV2 = function (script, callback, errorback) {
+        BrowserScriptLoader.prototype.attachListeners = function (script, callback, errorback) {
             var unbind = function () {
                 script.removeEventListener('load', loadEventListener);
                 script.removeEventListener('error', errorEventListener);
@@ -1638,17 +1612,12 @@ var AMDLoader;
             var script = document.createElement('script');
             script.setAttribute('async', 'async');
             script.setAttribute('type', 'text/javascript');
-            if (global.attachEvent) {
-                this.attachListenersV1(script, callback, errorback);
-            }
-            else {
-                this.attachListenersV2(script, callback, errorback);
-            }
+            this.attachListeners(script, callback, errorback);
             script.setAttribute('src', scriptSrc);
             document.getElementsByTagName('head')[0].appendChild(script);
         };
         return BrowserScriptLoader;
-    }());
+    } ());
     var WorkerScriptLoader = (function () {
         function WorkerScriptLoader() {
             this.loadCalls = [];
@@ -1701,7 +1670,7 @@ var AMDLoader;
             }
         };
         return WorkerScriptLoader;
-    }());
+    } ());
     var NodeScriptLoader = (function () {
         function NodeScriptLoader() {
             this._initialized = false;
@@ -1729,15 +1698,12 @@ var AMDLoader;
                 var pieces = scriptSrc.split('|');
                 var moduleExports = null;
                 try {
-                    recorder.record(LoaderEventType.NodeBeginNativeRequire, pieces[2]);
                     moduleExports = nodeRequire(pieces[2]);
                 }
                 catch (err) {
-                    recorder.record(LoaderEventType.NodeEndNativeRequire, pieces[2]);
                     errorback(err);
                     return;
                 }
-                recorder.record(LoaderEventType.NodeEndNativeRequire, pieces[2]);
                 this._moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports; });
                 callback();
             }
@@ -1787,27 +1753,31 @@ var AMDLoader;
                                     errorCode: 'cachedDataRejected',
                                     path: cachedDataPath_1
                                 });
-                                NodeScriptLoader._runSoon(function () { return _this._fs.unlink(cachedDataPath_1, function (err) {
-                                    if (err) {
-                                        _this._moduleManager.getConfigurationOptions().onNodeCachedDataError({
-                                            errorCode: 'unlink',
-                                            path: cachedDataPath_1,
-                                            detail: err
-                                        });
-                                    }
-                                }); }, opts.nodeCachedDataWriteDelay);
+                                NodeScriptLoader._runSoon(function () {
+                                    return _this._fs.unlink(cachedDataPath_1, function (err) {
+                                        if (err) {
+                                            _this._moduleManager.getConfigurationOptions().onNodeCachedDataError({
+                                                errorCode: 'unlink',
+                                                path: cachedDataPath_1,
+                                                detail: err
+                                            });
+                                        }
+                                    });
+                                }, opts.nodeCachedDataWriteDelay);
                             }
                             else if (script.cachedDataProduced) {
                                 // data produced => write cache file
-                                NodeScriptLoader._runSoon(function () { return _this._fs.writeFile(cachedDataPath_1, script.cachedData, function (err) {
-                                    if (err) {
-                                        _this._moduleManager.getConfigurationOptions().onNodeCachedDataError({
-                                            errorCode: 'writeFile',
-                                            path: cachedDataPath_1,
-                                            detail: err
-                                        });
-                                    }
-                                }); }, opts.nodeCachedDataWriteDelay);
+                                NodeScriptLoader._runSoon(function () {
+                                    return _this._fs.writeFile(cachedDataPath_1, script.cachedData, function (err) {
+                                        if (err) {
+                                            _this._moduleManager.getConfigurationOptions().onNodeCachedDataError({
+                                                errorCode: 'writeFile',
+                                                path: cachedDataPath_1,
+                                                detail: err
+                                            });
+                                        }
+                                    });
+                                }, opts.nodeCachedDataWriteDelay);
                             }
                         });
                     }
@@ -1835,7 +1805,7 @@ var AMDLoader;
         };
         NodeScriptLoader._BOM = 0xFEFF;
         return NodeScriptLoader;
-    }());
+    } ());
     // ------------------------------------------------------------------------
     // ------------------------------------------------------------------------
     // ------------------------------------------------------------------------
@@ -1865,7 +1835,7 @@ var AMDLoader;
             jQuery: true
         };
         return DefineFunc;
-    }());
+    } ());
     var RequireFunc = (function () {
         function RequireFunc() {
             if (arguments.length === 1) {
@@ -1912,7 +1882,7 @@ var AMDLoader;
             return moduleManager.getLoaderEvents();
         };
         return RequireFunc;
-    }());
+    } ());
     var global = _amdLoaderGlobal, hasPerformanceNow = (global.performance && typeof global.performance.now === 'function'), isWebWorker, isElectronRenderer, isElectronMain, isNode, scriptLoader, moduleManager, loaderAvailableTimestamp;
     function initVars() {
         isWebWorker = (typeof global.importScripts === 'function');
@@ -1974,9 +1944,12 @@ var AMDLoader;
             var _nodeRequire = (global.require || require);
             var nodeRequire = function (what) {
                 moduleManager.getRecorder().record(LoaderEventType.NodeBeginNativeRequire, what);
-                var r = _nodeRequire(what);
-                moduleManager.getRecorder().record(LoaderEventType.NodeEndNativeRequire, what);
-                return r;
+                try {
+                    return _nodeRequire(what);
+                }
+                finally {
+                    moduleManager.getRecorder().record(LoaderEventType.NodeEndNativeRequire, what);
+                }
             };
             global.nodeRequire = nodeRequire;
             RequireFunc.nodeRequire = nodeRequire;
