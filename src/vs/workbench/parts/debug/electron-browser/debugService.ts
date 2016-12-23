@@ -459,16 +459,21 @@ export class DebugService implements debug.IDebugService {
 		return this.contextService.hasWorkspace();
 	}
 
-	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
-		const processes = this.model.getProcesses();
+	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
 		if (!process) {
-			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
+			const processes = this.model.getProcesses();
+			process = stackFrame ? stackFrame.thread.process : processes.length ? processes[0] : null;
+		}
+		if (!stackFrame) {
+			const threads = process ? process.getAllThreads() : null;
+			const callStack = threads && threads.length ? threads[0].getCallStack() : null;
+			stackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
-		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
+		this.viewModel.setFocusedStackFrame(stackFrame, process);
 		this._onDidChangeState.fire();
 
-		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
+		return this.model.evaluateWatchExpressions(process, stackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
