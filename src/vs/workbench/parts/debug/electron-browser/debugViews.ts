@@ -268,18 +268,8 @@ export class CallStackView extends CollapsibleViewletView {
 				this.pauseMessage.hide();
 			}
 
-			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput)).done(() => {
-				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (!stackFrame) {
-					return;
-				}
-
-				const thread = stackFrame.thread;
-				return this.tree.expandAll([thread.process, thread]).done(() => {
-					this.tree.setSelection([stackFrame]);
-					return this.tree.reveal(stackFrame);
-				});
-			}, errors.onUnexpectedError);
+			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput))
+				.done(() => this.updateTreeSelection(), errors.onUnexpectedError);
 		}, 50);
 	}
 
@@ -313,11 +303,27 @@ export class CallStackView extends CollapsibleViewletView {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() =>
+			this.updateTreeSelection().done(undefined, errors.onUnexpectedError)));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule();
 		}
+	}
+
+	private updateTreeSelection(): TPromise<void> {
+		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		if (!stackFrame) {
+			this.tree.clearSelection();
+			return TPromise.as(null);
+		}
+
+		const thread = stackFrame.thread;
+		return this.tree.expandAll([thread.process, thread]).then(() => {
+			this.tree.setSelection([stackFrame]);
+			return this.tree.reveal(stackFrame);
+		});
 	}
 
 	public shutdown(): void {
