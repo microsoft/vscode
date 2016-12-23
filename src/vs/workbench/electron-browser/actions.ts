@@ -172,7 +172,7 @@ export class ToggleMenuBarAction extends Action {
 	static ID = 'workbench.action.toggleMenuBar';
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	private static menuBarVisibilityKey = 'window.menuBarVisibility'
+	private static menuBarVisibilityKey = 'window.menuBarVisibility';
 
 	constructor(
 		id: string,
