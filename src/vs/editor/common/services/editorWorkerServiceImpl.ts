@@ -17,7 +17,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { matchesPrefix } from 'vs/base/common/filters';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -49,7 +48,6 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		});
 		const completionProvider = modes.SuggestRegistry.register('*', <modes.ISuggestSupport>{
 			triggerCharacters: [],
-			filter: matchesPrefix,
 			provideCompletionItems: (model, position, token) => {
 				if (configurationService.lookup<boolean>('editor.wordBasedSuggestions').value) {
 					return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
