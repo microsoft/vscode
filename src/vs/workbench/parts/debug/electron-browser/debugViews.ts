@@ -313,10 +313,21 @@ export class CallStackView extends CollapsibleViewletView {
 	}
 
 	private updateTreeSelection(): TPromise<void> {
-		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!stackFrame) {
-			this.tree.clearSelection();
+		if (!this.tree.getInput()) {
+			// Tree not initialitized yet
 			return TPromise.as(null);
+		}
+
+		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		const process = this.debugService.getViewModel().focusedProcess;
+		if (!stackFrame) {
+			if (!process) {
+				this.tree.clearSelection();
+				return TPromise.as(null);
+			}
+
+			this.tree.setSelection([process]);
+			return this.tree.reveal(process);
 		}
 
 		const thread = stackFrame.thread;
