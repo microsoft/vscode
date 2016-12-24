@@ -10,6 +10,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { toUint32Array } from 'vs/editor/common/core/uint';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -236,7 +237,10 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		// Add last segment
 		breakingLengths[breakingLengthsIndex++] = len - lastBreakingOffset;
 
-		return new CharacterHardWrappingLineMapping(new PrefixSumComputer(breakingLengths), wrappedTextIndent);
+		return new CharacterHardWrappingLineMapping(
+			new PrefixSumComputer(toUint32Array(breakingLengths)),
+			wrappedTextIndent
+		);
 	}
 }
 
