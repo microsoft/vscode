@@ -7,6 +7,7 @@
 import { ILink } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { Uint8Matrix } from 'vs/editor/common/core/uint';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -34,7 +35,7 @@ type Edge = [State, number, State];
 
 class StateMachine {
 
-	private _states: State[][];
+	private _states: Uint8Matrix;
 	private _maxCharCode: number;
 
 	constructor(edges: Edge[]) {
@@ -53,18 +54,13 @@ class StateMachine {
 			}
 		}
 
-		let states: number[][] = [];
-		for (let i = 0; i <= maxState; i++) {
-			let tmp: number[] = [];
-			for (let j = 0; j <= maxCharCode; j++) {
-				tmp[j] = State.Invalid;
-			}
-			states[i] = tmp;
-		}
+		maxCharCode++;
+		maxState++;
 
+		let states = new Uint8Matrix(maxState, maxCharCode, State.Invalid);
 		for (let i = 0, len = edges.length; i < len; i++) {
 			let [from, chCode, to] = edges[i];
-			states[from][chCode] = to;
+			states.set(from, chCode, to);
 		}
 
 		this._states = states;
@@ -72,48 +68,55 @@ class StateMachine {
 	}
 
 	public nextState(currentState: State, chCode: number): State {
-		if (chCode < 0 || chCode > this._maxCharCode) {
+		if (chCode < 0 || chCode >= this._maxCharCode) {
 			return State.Invalid;
 		}
-		return this._states[currentState][chCode];
+		return this._states.get(currentState, chCode);
 	}
 }
 
 // State machine for http:// or https:// or file://
-let stateMachine = new StateMachine([
-	[State.Start, CharCode.h, State.H],
-	[State.Start, CharCode.H, State.H],
-	[State.Start, CharCode.f, State.F],
-	[State.Start, CharCode.F, State.F],
+let _stateMachine: StateMachine = null;
+function getStateMachine(): StateMachine {
+	if (_stateMachine === null) {
+		_stateMachine = new StateMachine([
+			[State.Start, CharCode.h, State.H],
+			[State.Start, CharCode.H, State.H],
+			[State.Start, CharCode.f, State.F],
+			[State.Start, CharCode.F, State.F],
 
-	[State.H, CharCode.t, State.HT],
-	[State.H, CharCode.T, State.HT],
+			[State.H, CharCode.t, State.HT],
+			[State.H, CharCode.T, State.HT],
 
-	[State.HT, CharCode.t, State.HTT],
-	[State.HT, CharCode.T, State.HTT],
+			[State.HT, CharCode.t, State.HTT],
+			[State.HT, CharCode.T, State.HTT],
 
-	[State.HTT, CharCode.p, State.HTTP],
-	[State.HTT, CharCode.P, State.HTTP],
+			[State.HTT, CharCode.p, State.HTTP],
+			[State.HTT, CharCode.P, State.HTTP],
 
-	[State.HTTP, CharCode.s, State.BeforeColon],
-	[State.HTTP, CharCode.S, State.BeforeColon],
-	[State.HTTP, CharCode.Colon, State.AfterColon],
+			[State.HTTP, CharCode.s, State.BeforeColon],
+			[State.HTTP, CharCode.S, State.BeforeColon],
+			[State.HTTP, CharCode.Colon, State.AfterColon],
 
-	[State.F, CharCode.i, State.FI],
-	[State.F, CharCode.I, State.FI],
+			[State.F, CharCode.i, State.FI],
+			[State.F, CharCode.I, State.FI],
 
-	[State.FI, CharCode.l, State.FIL],
-	[State.FI, CharCode.L, State.FIL],
+			[State.FI, CharCode.l, State.FIL],
+			[State.FI, CharCode.L, State.FIL],
 
-	[State.FIL, CharCode.e, State.BeforeColon],
-	[State.FIL, CharCode.E, State.BeforeColon],
+			[State.FIL, CharCode.e, State.BeforeColon],
+			[State.FIL, CharCode.E, State.BeforeColon],
 
-	[State.BeforeColon, CharCode.Colon, State.AfterColon],
+			[State.BeforeColon, CharCode.Colon, State.AfterColon],
 
-	[State.AfterColon, CharCode.Slash, State.AlmostThere],
+			[State.AfterColon, CharCode.Slash, State.AlmostThere],
 
-	[State.AlmostThere, CharCode.Slash, State.End],
-]);
+			[State.AlmostThere, CharCode.Slash, State.End],
+		]);
+	}
+	return _stateMachine;
+}
+
 
 const enum CharacterClass {
 	None = 0,
@@ -163,6 +166,8 @@ class LinkComputer {
 	}
 
 	public static computeLinks(model: ILinkComputerTarget): ILink[] {
+		const stateMachine = getStateMachine();
+
 		let result: ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			const line = model.getLineContent(i);

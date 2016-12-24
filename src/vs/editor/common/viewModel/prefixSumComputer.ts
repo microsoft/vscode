@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { toUint32 } from 'vs/editor/common/core/uint';
+
 export class PrefixSumIndexOfResult {
 	_prefixSumIndexOfResultBrand: void;
 
@@ -21,24 +23,21 @@ export class PrefixSumComputer {
 	/**
 	 * values[i] is the value at index i
 	 */
-	private values: number[];
+	private values: Uint32Array;
 
 	/**
 	 * prefixSum[i] = SUM(heights[j]), 0 <= j <= i
 	 */
-	private prefixSum: number[];
+	private prefixSum: Uint32Array;
 
 	/**
 	 * prefixSum[i], 0 <= i <= prefixSumValidIndex can be trusted
 	 */
 	private prefixSumValidIndex: number;
 
-	constructor(values: number[]) {
+	constructor(values: Uint32Array) {
 		this.values = values;
-		this.prefixSum = [];
-		for (let i = 0, len = this.values.length; i < len; i++) {
-			this.prefixSum[i] = 0;
-		}
+		this.prefixSum = new Uint32Array(values.length);
 		this.prefixSumValidIndex = -1;
 	}
 
@@ -46,51 +45,34 @@ export class PrefixSumComputer {
 		return this.values.length;
 	}
 
-	public insertValue(insertIndex: number, value: number): void {
-		insertIndex = Math.floor(insertIndex); //@perf
-		value = Math.floor(value); //@perf
+	public insertValues(insertIndex: number, insertValues: Uint32Array): void {
+		insertIndex = toUint32(insertIndex);
+		const oldValues = this.values;
+		const oldPrefixSum = this.prefixSum;
+		const insertValuesLen = insertValues.length;
 
-		this.values.splice(insertIndex, 0, value);
-		this.prefixSum.splice(insertIndex, 0, 0);
-		if (insertIndex - 1 < this.prefixSumValidIndex) {
-			this.prefixSumValidIndex = insertIndex - 1;
-		}
-	}
-
-	public insertValues(insertIndex: number, values: number[]): void {
-		insertIndex = Math.floor(insertIndex); //@perf
-
-		if (values.length === 0) {
+		if (insertValuesLen === 0) {
 			return;
 		}
 
-		if (values.length === 1) {
-			// Fast path for one element
-			this.values.splice(insertIndex, 0, values[0]);
-			this.prefixSum.splice(insertIndex, 0, values[0]);
-		} else {
-			this.values = this.values.slice(0, insertIndex).concat(values).concat(this.values.slice(insertIndex));
-			this.prefixSum = this.prefixSum.slice(0, insertIndex).concat(PrefixSumComputer._zeroArray(values.length)).concat(this.prefixSum.slice(insertIndex));
-		}
+		this.values = new Uint32Array(oldValues.length + insertValuesLen);
+		this.values.set(oldValues.subarray(0, insertIndex), 0);
+		this.values.set(oldValues.subarray(insertIndex), insertIndex + insertValuesLen);
+		this.values.set(insertValues, insertIndex);
 
 		if (insertIndex - 1 < this.prefixSumValidIndex) {
 			this.prefixSumValidIndex = insertIndex - 1;
 		}
-	}
 
-	private static _zeroArray(count: number): number[] {
-		count = Math.floor(count); //@perf
-
-		let r: number[] = [];
-		for (let i = 0; i < count; i++) {
-			r[i] = 0;
+		this.prefixSum = new Uint32Array(this.values.length);
+		if (this.prefixSumValidIndex >= 0) {
+			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex + 1));
 		}
-		return r;
 	}
 
 	public changeValue(index: number, value: number): void {
-		index = Math.floor(index); //@perf
-		value = Math.floor(value); //@perf
+		index = toUint32(index);
+		value = toUint32(value);
 
 		if (this.values[index] === value) {
 			return;
@@ -102,13 +84,35 @@ export class PrefixSumComputer {
 	}
 
 	public removeValues(startIndex: number, cnt: number): void {
-		startIndex = Math.floor(startIndex); //@perf
-		cnt = Math.floor(cnt); //@perf
+		startIndex = toUint32(startIndex);
+		cnt = toUint32(cnt);
 
-		this.values.splice(startIndex, cnt);
-		this.prefixSum.splice(startIndex, cnt);
+		const oldValues = this.values;
+		const oldPrefixSum = this.prefixSum;
+
+		if (startIndex >= oldValues.length) {
+			return;
+		}
+
+		let maxCnt = oldValues.length - startIndex;
+		if (cnt >= maxCnt) {
+			cnt = maxCnt;
+		}
+
+		if (cnt === 0) {
+			return;
+		}
+
+		this.values = new Uint32Array(oldValues.length - cnt);
+		this.values.set(oldValues.subarray(0, startIndex), 0);
+		this.values.set(oldValues.subarray(startIndex + cnt), startIndex);
+
+		this.prefixSum = new Uint32Array(this.values.length);
 		if (startIndex - 1 < this.prefixSumValidIndex) {
 			this.prefixSumValidIndex = startIndex - 1;
+		}
+		if (this.prefixSumValidIndex >= 0) {
+			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex + 1));
 		}
 	}
 
@@ -120,11 +124,12 @@ export class PrefixSumComputer {
 	}
 
 	public getAccumulatedValue(index: number): number {
-		index = Math.floor(index); //@perf
-
 		if (index < 0) {
 			return 0;
 		}
+
+		index = toUint32(index);
+
 		if (index <= this.prefixSumValidIndex) {
 			return this.prefixSum[index];
 		}

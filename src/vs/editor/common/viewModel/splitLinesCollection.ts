@@ -326,9 +326,9 @@ export class SplitLinesCollection implements ILinesCollection {
 			this.hiddenAreasIds = [];
 		}
 
-		let values: number[] = [];
 		let linesContent = this.model.getLinesContent();
 		let lineCount = linesContent.length;
+		let values = new Uint32Array(lineCount);
 
 		let hiddenAreas = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)).sort(Range.compareRangesUsingStarts);
 		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
@@ -546,7 +546,7 @@ export class SplitLinesCollection implements ILinesCollection {
 
 		let totalOutputLineCount = 0;
 		let insertLines: ISplitLine[] = [];
-		let insertPrefixSumValues: number[] = [];
+		let insertPrefixSumValues = new Uint32Array(text.length);
 
 		for (let i = 0, len = text.length; i < len; i++) {
 			let line = createSplitLine(this.linePositionMapperFactory, text[i], this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent, !isInHiddenArea);
@@ -554,7 +554,7 @@ export class SplitLinesCollection implements ILinesCollection {
 
 			let outputLineCount = line.getOutputLineCount();
 			totalOutputLineCount += outputLineCount;
-			insertPrefixSumValues.push(outputLineCount);
+			insertPrefixSumValues[i] = outputLineCount;
 		}
 
 		this.lines = this.lines.slice(0, fromLineNumber - 1).concat(insertLines).concat(this.lines.slice(fromLineNumber - 1));
