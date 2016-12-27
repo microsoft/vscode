@@ -32,15 +32,15 @@ export interface ISuggestEvent {
 
 export class Context {
 
-	lineNumber: number;
-	column: number;
-	isInEditableRange: boolean;
+	readonly lineNumber: number;
+	readonly column: number;
+	readonly isInEditableRange: boolean;
 
-	lineContentBefore: string;
-	lineContentAfter: string;
+	readonly lineContentBefore: string;
+	readonly lineContentAfter: string;
 
-	wordBefore: string;
-	wordAfter: string;
+	readonly wordBefore: string;
+	readonly wordAfter: string;
 
 	constructor(model: IModel, position: IPosition, private auto: boolean) {
 		const lineContent = model.getLineContent(position.lineNumber);
