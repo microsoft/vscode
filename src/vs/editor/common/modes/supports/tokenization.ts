@@ -9,6 +9,7 @@ import { Map, createMap } from 'vs/editor/common/core/map';
 export interface IThemeRule {
 	token: string;
 	foreground?: string;
+	background?: string;
 	fontStyle?: string;
 }
 
@@ -86,9 +87,9 @@ export function parseTheme(source: IThemeRule[]): ParsedThemeRule[] {
 		}
 
 		let background: string = null;
-		// if (typeof entry.background === 'string') {
-		// 	background = entry.background;
-		// }
+		if (typeof entry.background === 'string') {
+			background = entry.background;
+		}
 
 		result[resultLen++] = new ParsedThemeRule(
 			entry.token || '',
@@ -207,6 +208,13 @@ export class Theme {
 		return this._defaults;
 	}
 
+	/**
+	 * used for testing purposes
+	 */
+	public getThemeTrieElement(): ExternalThemeTrieElement {
+		return this._root.toExternalThemeTrieElement();
+	}
+
 	public match(scopeName: string): ThemeTrieElementRule {
 		let result = this._cache.get(scopeName);
 		if (typeof result === 'undefined') {
@@ -225,30 +233,6 @@ export function strcmp(a: string, b: string): number {
 		return 1;
 	}
 	return 0;
-}
-
-export function strArrCmp(a: string[], b: string[]): number {
-	if (a === null && b === null) {
-		return 0;
-	}
-	if (!a) {
-		return -1;
-	}
-	if (!b) {
-		return 1;
-	}
-	let len1 = a.length;
-	let len2 = b.length;
-	if (len1 === len2) {
-		for (let i = 0; i < len1; i++) {
-			let res = strcmp(a[i], b[i]);
-			if (res !== 0) {
-				return res;
-			}
-		}
-		return 0;
-	}
-	return len1 - len2;
 }
 
 export class ThemeTrieElementRule {
@@ -289,6 +273,17 @@ export class ThemeTrieElementRule {
 	}
 }
 
+export class ExternalThemeTrieElement {
+
+	public readonly mainRule: ThemeTrieElementRule;
+	public readonly children: { [segment: string]: ExternalThemeTrieElement };
+
+	constructor(mainRule: ThemeTrieElementRule, children?: { [segment: string]: ExternalThemeTrieElement }) {
+		this.mainRule = mainRule;
+		this.children = children || Object.create(null);
+	}
+}
+
 export class ThemeTrieElement {
 	_themeTrieElementBrand: void;
 
@@ -298,6 +293,17 @@ export class ThemeTrieElement {
 	constructor(mainRule: ThemeTrieElementRule) {
 		this._mainRule = mainRule;
 		this._children = createMap<string, ThemeTrieElement>();
+	}
+
+	/**
+	 * used for testing purposes
+	 */
+	public toExternalThemeTrieElement(): ExternalThemeTrieElement {
+		let children: { [segment: string]: ExternalThemeTrieElement } = Object.create(null);
+		this._children.forEach((element, index) => {
+			children[index] = element.toExternalThemeTrieElement();
+		});
+		return new ExternalThemeTrieElement(this._mainRule, children);
 	}
 
 	public match(scope: string): ThemeTrieElementRule {
