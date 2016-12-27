@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "Не найден исполняемый файл \"{0}\" адаптера отладки.",
 	"debugAdapterCrash": "Процесс адаптера отладки неожиданно завершился",
-	"debuggee": "отлаживаемый объект",
 	"moreInfo": "Подробнее",
 	"noDebugAdapterExtensionInstalled": "Расширение для отладки \"{0}\" не установлено.",
 	"stoppingDebugAdapter": "{0}. Адаптер отладки останавливается.",

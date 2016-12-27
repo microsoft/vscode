@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "Il file eseguibile '{0}' dell'adattatore di debug non è stato trovato.",
 	"debugAdapterCrash": "Il processo dell'adattatore di debug è stato terminato in modo imprevisto",
-	"debuggee": "oggetto del debug",
 	"moreInfo": "Altre info",
 	"noDebugAdapterExtensionInstalled": "Non ci sono estensioni installate per il debug di '{0}'.",
 	"stoppingDebugAdapter": "{0}. L'adattatore di debug verrà arrestato.",

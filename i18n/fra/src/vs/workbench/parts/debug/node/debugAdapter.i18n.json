@@ -12,6 +12,5 @@
 	"debugServer": "Pour le développement d'une extension de débogage uniquement : si un port est spécifié, VS Code tente de se connecter à un adaptateur de débogage s'exécutant en mode serveur",
 	"debugType": "Type de configuration.",
 	"debugWindowsConfiguration": "Attributs de configuration de lancement spécifiques à Windows.",
-	"internalConsoleOptions": "Contrôle le comportement de la console de débogage interne.",
-	"relativePathsNotConverted": "Les chemins relatifs ne sont plus convertis automatiquement en chemins absolus. Utilisez ${workspaceRoot} comme préfixe."
+	"internalConsoleOptions": "Contrôle le comportement de la console de débogage interne."
 }

@@ -8,7 +8,6 @@
 	"json.npm.latestversion": "Die zurzeit neueste Version des Pakets.",
 	"json.npm.majorversion": "Ordnet die aktuelle Hauptversion (1.x.x) zu.",
 	"json.npm.minorversion": "Ordnet die aktuelle Nebenversion (1.2.x) zu.",
-	"json.npm.package.hover": "{0}",
 	"json.npm.version.hover": "Aktuelle Version: {0}",
 	"json.package.default": "Standarddatei \"package.json\""
 }
