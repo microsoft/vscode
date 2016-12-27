@@ -55,6 +55,12 @@
 	padding-left: 10px;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-position-left:not(.no-close-button) {
+	flex-direction: row-reverse;
+	padding-left: 0;
+	padding-right: 10px;
+}
+
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
 	background-color: #ECECEC;
 }
