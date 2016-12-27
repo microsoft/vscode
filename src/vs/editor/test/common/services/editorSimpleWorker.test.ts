@@ -160,4 +160,18 @@ suite('EditorSimpleWorker', () => {
 		assert.equal(value, '}');
 	});
 
+
+	test('textualSuggest, issue #17785', function () {
+
+		let model = worker.addModel([
+			'foobar',	// 1
+			'f f'	// 2
+		]);
+
+		return worker.textualSuggest(model.uri.toString(), { lineNumber: 2, column: 2 }, '[a-z]+', 'img').then((result) => {
+			const {suggestions} = result;
+			assert.equal(suggestions.length, 1);
+			assert.equal(suggestions[0].label, 'foobar');
+		});
+	});
 });
