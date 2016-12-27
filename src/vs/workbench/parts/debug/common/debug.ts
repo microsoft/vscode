@@ -180,6 +180,7 @@ export interface IEnablement extends ITreeElement {
 
 export interface IRawBreakpoint {
 	lineNumber: number;
+	column?: number;
 	enabled?: boolean;
 	condition?: string;
 	hitCondition?: string;
@@ -188,6 +189,7 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
+	column: number;
 	condition: string;
 	hitCondition: string;
 	verified: boolean;
