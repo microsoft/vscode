@@ -26,8 +26,7 @@ export class SelectBox extends Widget {
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
 
-		this.options = options;
-		this.selected = selected;
+		this.setOptions(options, selected);
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<string>();
 
@@ -42,7 +41,7 @@ export class SelectBox extends Widget {
 	}
 
 	public setOptions(options: string[], selected?: number): void {
-		if (!arrays.equals(this.options, options)) {
+		if (!this.options || !arrays.equals(this.options, options)) {
 			this.options = options;
 
 			this.selectElement.options.length = 0;
