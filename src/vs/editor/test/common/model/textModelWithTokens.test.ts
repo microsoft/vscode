@@ -271,11 +271,10 @@ suite('TextModelWithTokens regression tests', () => {
 					getInitialState: () => {
 						return new IndicisiveModeState();
 					},
-					tokenize: (line, state, offsetDelta, stopAtOffset) => {
+					tokenize: (line, state, offsetDelta) => {
 						let myId = ++_tokenId;
 						return {
 							tokens: [new Token(0, 'custom.' + myId)],
-							actualStopOffset: line.length,
 							endState: state,
 							modeTransitions: []
 						};

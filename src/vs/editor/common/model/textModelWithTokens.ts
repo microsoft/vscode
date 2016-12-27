@@ -21,7 +21,6 @@ import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { Token } from 'vs/editor/common/core/token';
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 
@@ -355,7 +354,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		var linesLength = this._lines.length;
 		var endLineIndex = lineNumber - 1;
-		var stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
 
 		// Validate all states up to and including endLineIndex
 		for (var lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
@@ -366,27 +364,14 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			try {
 				// Tokenize only the first X characters
 				let freshState = this._lines[lineIndex].getState().clone();
-				r = this._tokenizationSupport.tokenize(this._lines[lineIndex].text, freshState, 0, stopLineTokenizationAfter);
+				r = this._tokenizationSupport.tokenize(this._lines[lineIndex].text, freshState, 0);
 			} catch (e) {
 				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
 				onUnexpectedError(e);
 			}
 
-			if (r && r.tokens && r.tokens.length > 0) {
-				// Cannot have a stop offset before the last token
-				r.actualStopOffset = Math.max(r.actualStopOffset, r.tokens[r.tokens.length - 1].startIndex + 1);
-			}
-
-			if (r && r.actualStopOffset < text.length) {
-				// Treat the rest of the line (if above limit) as one default token
-				r.tokens.push(new Token(r.actualStopOffset, ''));
-
-				// Use as end state the starting state
-				r.endState = this._lines[lineIndex].getState();
-			}
-
 			if (!r) {
-				r = nullTokenize(this.getModeId(), text, this._lines[lineIndex].getState());
+				r = nullTokenize(this.getModeId(), text, this._lines[lineIndex].getState(), 0);
 			}
 			if (!r.modeTransitions) {
 				r.modeTransitions = [];
