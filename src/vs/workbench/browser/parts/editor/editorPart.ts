@@ -139,7 +139,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: editorConfig.enablePreview,
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
-				showTabCloseButton: editorConfig.showTabCloseButton
+				showTabCloseButton: editorConfig.showTabCloseButton,
+				tabCloseButtonOnLeft: editorConfig.tabCloseButtonOnLeft
 			};
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
@@ -148,7 +149,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: true,
 				showIcons: false,
 				showTabs: true,
-				showTabCloseButton: true
+				showTabCloseButton: true,
+				tabCloseButtonOnLeft: false
 			};
 		}
 
@@ -182,6 +184,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
 				showTabCloseButton: editorConfig.showTabCloseButton,
+				tabCloseButtonOnLeft: editorConfig.tabCloseButtonOnLeft,
 				showTabs: editorConfig.showTabs
 			};
 

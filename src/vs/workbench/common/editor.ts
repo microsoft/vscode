@@ -891,6 +891,7 @@ export interface IWorkbenchEditorConfiguration {
 		editor: {
 			showTabs: boolean;
 			showTabCloseButton: boolean;
+			tabCloseButtonOnLeft: boolean;
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;

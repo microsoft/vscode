@@ -368,6 +368,12 @@ export class TabsTitleControl extends TitleControl {
 			DOM.removeClass(tabContainer, 'no-close-button');
 		}
 
+		if (this.tabOptions.tabCloseButtonOnLeft) {
+			DOM.addClass(tabContainer, 'close-position-left');
+		} else {
+			DOM.removeClass(tabContainer, 'close-position-left');
+		}
+
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
 		this.editorLabels.push(editorLabel);
