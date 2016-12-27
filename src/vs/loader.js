@@ -294,6 +294,7 @@ var AMDLoader;
         function Configuration(options) {
             this.options = ConfigurationOptionsUtil.mergeConfigurationOptions(options);
             this._createIgnoreDuplicateModulesMap();
+            this._createNodeModulesMap();
             this._createSortedPathsRules();
             if (this.options.baseUrl === '') {
                 if (AMDLoader.isNode && this.options.nodeRequire && this.options.nodeRequire.main && this.options.nodeRequire.main.filename) {
@@ -313,6 +314,14 @@ var AMDLoader;
             this.ignoreDuplicateModulesMap = {};
             for (var i = 0; i < this.options.ignoreDuplicateModules.length; i++) {
                 this.ignoreDuplicateModulesMap[this.options.ignoreDuplicateModules[i]] = true;
+            }
+        };
+        Configuration.prototype._createNodeModulesMap = function () {
+            // Build a map out of nodeModules array
+            this.nodeModulesMap = Object.create(null);
+            for (var _i = 0, _a = this.options.nodeModules; _i < _a.length; _i++) {
+                var nodeModule = _a[_i];
+                this.nodeModulesMap[nodeModule] = true;
             }
         };
         Configuration.prototype._createSortedPathsRules = function () {
@@ -392,9 +401,16 @@ var AMDLoader;
          * Transform a module id to a location. Appends .js to module ids
          */
         Configuration.prototype.moduleIdToPaths = function (moduleId) {
-            if (this.isBuild() && this.options.nodeModules.indexOf(moduleId) >= 0) {
-                // This is a node module and we are at build time, drop it
-                return ['empty:'];
+            if (this.nodeModulesMap[moduleId] === true) {
+                // This is a node module...
+                if (this.isBuild()) {
+                    // ...and we are at build time, drop it
+                    return ['empty:'];
+                }
+                else {
+                    // ...and at runtime we create a `shortcut`-path
+                    return ['node|' + moduleId];
+                }
             }
             var result = moduleId;
             var results;
