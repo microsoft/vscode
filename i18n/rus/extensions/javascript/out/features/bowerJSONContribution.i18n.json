@@ -6,6 +6,5 @@
 {
 	"json.bower.default": "Bower.json по умолчанию",
 	"json.bower.error.repoaccess": "Сбой запроса в репозиторий Bower: {0}",
-	"json.bower.latest.version": "последняя",
-	"json.bower.package.hover": "{0}"
+	"json.bower.latest.version": "последняя"
 }
