@@ -24,7 +24,7 @@ function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
+		tokenize: (buffer: string, state: IState, deltaOffset: number) => nullTokenize(null, buffer, state, deltaOffset)
 	};
 }
 
@@ -97,7 +97,7 @@ function _tokenizeLines(text: string, tokenizationSupport: ITokenizationSupport,
 }
 
 function _tokenizeLine(line: string, tokenizationSupport: ITokenizationSupport, emitToken: IEmitTokenFunc, startState: IState): IState {
-	var tokenized = tokenizationSupport.tokenize(line, startState),
+	var tokenized = tokenizationSupport.tokenize(line, startState, 0),
 		endState = tokenized.endState,
 		tokens = tokenized.tokens,
 		offset = 0,

@@ -73,7 +73,6 @@ class Mode extends MockMode {
 				}
 				return {
 					tokens: tokens,
-					actualStopOffset: -1,
 					endState: null,
 					modeTransitions: null
 				};

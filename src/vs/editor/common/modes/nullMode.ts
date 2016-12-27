@@ -23,14 +23,13 @@ export const NULL_STATE: IState = new NullStateImpl();
 
 export const NULL_MODE_ID = 'vs.editor.nullMode';
 
-export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number): ILineTokens {
+export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number): ILineTokens {
 	let tokens: Token[] = [new Token(deltaOffset, '')];
 
 	let modeTransitions: ModeTransition[] = [new ModeTransition(deltaOffset, modeId)];
 
 	return {
 		tokens: tokens,
-		actualStopOffset: deltaOffset + buffer.length,
 		endState: state,
 		modeTransitions: modeTransitions
 	};

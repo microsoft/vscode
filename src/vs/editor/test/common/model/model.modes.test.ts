@@ -39,7 +39,6 @@ suite('Editor Model - Model Modes 1', () => {
 			calledState.calledFor.push(line.charAt(0));
 			return {
 				tokens: [new Token(0, '')],
-				actualStopOffset: line.length,
 				endState: state,
 				modeTransitions: null
 			};
@@ -183,7 +182,6 @@ suite('Editor Model - Model Modes 2', () => {
 			(<ModelState2>state).prevLineContent = line;
 			return {
 				tokens: [new Token(0, '')],
-				actualStopOffset: line.length,
 				endState: state,
 				modeTransitions: null
 			};
@@ -311,7 +309,6 @@ suite('Editor Model - Token Iterator', () => {
 			}
 			return {
 				tokens: tokens,
-				actualStopOffset: line.length,
 				endState: state,
 				modeTransitions: null
 			};

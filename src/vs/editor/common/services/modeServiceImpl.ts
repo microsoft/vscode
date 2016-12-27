@@ -319,7 +319,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return this._actual.getInitialState();
 	}
 
-	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
+	public tokenize(line: string, state: modes.IState, offsetDelta: number): modes.ILineTokens {
 		let actualResult = this._actual.tokenize(line, state);
 		let tokens: Token[] = [];
 		actualResult.tokens.forEach((t) => {
@@ -342,7 +342,6 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 		return {
 			tokens: tokens,
-			actualStopOffset: offsetDelta + line.length,
 			endState: endState,
 			modeTransitions: [new ModeTransition(offsetDelta, this._modeId)],
 		};

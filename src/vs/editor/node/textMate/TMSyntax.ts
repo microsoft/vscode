@@ -282,7 +282,7 @@ function createTokenizationSupport(languageRegistration: TMLanguageRegistration,
 	var tokenizer = new Tokenizer(languageRegistration, modeId, grammar);
 	return {
 		getInitialState: () => new TMState(null),
-		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState>state, offsetDelta, stopAtOffset)
+		tokenize: (line, state, offsetDelta) => tokenizer.tokenize(line, <TMState>state, offsetDelta)
 	};
 }
 
@@ -454,14 +454,13 @@ class Tokenizer {
 		this._decodeMap = new DecodeMap(languageRegistration);
 	}
 
-	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
+	public tokenize(line: string, state: TMState, offsetDelta: number): ILineTokens {
 		// Do not attempt to tokenize if a line has over 20k
 		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
 		if (line.length >= 20000 || depth(state.ruleStack) > 100) {
 			return new RawLineTokens(
 				[new Token(offsetDelta, '')],
 				[new ModeTransition(offsetDelta, this._modeId)],
-				offsetDelta,
 				state
 			);
 		}
@@ -517,7 +516,6 @@ export function decodeTextMateTokens(topLevelModeId: string, decodeMap: DecodeMa
 	return new RawLineTokens(
 		tokens,
 		modeTransitions,
-		offsetDelta + line.length,
 		resultState
 	);
 }

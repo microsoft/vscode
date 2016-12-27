@@ -38,9 +38,58 @@ export interface IMode {
  */
 export interface ILineTokens {
 	tokens: Token[];
-	actualStopOffset: number;
 	endState: IState;
 	modeTransitions: ModeTransition[];
+}
+
+/**
+ * Helpers to manage the "collapsed" metadata of an entire StackElement stack.
+ * The following assumptions have been made:
+ *  - languageId < 256 => needs 8 bits
+ *  - unique color count < 512 => needs 9 bits
+ *
+ * The binary format is:
+ * --------------------------------------------
+ *   3322 2222 2222 1111 1111 1100 0000 0000
+ *   1098 7654 3210 9876 5432 1098 7654 3210
+ * --------------------------------------------
+ *   xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
+ *   bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+ * --------------------------------------------
+ *   L = LanguageId (8 bits)
+ *   T = StandardTokenType (3 bits)
+ *   F = FontStyle (3 bits)
+ *   f = foreground color (9 bits)
+ *   b = background color (9 bits)
+ *
+ * @internal
+ */
+export const enum MetadataConsts {
+	LANGUAGEID_MASK = 0b00000000000000000000000011111111,
+	TOKEN_TYPE_MASK = 0b00000000000000000000011100000000,
+	FONT_STYLE_MASK = 0b00000000000000000011100000000000,
+	FOREGROUND_MASK = 0b00000000011111111100000000000000,
+	BACKGROUND_MASK = 0b11111111100000000000000000000000,
+
+	LANGUAGEID_OFFSET = 0,
+	TOKEN_TYPE_OFFSET = 8,
+	FONT_STYLE_OFFSET = 11,
+	FOREGROUND_OFFSET = 14,
+	BACKGROUND_OFFSET = 23
+}
+
+/**
+ * @internal
+ */
+export interface ILineTokens3 {
+	/**
+	 * The tokens in binary format. Each token occupies two array indices. For token i:
+	 *  - at offset 2*i => startIndex
+	 *  - at offset 2*i + 1 => metadata
+	 *
+	 */
+	readonly tokens: Uint32Array;
+	readonly endState: IState;
 }
 
 /**
@@ -51,8 +100,9 @@ export interface ITokenizationSupport {
 	getInitialState(): IState;
 
 	// add offsetDelta to each of the returned indices
-	// stop tokenizing at absolute value stopAtOffset (i.e. stream.pos() + offsetDelta > stopAtOffset)
-	tokenize(line: string, state: IState, offsetDelta?: number, stopAtOffset?: number): ILineTokens;
+	tokenize(line: string, state: IState, offsetDelta: number): ILineTokens;
+
+	// tokenize3(line: string, state: IState, offsetDelta: number): ILineTokens3;
 }
 
 /**

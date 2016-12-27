@@ -14,13 +14,11 @@ export class RawLineTokens implements modes.ILineTokens {
 
 	tokens: Token[];
 	modeTransitions: ModeTransition[];
-	actualStopOffset: number;
 	endState: modes.IState;
 
-	constructor(tokens: Token[], modeTransitions: ModeTransition[], actualStopOffset: number, endState: modes.IState) {
+	constructor(tokens: Token[], modeTransitions: ModeTransition[], endState: modes.IState) {
 		this.tokens = tokens;
 		this.modeTransitions = modeTransitions;
-		this.actualStopOffset = actualStopOffset;
 		this.endState = endState;
 	}
 }
