@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
+import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OutputEditors, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
@@ -25,7 +25,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
-export class OutputPanel extends StringEditor {
+export class OutputPanel extends TextResourceEditor {
 	private toDispose: IDisposable[];
 	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;

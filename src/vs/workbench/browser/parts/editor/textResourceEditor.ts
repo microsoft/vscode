@@ -24,12 +24,12 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 /**
- * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
- * Uses the TextEditor widget to show the contents.
+ * An editor implementation that is capable of showing the contents of resource inputs. Uses
+ * the TextEditor widget to show the contents.
  */
-export class StringEditor extends BaseTextEditor {
+export class TextResourceEditor extends BaseTextEditor {
 
-	public static ID = 'workbench.editors.stringEditor';
+	public static ID = 'workbench.editors.textResourceEditor';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -41,7 +41,7 @@ export class StringEditor extends BaseTextEditor {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(StringEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
 
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
