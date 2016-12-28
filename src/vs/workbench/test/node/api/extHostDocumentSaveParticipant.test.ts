@@ -183,9 +183,6 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 			assert.equal(callCount, 2);
 			assert.equal(values.length, 2);
-			const [first, second] = values;
-			assert.equal(first, true);
-			assert.equal(second, true);
 		});
 	});
 
