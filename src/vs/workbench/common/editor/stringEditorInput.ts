@@ -74,26 +74,6 @@ export class StringEditorInput extends EditorInput {
 		}
 	}
 
-	/**
-	 * Clears the textual value of this input and will also update the underlying model if this input is resolved.
-	 */
-	public clearValue(): void {
-		this.value = '';
-		if (this.cachedModel) {
-			this.cachedModel.clearValue();
-		}
-	}
-
-	/**
-	 * Appends to the textual value of this input and will also update the underlying model if this input is resolved.
-	 */
-	public append(value: string): void {
-		this.value += value;
-		if (this.cachedModel) {
-			this.cachedModel.append(value);
-		}
-	}
-
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 
 		// Use Cached Model
