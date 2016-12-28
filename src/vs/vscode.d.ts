@@ -1558,7 +1558,7 @@ declare namespace vscode {
 		/**
 		 * `true` when there is a command associated.
 		 */
-		isResolved: boolean;
+		readonly isResolved: boolean;
 
 		/**
 		 * Creates a new code lens object.
