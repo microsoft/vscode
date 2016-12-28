@@ -83,7 +83,8 @@ class DecorationsManager implements IDisposable {
 	private _addDecorations(reference: FileReferences): void {
 		this._callOnModelChange.push(this.editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
 
-		this.editor.getModel().changeDecorations((accessor) => {
+		this.editor.changeDecorations(accessor => {
+
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 			var newDecorationsActualIndex: number[] = [];
 
