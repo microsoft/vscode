@@ -1596,7 +1596,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		isResolved: boolean;
+		readonly isResolved: boolean;
 
 		/**
 		 * Creates a new code lens object.
