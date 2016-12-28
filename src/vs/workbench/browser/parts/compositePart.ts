@@ -41,7 +41,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private mapProgressServiceToComposite: { [compositeId: string]: IProgressService; };
 	private activeComposite: Composite;
 	private lastActiveCompositeId: string;
-	private instantiatedComposits: Composite[];
+	private instantiatedComposites: Composite[];
 	private titleLabel: Builder;
 	private toolBar: ToolBar;
 	private compositeLoaderPromises: { [compositeId: string]: TPromise<Composite>; };
@@ -74,7 +74,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.mapActionsBindingToComposite = {};
 		this.mapProgressServiceToComposite = {};
 		this.activeComposite = null;
-		this.instantiatedComposits = [];
+		this.instantiatedComposites = [];
 		this.compositeLoaderPromises = {};
 	}
 
@@ -152,9 +152,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected createComposite(id: string, isActive?: boolean): TPromise<Composite> {
 
 		// Check if composite is already created
-		for (let i = 0; i < this.instantiatedComposits.length; i++) {
-			if (this.instantiatedComposits[i].getId() === id) {
-				return TPromise.as(this.instantiatedComposits[i]);
+		for (let i = 0; i < this.instantiatedComposites.length; i++) {
+			if (this.instantiatedComposites[i].getId() === id) {
+				return TPromise.as(this.instantiatedComposites[i]);
 			}
 		}
 
@@ -170,7 +170,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					this.mapProgressServiceToComposite[composite.getId()] = progressService;
 
 					// Remember as Instantiated
-					this.instantiatedComposits.push(composite);
+					this.instantiatedComposites.push(composite);
 
 					// Register to title area update events from the composite
 					this.instantiatedCompositeListeners.push(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId())));
@@ -181,7 +181,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					return composite;
 				});
 
-				// Report progress for slow loading composits
+				// Report progress for slow loading composites
 				progressService.showWhile(loaderPromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 				// Add to Promise Cache until Loaded
@@ -207,7 +207,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		let createCompositePromise: TPromise<void>;
 
-		// Composits created for the first time
+		// Composites created for the first time
 		let compositeContainer = this.mapCompositeToCompositeContainer[composite.getId()];
 		if (!compositeContainer) {
 
@@ -228,7 +228,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			createCompositePromise = TPromise.as(null);
 		}
 
-		// Report progress for slow loading composits (but only if we did not create the composits before already)
+		// Report progress for slow loading composites (but only if we did not create the composites before already)
 		let progressService = this.mapProgressServiceToComposite[composite.getId()];
 		if (progressService && !compositeContainer) {
 			this.mapProgressServiceToComposite[composite.getId()].showWhile(createCompositePromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
@@ -351,7 +351,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		secondaryActions.push(...this.getSecondaryActions());
 
 		// From Contributions
-		let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
+		let actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(this.actionContributionScope, composite));
 		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(this.actionContributionScope, composite));
 
@@ -443,7 +443,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Check Registry
 		if (!actionItem) {
-			let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
+			let actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 			actionItem = actionBarRegistry.getActionItemForContext(this.actionContributionScope, ToolBarContext, action);
 		}
 
@@ -486,7 +486,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	public shutdown(): void {
-		this.instantiatedComposits.forEach(i => i.shutdown());
+		this.instantiatedComposites.forEach(i => i.shutdown());
 
 		super.shutdown();
 	}
@@ -496,11 +496,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.mapProgressServiceToComposite = null;
 		this.mapActionsBindingToComposite = null;
 
-		for (let i = 0; i < this.instantiatedComposits.length; i++) {
-			this.instantiatedComposits[i].dispose();
+		for (let i = 0; i < this.instantiatedComposites.length; i++) {
+			this.instantiatedComposites[i].dispose();
 		}
 
-		this.instantiatedComposits = [];
+		this.instantiatedComposites = [];
 
 		this.instantiatedCompositeListeners = dispose(this.instantiatedCompositeListeners);
 

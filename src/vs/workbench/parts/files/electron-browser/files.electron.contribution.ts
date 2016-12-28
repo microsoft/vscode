@@ -57,7 +57,7 @@ class FileViewerActionContributor extends ActionBarContributor {
 // Contribute Actions
 const category = nls.localize('filesCategory', "Files");
 
-const workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }), 'Files: Save As...', category);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), 'Files: New Untitled File', category);
 
@@ -73,11 +73,11 @@ if (env.isMacintosh) {
 }
 
 // Contribute to File Viewers
-const actionsRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+const actionsRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContributor);
 
 // Register Dirty Files Tracker
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	DirtyFilesTracker
 );
 

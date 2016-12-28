@@ -262,7 +262,7 @@ export class Workbench implements IPartService {
 			// Workbench Layout
 			this.createWorkbenchLayout();
 
-			// Load composits and editors in parallel
+			// Load composites and editors in parallel
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Restore last opened viewlet

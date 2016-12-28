@@ -15,12 +15,9 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -37,17 +34,14 @@ export class StringEditor extends BaseTextEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, editorService, themeService, textFileService);
+		super(StringEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
 
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
@@ -67,7 +61,7 @@ export class StringEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.getInput();
+		const oldInput = this.input;
 		super.setInput(input, options);
 
 		// Detect options
@@ -97,7 +91,7 @@ export class StringEditor extends BaseTextEditor {
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-			if (!this.getInput() || this.getInput() !== input) {
+			if (!this.input || this.input !== input) {
 				return null;
 			}
 
@@ -135,7 +129,7 @@ export class StringEditor extends BaseTextEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		const options = super.getCodeEditorOptions();
 
-		const input = this.getInput();
+		const input = this.input;
 		const isUntitled = input instanceof UntitledEditorInput;
 		const isReadonly = !isUntitled; // all string editors are readonly except for the untitled one
 
