@@ -194,7 +194,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		else {
 
 			// Name
-			const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
+			const name = dotSegments.join('.'); // get the whole name
 			if (name) {
 				classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
 			}
