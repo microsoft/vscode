@@ -94,24 +94,6 @@ export class StringEditorInput extends EditorInput {
 		}
 	}
 
-	/**
-	 * Removes all lines from the top if the line number exceeds the given line count. Returns the new value if lines got trimmed.
-	 *
-	 * Note: This method is a no-op if the input has not yet been resolved.
-	 */
-	public trim(linecount: number): string {
-		if (this.cachedModel) {
-			let newValue = this.cachedModel.trim(linecount);
-			if (newValue !== null) {
-				this.value = newValue;
-
-				return this.value;
-			}
-		}
-
-		return null;
-	}
-
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 
 		// Use Cached Model

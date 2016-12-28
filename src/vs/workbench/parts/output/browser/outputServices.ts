@@ -22,6 +22,7 @@ import { OutputLinkProvider } from 'vs/workbench/parts/output/common/outputLinkP
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 export class OutputService implements IOutputService {
+
 	public _serviceBrand: any;
 
 	private receivedOutput: { [channel: string]: string; };

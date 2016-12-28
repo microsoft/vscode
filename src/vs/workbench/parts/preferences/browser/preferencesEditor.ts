@@ -43,11 +43,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
@@ -107,11 +105,8 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
@@ -119,7 +114,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IModeService private modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, editorService, themeService, textFileService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
