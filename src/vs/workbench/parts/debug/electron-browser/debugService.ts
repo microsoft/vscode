@@ -34,7 +34,7 @@ import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDe
 import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
-import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
+import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';

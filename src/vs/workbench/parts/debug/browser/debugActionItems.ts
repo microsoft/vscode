@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -13,7 +14,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugService, NO_CONFIGURATIONS_LABEL } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 
 const $ = dom.$;
 
@@ -106,7 +107,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private setEnabled(enabled: boolean): void {
 		this.selectBox.enabled = enabled;
 		if (!enabled) {
-			this.selectBox.setOptions([NO_CONFIGURATIONS_LABEL], 0);
+			this.selectBox.setOptions([nls.localize('noConfigurations', "No Configurations")], 0);
 		}
 	}
 
