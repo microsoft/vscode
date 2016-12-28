@@ -131,6 +131,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateTextEditorModelMode();
 	}
 
+	private updateTextEditorModelMode(modeId?: string): void {
+		if (!this.textEditorModel) {
+			return;
+		}
+
+		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
+		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+
+		this.modelService.setMode(this.textEditorModel, mode);
+	}
+
 	public get onDidContentChange(): Event<StateChange> {
 		return this._onDidContentChange.event;
 	}
