@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createMap, Map } from 'vs/editor/common/core/map';
 import { toUint8 } from 'vs/editor/common/core/uint';
 
 /**
@@ -28,7 +27,7 @@ export class CharacterClassifier<T extends number> {
 
 		this._defaultValue = defaultValue;
 		this._asciiMap = CharacterClassifier._createAsciiMap(defaultValue);
-		this._map = createMap<number, number>();
+		this._map = new Map<number, number>();
 	}
 
 	private static _createAsciiMap(defaultValue: number): Uint8Array {
