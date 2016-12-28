@@ -6,7 +6,6 @@
 
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
-import * as collections from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -46,8 +45,8 @@ class DecorationsManager implements IDisposable {
 		className: 'reference-decoration'
 	};
 
-	private _decorationSet = collections.createStringDictionary<OneReference>();
-	private _decorationIgnoreSet = collections.createStringDictionary<OneReference>();
+	private _decorations = new Map<string, OneReference>();
+	private _decorationIgnoreSet = new Set<string>();
 	private _callOnDispose: IDisposable[] = [];
 	private _callOnModelChange: IDisposable[] = [];
 
@@ -90,7 +89,7 @@ class DecorationsManager implements IDisposable {
 
 			for (let i = 0, len = reference.children.length; i < len; i++) {
 				let oneReference = reference.children[i];
-				if (this._decorationIgnoreSet[oneReference.id]) {
+				if (this._decorationIgnoreSet.has(oneReference.id)) {
 					continue;
 				}
 				newDecorations.push({
@@ -103,7 +102,7 @@ class DecorationsManager implements IDisposable {
 			var decorations = accessor.deltaDecorations([], newDecorations);
 
 			for (var i = 0; i < decorations.length; i++) {
-				this._decorationSet[decorations[i]] = reference.children[newDecorationsActualIndex[i]];
+				this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
 			}
 		});
 	}
@@ -113,7 +112,7 @@ class DecorationsManager implements IDisposable {
 			toRemove: string[] = [];
 
 		for (var i = 0, len = changedDecorations.length; i < len; i++) {
-			var reference = collections.lookup(this._decorationSet, changedDecorations[i]);
+			let reference = this._decorations.get(changedDecorations[i]);
 			if (!reference) {
 				continue;
 			}
@@ -137,7 +136,7 @@ class DecorationsManager implements IDisposable {
 			}
 
 			if (ignore) {
-				this._decorationIgnoreSet[reference.id] = reference;
+				this._decorationIgnoreSet.add(reference.id);
 				toRemove.push(changedDecorations[i]);
 			} else {
 				reference.range = newRange;
@@ -146,20 +145,19 @@ class DecorationsManager implements IDisposable {
 
 		this.editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
-				delete this._decorationSet[toRemove[i]];
+				delete this._decorations[toRemove[i]];
 			}
 			accessor.deltaDecorations(toRemove, []);
 		});
 	}
 
 	public removeDecorations(): void {
-		var keys = Object.keys(this._decorationSet);
-		if (keys.length > 0) {
-			this.editor.changeDecorations((accessor) => {
-				accessor.deltaDecorations(keys, []);
+		this.editor.changeDecorations(accessor => {
+			this._decorations.forEach((value, key) => {
+				accessor.removeDecoration(key);
 			});
-		}
-		this._decorationSet = {};
+			this._decorations.clear();
+		});
 	}
 }
 

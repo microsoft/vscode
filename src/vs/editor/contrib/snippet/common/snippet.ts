@@ -198,7 +198,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 
 		for (i = 0, len = templateLines.length; i < len; i++) {
 			var parsedLine = this.parseLine(templateLines[i], (id: string) => {
-				if (collections.contains(placeHoldersMap, id)) {
+				if (placeHoldersMap[id]) {
 					return placeHoldersMap[id].value;
 				}
 				return '';
@@ -208,7 +208,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 				var occurence = new Range(i + 1, linePlaceHolder.startColumn, i + 1, linePlaceHolder.endColumn);
 				var placeHolder: IPlaceHolder;
 
-				if (collections.contains(placeHoldersMap, linePlaceHolder.id)) {
+				if (placeHoldersMap[linePlaceHolder.id]) {
 					placeHolder = placeHoldersMap[linePlaceHolder.id];
 				} else {
 					placeHolder = {
