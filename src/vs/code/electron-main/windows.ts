@@ -347,7 +347,7 @@ export class WindowsManager implements IWindowsMainService {
 			filesToOpen = candidates;
 		}
 
-		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
+		let openFolderInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
@@ -378,7 +378,7 @@ export class WindowsManager implements IWindowsMainService {
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
 
 			// Reset these because we handled them
@@ -407,7 +407,7 @@ export class WindowsManager implements IWindowsMainService {
 				filesToCreate = [];
 				filesToDiff = [];
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
 
 			// Open remaining ones
@@ -417,7 +417,7 @@ export class WindowsManager implements IWindowsMainService {
 				}
 
 				const configuration = this.toConfiguration(openConfig, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
-				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
 				// Reset these because we handled them
@@ -425,7 +425,7 @@ export class WindowsManager implements IWindowsMainService {
 				filesToCreate = [];
 				filesToDiff = [];
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
 
@@ -436,7 +436,7 @@ export class WindowsManager implements IWindowsMainService {
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */, null, emptyWorkspaceBackupFolder);
 				usedWindows.push(browserWindow);
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
 
@@ -444,10 +444,10 @@ export class WindowsManager implements IWindowsMainService {
 		else if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
 				const configuration = this.toConfiguration(openConfig);
-				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
 
