@@ -175,7 +175,7 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	// run action when workbench is created
 	return partService.joinCreation().then(() => {
 		try {
-			return TPromise.as(actionInstance.run()).then(() => {
+			return TPromise.as(actionInstance.run(args)).then(() => {
 				actionInstance.dispose();
 			}, (err) => {
 				actionInstance.dispose();

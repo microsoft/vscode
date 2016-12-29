@@ -17,41 +17,79 @@ interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
 }
 
+class NameAndLangId {
+
+	static fromArg(arg: any): NameAndLangId {
+		if (typeof arg !== 'object') {
+			return new NameAndLangId(undefined, undefined);
+		}
+		let {name, langId} = arg;
+		if (typeof name !== 'string') {
+			name = undefined;
+		}
+		if (typeof langId !== 'string') {
+			langId = undefined;
+		}
+		return new NameAndLangId(name, langId);
+	}
+
+	private constructor(public readonly name: string, public readonly langId: string) {
+
+	}
+
+}
+
 @editorAction
-class ShowSnippetsActions extends EditorAction {
+class InsertSnippetAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showSnippets',
+			id: 'editor.action.insertSnippet',
 			label: nls.localize('snippet.suggestions.label', "Insert Snippet"),
 			alias: 'Insert Snippet',
 			precondition: EditorContextKeys.Writable
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
-		const quickOpenService = accessor.get(IQuickOpenService);
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, arg: any): TPromise<void> {
 
 		if (!editor.getModel()) {
 			return;
 		}
 
+		const quickOpenService = accessor.get(IQuickOpenService);
 		const {lineNumber, column} = editor.getPosition();
-		const modeId = editor.getModel().getModeIdAtPosition(lineNumber, column);
+		let {name, langId} = NameAndLangId.fromArg(arg);
 
-		const picks: ISnippetPick[] = [];
-		Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(modeId, snippet => {
-			picks.push({
-				label: snippet.prefix,
-				detail: snippet.description,
-				snippet
-			});
-			return true;
-		});
+		if (!langId) {
+			langId = editor.getModel().getModeIdAtPosition(lineNumber, column);
+		}
 
-		return quickOpenService.pick(picks).then(pick => {
-			if (pick) {
-				SnippetController.get(editor).insertSnippet(pick.snippet.codeSnippet, 0, 0);
+		return new TPromise<ISnippet>((resolve, reject) => {
+			if (name) {
+				// take selected snippet
+				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(langId, snippet => {
+					if (snippet.name !== name) {
+						return true;
+					}
+					resolve(snippet);
+				});
+			} else {
+				// let user pick a snippet
+				const picks: ISnippetPick[] = [];
+				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(langId, snippet => {
+					picks.push({
+						label: snippet.prefix,
+						detail: snippet.description,
+						snippet
+					});
+					return true;
+				});
+				return quickOpenService.pick(picks).then(pick => resolve(pick && pick.snippet), reject);
+			}
+		}).then(snippet => {
+			if (snippet) {
+				SnippetController.get(editor).insertSnippet(snippet.codeSnippet, 0, 0);
 			}
 		});
 	}

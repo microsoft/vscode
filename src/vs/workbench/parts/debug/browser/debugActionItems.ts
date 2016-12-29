@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -13,7 +14,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugService, NO_CONFIGURATIONS_LABEL } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 
 const $ = dom.$;
 
@@ -21,6 +22,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
+	private start: HTMLElement;
 	private selectBox: SelectBox;
 	private toDispose: lifecycle.IDisposable[];
 
@@ -50,28 +52,28 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	public render(container: HTMLElement): void {
 		this.container = container;
 		dom.addClass(container, 'start-debug-action-item');
-		const icon = dom.append(container, $('.icon'));
-		icon.title = this.action.label;
-		icon.tabIndex = 0;
+		this.start = dom.append(container, $('.icon'));
+		this.start.title = this.action.label;
+		this.start.tabIndex = 0;
 
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.CLICK, () => {
-			icon.blur();
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
+			this.start.blur();
 			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_DOWN, () => {
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, () => {
 			if (this.selectBox.enabled) {
-				dom.addClass(icon, 'active');
+				dom.addClass(this.start, 'active');
 			}
 		}));
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_UP, () => {
-			dom.removeClass(icon, 'active');
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
+			dom.removeClass(this.start, 'active');
 		}));
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.MOUSE_OUT, () => {
-			dom.removeClass(icon, 'active');
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_OUT, () => {
+			dom.removeClass(this.start, 'active');
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(icon, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
 				this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
@@ -91,7 +93,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	public focus(): void {
-		this.container.focus();
+		this.start.focus();
 	}
 
 	public blur(): void {
@@ -105,7 +107,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private setEnabled(enabled: boolean): void {
 		this.selectBox.enabled = enabled;
 		if (!enabled) {
-			this.selectBox.setOptions([NO_CONFIGURATIONS_LABEL], 0);
+			this.selectBox.setOptions([nls.localize('noConfigurations', "No Configurations")], 0);
 		}
 	}
 
@@ -128,9 +130,16 @@ export class FocusProcessActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], -1);
 
-		this.debugService.getViewModel().onDidFocusProcess(p => {
-			const names = this.debugService.getModel().getProcesses().map(p => p.name);
-			this.setOptions(names, p ? names.indexOf(p.name) : 0);
+		this.debugService.getViewModel().onDidFocusStackFrame(() => {
+			const process = this.debugService.getViewModel().focusedProcess;
+			if (process) {
+				const names = this.debugService.getModel().getProcesses().map(p => p.name);
+				this.select(names.indexOf(process.name));
+			}
+		});
+
+		this.debugService.getModel().onDidChangeCallStack(() => {
+			this.setOptions(this.debugService.getModel().getProcesses().map(p => p.name));
 		});
 	}
 }

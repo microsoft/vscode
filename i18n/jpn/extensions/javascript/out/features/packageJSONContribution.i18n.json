@@ -8,7 +8,6 @@
 	"json.npm.latestversion": "パッケージの現在の最新バージョン",
 	"json.npm.majorversion": "最新のメジャー バージョンと一致します (1.x.x)",
 	"json.npm.minorversion": "最新のマイナー バージョンと一致します (1.2.x)",
-	"json.npm.package.hover": "{0}",
 	"json.npm.version.hover": "最新バージョン: {0}",
 	"json.package.default": "既定の package.json"
 }

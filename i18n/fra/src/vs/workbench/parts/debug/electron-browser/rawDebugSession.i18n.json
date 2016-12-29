@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "L'exécutable d'adaptateur de débogage '{0}' est introuvable.",
 	"debugAdapterCrash": "Le processus de l'adaptateur de débogage s'est terminé de manière inattendue",
-	"debuggee": "élément débogué",
 	"moreInfo": "Informations",
 	"noDebugAdapterExtensionInstalled": "Aucune extension installée pour le débogage de '{0}'.",
 	"stoppingDebugAdapter": "{0}. Arrêt de l'adaptateur de débogage.",

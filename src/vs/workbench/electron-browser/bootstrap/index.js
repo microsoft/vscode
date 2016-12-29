@@ -188,6 +188,7 @@ function main() {
 			recordStats: !!configuration.performance,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
 			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
+			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 
 		if (nlsConfig.pseudo) {
