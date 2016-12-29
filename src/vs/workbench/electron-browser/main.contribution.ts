@@ -172,7 +172,7 @@ configurationRegistry.registerConfiguration({
 let properties: { [path: string]: IJSONSchema; } = {
 	'window.openFilesInNewWindow': {
 		'type': 'boolean',
-		'default': true,
+		'default': false,
 		'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
 	},
 	'window.reopenFolders': {
