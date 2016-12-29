@@ -352,18 +352,13 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
-			// const the user settings override how files are open in a new window or same window unless we are forced
+			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
 			let openFilesInNewWindow: boolean;
 			if (openConfig.forceNewWindow) {
 				openFilesInNewWindow = true;
-			} else {
-				openFilesInNewWindow = openConfig.preferNewWindow;
-				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for extension development though!)
-					const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-					if (windowConfig && windowConfig.openFilesInNewWindow === false) {
-						openFilesInNewWindow = false; // do not open in new window if user configured this explicitly
-					}
-				}
+			} else if (!openConfig.cli.extensionDevelopmentPath) {
+				const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+				openFilesInNewWindow = windowConfig && windowConfig.openFilesInNewWindow === true;
 			}
 
 			// Open Files in last instance if any and flag tells us so
