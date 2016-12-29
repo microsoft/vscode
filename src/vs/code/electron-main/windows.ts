@@ -358,9 +358,9 @@ export class WindowsManager implements IWindowsMainService {
 				openFilesInNewWindow = true;
 			} else {
 				openFilesInNewWindow = openConfig.preferNewWindow;
-				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
+				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for extension development though!)
 					const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-					if (windowConfig && !windowConfig.openFilesInNewWindow) {
+					if (windowConfig && windowConfig.openFilesInNewWindow === false) {
 						openFilesInNewWindow = false; // do not open in new window if user configured this explicitly
 					}
 				}
