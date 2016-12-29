@@ -203,7 +203,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 			return TPromise.as(null);
 		}
 
-		this.windowsMainService.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
+		this.windowsMainService.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow });
 		return TPromise.as(null);
 	}
 
