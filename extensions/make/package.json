@@ -7,9 +7,11 @@
 		"update-grammar": "node ../../build/npm/update-grammar.js textmate/make.tmbundle Syntaxes/Makefile.plist ./syntaxes/Makefile.json"
 	},
 	"contributes": {
+
 		"languages": [{
 			"id": "makefile",
 			"aliases": ["Makefile", "makefile"],
+			"extensions": [ ".mk" ],
 			"filenames": [ "Makefile", "makefile", "GNUmakefile", "OCamlMakefile" ],
 			"configuration": "./language-configuration.json"
 		}],
