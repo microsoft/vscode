@@ -446,17 +446,20 @@ class Tokenizer {
 	private _grammar: IGrammar;
 	private _modeId: string;
 	private _decodeMap: DecodeMap;
+	private _stackOverflowReported: boolean;
 
 	constructor(languageRegistration: TMLanguageRegistration, modeId: string, grammar: IGrammar) {
 		this._modeId = modeId;
 		this._grammar = grammar;
 		this._decodeMap = new DecodeMap(languageRegistration);
+		this._stackOverflowReported = false;
 	}
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
+
 		// Do not attempt to tokenize if a line has over 20k
-		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
-		if (line.length >= 20000 || depth(state.ruleStack) > 100) {
+		if (line.length >= 20000) {
+			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
 			return new RawLineTokens(
 				[new Token(offsetDelta, '')],
 				[new ModeTransition(offsetDelta, this._modeId)],
@@ -464,6 +467,23 @@ class Tokenizer {
 				state
 			);
 		}
+
+		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
+		if (depth(state.ruleStack) > 100) {
+			if (!this._stackOverflowReported) {
+				// don't report again unless a good state has been reached again.
+				console.log(`Line (${line.substr(0, 15)}...): stack deeper than 100: tokenization stopped.`, printRuleStack(state.ruleStack));
+				this._stackOverflowReported = true;
+			}
+			return new RawLineTokens(
+				[new Token(offsetDelta, '')],
+				[new ModeTransition(offsetDelta, this._modeId)],
+				offsetDelta,
+				state
+			);
+		}
+		this._stackOverflowReported = false;
+
 		let textMateResult = this._grammar.tokenizeLine(line, state.ruleStack);
 
 		let endState: TMState;
@@ -476,6 +496,16 @@ class Tokenizer {
 
 		return decodeTextMateTokens(this._modeId, this._decodeMap, line, offsetDelta, textMateResult.tokens, endState);
 	}
+}
+
+// TODO: replace with something like ruleStack.toDebugString
+function printRuleStack(ruleStack: StackElement): string[] {
+	let scopes = [];
+	while (ruleStack) {
+		scopes.push(ruleStack['_scopeName']);
+		ruleStack = ruleStack._parent;
+	}
+	return scopes;
 }
 
 export function decodeTextMateTokens(topLevelModeId: string, decodeMap: DecodeMap, line: string, offsetDelta: number, resultTokens: IToken[], resultState: TMState): RawLineTokens {
