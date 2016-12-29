@@ -4658,6 +4658,7 @@ declare module monaco.languages {
     }
 
     export interface CodeLensProvider {
+        onDidChange?: IEvent<this>;
         provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
         resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
     }

@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import { IReadOnlyModel, ISingleEditOperation } from 'vs/editor/common/editorCommon';
@@ -57,15 +58,32 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	// --- code lens
 
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.CodeLensProviderRegistry.register(selector, <modes.CodeLensProvider>{
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> {
+
+		const provider = <modes.CodeLensProvider>{
 			provideCodeLenses: (model: IReadOnlyModel, token: CancellationToken): modes.ICodeLensSymbol[] | Thenable<modes.ICodeLensSymbol[]> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeLenses(handle, model.uri)));
 			},
 			resolveCodeLens: (model: IReadOnlyModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): modes.ICodeLensSymbol | Thenable<modes.ICodeLensSymbol> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$resolveCodeLens(handle, model.uri, codeLens)));
 			}
-		});
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<modes.CodeLensProvider>();
+			this._registrations[eventHandle] = emitter;
+			provider.onDidChange = emitter.event;
+		}
+
+		this._registrations[handle] = modes.CodeLensProviderRegistry.register(selector, provider);
+		return undefined;
+	}
+
+	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any> {
+		const obj = this._registrations[eventHandle];
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 		return undefined;
 	}
 

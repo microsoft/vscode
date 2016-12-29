@@ -677,9 +677,18 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 		const handle = this._nextHandle();
+		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
+
 		this._adapter[handle] = new CodeLensAdapter(this._documents, this._commands.converter, this._heapService, provider);
-		this._proxy.$registerCodeLensSupport(handle, selector);
-		return this._createDisposable(handle);
+		this._proxy.$registerCodeLensSupport(handle, selector, eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeCodeLenses(_ => this._proxy.$emitCodeLensEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
 	}
 
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> {
