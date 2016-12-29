@@ -132,12 +132,7 @@ export class OpenFileAction extends Action {
 	run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-		// Handle in browser process
-		if (fileResource) {
-			return this.windowService.openFilePicker(false, paths.dirname(fileResource.fsPath));
-		}
-
-		return this.windowService.openFilePicker();
+		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
 	}
 }
 
