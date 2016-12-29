@@ -384,8 +384,9 @@ export class WindowsManager implements IWindowsMainService {
 			const lastActiveWindow = this.getLastActiveWindow();
 			if (!openFilesInNewWindow && lastActiveWindow) {
 				lastActiveWindow.focus();
+				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
 				lastActiveWindow.ready().then(readyWindow => {
-					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
+					readyWindow.send('vscode:openFiles', files);
 				});
 
 				usedWindows.push(lastActiveWindow);
@@ -415,8 +416,9 @@ export class WindowsManager implements IWindowsMainService {
 			if (windowsOnWorkspacePath.length > 0) {
 				const browserWindow = windowsOnWorkspacePath[0];
 				browserWindow.focus(); // just focus one of them
+				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
 				browserWindow.ready().then(readyWindow => {
-					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
+					readyWindow.send('vscode:openFiles', files);
 				});
 
 				usedWindows.push(browserWindow);
