@@ -138,13 +138,14 @@ export class ReplExpressionsRenderer implements IRenderer {
 	}
 
 	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof Variable) {
+		if (element instanceof Variable && element.name) {
 			return ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID;
 		}
 		if (element instanceof Expression) {
 			return ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID;
 		}
-		if (element instanceof OutputElement) {
+		if (element instanceof OutputElement || (element instanceof Variable && !element.name)) {
+			// Variable with no name is a top level variable which should be rendered like an output element #17404
 			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
 		}
 		if (element instanceof OutputNameValueElement) {

@@ -20,7 +20,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { TabCompletionController } from 'vs/editor/contrib/suggest/browser/tabCompletion';
 
-export class ReplEditor extends CodeEditorWidget {
+export class ReplInputEditor extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,

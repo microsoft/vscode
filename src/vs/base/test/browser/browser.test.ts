@@ -13,7 +13,7 @@ suite('Browsers', () => {
 		assert(!(isWindows && isMacintosh));
 
 		let isOpera = browser.isOpera || navigator.userAgent.indexOf('OPR') >= 0;
-		let isIE11orEarlier = browser.isIE11orEarlier;
+		let isIE = browser.isIE;
 		let isFirefox = browser.isFirefox;
 		let isWebKit = browser.isWebKit;
 		let isChrome = browser.isChrome;
@@ -25,7 +25,7 @@ suite('Browsers', () => {
 		if (isOpera) {
 			browserCount++;
 		}
-		if (isIE11orEarlier) {
+		if (isIE) {
 			browserCount++;
 		}
 		if (isFirefox) {

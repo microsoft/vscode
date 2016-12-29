@@ -31,6 +31,7 @@ export class DebugViewlet extends Viewlet {
 
 	private toDispose: lifecycle.IDisposable[];
 	private actions: IAction[];
+	private startDebugActionItem: StartDebugActionItem;
 	private progressRunner: IProgressRunner;
 	private viewletSettings: any;
 
@@ -38,8 +39,6 @@ export class DebugViewlet extends Viewlet {
 	private splitView: SplitView;
 	private views: IViewletView[];
 	private openFolderButton: Button;
-
-	private lastFocusedView: IViewletView;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -77,11 +76,6 @@ export class DebugViewlet extends Viewlet {
 			this.splitView = new SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
 			this.views.forEach(v => this.splitView.addView(v));
-
-			// Track focus
-			this.toDispose.push(this.splitView.onFocus((view: IViewletView) => {
-				this.lastFocusedView = view;
-			}));
 		} else {
 			const noworkspace = $([
 				'<div class="noworkspace-view">',
@@ -124,18 +118,13 @@ export class DebugViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
-			this.lastFocusedView.focusBody();
-			return;
-		}
-
-		if (this.views.length > 0) {
-			this.views[0].focusBody();
-			return;
-		}
-
 		if (this.openFolderButton) {
 			this.openFolderButton.getElement().focus();
+			return;
+		}
+
+		if (this.startDebugActionItem) {
+			this.startDebugActionItem.focus();
 		}
 	}
 
@@ -161,7 +150,11 @@ export class DebugViewlet extends Viewlet {
 
 	public getActionItem(action: IAction): IActionItem {
 		if (action.id === StartAction.ID) {
-			return this.instantiationService.createInstance(StartDebugActionItem, null, action);
+			if (!this.startDebugActionItem) {
+				this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
+			}
+
+			return this.startDebugActionItem;
 		}
 
 		return null;

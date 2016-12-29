@@ -618,12 +618,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 				// Lines in the middle
 				let newLinesContent: string[] = [];
-				let newLinesLengths: number[] = [];
+				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
 					let newLineNumber = startLineNumber + j;
 					this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j], tabSize));
 					newLinesContent.push(op.lines[j]);
-					newLinesLengths.push(op.lines[j].length + this._EOL.length);
+					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
 				newLinesContent[newLinesContent.length - 1] += leftoverLine.text;
 				if (this._lineStarts) {

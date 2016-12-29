@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { Range } from 'vs/editor/common/core/range';
-import { fuzzyContiguousFilter } from 'vs/base/common/filters';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -376,43 +375,27 @@ export abstract class BaseEditorSimpleWorker {
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
 	public textualSuggest(modelUrl: string, position: editorCommon.IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
-		let model = this._getModel(modelUrl);
-		if (!model) {
-			return null;
+		const model = this._getModel(modelUrl);
+		if (model) {
+			const suggestions: ISuggestion[] = [];
+			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+			const currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
+
+			for (const word of model.getAllUniqueWords(wordDefRegExp)) {
+				if (word !== currentWord && isNaN(Number(word))) {
+					suggestions.push({
+						type: 'text',
+						label: word,
+						insertText: word,
+						noAutoAccept: true,
+						overwriteBefore: currentWord.length
+					});
+				}
+			}
+			return TPromise.as({ suggestions });
 		}
-
-		return TPromise.as(this._suggestFiltered(model, position, new RegExp(wordDef, wordDefFlags)));
 	}
 
-	private _suggestFiltered(model: ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
-		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
-		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
-
-		// filter suggestions
-		return {
-			suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(currentWord, element.label)),
-			incomplete: value.incomplete
-		};
-	}
-
-	private _suggestUnfiltered(model: ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
-		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
-		let allWords = model.getAllUniqueWords(wordDefRegExp, currentWord);
-
-		let suggestions = allWords.filter((word) => {
-			return !(/^-?\d*\.?\d/.test(word)); // filter out numbers
-		}).map((word) => {
-			return <ISuggestion>{
-				type: 'text',
-				label: word,
-				insertText: word,
-				noAutoAccept: true,
-				overwriteBefore: currentWord.length
-			};
-		});
-
-		return { suggestions };
-	}
 
 	// ---- END suggest --------------------------------------------------------------------------
 

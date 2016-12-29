@@ -12,6 +12,5 @@
 	"debugServer": "Solo para el desarrollo de extensiones de depuración: si se especifica un puerto, VS Code intenta conectarse a un adaptador de depuración que se ejecuta en modo servidor",
 	"debugType": "Tipo de configuración.",
 	"debugWindowsConfiguration": "Atributos de configuración de inicio específicos de Windows.",
-	"internalConsoleOptions": "Controla el comportamiento de la consola de depuración interna.",
-	"relativePathsNotConverted": "Las rutas de acceso relativas ya no se convertirán en absolutas automáticamente. Considere la posibilidad de usar ${workspaceRoot} como prefijo."
+	"internalConsoleOptions": "Controla el comportamiento de la consola de depuración interna."
 }

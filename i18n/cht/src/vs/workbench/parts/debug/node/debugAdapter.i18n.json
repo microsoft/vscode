@@ -12,6 +12,5 @@
 	"debugServer": "僅限偵錯延伸模組開發: 如果指定了連接埠，VS Code 會嘗試連線至以伺服器模式執行的偵錯配接器",
 	"debugType": "組態的類型。",
 	"debugWindowsConfiguration": "Windows 特定的啟動設定屬性。",
-	"internalConsoleOptions": "內部偵錯主控台的控制項行為。",
-	"relativePathsNotConverted": "相對路徑將不再自動轉換成絕對路徑。請考慮使用 ${workspaceRoot} 作為前置詞。"
+	"internalConsoleOptions": "內部偵錯主控台的控制項行為。"
 }

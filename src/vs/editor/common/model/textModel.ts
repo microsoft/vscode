@@ -196,10 +196,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	private _ensureLineStarts(): void {
 		if (!this._lineStarts) {
-			const lineStartValues: number[] = [];
 			const eolLength = this._EOL.length;
-			for (let i = 0, len = this._lines.length; i < len; i++) {
-				lineStartValues.push(this._lines[i].text.length + eolLength);
+			const linesLength = this._lines.length;
+			const lineStartValues = new Uint32Array(linesLength);
+			for (let i = 0; i < linesLength; i++) {
+				lineStartValues[i] = this._lines[i].text.length + eolLength;
 			}
 			this._lineStarts = new PrefixSumComputer(lineStartValues);
 		}

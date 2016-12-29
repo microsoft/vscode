@@ -323,7 +323,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));
 
-			fillInActions(titleBarMenu, this.resourceContext.get(), { primary, secondary });
+			fillInActions(titleBarMenu, this.resourceContext.get(), { primary, secondary }, true);
 		}
 
 		return { primary, secondary };

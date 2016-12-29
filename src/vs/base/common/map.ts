@@ -299,9 +299,9 @@ export class LRUCache<T> extends BoundedLinkedMap<T> {
 
 // --- trie'ish datastructure
 
-interface Node<E> {
+class Node<E> {
 	element?: E;
-	children: { [key: string]: Node<E> };
+	readonly children = new Map<string, E>();
 }
 
 /**
@@ -313,7 +313,7 @@ export class TrieMap<E> {
 	static PathSplitter = s => s.split(/[\\/]/).filter(s => !!s);
 
 	private _splitter: (s: string) => string[];
-	private _root: Node<E> = { children: Object.create(null) };
+	private _root = new Node<E>();
 
 	constructor(splitter: (s: string) => string[]) {
 		this._splitter = splitter;
@@ -337,7 +337,7 @@ export class TrieMap<E> {
 		// create new nodes
 		let newNode: Node<E>;
 		for (; i < parts.length; i++) {
-			newNode = { children: Object.create(null) };
+			newNode = new Node<E>();
 			node.children[parts[i]] = newNode;
 			node = newNode;
 		}

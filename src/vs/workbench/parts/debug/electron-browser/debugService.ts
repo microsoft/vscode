@@ -34,7 +34,7 @@ import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDe
 import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
-import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
+import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
@@ -276,8 +276,8 @@ export class DebugService implements debug.IDebugService {
 				const thread = process && process.getThread(threadId);
 				if (thread) {
 					thread.fetchCallStack().then(callStack => {
-						if (callStack.length > 0) {
-							// focus first stack frame from top that has source location
+						if (callStack.length > 0 && !this.viewModel.focusedStackFrame) {
+							// focus first stack frame from top that has source location if no other stack frame is focussed
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
 							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
@@ -291,8 +291,6 @@ export class DebugService implements debug.IDebugService {
 									revealInCenterIfOutsideViewport: true
 								}
 							});
-						} else {
-							this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 						}
 					});
 				}
@@ -319,7 +317,12 @@ export class DebugService implements debug.IDebugService {
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidContinued(event => {
-			this.transitionToRunningState(session, event.body.allThreadsContinued ? undefined : event.body.threadId);
+			const threadId = event.body.allThreadsContinued ? undefined : event.body.threadId;
+			this.model.clearThreads(session.getId(), false, threadId);
+			if (this.viewModel.focusedProcess.getId() === session.getId()) {
+				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
+			}
+			this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidOutput(event => {
@@ -389,7 +392,7 @@ export class DebugService implements debug.IDebugService {
 		let result: Breakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
+				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
 			});
 		} catch (e) { }
 
@@ -459,16 +462,21 @@ export class DebugService implements debug.IDebugService {
 		return this.contextService.hasWorkspace();
 	}
 
-	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
-		const processes = this.model.getProcesses();
+	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
 		if (!process) {
-			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
+			const processes = this.model.getProcesses();
+			process = stackFrame ? stackFrame.thread.process : processes.length ? processes[0] : null;
+		}
+		if (!stackFrame) {
+			const threads = process ? process.getAllThreads() : null;
+			const callStack = threads && threads.length ? threads[0].getCallStack() : null;
+			stackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
-		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
+		this.viewModel.setFocusedStackFrame(stackFrame, process);
 		this._onDidChangeState.fire();
 
-		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
+		return this.model.evaluateWatchExpressions(process, stackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
@@ -660,12 +668,8 @@ export class DebugService implements debug.IDebugService {
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
 			const process = this.model.addProcess(configuration.name, session);
 
-			if (this.model.getProcesses().length > 1) {
-				this.viewModel.setMultiProcessView(true);
-			}
 			if (!this.viewModel.focusedProcess) {
-				this.viewModel.setFocusedStackFrame(null, process);
-				this._onDidChangeState.fire();
+				this.focusStackFrameAndEvaluate(null, process);
 			}
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {
@@ -709,7 +713,10 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
-				this.transitionToRunningState(session);
+				this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
+				if (this.model.getProcesses().length > 1) {
+					this.viewModel.setMultiProcessView(true);
+				}
 
 				this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
@@ -725,7 +732,8 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.as(null);
 				}
 
-				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
+				const errorMessage = error instanceof Error ? error.message : error;
+				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
 				this.setStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
@@ -808,6 +816,7 @@ export class DebugService implements debug.IDebugService {
 		if (process.session.configuration.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
+		const preserveFocus = process.getId() === this.viewModel.focusedProcess.getId();
 
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
@@ -815,7 +824,15 @@ export class DebugService implements debug.IDebugService {
 					this.createProcess(process.name).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		);
+		).then(() => {
+			if (preserveFocus) {
+				// Restart should preserve the focused process
+				const restartedProcess = this.model.getProcesses().filter(p => p.name === process.name).pop();
+				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
+					this.focusStackFrameAndEvaluate(null, restartedProcess);
+				}
+			}
+		});
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {
@@ -835,7 +852,9 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.model.removeProcess(session.getId());
-		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		if (this.viewModel.focusedProcess.getId() === session.getId()) {
+			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		}
 		this.setStateAndEmit(session.getId(), debug.State.Inactive);
 
 		if (this.model.getProcesses().length === 0) {
@@ -866,12 +885,6 @@ export class DebugService implements debug.IDebugService {
 
 	public getConfigurationManager(): debug.IConfigurationManager {
 		return this.configurationManager;
-	}
-
-	private transitionToRunningState(session: RawDebugSession, threadId?: number): void {
-		this.model.clearThreads(session.getId(), false, threadId);
-		this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
-		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 	}
 
 	private sendAllBreakpoints(process?: debug.IProcess): TPromise<any> {
@@ -914,7 +927,7 @@ export class DebugService implements debug.IDebugService {
 			return session.setBreakpoints({
 				source: rawSource,
 				lines: breakpointsToSend.map(bp => bp.lineNumber),
-				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition })),
+				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition, column: bp.column })),
 				sourceModified
 			}).then(response => {
 				if (!response || !response.body) {

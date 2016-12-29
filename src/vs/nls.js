@@ -172,10 +172,10 @@ var NLSLoaderPlugin;
             }, null, '\t'));
         };
         ;
-        NLSPlugin.BUILD_MAP = {};
-        NLSPlugin.BUILD_MAP_KEYS = {};
         return NLSPlugin;
     }());
+    NLSPlugin.BUILD_MAP = {};
+    NLSPlugin.BUILD_MAP_KEYS = {};
     NLSLoaderPlugin.NLSPlugin = NLSPlugin;
     (function () {
         define('vs/nls', new NLSPlugin());
