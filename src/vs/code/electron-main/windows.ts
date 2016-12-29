@@ -35,7 +35,26 @@ enum WindowError {
 	CRASHED
 }
 
+export enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// any other way of opening
+	OTHER
+}
+
 export interface IOpenConfiguration {
+	context: OpenContext;
 	cli: ParsedArgs;
 	userEnv?: platform.IProcessEnvironment;
 	pathsToOpen?: string[];
@@ -97,10 +116,10 @@ export interface IWindowsMainService {
 	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void;
 	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void;
 	openAccessibilityOptions(): void;
-	focusLastActive(cli: ParsedArgs): VSCodeWindow;
+	focusLastActive(cli: ParsedArgs, context: OpenContext): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
-	openNewWindow(): void;
+	openNewWindow(context: OpenContext): void;
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
 	getFocusedWindow(): VSCodeWindow;
@@ -168,7 +187,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				this.openNewWindow();
+				this.openNewWindow(OpenContext.DOCK);
 			}
 		});
 
@@ -189,7 +208,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				this.open({ cli: this.environmentService.args, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
+				this.open({ context: OpenContext.DOCK, cli: this.environmentService.args, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
@@ -606,7 +625,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Open it
-		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
+		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
 	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
@@ -887,7 +906,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doPickAndOpen(options: INativeOpenDialogOptions): void {
 		this.getFileOrFolderPaths(options, (paths: string[]) => {
 			if (paths && paths.length) {
-				this.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
+				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
 			}
 		});
 	}
@@ -920,7 +939,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	public focusLastActive(cli: ParsedArgs): VSCodeWindow {
+	public focusLastActive(cli: ParsedArgs, context: OpenContext): VSCodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
@@ -930,7 +949,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// No window - open new one
 		this.windowsState.openedFolders = []; // make sure we do not open too much
-		const res = this.open({ cli: cli });
+		const res = this.open({ context, cli });
 
 		return res && res[0];
 	}
@@ -992,8 +1011,8 @@ export class WindowsManager implements IWindowsMainService {
 		return null;
 	}
 
-	public openNewWindow(): void {
-		this.open({ cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
+	public openNewWindow(context: OpenContext): void {
+		this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
 	public sendToFocused(channel: string, ...args: any[]): void {
