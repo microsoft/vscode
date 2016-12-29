@@ -23,10 +23,6 @@ interface IProcessedBracketPair {
 
 export class OnEnterSupport {
 
-	private static _INDENT: EnterAction = { indentAction: IndentAction.Indent };
-	private static _INDENT_OUTDENT: EnterAction = { indentAction: IndentAction.IndentOutdent };
-	private static _OUTDENT: EnterAction = { indentAction: IndentAction.Outdent };
-
 	private readonly _brackets: IProcessedBracketPair[];
 	private readonly _indentationRules: IndentationRule;
 	private readonly _regExpRules: OnEnterRule[];
@@ -71,7 +67,7 @@ export class OnEnterSupport {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
-					return OnEnterSupport._INDENT_OUTDENT;
+					return { indentAction: IndentAction.IndentOutdent };
 				}
 			}
 		}
@@ -80,24 +76,24 @@ export class OnEnterSupport {
 		if (this._indentationRules) {
 			let enterAction: EnterAction = null;
 			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(beforeEnterText)) {
-				enterAction = OnEnterSupport._INDENT;
+				enterAction = { indentAction: IndentAction.Indent };
 			}
 			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(beforeEnterText)) {
-				enterAction = OnEnterSupport._INDENT;
+				enterAction = { indentAction: IndentAction.Indent };
 			}
 			if (/^\s/.test(beforeEnterText)) {
 				// No reason to run regular expressions if there is nothing to outdent from
 				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
-					enterAction = OnEnterSupport._OUTDENT;
+					enterAction = { indentAction: IndentAction.Outdent };
 				}
 				if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-					enterAction = OnEnterSupport._OUTDENT;
+					enterAction = { indentAction: IndentAction.Outdent };
 				}
 				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(beforeEnterText)) {
 					if (enterAction === null) {
 						enterAction = { indentAction: IndentAction.None, outdentCurrentLine: true };
 					} else {
-						enterAction.outdentCurrentLine = true;
+						enterAction = { indentAction: enterAction.indentAction, outdentCurrentLine: true };
 					}
 				}
 			}
@@ -112,7 +108,7 @@ export class OnEnterSupport {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText)) {
-					return OnEnterSupport._INDENT;
+					return { indentAction: IndentAction.Indent };
 				}
 			}
 		}
