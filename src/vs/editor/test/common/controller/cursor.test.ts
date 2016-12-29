@@ -1134,16 +1134,16 @@ class SurroundingMode extends MockMode {
 }
 
 class OnEnterMode extends MockMode {
-
 	private static _id = new LanguageIdentifier('onEnterMode', 3);
 
-	constructor(indentAction: IndentAction) {
+	constructor(indentAction: IndentAction, outdentCurrentLine?: boolean) {
 		super(OnEnterMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			onEnterRules: [{
 				beforeText: /.*/,
 				action: {
-					indentAction: indentAction
+					indentAction: indentAction,
+					outdentCurrentLine: outdentCurrentLine
 				}
 			}]
 		}));
@@ -2373,6 +2373,57 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getValue(EndOfLinePreference.CRLF), '\thell(\r\n        \r\n    )');
 		});
 		mode.dispose();
+	});
+
+	test('Enter honors decreaseIndentRule on current line 1', () => {
+		let mode = new OnEnterMode(IndentAction.Indent, true);
+		usingCursor({
+			text: [
+				'\thello'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 7, false);
+			assertCursor(cursor, new Selection(1, 7, 1, 7));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.CRLF), 'hello\r\n    ');
+		});
+	});
+
+	test('Enter honors decreaseIndentRule on current line 2', () => {
+		let mode = new OnEnterMode(IndentAction.None, true);
+		usingCursor({
+			text: [
+				'\thello'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 7, false);
+			assertCursor(cursor, new Selection(1, 7, 1, 7));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.CRLF), 'hello\r\n');
+		});
+	});
+
+	test('Enter honors decreaseIndentRule on current line 3', () => {
+		let mode = new OnEnterMode(IndentAction.IndentOutdent, true);
+		usingCursor({
+			text: [
+				'\thell()'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 7, false);
+			assertCursor(cursor, new Selection(1, 7, 1, 7));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.CRLF), 'hell(\r\n    \r\n)');
+		});
 	});
 
 	test('Insert line before', () => {

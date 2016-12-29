@@ -232,7 +232,7 @@ export class TypeOperations {
 		let beforeText = '';
 		if (enterAction.outdentCurrentLine) {
 			let newIndentation = TypeOperations.unshiftIndent(config, indentation);
-			beforeText = newIndentation + lineText.substring(indentation.length, range.startColumn - 1);
+			beforeText = config.normalizeIndentation(newIndentation) + lineText.substring(indentation.length, range.startColumn - 1);
 			indentation = newIndentation;
 			range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
 		}
