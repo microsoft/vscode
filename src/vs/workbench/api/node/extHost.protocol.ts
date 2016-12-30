@@ -150,7 +150,8 @@ export abstract class MainThreadErrorsShape {
 export abstract class MainThreadLanguageFeaturesShape {
 	$unregister(handle: number): TPromise<any> { throw ni(); }
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> { throw ni(); }
+	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any> { throw ni(); }
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }

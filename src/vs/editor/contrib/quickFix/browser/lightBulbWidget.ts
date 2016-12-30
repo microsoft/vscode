@@ -57,7 +57,7 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 	getDomNode(): HTMLElement {
 		if (!this._domNode) {
 			this._domNode = document.createElement('div');
-			this._domNode.style.width = '20px';
+			this._domNode.style.width = '21px';
 			this._domNode.style.height = '20px';
 			this._domNode.className = 'lightbulb-glyph hidden';
 			this._toDispose.push(dom.addDisposableListener(this._domNode, 'mousedown', (e: MouseEvent) => {

@@ -6,9 +6,7 @@
 {
 	"channelName": "TypeScript",
 	"close": "閉じる",
-	"doNotCheckAgain": "今後確認しない",
 	"localTSFound": "ワークスペース フォルダーには TypeScript バージョン {0} があります。バンドルされたバージョン {1} ではなく、このバージョンを使用しますか?",
-	"moreInformation": "詳細情報",
 	"neverCheckLocalVesion": "ワークスペース バージョンを確認しない",
 	"noServerFound": "パス {0} は、有効な tsserver インストールを指していません。TypeScript 言語機能は使用できなくなります。",
 	"serverCouldNotBeStarted": "TypeScript 言語サーバーを起動できません。エラー メッセージ: {0}",
@@ -16,10 +14,8 @@
 	"serverDiedAfterStart": "TypeScript 言語サービスは、開始直後に 5 回停止しました。サービスは再開されません。バグ報告を開いてください。",
 	"updateGlobalWorkspaceCheck": "ユーザー設定 'typescript.check.workspaceVersion' を false に更新しました",
 	"updateLocalWorkspaceCheck": "ワークスペース設定 'typescript.check.workspaceVersion' を false に更新しました",
-	"updateTscCheck": "ユーザー設定 'typescript.check.tscVersion' を false に更新しました",
 	"updatedtsdk": "ワークスペース設定 'typescript.tsdk' を {0} に更新しました",
 	"use": "ワークスペース ({0}) を使用する",
 	"useBundled": "バンドル ({0}) を使用する",
-	"versionMismatch": "グローバルな tsc ({0}) と VS Code の言語サービス ({1}) の間にバージョンの不一致があります。非整合のコンパイル エラーを引き起こす可能性があります",
 	"versionNumber.custom": "カスタム"
 }

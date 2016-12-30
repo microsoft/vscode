@@ -6,6 +6,5 @@
 {
 	"json.bower.default": "Standarddatei \"bower.json\"",
 	"json.bower.error.repoaccess": "Fehler bei der Anforderung des Bower-Repositorys: {0}",
-	"json.bower.latest.version": "Neueste",
-	"json.bower.package.hover": "{0}"
+	"json.bower.latest.version": "Neueste"
 }

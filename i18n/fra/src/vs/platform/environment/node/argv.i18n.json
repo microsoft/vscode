@@ -20,7 +20,7 @@
 	"paths": "chemins",
 	"performance": "Démarrez avec la commande 'Développeur : performance de démarrage' activée.",
 	"reuseWindow": "Forcez l'ouverture d'un fichier ou dossier dans la dernière fenêtre active.",
-	"showVersions": "Affichez les versions des extensions installées en utilisant --list-extension.",
+	"showVersions": "Affichez les versions des extensions installées, quand --list-extension est utilisé.",
 	"uninstallExtension": "Désinstalle une extension.",
 	"usage": "Utilisation",
 	"userDataDir": "Spécifie le répertoire où sont conservées les données des utilisateurs. S'avère utile pour une exécution en tant que root.",

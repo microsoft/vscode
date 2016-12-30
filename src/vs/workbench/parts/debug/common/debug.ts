@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
@@ -29,7 +28,6 @@ export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('bre
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
-export const NO_CONFIGURATIONS_LABEL = nls.localize('noConfigurations', "No Configurations");
 
 // raw
 
@@ -180,6 +178,7 @@ export interface IEnablement extends ITreeElement {
 
 export interface IRawBreakpoint {
 	lineNumber: number;
+	column?: number;
 	enabled?: boolean;
 	condition?: string;
 	hitCondition?: string;
@@ -188,6 +187,7 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
+	column: number;
 	condition: string;
 	hitCondition: string;
 	verified: boolean;
@@ -258,7 +258,7 @@ export interface IModel extends ITreeElement {
 	onDidChangeReplElements: Event<void>;
 };
 
-// service enums
+// Debug enums
 
 export enum State {
 	Disabled,
@@ -269,14 +269,12 @@ export enum State {
 	RunningNoDebug
 }
 
-// Service config
+// Debug configuration interfaces
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openExplorerOnEnd: boolean;
 }
-
-// service interfaces
 
 export interface IGlobalConfig {
 	version: string;
@@ -329,10 +327,6 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
-export interface IRawBreakpointContribution {
-	language: string;
-}
-
 export interface IConfigurationManager {
 
 	/**
@@ -363,6 +357,8 @@ export interface IConfigurationManager {
 	 */
 	canSetBreakpointsIn(model: EditorIModel): boolean;
 }
+
+// Debug service interfaces
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 

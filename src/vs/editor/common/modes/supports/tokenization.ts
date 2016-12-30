@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Map, createMap } from 'vs/editor/common/core/map';
 import { ColorId, FontStyle, MetadataConsts, LanguageId } from 'vs/editor/common/modes';
 import { toStandardTokenType } from 'vs/editor/common/core/lineTokens';
 
@@ -149,7 +148,7 @@ export class ColorMap {
 	constructor() {
 		this._lastColorId = 0;
 		this._id2color = [];
-		this._color2id = createMap<string, ColorId>();
+		this._color2id = new Map<string, ColorId>();
 	}
 
 	public getId(color: string): ColorId {
@@ -193,7 +192,7 @@ export class Theme {
 	constructor(colorMap: ColorMap, root: ThemeTrieElement) {
 		this._colorMap = colorMap;
 		this._root = root;
-		this._cache = createMap<string, ThemeTrieElementRule>();
+		this._cache = new Map<string, ThemeTrieElementRule>();
 	}
 
 	public getColorMap(): string[] {
@@ -306,7 +305,7 @@ export class ThemeTrieElement {
 
 	constructor(mainRule: ThemeTrieElementRule) {
 		this._mainRule = mainRule;
-		this._children = createMap<string, ThemeTrieElement>();
+		this._children = new Map<string, ThemeTrieElement>();
 	}
 
 	/**
