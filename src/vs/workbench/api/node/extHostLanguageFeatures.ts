@@ -624,7 +624,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _commands: ExtHostCommands;
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
-	private _adapter: { [handle: number]: Adapter } = Object.create(null);
+	private _adapter = new Map<number, Adapter>();
 
 	constructor(
 		threadService: IThreadService,
@@ -643,7 +643,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	private _createDisposable(handle: number): Disposable {
 		return new Disposable(() => {
-			delete this._adapter[handle];
+			this._adapter.delete(handle);
 			this._proxy.$unregister(handle);
 		});
 	}
@@ -653,7 +653,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	}
 
 	private _withAdapter<A, R>(handle: number, ctor: { new (...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
-		let adapter = this._adapter[handle];
+		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
 			return TPromise.wrapError(new Error('no adapter found'));
 		}
@@ -664,7 +664,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new OutlineAdapter(this._documents, provider);
+		this._adapter.set(handle, new OutlineAdapter(this._documents, provider));
 		this._proxy.$registerOutlineSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -679,7 +679,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		const handle = this._nextHandle();
 		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
 
-		this._adapter[handle] = new CodeLensAdapter(this._documents, this._commands.converter, this._heapService, provider);
+		this._adapter.set(handle, new CodeLensAdapter(this._documents, this._commands.converter, this._heapService, provider));
 		this._proxy.$registerCodeLensSupport(handle, selector, eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -703,7 +703,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new DefinitionAdapter(this._documents, provider);
+		this._adapter.set(handle, new DefinitionAdapter(this._documents, provider));
 		this._proxy.$registerDeclaractionSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -716,7 +716,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new HoverAdapter(this._documents, provider);
+		this._adapter.set(handle, new HoverAdapter(this._documents, provider));
 		this._proxy.$registerHoverProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -729,7 +729,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new DocumentHighlightAdapter(this._documents, provider);
+		this._adapter.set(handle, new DocumentHighlightAdapter(this._documents, provider));
 		this._proxy.$registerDocumentHighlightProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -742,7 +742,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new ReferenceAdapter(this._documents, provider);
+		this._adapter.set(handle, new ReferenceAdapter(this._documents, provider));
 		this._proxy.$registerReferenceSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -755,7 +755,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new QuickFixAdapter(this._documents, this._commands.converter, this._diagnostics, this._heapService, provider);
+		this._adapter.set(handle, new QuickFixAdapter(this._documents, this._commands.converter, this._diagnostics, this._heapService, provider));
 		this._proxy.$registerQuickFixSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -768,7 +768,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new DocumentFormattingAdapter(this._documents, provider);
+		this._adapter.set(handle, new DocumentFormattingAdapter(this._documents, provider));
 		this._proxy.$registerDocumentFormattingSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -779,7 +779,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new RangeFormattingAdapter(this._documents, provider);
+		this._adapter.set(handle, new RangeFormattingAdapter(this._documents, provider));
 		this._proxy.$registerRangeFormattingSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -790,7 +790,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new OnTypeFormattingAdapter(this._documents, provider);
+		this._adapter.set(handle, new OnTypeFormattingAdapter(this._documents, provider));
 		this._proxy.$registerOnTypeFormattingSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
@@ -803,7 +803,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new NavigateTypeAdapter(provider, this._heapService);
+		this._adapter.set(handle, new NavigateTypeAdapter(provider, this._heapService));
 		this._proxy.$registerNavigateTypeSupport(handle);
 		return this._createDisposable(handle);
 	}
@@ -820,7 +820,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new RenameAdapter(this._documents, provider);
+		this._adapter.set(handle, new RenameAdapter(this._documents, provider));
 		this._proxy.$registerRenameSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -833,7 +833,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider);
+		this._adapter.set(handle, new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider));
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
@@ -850,7 +850,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SignatureHelpAdapter(this._documents, provider);
+		this._adapter.set(handle, new SignatureHelpAdapter(this._documents, provider));
 		this._proxy.$registerSignatureHelpProvider(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
@@ -863,7 +863,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new LinkProviderAdapter(this._documents, provider);
+		this._adapter.set(handle, new LinkProviderAdapter(this._documents, provider));
 		this._proxy.$registerDocumentLinkProvider(handle, selector);
 		return this._createDisposable(handle);
 	}

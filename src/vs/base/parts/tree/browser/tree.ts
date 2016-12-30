@@ -634,6 +634,7 @@ export interface ITreeConfiguration {
 
 export interface ITreeOptions {
 	twistiePixels?: number;
+	showTwistie?: boolean;
 	indentPixels?: number;
 	verticalScrollMode?: ScrollbarVisibility;
 	alwaysFocused?: boolean;
