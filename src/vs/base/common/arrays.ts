@@ -92,29 +92,6 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
 	return result;
 }
 
-export function merge<T>(arrays: T[][], hashFn?: (element: T) => string): T[] {
-	const result = new Array<T>();
-	if (!hashFn) {
-		for (let i = 0, len = arrays.length; i < len; i++) {
-			result.push.apply(result, arrays[i]);
-		}
-	} else {
-		const map: { [k: string]: boolean } = {};
-		for (let i = 0; i < arrays.length; i++) {
-			for (let j = 0; j < arrays[i].length; j++) {
-				let element = arrays[i][j],
-					hash = hashFn(element);
-
-				if (!map.hasOwnProperty(hash)) {
-					map[hash] = true;
-					result.push(element);
-				}
-			}
-		}
-	}
-	return result;
-}
-
 /**
  * @returns a new array with all undefined or null values removed. The original array is not modified at all.
  */
@@ -124,24 +101,6 @@ export function coalesce<T>(array: T[]): T[] {
 	}
 
 	return array.filter(e => !!e);
-}
-
-/**
- * @returns true if the given item is contained in the array.
- */
-export function contains<T>(array: T[], item: T): boolean {
-	return array.indexOf(item) >= 0;
-}
-
-/**
- * Swaps the elements in the array for the provided positions.
- */
-export function swap(array: any[], pos1: number, pos2: number): void {
-	const element1 = array[pos1];
-	const element2 = array[pos2];
-
-	array[pos1] = element2;
-	array[pos2] = element1;
 }
 
 /**

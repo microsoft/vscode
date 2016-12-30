@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { merge } from 'vs/base/common/arrays';
+import { flatten } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -59,7 +59,7 @@ class ChangeRecorder {
 		return {
 			stop: () => { stop.dispose(); },
 			hasChanged: (resource: URI) => !!changes[resource.toString()],
-			allChanges: () => merge(values(changes))
+			allChanges: () => flatten(values(changes))
 		};
 	}
 }
