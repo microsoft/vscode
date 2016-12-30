@@ -104,6 +104,7 @@ export class LaunchService implements ILaunchService {
 				userEnv,
 				forceNewWindow: args.wait || args['new-window'],
 				preferNewWindow: !args['reuse-window'],
+				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff
 			});
 		}
