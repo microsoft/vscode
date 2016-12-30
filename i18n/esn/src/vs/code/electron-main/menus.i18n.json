@@ -111,7 +111,7 @@
 	"miSplitEditor": "Dividir &&editor",
 	"miSwitchEditor": "Cambiar &&editor",
 	"miSwitchGroup": "Cambiar &&grupo",
-	"miToggleBlockComment": "Toggle &&Bloquear comentario",
+	"miToggleBlockComment": "Alternar &&Bloquear comentario",
 	"miToggleDebugConsole": "Consola de de&&puración",
 	"miToggleDevTools": "&&Alternar herramientas de desarrollo",
 	"miToggleEditorLayout": "Alternar diseño del grupo de &&editores",

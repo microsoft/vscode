@@ -32,16 +32,16 @@ class ToggleBreakpointAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
 
-		const lineNumber = editor.getPosition().lineNumber;
+		const position = editor.getPosition();
 		const modelUri = editor.getModel().uri;
 		const bp = debugService.getModel().getBreakpoints()
-			.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === modelUri.toString()).pop();
+			.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === modelUri.toString()).pop();
 
 		if (bp) {
 			return debugService.removeBreakpoints(bp.getId());
 		}
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			return debugService.addBreakpoints(modelUri, [{ lineNumber }]);
+			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
 		}
 	}
 }
@@ -91,13 +91,13 @@ class RunToCursorAction extends EditorAction {
 		if (debugService.state !== State.Stopped) {
 			return TPromise.as(null);
 		}
-		const lineNumber = editor.getPosition().lineNumber;
+		const position = editor.getPosition();
 		const uri = editor.getModel().uri;
 
 		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
+					.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === uri.toString()).pop();
 				if (toRemove) {
 					debugService.removeBreakpoints(toRemove.getId());
 				}
@@ -105,8 +105,8 @@ class RunToCursorAction extends EditorAction {
 			}
 		});
 
-		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop());
-		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber }])).then(() => {
+		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.column === position.column && bp.lineNumber === position.lineNumber && bp.uri.toString() === uri.toString()).pop());
+		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }])).then(() => {
 			debugService.getViewModel().focusedThread.continue();
 		});
 	}

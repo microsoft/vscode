@@ -21,6 +21,6 @@
 	"successFrom": "셸 명령 '{0}'이(가) PATH에서 제거되었습니다.",
 	"successIn": "셸 명령 '{0}'이(가) PATH에 설치되었습니다.",
 	"uninstall": "PATH에서 '{0}' 명령 제거",
-	"update": "코드에서 '{0}' 셸 명령을 변경해야 합니다. 지금 변경할까요?",
-	"warnEscalation": "이제 코드에서 'osascript'를 사용하여 관리자에게 셸 명령을 설치할 권한이 있는지를 묻습니다."
+	"update": "Code에서 '{0}' 셸 명령을 변경해야 합니다. 지금 변경할까요?",
+	"warnEscalation": "이제 Code에서 'osascript'를 사용하여 관리자에게 셸 명령을 설치할 권한이 있는지를 묻습니다."
 }

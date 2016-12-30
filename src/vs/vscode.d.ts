@@ -1614,6 +1614,11 @@ declare module 'vscode' {
 	export interface CodeLensProvider {
 
 		/**
+		 * An optional event to signal that the code lenses from this provider have changed.
+		 */
+		onDidChangeCodeLenses?: Event<this>;
+
+		/**
 		 * Compute a list of [lenses](#CodeLens). This call should return as fast as possible and if
 		 * computing the commands is expensive implementors should only return code lens objects with the
 		 * range set and implement [resolve](#CodeLensProvider.resolveCodeLens).

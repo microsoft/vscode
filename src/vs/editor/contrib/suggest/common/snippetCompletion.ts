@@ -12,46 +12,90 @@ import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/e
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { LanguageId } from 'vs/editor/common/modes';
 
 interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
 }
 
+class NameAndLangId {
+
+	static fromArg(arg: any): NameAndLangId {
+		if (typeof arg !== 'object') {
+			return new NameAndLangId(undefined, undefined);
+		}
+		let {name, langId} = arg;
+		if (typeof name !== 'string') {
+			name = undefined;
+		}
+		if (typeof langId !== 'string') {
+			langId = undefined;
+		}
+		return new NameAndLangId(name, langId);
+	}
+
+	private constructor(public readonly name: string, public readonly langId: string) {
+
+	}
+
+}
+
 @editorAction
-class ShowSnippetsActions extends EditorAction {
+class InsertSnippetAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showSnippets',
+			id: 'editor.action.insertSnippet',
 			label: nls.localize('snippet.suggestions.label', "Insert Snippet"),
 			alias: 'Insert Snippet',
 			precondition: EditorContextKeys.Writable
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
-		const quickOpenService = accessor.get(IQuickOpenService);
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, arg: any): TPromise<void> {
+		const modeService = accessor.get(IModeService);
 
 		if (!editor.getModel()) {
 			return;
 		}
 
+		const quickOpenService = accessor.get(IQuickOpenService);
 		const {lineNumber, column} = editor.getPosition();
-		const languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
+		let {name, langId} = NameAndLangId.fromArg(arg);
 
-		const picks: ISnippetPick[] = [];
-		Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
-			picks.push({
-				label: snippet.prefix,
-				detail: snippet.description,
-				snippet
-			});
-			return true;
-		});
+		let languageId: LanguageId;
+		if (langId) {
+			languageId = modeService.getLanguageIdentifier(langId).iid;
+		} else {
+			languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
+		}
 
-		return quickOpenService.pick(picks).then(pick => {
-			if (pick) {
-				SnippetController.get(editor).insertSnippet(pick.snippet.codeSnippet, 0, 0);
+		return new TPromise<ISnippet>((resolve, reject) => {
+			if (name) {
+				// take selected snippet
+				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
+					if (snippet.name !== name) {
+						return true;
+					}
+					resolve(snippet);
+				});
+			} else {
+				// let user pick a snippet
+				const picks: ISnippetPick[] = [];
+				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
+					picks.push({
+						label: snippet.prefix,
+						detail: snippet.description,
+						snippet
+					});
+					return true;
+				});
+				return quickOpenService.pick(picks).then(pick => resolve(pick && pick.snippet), reject);
+			}
+		}).then(snippet => {
+			if (snippet) {
+				SnippetController.get(editor).insertSnippet(snippet.codeSnippet, 0, 0);
 			}
 		});
 	}

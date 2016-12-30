@@ -6,8 +6,8 @@
 {
 	"DebugConfig.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"launch.json\" 文件。",
 	"app.launch.json.compound.name": "复合的名称。在启动配置下拉菜单中显示。",
-	"app.launch.json.compounds": "复合列表。每个复合引用将一起启动的多个配置。",
-	"app.launch.json.compounds.configurations": "将作为此复合的一部分启动的配置的名称。",
+	"app.launch.json.compounds": "复合列表。每个复合可引用多个配置，这些配置将一起启动。",
+	"app.launch.json.compounds.configurations": "将作为此复合的一部分启动的配置名称。",
 	"app.launch.json.configurations": "配置列表。使用 IntelliSense 添加新配置或编辑现有配置。",
 	"app.launch.json.debugServer": "已弃用: 请在配置中移动 debugServer。",
 	"app.launch.json.title": "启动",

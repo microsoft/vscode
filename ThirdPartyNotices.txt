@@ -19,7 +19,7 @@ This project incorporates components from the projects listed below. The origina
 12.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
 13.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
 14.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
-15.	ionide/ionide-fsharp (https://github.com/ionide/ionide-atom-fsharp)
+15.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
 16.	js-beautify version 1.6.4 (https://github.com/beautify-web/js-beautify)
 17.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 18.	language-docker (https://github.com/docker/docker)
@@ -500,7 +500,7 @@ END OF ionide/ionide-fsharp NOTICES AND INFORMATION
 =========================================
 The MIT License (MIT)
 
-Copyright (c) 2007-2013 Einar Lielmanis and contributors.
+Copyright (c) 2007-2017 Einar Lielmanis, Liam Newman, and contributors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

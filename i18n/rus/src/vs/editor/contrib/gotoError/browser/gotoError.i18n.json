@@ -6,8 +6,5 @@
 {
 	"markerAction.next.label": "Перейти к следующей ошибке или предупреждению",
 	"markerAction.previous.label": "Перейти к предыдущей ошибке или предупреждению",
-	"quickfix.multiple.label": "Предложенные исправления: ",
-	"quickfix.single.label": "Предложенное исправление: ",
-	"title.w_source": "({0}/{1}) [{2}]",
 	"title.wo_source": "({0}/{1})"
 }

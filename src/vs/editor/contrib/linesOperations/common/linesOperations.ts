@@ -351,92 +351,10 @@ class InsertLineAfterAction extends HandlerEditorAction {
 	}
 }
 
-@editorAction
-export class DeleteAllLeftAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'deleteAllLeft',
-			label: nls.localize('lines.deleteAllLeft', "Delete All Left"),
-			alias: 'Delete All Left',
-			precondition: EditorContextKeys.Writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: null,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
-			}
-		});
-	}
-
+export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let selections: Range[] = editor.getSelections();
-
-		selections.sort(Range.compareRangesUsingStarts);
-		selections = selections.map(selection => {
-			if (selection.isEmpty()) {
-				return new Selection(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
-			} else {
-				return selection;
-			}
-		});
-
-		// merge overlapping selections
-		let effectiveRanges: Range[] = [];
-
-		for (let i = 0, count = selections.length - 1; i < count; i++) {
-			let range = selections[i];
-			let nextRange = selections[i + 1];
-
-			if (Range.intersectRanges(range, nextRange) === null) {
-				effectiveRanges.push(range);
-			} else {
-				selections[i + 1] = Range.plusRange(range, nextRange);
-			}
-		}
-
-		effectiveRanges.push(selections[selections.length - 1]);
-
-		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
-			return EditOperation.replace(range, '');
-		});
-
-		editor.executeEdits(this.id, edits);
-	}
-}
-
-@editorAction
-export class DeleteAllRightAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'deleteAllRight',
-			label: nls.localize('lines.deleteAllRight', "Delete All Right"),
-			alias: 'Delete All Right',
-			precondition: EditorContextKeys.Writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: null,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let model = editor.getModel();
-
-		let rangesToDelete: Range[] = editor.getSelections().map((sel) => {
-			if (sel.isEmpty()) {
-				const maxColumn = model.getLineMaxColumn(sel.startLineNumber);
-
-				if (sel.startColumn === maxColumn) {
-					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber + 1, 1);
-				} else {
-					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber, maxColumn);
-				}
-			}
-			return sel;
-		});
-
-		rangesToDelete.sort(Range.compareRangesUsingStarts);
-
+		const primaryCursor = editor.getSelection();
+		let rangesToDelete = this._getRangesToDelete(editor);
 		// merge overlapping selections
 		let effectiveRanges: Range[] = [];
 
@@ -453,12 +371,132 @@ export class DeleteAllRightAction extends EditorAction {
 
 		effectiveRanges.push(rangesToDelete[rangesToDelete.length - 1]);
 
+		let endCursorState = this._getEndCursorState(primaryCursor, effectiveRanges);
 		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
+			endCursorState.push(new Selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn));
 			return EditOperation.replace(range, '');
 		});
 
-		editor.executeEdits(this.id, edits);
-		editor.pushUndoStop();
+		editor.executeEdits(this.id, edits, endCursorState);
+	}
+
+	/**
+	 * Compute the cursor state after the edit operations were applied.
+	 */
+	protected abstract _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[];
+
+	protected abstract _getRangesToDelete(editor: ICommonCodeEditor): Range[];
+}
+
+@editorAction
+export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
+	constructor() {
+		super({
+			id: 'deleteAllLeft',
+			label: nls.localize('lines.deleteAllLeft', "Delete All Left"),
+			alias: 'Delete All Left',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+			}
+		});
+	}
+
+	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+		let endPrimaryCursor: Range;
+		let endCursorState = [];
+
+		for (let i = 0, len = rangesToDelete.length; i < len; i++) {
+			let range = rangesToDelete[i];
+			let endCursor = new Selection(rangesToDelete[i].startLineNumber, rangesToDelete[i].startColumn, rangesToDelete[i].startLineNumber, rangesToDelete[i].startColumn);
+
+			if (range.intersectRanges(primaryCursor)) {
+				endPrimaryCursor = endCursor;
+			} else {
+				endCursorState.push(endCursor);
+			}
+		}
+
+		if (endPrimaryCursor) {
+			endCursorState.unshift(endPrimaryCursor);
+		}
+
+		return endCursorState;
+	}
+
+	_getRangesToDelete(editor: ICommonCodeEditor): Range[] {
+		let rangesToDelete: Range[] = editor.getSelections();
+
+		rangesToDelete.sort(Range.compareRangesUsingStarts);
+		rangesToDelete = rangesToDelete.map(selection => {
+			if (selection.isEmpty()) {
+				return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+			} else {
+				return selection;
+			}
+		});
+
+		return rangesToDelete;
+	}
+}
+
+@editorAction
+export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
+	constructor() {
+		super({
+			id: 'deleteAllRight',
+			label: nls.localize('lines.deleteAllRight', "Delete All Right"),
+			alias: 'Delete All Right',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
+			}
+		});
+	}
+
+	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+		let endPrimaryCursor: Range;
+		let endCursorState = [];
+		for (let i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
+			let range = rangesToDelete[i];
+			let endCursor = new Selection(range.startLineNumber - offset, range.startColumn, range.startLineNumber - offset, range.startColumn);
+
+			if (range.intersectRanges(primaryCursor)) {
+				endPrimaryCursor = endCursor;
+			} else {
+				endCursorState.push(endCursor);
+			}
+		}
+
+		if (endPrimaryCursor) {
+			endCursorState.unshift(endPrimaryCursor);
+		}
+
+		return endCursorState;
+	}
+
+	_getRangesToDelete(editor: ICommonCodeEditor): Range[] {
+		let model = editor.getModel();
+
+		let rangesToDelete: Range[] = editor.getSelections().map((sel) => {
+			if (sel.isEmpty()) {
+				const maxColumn = model.getLineMaxColumn(sel.startLineNumber);
+
+				if (sel.startColumn === maxColumn) {
+					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber + 1, 1);
+				} else {
+					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber, maxColumn);
+				}
+			}
+			return sel;
+		});
+
+		rangesToDelete.sort(Range.compareRangesUsingStarts);
+		return rangesToDelete;
 	}
 }
 
@@ -480,7 +518,7 @@ export class JoinLinesAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let selections = editor.getSelections();
-		let primarySelection = editor.getSelection();
+		let primaryCursor = editor.getSelection();
 
 		selections.sort(Range.compareRangesUsingStarts);
 		let reducedSelections: Selection[] = [];
@@ -488,8 +526,8 @@ export class JoinLinesAction extends EditorAction {
 		let lastSelection = selections.reduce((previousValue, currentValue) => {
 			if (previousValue.isEmpty()) {
 				if (previousValue.endLineNumber === currentValue.startLineNumber) {
-					if (primarySelection.equalsSelection(previousValue)) {
-						primarySelection = currentValue;
+					if (primaryCursor.equalsSelection(previousValue)) {
+						primaryCursor = currentValue;
 					}
 					return currentValue;
 				}
@@ -514,8 +552,8 @@ export class JoinLinesAction extends EditorAction {
 
 		let model = editor.getModel();
 		let edits = [];
-		let resultSelections = [];
-		let resultPrimarySelection = primarySelection;
+		let endCursorState = [];
+		let endPrimaryCursor = primaryCursor;
 		let lineOffset = 0;
 
 		for (let i = 0, len = reducedSelections.length; i < len; i++) {
@@ -594,19 +632,19 @@ export class JoinLinesAction extends EditorAction {
 					}
 				}
 
-				if (Range.intersectRanges(deleteSelection, primarySelection) !== null) {
-					resultPrimarySelection = resultSelection;
+				if (Range.intersectRanges(deleteSelection, primaryCursor) !== null) {
+					endPrimaryCursor = resultSelection;
 				} else {
-					resultSelections.push(resultSelection);
+					endCursorState.push(resultSelection);
 				}
 			}
 
 			lineOffset += deleteSelection.endLineNumber - deleteSelection.startLineNumber;
 		}
 
-		editor.executeEdits(this.id, edits);
-		resultSelections.unshift(resultPrimarySelection);
-		editor.setSelections(resultSelections);
+		endCursorState.unshift(endPrimaryCursor);
+		editor.executeEdits(this.id, edits, endCursorState);
+
 	}
 }
 
