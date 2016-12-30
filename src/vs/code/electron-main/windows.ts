@@ -376,9 +376,17 @@ export class WindowsManager implements IWindowsMainService {
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
 			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
-			let openFilesInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
-			if (!openConfig.forceNewWindow && !openConfig.cli.extensionDevelopmentPath && windowConfig && typeof windowConfig.openFilesInNewWindow === 'boolean') {
-				openFilesInNewWindow = windowConfig.openFilesInNewWindow;
+			let openFilesInNewWindow: boolean;
+			if (openConfig.forceNewWindow) {
+				openFilesInNewWindow = true;
+			} else {
+				if (openConfig.preferNewWindow && openConfig.context === OpenContext.DOCK) {
+					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
+				}
+
+				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && typeof windowConfig.openFilesInNewWindow === 'boolean') {
+					openFilesInNewWindow = windowConfig.openFilesInNewWindow;
+				}
 			}
 
 			// Open Files in last instance if any and flag tells us so
