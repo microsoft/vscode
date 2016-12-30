@@ -853,6 +853,17 @@ declare module monaco.editor {
      */
     export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
 
+    export class Token {
+        readonly offset: number;
+        readonly type: string;
+        constructor(offset: number, type: string);
+    }
+
+    /**
+     * Tokenize `text` using language `languageId`
+     */
+    export function tokenize(text: string, languageId: string): Token[][];
+
     /**
      * A web worker that can provide a proxy to an arbitrary file.
      */
