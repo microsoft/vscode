@@ -75,7 +75,7 @@ export class WhitespaceComputer {
 			mid: number;
 
 		while (low < high) {
-			mid = Math.floor((low + high) / 2);
+			mid = ((low + high) >>> 1);
 
 			if (value === sortedArray[mid]) {
 				if (valueOrdinal < ordinals[mid]) {

@@ -37,10 +37,10 @@ class ShowSnippetsActions extends EditorAction {
 		}
 
 		const {lineNumber, column} = editor.getPosition();
-		const modeId = editor.getModel().getModeIdAtPosition(lineNumber, column);
+		const languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
 
 		const picks: ISnippetPick[] = [];
-		Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(modeId, snippet => {
+		Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
 			picks.push({
 				label: snippet.prefix,
 				detail: snippet.description,

@@ -282,7 +282,11 @@ function createTokenizationSupport(languageRegistration: TMLanguageRegistration,
 	var tokenizer = new Tokenizer(languageRegistration, modeId, grammar);
 	return {
 		getInitialState: () => new TMState(null),
-		tokenize: (line, state, offsetDelta) => tokenizer.tokenize(line, <TMState>state, offsetDelta)
+		tokenize: (line, state, offsetDelta) => tokenizer.tokenize(line, <TMState>state, offsetDelta),
+		tokenize3: () => {
+			// TODO@tokenization
+			throw new Error('TODO@tokenization');
+		}
 	};
 }
 

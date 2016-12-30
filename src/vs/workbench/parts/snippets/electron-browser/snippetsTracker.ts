@@ -18,6 +18,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { watch, FSWatcher } from 'fs';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private static FILE_WATCH_DELAY = 200;
@@ -30,6 +31,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	constructor(
 		@IFileService private fileService: IFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IModeService private modeService: IModeService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		this.snippetFolder = paths.join(environmentService.appSettingsHome, 'snippets');
@@ -70,7 +72,10 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 			return winjs.TPromise.join(snippetFiles.map(snippetFile => {
 				var modeId = snippetFile.replace(/\.json$/, '').toLowerCase();
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
-				return readAndRegisterSnippets(modeId, snippetPath, localize('userSnippet', "User Snippet"));
+				let languageIdentifier = this.modeService.getLanguageIdentifier(modeId);
+				if (languageIdentifier) {
+					return readAndRegisterSnippets(languageIdentifier, snippetPath, localize('userSnippet', "User Snippet"));
+				}
 			}));
 		});
 	}

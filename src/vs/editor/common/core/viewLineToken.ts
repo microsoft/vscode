@@ -17,6 +17,7 @@ export class ViewLineToken {
 
 	constructor(startIndex: number, type: string) {
 		this.startIndex = startIndex | 0;// @perf
+		// TODO@tokenization: remove check?
 		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
 	}
 

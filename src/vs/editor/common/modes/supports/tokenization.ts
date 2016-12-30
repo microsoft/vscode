@@ -5,6 +5,8 @@
 'use strict';
 
 import { Map, createMap } from 'vs/editor/common/core/map';
+import { ColorId, FontStyle, MetadataConsts, LanguageId } from 'vs/editor/common/modes';
+import { toStandardTokenType } from 'vs/editor/common/core/lineTokens';
 
 export interface IThemeRule {
 	token: string;
@@ -13,35 +15,27 @@ export interface IThemeRule {
 	fontStyle?: string;
 }
 
-export const enum FontStyle {
-	NotSet = -1,
-	None = 0,
-	Italic = 1,
-	Bold = 2,
-	Underline = 4
-}
-
 export class ParsedThemeRule {
 	_parsedThemeRuleBrand: void;
 
-	readonly scope: string;
+	readonly token: string;
 	readonly index: number;
 
 	/**
 	 * -1 if not set. An or mask of `FontStyle` otherwise.
 	 */
-	readonly fontStyle: number;
+	readonly fontStyle: FontStyle;
 	readonly foreground: string;
 	readonly background: string;
 
 	constructor(
-		scope: string,
+		token: string,
 		index: number,
 		fontStyle: number,
 		foreground: string,
 		background: string,
 	) {
-		this.scope = scope;
+		this.token = token;
 		this.index = index;
 		this.fontStyle = fontStyle;
 		this.foreground = foreground;
@@ -110,7 +104,7 @@ function resolveParsedThemeRules(parsedThemeRules: ParsedThemeRule[]): Theme {
 
 	// Sort rules lexicographically, and then by index if necessary
 	parsedThemeRules.sort((a, b) => {
-		let r = strcmp(a.scope, b.scope);
+		let r = strcmp(a.token, b.token);
 		if (r !== 0) {
 			return r;
 		}
@@ -119,9 +113,9 @@ function resolveParsedThemeRules(parsedThemeRules: ParsedThemeRule[]): Theme {
 
 	// Determine defaults
 	let defaultFontStyle = FontStyle.None;
-	let defaultForeground = '#000000';
-	let defaultBackground = '#ffffff';
-	while (parsedThemeRules.length >= 1 && parsedThemeRules[0].scope === '') {
+	let defaultForeground = '000000';
+	let defaultBackground = 'ffffff';
+	while (parsedThemeRules.length >= 1 && parsedThemeRules[0].token === '') {
 		let incomingDefaults = parsedThemeRules.shift();
 		if (incomingDefaults.fontStyle !== FontStyle.NotSet) {
 			defaultFontStyle = incomingDefaults.fontStyle;
@@ -134,34 +128,38 @@ function resolveParsedThemeRules(parsedThemeRules: ParsedThemeRule[]): Theme {
 		}
 	}
 	let colorMap = new ColorMap();
+	// ensure default foreground gets id 1 and default background gets id 2
 	let defaults = new ThemeTrieElementRule(defaultFontStyle, colorMap.getId(defaultForeground), colorMap.getId(defaultBackground));
 
-	let root = new ThemeTrieElement(new ThemeTrieElementRule(FontStyle.NotSet, 0, 0));
+	let root = new ThemeTrieElement(defaults);
 	for (let i = 0, len = parsedThemeRules.length; i < len; i++) {
 		let rule = parsedThemeRules[i];
-		root.insert(rule.scope, rule.fontStyle, colorMap.getId(rule.foreground), colorMap.getId(rule.background));
+		root.insert(rule.token, rule.fontStyle, colorMap.getId(rule.foreground), colorMap.getId(rule.background));
 	}
 
-	return new Theme(colorMap, defaults, root);
+	return new Theme(colorMap, root);
 }
 
 export class ColorMap {
 
 	private _lastColorId: number;
 	private _id2color: string[];
-	private _color2id: Map<string, number>;
+	private _color2id: Map<string, ColorId>;
 
 	constructor() {
 		this._lastColorId = 0;
 		this._id2color = [];
-		this._color2id = createMap<string, number>();
+		this._color2id = createMap<string, ColorId>();
 	}
 
-	public getId(color: string): number {
+	public getId(color: string): ColorId {
 		if (color === null) {
 			return 0;
 		}
 		color = color.toUpperCase();
+		if (!/^[0-9A-F]{6}$/.test(color)) {
+			throw new Error('Illegal color name: ' + color);
+		}
 		let value = this._color2id.get(color);
 		if (value) {
 			return value;
@@ -190,22 +188,16 @@ export class Theme {
 
 	private readonly _colorMap: ColorMap;
 	private readonly _root: ThemeTrieElement;
-	private readonly _defaults: ThemeTrieElementRule;
 	private readonly _cache: Map<string, ThemeTrieElementRule>;
 
-	constructor(colorMap: ColorMap, defaults: ThemeTrieElementRule, root: ThemeTrieElement) {
+	constructor(colorMap: ColorMap, root: ThemeTrieElement) {
 		this._colorMap = colorMap;
 		this._root = root;
-		this._defaults = defaults;
 		this._cache = createMap<string, ThemeTrieElementRule>();
 	}
 
 	public getColorMap(): string[] {
 		return this._colorMap.getColorMap();
-	}
-
-	public getDefaults(): ThemeTrieElementRule {
-		return this._defaults;
 	}
 
 	/**
@@ -215,13 +207,24 @@ export class Theme {
 		return this._root.toExternalThemeTrieElement();
 	}
 
-	public match(scopeName: string): ThemeTrieElementRule {
-		let result = this._cache.get(scopeName);
+	public _match(token: string): ThemeTrieElementRule {
+		let result = this._cache.get(token);
 		if (typeof result === 'undefined') {
-			result = this._root.match(scopeName);
-			this._cache.set(scopeName, result);
+			result = this._root.match(token);
+			this._cache.set(token, result);
 		}
 		return result;
+	}
+
+	public match(languageId: LanguageId, token: string): number {
+		let rule = this._match(token);
+		let standardToken = toStandardTokenType(token);
+
+		return (
+			rule.metadata
+			| (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
+		) >>> 0;
 	}
 }
 
@@ -238,18 +241,24 @@ export function strcmp(a: string, b: string): number {
 export class ThemeTrieElementRule {
 	_themeTrieElementRuleBrand: void;
 
-	fontStyle: number;
-	foreground: number;
-	background: number;
+	private _fontStyle: FontStyle;
+	private _foreground: ColorId;
+	private _background: ColorId;
+	public metadata: number;
 
-	constructor(fontStyle: number, foreground: number, background: number) {
-		this.fontStyle = fontStyle;
-		this.foreground = foreground;
-		this.background = background;
+	constructor(fontStyle: FontStyle, foreground: ColorId, background: ColorId) {
+		this._fontStyle = fontStyle;
+		this._foreground = foreground;
+		this._background = background;
+		this.metadata = (
+			(this._fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
+			| (this._foreground << MetadataConsts.FOREGROUND_OFFSET)
+			| (this._background << MetadataConsts.BACKGROUND_OFFSET)
+		) >>> 0;
 	}
 
 	public clone(): ThemeTrieElementRule {
-		return new ThemeTrieElementRule(this.fontStyle, this.foreground, this.background);
+		return new ThemeTrieElementRule(this._fontStyle, this._foreground, this._background);
 	}
 
 	public static cloneArr(arr: ThemeTrieElementRule[]): ThemeTrieElementRule[] {
@@ -260,16 +269,21 @@ export class ThemeTrieElementRule {
 		return r;
 	}
 
-	public acceptOverwrite(fontStyle: number, foreground: number, background: number): void {
+	public acceptOverwrite(fontStyle: FontStyle, foreground: ColorId, background: ColorId): void {
 		if (fontStyle !== FontStyle.NotSet) {
-			this.fontStyle = fontStyle;
+			this._fontStyle = fontStyle;
 		}
-		if (foreground !== 0) {
-			this.foreground = foreground;
+		if (foreground !== ColorId.None) {
+			this._foreground = foreground;
 		}
-		if (background !== 0) {
-			this.background = background;
+		if (background !== ColorId.None) {
+			this._background = background;
 		}
+		this.metadata = (
+			(this._fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
+			| (this._foreground << MetadataConsts.FOREGROUND_OFFSET)
+			| (this._background << MetadataConsts.BACKGROUND_OFFSET)
+		) >>> 0;
 	}
 }
 
@@ -306,20 +320,20 @@ export class ThemeTrieElement {
 		return new ExternalThemeTrieElement(this._mainRule, children);
 	}
 
-	public match(scope: string): ThemeTrieElementRule {
-		if (scope === '') {
+	public match(token: string): ThemeTrieElementRule {
+		if (token === '') {
 			return this._mainRule;
 		}
 
-		let dotIndex = scope.indexOf('.');
+		let dotIndex = token.indexOf('.');
 		let head: string;
 		let tail: string;
 		if (dotIndex === -1) {
-			head = scope;
+			head = token;
 			tail = '';
 		} else {
-			head = scope.substring(0, dotIndex);
-			tail = scope.substring(dotIndex + 1);
+			head = token.substring(0, dotIndex);
+			tail = token.substring(dotIndex + 1);
 		}
 
 		let child = this._children.get(head);
@@ -330,22 +344,22 @@ export class ThemeTrieElement {
 		return this._mainRule;
 	}
 
-	public insert(scope: string, fontStyle: number, foreground: number, background: number): void {
-		if (scope === '') {
+	public insert(token: string, fontStyle: FontStyle, foreground: ColorId, background: ColorId): void {
+		if (token === '') {
 			// Merge into the main rule
 			this._mainRule.acceptOverwrite(fontStyle, foreground, background);
 			return;
 		}
 
-		let dotIndex = scope.indexOf('.');
+		let dotIndex = token.indexOf('.');
 		let head: string;
 		let tail: string;
 		if (dotIndex === -1) {
-			head = scope;
+			head = token;
 			tail = '';
 		} else {
-			head = scope.substring(0, dotIndex);
-			tail = scope.substring(dotIndex + 1);
+			head = token.substring(0, dotIndex);
+			tail = token.substring(dotIndex + 1);
 		}
 
 		let child = this._children.get(head);
