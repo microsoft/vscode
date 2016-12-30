@@ -59,6 +59,7 @@ export interface IOpenConfiguration {
 	pathsToOpen?: string[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
+	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
@@ -367,8 +368,8 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
-		let openFolderInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
-		if (!openConfig.forceNewWindow && windowConfig && typeof windowConfig.openFoldersInNewWindow === 'boolean') {
+		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
+		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && windowConfig && typeof windowConfig.openFoldersInNewWindow === 'boolean') {
 			openFolderInNewWindow = windowConfig.openFoldersInNewWindow;
 		}
 
@@ -377,8 +378,8 @@ export class WindowsManager implements IWindowsMainService {
 
 			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
 			let openFilesInNewWindow: boolean;
-			if (openConfig.forceNewWindow) {
-				openFilesInNewWindow = true;
+			if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
+				openFilesInNewWindow = openConfig.forceNewWindow && !openConfig.forceReuseWindow;
 			} else {
 				if (openConfig.preferNewWindow && openConfig.context === OpenContext.DOCK) {
 					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
