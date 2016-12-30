@@ -468,12 +468,13 @@ export class VSCodeMenu {
 	}
 
 	private createOpenRecentMenuItem(path: string, actionId: string): Electron.MenuItem {
+		let label = path;
 		if ((platform.isMacintosh || platform.isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
-			path = `~${path.substr(this.environmentService.userHome.length)}`;
+			label = `~${path.substr(this.environmentService.userHome.length)}`;
 		}
 
 		return new MenuItem(this.likeAction(actionId, {
-			label: unMnemonicLabel(path), click: (menuItem, win, event) => {
+			label: unMnemonicLabel(label), click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
