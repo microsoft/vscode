@@ -221,7 +221,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
 			return () => {
-				let commandId = null;
+				let commandId: string = null;
 				commandId = interactiveVariablesMap ? interactiveVariablesMap[interactiveVariable] : null;
 				if (!commandId) {
 					// Just launch any command if the interactive variable is not contributed by the adapter #12735

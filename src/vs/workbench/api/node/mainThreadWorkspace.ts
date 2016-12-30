@@ -30,9 +30,9 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	constructor(
 		@ISearchService searchService: ISearchService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITextFileService textFileService,
-		@IWorkbenchEditorService editorService,
-		@ITextModelResolverService textModelResolverService,
+		@ITextFileService textFileService: ITextFileService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IFileService fileService: IFileService
 	) {
 		super();

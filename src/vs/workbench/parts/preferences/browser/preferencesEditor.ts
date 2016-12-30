@@ -97,7 +97,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	public static ID: string = 'workbench.editor.defaultPreferences';
 	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
 
-	private inputDisposeListener;
+	private inputDisposeListener: IDisposable;
 	private defaultSettingHeaderWidget: DefaultSettingsHeaderWidget;
 
 	private delayedFilterLogging: Delayer<void>;
@@ -244,8 +244,8 @@ class DefaultPreferencesCodeEditor extends CodeEditor {
 }
 
 export interface IPreferencesRenderer {
-	render();
-	dispose();
+	render(): void;
+	dispose(): void;
 }
 
 export abstract class PreferencesEditorContribution extends Disposable implements editorCommon.IEditorContribution {

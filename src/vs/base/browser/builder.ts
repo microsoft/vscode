@@ -692,7 +692,7 @@ export class Builder implements IDisposable {
 			}
 		};
 
-		return this.on(arg1, fn, listenerToUnbindContainer);
+		return this.on(arg1, fn, listenerToUnbindContainer, useCapture);
 	}
 
 	/**
