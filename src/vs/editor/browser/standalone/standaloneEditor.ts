@@ -33,6 +33,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
+import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 
 /**
  * @internal
@@ -255,6 +257,53 @@ export function colorizeModelLine(model: IModel, lineNumber: number, tabSize: nu
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 
+export class Token {
+	public readonly offset: number;
+	public readonly type: string;
+
+	constructor(offset: number, type: string) {
+		this.offset = offset;
+		this.type = type;
+	}
+}
+
+/**
+ * @internal
+ */
+function getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
+	let tokenizationSupport = TokenizationRegistry.get(languageId);
+	if (tokenizationSupport) {
+		return tokenizationSupport;
+	}
+	return {
+		getInitialState: () => NULL_STATE,
+		tokenize: (line: string, state: IState, deltaOffset: number) => nullTokenize(languageId, line, state, deltaOffset),
+		tokenize3: undefined,
+	};
+}
+
+/**
+ * Tokenize `text` using language `languageId`
+ */
+export function tokenize(text: string, languageId: string): Token[][] {
+	let modeService = StaticServices.modeService.get();
+	// Needed in order to get the mode registered for subsequent look-ups
+	modeService.getOrCreateMode(languageId);
+
+	let tokenizationSupport = getSafeTokenizationSupport(languageId);
+	let lines = text.split(/\r\n|\r|\n/);
+	let result: Token[][] = [];
+	let state = tokenizationSupport.getInitialState();
+	for (let i = 0, len = lines.length; i < len; i++) {
+		let line = lines[i];
+		let tokenizationResult = tokenizationSupport.tokenize(line, state, 0);
+
+		result[i] = tokenizationResult.tokens.map((t) => new Token(t.startIndex, t.type));
+		state = tokenizationResult.endState;
+	}
+	return result;
+}
+
 /**
  * @internal
  */
@@ -279,6 +328,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		colorizeElement: colorizeElement,
 		colorize: colorize,
 		colorizeModelLine: colorizeModelLine,
+		tokenize: tokenize,
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
@@ -306,6 +356,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		BareFontInfo: <any>editorCommon.BareFontInfo,
 		FontInfo: <any>editorCommon.FontInfo,
 		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
+		Token: Token,
 
 		// vars
 		EditorType: editorCommon.EditorType,

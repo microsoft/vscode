@@ -11,6 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -254,6 +255,10 @@ export class LanguagesRegistry {
 	}
 
 	public getLanguageIdentifier(_modeId: string | LanguageId): LanguageIdentifier {
+		if (_modeId === NULL_MODE_ID || _modeId === LanguageId.Null) {
+			return NULL_LANGUAGE_IDENTIFIER;
+		}
+
 		let modeId: string;
 		if (typeof _modeId === 'string') {
 			modeId = _modeId;

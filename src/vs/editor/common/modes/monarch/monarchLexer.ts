@@ -451,7 +451,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		if (!rules) {
 			rules = monarchCommon.findRules(this._lexer, state.stack.state); // do parent matching
 			if (!rules) {
-				monarchCommon.throwError(this._lexer, 'tokenizer state is not defined: ' + state);
+				monarchCommon.throwError(this._lexer, 'tokenizer state is not defined: ' + state.stack.state);
 			}
 		}
 
@@ -485,7 +485,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		}
 
 		if (!hasEmbeddedPopRule) {
-			monarchCommon.throwError(this._lexer, 'no rule containing nextEmbedded: "@pop" in tokenizer embedded state: ' + state);
+			monarchCommon.throwError(this._lexer, 'no rule containing nextEmbedded: "@pop" in tokenizer embedded state: ' + state.stack.state);
 		}
 
 		return popOffset;
