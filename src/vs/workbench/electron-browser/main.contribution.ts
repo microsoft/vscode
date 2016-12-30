@@ -175,6 +175,11 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'default': false,
 		'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
 	},
+	'window.openFoldersInNewWindow': {
+		'type': 'boolean',
+		'default': false,
+		'description': nls.localize('openFoldersInNewWindow', "When enabled, will open folders in a new window instead of reusing an existing instance.")
+	},
 	'window.reopenFolders': {
 		'type': 'string',
 		'enum': ['none', 'one', 'all'],

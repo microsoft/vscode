@@ -291,6 +291,8 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public open(openConfig: IOpenConfiguration): VSCodeWindow[] {
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
 		let iPathsToOpen: IPath[];
 		const usedWindows: VSCodeWindow[] = [];
 
@@ -364,18 +366,19 @@ export class WindowsManager implements IWindowsMainService {
 			filesToOpen = candidates;
 		}
 
+		// let the user settings override how folders are open in a new window or same window unless we are forced
 		let openFolderInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
+		if (!openConfig.forceNewWindow && windowConfig && typeof windowConfig.openFoldersInNewWindow === 'boolean') {
+			openFolderInNewWindow = windowConfig.openFoldersInNewWindow;
+		}
 
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
 			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
-			let openFilesInNewWindow: boolean;
-			if (openConfig.forceNewWindow) {
-				openFilesInNewWindow = true;
-			} else if (!openConfig.cli.extensionDevelopmentPath) {
-				const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-				openFilesInNewWindow = windowConfig && windowConfig.openFilesInNewWindow === true;
+			let openFilesInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
+			if (!openConfig.forceNewWindow && !openConfig.cli.extensionDevelopmentPath && windowConfig && typeof windowConfig.openFilesInNewWindow === 'boolean') {
+				openFilesInNewWindow = windowConfig.openFilesInNewWindow;
 			}
 
 			// Open Files in last instance if any and flag tells us so
