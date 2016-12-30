@@ -29,8 +29,10 @@
 	opacity: 1 !important;
 }*/
 
+/* TODO@tokenization */
+
 /* -------------------------------- Begin vs tokens -------------------------------- */
-.monaco-editor.vs .token.invalid						{ color: #cd3131; }
+/*.monaco-editor.vs .token.invalid						{ color: #cd3131; }
 .monaco-editor.vs .token.emphasis						{ font-style: italic;}
 .monaco-editor.vs .token.strong							{ font-weight: bold; }
 
@@ -82,14 +84,14 @@
 .monaco-editor.vs .token.operator.scss					{ color: #666666; }
 .monaco-editor.vs .token.operator.sql					{ color: #778899; }
 .monaco-editor.vs .token.operator.swift					{ color: #666666; }
-.monaco-editor.vs .token.predefined.sql					{ color: #FF00FF; }
+.monaco-editor.vs .token.predefined.sql					{ color: #FF00FF; }*/
 
 /* -------------------------------- End vs tokens -------------------------------- */
 
 
 
 /* -------------------------------- Begin vs-dark tokens -------------------------------- */
-.monaco-editor.vs-dark .token								{ color: #D4D4D4; }
+/*.monaco-editor.vs-dark .token								{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.vs-whitespace					{ color: rgba(227, 228, 226, 0.16) !important; }
 
 .monaco-editor.vs-dark .token.invalid						{ color: #f44747; }
@@ -143,14 +145,14 @@
 .monaco-editor.vs-dark .token.operator.scss					{ color: #909090; }
 .monaco-editor.vs-dark .token.operator.sql					{ color: #778899; }
 .monaco-editor.vs-dark .token.operator.swift				{ color: #909090; }
-.monaco-editor.vs-dark .token.predefined.sql				{ color: #FF00FF; }
+.monaco-editor.vs-dark .token.predefined.sql				{ color: #FF00FF; }*/
 
 /* -------------------------------- End vs-dark tokens -------------------------------- */
 
 
 
 /* -------------------------------- Begin hc-black tokens -------------------------------- */
-.monaco-editor.hc-black .token.invalid						{ color: #f44747; }
+/*.monaco-editor.hc-black .token.invalid						{ color: #f44747; }
 .monaco-editor.hc-black .token.emphasis						{ font-style: italic;}
 .monaco-editor.hc-black .token.strong						{ font-weight: bold; }
 
@@ -192,7 +194,7 @@
 
 .monaco-editor.hc-black .token.operator.sql					{ color: #778899; }
 .monaco-editor.hc-black .token.operator.swift				{ color: #909090; }
-.monaco-editor.hc-black .token.predefined.sql				{ color: #FF00FF; }
+.monaco-editor.hc-black .token.predefined.sql				{ color: #FF00FF; }*/
 
 
 /* -------------------------------- End hc-black tokens -------------------------------- */
