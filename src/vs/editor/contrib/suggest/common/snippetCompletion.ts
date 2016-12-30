@@ -17,23 +17,32 @@ interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
 }
 
-class NameAndLangId {
+class Args {
 
-	static fromArg(arg: any): NameAndLangId {
+	static fromUser(arg: any): Args {
 		if (typeof arg !== 'object') {
-			return new NameAndLangId(undefined, undefined);
+			return Args._empty;
 		}
-		let {name, langId} = arg;
+		let {snippet, name, langId} = arg;
+		if (typeof snippet !== 'string') {
+			snippet = undefined;
+		}
 		if (typeof name !== 'string') {
 			name = undefined;
 		}
 		if (typeof langId !== 'string') {
 			langId = undefined;
 		}
-		return new NameAndLangId(name, langId);
+		return new Args(snippet, name, langId);
 	}
 
-	private constructor(public readonly name: string, public readonly langId: string) {
+	private static _empty = new Args(undefined, undefined, undefined);
+
+	private constructor(
+		public readonly snippet: string,
+		public readonly name: string,
+		public readonly langId: string
+	) {
 
 	}
 
@@ -59,13 +68,24 @@ class InsertSnippetAction extends EditorAction {
 
 		const quickOpenService = accessor.get(IQuickOpenService);
 		const {lineNumber, column} = editor.getPosition();
-		let {name, langId} = NameAndLangId.fromArg(arg);
-
-		if (!langId) {
-			langId = editor.getModel().getModeIdAtPosition(lineNumber, column);
-		}
+		let {snippet, name, langId} = Args.fromUser(arg);
 
 		return new TPromise<ISnippet>((resolve, reject) => {
+
+			if (snippet) {
+				return resolve({
+					codeSnippet: snippet,
+					description: undefined,
+					name: undefined,
+					owner: undefined,
+					prefix: undefined
+				});
+			}
+
+			if (!langId) {
+				langId = editor.getModel().getModeIdAtPosition(lineNumber, column);
+			}
+
 			if (name) {
 				// take selected snippet
 				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(langId, snippet => {

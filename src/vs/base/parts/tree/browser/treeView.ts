@@ -504,6 +504,9 @@ export class TreeView extends HeightMap {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-tree-rows';
+		if (context.options.showTwistie) {
+			this.rowsContainer.className += ' show-twisties';
+		}
 
 		var focusTracker = DOM.trackFocus(this.domNode);
 		focusTracker.addFocusListener(() => this.onFocus());
