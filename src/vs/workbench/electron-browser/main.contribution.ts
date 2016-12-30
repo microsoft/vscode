@@ -173,12 +173,12 @@ let properties: { [path: string]: IJSONSchema; } = {
 	'window.openFilesInNewWindow': {
 		'type': 'boolean',
 		'default': false,
-		'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
+		'description': nls.localize('openFilesInNewWindow', "When enabled, will prefer to open files in a new window instead of reusing an existing instance. Note that there can still be cases where this setting is ignored (e.g. when using the -n command line option).")
 	},
 	'window.openFoldersInNewWindow': {
 		'type': 'boolean',
 		'default': false,
-		'description': nls.localize('openFoldersInNewWindow', "When enabled, will open folders in a new window instead of reusing an existing instance.")
+		'description': nls.localize('openFoldersInNewWindow', "When enabled, will prefer to open folders in a new window instead of reusing an existing instance. Note that there can still be cases where this setting is ignored (e.g. when using the -n command line option).")
 	},
 	'window.reopenFolders': {
 		'type': 'string',
