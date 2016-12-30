@@ -16,6 +16,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { Theme } from 'vs/editor/common/modes/supports/tokenization';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -297,16 +299,105 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 	}
 }
 
+class MonarchModernTokensCollector implements IMonarchTokensCollector {
+
+	private _modeService: IModeService;
+	private _theme: Theme;
+	private _prependTokens: Uint32Array;
+	private _tokens: number[];
+	private _currentLanguageId: modes.LanguageId;
+	private _lastTokenMetadata: number;
+
+	constructor(modeService: IModeService, theme: Theme) {
+		this._modeService = modeService;
+		this._theme = theme;
+		this._prependTokens = null;
+		this._tokens = [];
+		this._currentLanguageId = modes.LanguageId.Null;
+		this._lastTokenMetadata = 0;
+	}
+
+	public enterMode(startOffset: number, modeId: string): void {
+		this._currentLanguageId = this._modeService.getLanguageIdentifier(modeId).iid;
+	}
+
+	public emit(startOffset: number, type: string): void {
+		let metadata = this._theme.match(this._currentLanguageId, type);
+		if (this._lastTokenMetadata === metadata) {
+			return;
+		}
+		this._lastTokenMetadata = metadata;
+		this._tokens.push(startOffset);
+		this._tokens.push(metadata);
+	}
+
+	private static _merge(a: Uint32Array, b: number[], c: Uint32Array): Uint32Array {
+		let aLen = (a !== null ? a.length : 0);
+		let bLen = b.length;
+		let cLen = (c !== null ? c.length : 0);
+
+		// Fast path
+		if (bLen === 0) {
+			if (aLen === 0) {
+				return c;
+			}
+			if (cLen === 0) {
+				return a;
+			}
+		}
+
+		let result = new Uint32Array(aLen + bLen + cLen);
+		if (a !== null) {
+			result.set(a);
+		}
+		for (let i = 0; i < bLen; i++) {
+			result[aLen + i] = b[i];
+		}
+		if (c !== null) {
+			result.set(c, aLen + bLen);
+		}
+		return result;
+	}
+
+	public nestedModeTokenize(embeddedModeLine: string, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
+		const nestedModeId = embeddedModeData.modeId;
+		const embeddedModeState = embeddedModeData.state;
+
+		const nestedModeTokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
+		if (!nestedModeTokenizationSupport) {
+			this.enterMode(offsetDelta, nestedModeId);
+			this.emit(offsetDelta, '');
+			return embeddedModeState;
+		}
+
+		let nestedResult = nestedModeTokenizationSupport.tokenize3(embeddedModeLine, embeddedModeState, offsetDelta);
+		this._prependTokens = MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, nestedResult.tokens);
+		this._tokens = [];
+		this._currentLanguageId = 0;
+		this._lastTokenMetadata = 0;
+		return nestedResult.endState;
+	}
+
+	public finalize(endState: MonarchLineState): modes.ILineTokens3 {
+		return {
+			tokens: MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, null),
+			endState: endState
+		};
+	}
+}
+
 export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	private readonly _modeService: IModeService;
+	private readonly _standaloneColorService: IStandaloneColorService;
 	private readonly _modeId: string;
 	private readonly _lexer: monarchCommon.ILexer;
 	private _embeddedModes: { [modeId: string]: boolean; };
 	private _tokenizationRegistryListener: IDisposable;
 
-	constructor(modeService: IModeService, modeId: string, lexer: monarchCommon.ILexer) {
+	constructor(modeService: IModeService, standaloneColorService: IStandaloneColorService, modeId: string, lexer: monarchCommon.ILexer) {
 		this._modeService = modeService;
+		this._standaloneColorService = standaloneColorService;
 		this._modeId = modeId;
 		this._lexer = lexer;
 		this._embeddedModes = Object.create(null);
@@ -335,12 +426,15 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		return MonarchLineStateFactory.create(rootState, null);
 	}
 
-	public tokenize(line: string, _lineState: modes.IState, offsetDelta: number): modes.ILineTokens {
-		let lineState = (<MonarchLineState>_lineState);
-
+	public tokenize(line: string, lineState: modes.IState, offsetDelta: number): modes.ILineTokens {
 		let tokensCollector = new MonarchClassicTokensCollector();
-		let endLineState = this._tokenize(line, lineState, offsetDelta, tokensCollector);
+		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
+		return tokensCollector.finalize(endLineState);
+	}
 
+	public tokenize3(line: string, lineState: modes.IState, offsetDelta: number): modes.ILineTokens3 {
+		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneColorService.getTheme());
+		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
 
@@ -746,6 +840,6 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	return null;
 }
 
-export function createTokenizationSupport(_modeService: IModeService, modeId: string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
-	return new MonarchTokenizer(_modeService, modeId, lexer);
+export function createTokenizationSupport(modeService: IModeService, standaloneColorService: IStandaloneColorService, modeId: string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
+	return new MonarchTokenizer(modeService, standaloneColorService, modeId, lexer);
 }

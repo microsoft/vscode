@@ -12,6 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineParts } from 'vs/editor/common/core/lineParts';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 
 export interface IColorizerOptions {
@@ -141,12 +142,12 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): string {
 	let html: string[] = [];
 	let state = tokenizationSupport.getInitialState();
+	let colorMap = TokenizationRegistry.getColorMap();
 
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
-
-		let tokenizeResult = tokenizationSupport.tokenize(line, state, 0);
-
+		let tokenizeResult = tokenizationSupport.tokenize3(line, state, 0);
+		let lineTokens = new LineTokens(colorMap, tokenizeResult.tokens, line);
 		let renderResult = renderLine(new RenderLineInput(
 			line,
 			tabSize,
@@ -154,7 +155,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			-1,
 			'none',
 			false,
-			new LineParts(tokenizeResult.tokens.map(t => new ViewLineToken(t.startIndex, t.type)), line.length + 1)
+			new LineParts(lineTokens.inflate(), line.length + 1)
 		));
 
 		html = html.concat(renderResult.output);

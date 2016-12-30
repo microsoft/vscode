@@ -20,8 +20,22 @@ import Event, { Emitter } from 'vs/base/common/event';
 /**
  * @internal
  */
-export interface IModeDescriptor {
-	id: string;
+export const enum LanguageId {
+	Null = 0,
+	PlainText = 1
+}
+
+/**
+ * @internal
+ */
+export class LanguageIdentifier {
+	public readonly sid: string;
+	public readonly iid: LanguageId;
+
+	constructor(sid: string, iid: LanguageId) {
+		this.sid = sid;
+		this.iid = iid;
+	}
 }
 
 /**
@@ -30,6 +44,8 @@ export interface IModeDescriptor {
 export interface IMode {
 
 	getId(): string;
+
+	getLanguageIdentifier(): LanguageIdentifier;
 
 }
 
@@ -43,24 +59,56 @@ export interface ILineTokens {
 }
 
 /**
+ * A font style. Values are 2^x such that a bit mask can be used.
+ * @internal
+ */
+export const enum FontStyle {
+	NotSet = -1,
+	None = 0,
+	Italic = 1,
+	Bold = 2,
+	Underline = 4
+}
+
+/**
+ * @internal
+ */
+export const enum ColorId {
+	None = 0,
+	DefaultForeground = 1,
+	DefaultBackground = 2
+}
+
+/**
+ * A standard token type. Values are 2^x such that a bit mask can be used.
+ * @internal
+ */
+export const enum StandardTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 4
+}
+
+/**
  * Helpers to manage the "collapsed" metadata of an entire StackElement stack.
  * The following assumptions have been made:
  *  - languageId < 256 => needs 8 bits
  *  - unique color count < 512 => needs 9 bits
  *
  * The binary format is:
- * --------------------------------------------
- *   3322 2222 2222 1111 1111 1100 0000 0000
- *   1098 7654 3210 9876 5432 1098 7654 3210
- * --------------------------------------------
- *   xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
- *   bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
- * --------------------------------------------
- *   L = LanguageId (8 bits)
- *   T = StandardTokenType (3 bits)
- *   F = FontStyle (3 bits)
- *   f = foreground color (9 bits)
- *   b = background color (9 bits)
+ * - -------------------------------------------
+ *     3322 2222 2222 1111 1111 1100 0000 0000
+ *     1098 7654 3210 9876 5432 1098 7654 3210
+ * - -------------------------------------------
+ *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
+ *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+ * - -------------------------------------------
+ *  - L = LanguageId (8 bits)
+ *  - T = StandardTokenType (3 bits)
+ *  - F = FontStyle (3 bits)
+ *  - f = foreground color (9 bits)
+ *  - b = background color (9 bits)
  *
  * @internal
  */
@@ -102,15 +150,15 @@ export interface ITokenizationSupport {
 	// add offsetDelta to each of the returned indices
 	tokenize(line: string, state: IState, offsetDelta: number): ILineTokens;
 
-	// tokenize3(line: string, state: IState, offsetDelta: number): ILineTokens3;
+	tokenize3(line: string, state: IState, offsetDelta: number): ILineTokens3;
 }
 
 /**
- * A token. Only supports a single scope, but will soon support a scope array.
+ * A token.
  */
 export interface IToken2 {
 	startIndex: number;
-	scopes: string | string[];
+	scopes: string;
 }
 /**
  * The result of a line tokenization.
@@ -790,8 +838,11 @@ export class TokenizationRegistryImpl {
 	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
 	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
+	private _colorMap: string[];
+
 	constructor() {
 		this._map = Object.create(null);
+		this._colorMap = null;
 	}
 
 	/**
@@ -818,6 +869,10 @@ export class TokenizationRegistryImpl {
 
 	public get(languageId: string): ITokenizationSupport {
 		return (this._map[languageId] || null);
+	}
+
+	public getColorMap(): string[] {
+		return this._colorMap;
 	}
 }
 

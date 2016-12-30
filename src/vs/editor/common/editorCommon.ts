@@ -10,8 +10,8 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { IMode } from 'vs/editor/common/modes';
-import { LineTokens, StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { IMode, LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -1294,7 +1294,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	readonly standardType: StandardTokenType;
+	readonly type: StandardTokenType;
 	readonly lineNumber: number;
 	readonly startColumn: number;
 	readonly endColumn: number;
@@ -1818,8 +1818,15 @@ export interface IReadOnlyModel extends ITextModel {
 
 	/**
 	 * Get the language associated with this model.
+	 * TODO@tokenization
+	 * @deprecated
 	 */
 	getModeId(): string;
+
+	/**
+	 * Get the language associated with this model.
+	 */
+	getLanguageIdentifier(): LanguageIdentifier;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -1863,25 +1870,34 @@ export interface ITokenizedModel extends ITextModel {
 
 	/**
 	 * Get the current language mode associated with the model.
+	 * TODO@tokenization
+	 * @deprecated
 	 */
 	getMode(): IMode;
 
 	/**
 	 * Get the language associated with this model.
+	 * TODO@tokenization
+	 * @deprecated
 	 */
 	getModeId(): string;
+
+	/**
+	 * Get the language associated with this model.
+	 */
+	getLanguageIdentifier(): LanguageIdentifier;
 
 	/**
 	 * Set the current language mode associated with the model.
 	 * @internal
 	 */
-	setMode(languageId: string): void;
+	setMode(languageIdentifier: LanguageIdentifier): void;
 
 	/**
 	 * Returns the true (inner-most) language mode at a given position.
 	 * @internal
 	 */
-	getModeIdAtPosition(lineNumber: number, column: number): string;
+	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
 
 	/**
 	 * Get the word under or besides `position`.

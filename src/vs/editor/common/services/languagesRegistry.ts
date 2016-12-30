@@ -10,10 +10,12 @@ import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export interface IResolvedLanguage {
+	id: LanguageId;
 	name: string;
 	mimetypes: string[];
 	aliases: string[];
@@ -24,20 +26,24 @@ export interface IResolvedLanguage {
 
 export class LanguagesRegistry {
 
+	private _nextLanguageId: number;
 	private _languages: { [id: string]: IResolvedLanguage; };
 
 	private mime2LanguageId: { [mimeType: string]: string; };
 	private name2LanguageId: { [name: string]: string; };
 	private lowerName2Id: { [name: string]: string; };
+	private languageIds: string[];
 
 	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
 	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
 
 	constructor(useModesRegistry = true) {
+		this._nextLanguageId = 1;
 		this._languages = {};
 		this.mime2LanguageId = {};
 		this.name2LanguageId = {};
 		this.lowerName2Id = {};
+		this.languageIds = [];
 
 		if (useModesRegistry) {
 			this._registerLanguages(ModesRegistry.getLanguages());
@@ -83,7 +89,9 @@ export class LanguagesRegistry {
 		if (hasOwnProperty.call(this._languages, langId)) {
 			resolvedLanguage = this._languages[langId];
 		} else {
+			let languageId = this._nextLanguageId++;
 			resolvedLanguage = {
+				id: languageId,
 				name: null,
 				mimetypes: [],
 				aliases: [],
@@ -91,6 +99,7 @@ export class LanguagesRegistry {
 				filenames: [],
 				configurationFiles: []
 			};
+			this.languageIds[languageId] = langId;
 			this._languages[langId] = resolvedLanguage;
 		}
 
@@ -115,8 +124,6 @@ export class LanguagesRegistry {
 			primaryMime = `text/x-${langId}`;
 			resolvedLanguage.mimetypes.push(primaryMime);
 		}
-
-
 
 		if (Array.isArray(lang.extensions)) {
 			for (let extension of lang.extensions) {
@@ -244,6 +251,23 @@ export class LanguagesRegistry {
 					return hasOwnProperty.call(this._languages, modeId);
 				})
 		);
+	}
+
+	public getLanguageIdentifier(_modeId: string | LanguageId): LanguageIdentifier {
+		let modeId: string;
+		if (typeof _modeId === 'string') {
+			modeId = _modeId;
+		} else {
+			modeId = this.languageIds[_modeId];
+			if (!modeId) {
+				return null;
+			}
+		}
+
+		if (!hasOwnProperty.call(this._languages, modeId)) {
+			return null;
+		}
+		return new LanguageIdentifier(modeId, this._languages[modeId].id);
 	}
 
 	public getModeIdsFromLanguageName(languageName: string): string[] {

@@ -14,6 +14,7 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 interface ILanguageConfiguration {
 	comments?: CommentRule;
@@ -25,44 +26,48 @@ interface ILanguageConfiguration {
 export class LanguageConfigurationFileHandler {
 
 	private _modeService: IModeService;
-	private _done: { [modeId: string]: boolean; };
+	private _done: boolean[];
 
 	constructor(
 		tmSyntax: MainProcessTextMateSyntax,
 		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
-		this._done = Object.create(null);
+		this._done = [];
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getId()));
-		tmSyntax.onDidEncounterLanguage((language) => this._loadConfigurationsForMode(language));
+		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
+		tmSyntax.onDidEncounterLanguage((language) => {
+			// TODO@tokenization
+			throw new Error('TODO@tokenization');
+			// this._loadConfigurationsForMode(language);
+		});
 	}
 
-	private _loadConfigurationsForMode(modeId: string): void {
-		if (this._done[modeId]) {
+	private _loadConfigurationsForMode(languageIdentifier: LanguageIdentifier): void {
+		if (this._done[languageIdentifier.iid]) {
 			return;
 		}
-		this._done[modeId] = true;
+		this._done[languageIdentifier.iid] = true;
 
-		let configurationFiles = this._modeService.getConfigurationFiles(modeId);
-		configurationFiles.forEach((configFilePath) => this._handleConfigFile(modeId, configFilePath));
+		let configurationFiles = this._modeService.getConfigurationFiles(languageIdentifier.sid);
+		configurationFiles.forEach((configFilePath) => this._handleConfigFile(languageIdentifier, configFilePath));
 	}
 
-	private _handleConfigFile(modeId: string, configFilePath: string): void {
+	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFilePath: string): void {
 		readFile(configFilePath).then((fileContents) => {
 			var errors = [];
 			var configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
 			if (errors.length) {
 				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));
 			}
-			this._handleConfig(modeId, configuration);
+			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {
 			console.error(err);
 		});
 	}
 
-	private _handleConfig(modeId: string, configuration: ILanguageConfiguration): void {
+	private _handleConfig(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): void {
 
 		let richEditConfig: LanguageConfiguration = {};
 
@@ -82,7 +87,7 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
 		}
 
-		LanguageConfigurationRegistry.register(modeId, richEditConfig);
+		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
 	}
 
 	private _mapCharacterPairs(pairs: (CharacterPair | IAutoClosingPairConditional)[]): IAutoClosingPairConditional[] {

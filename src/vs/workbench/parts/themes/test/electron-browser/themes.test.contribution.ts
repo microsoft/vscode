@@ -8,8 +8,8 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
-import { TextModel } from 'vs/editor/common/model/textModel';
+// import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
+// import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -45,9 +45,9 @@ class Snapper {
 		return element;
 	}
 
-	private normalizeType(type: string): string {
-		return type.split('.').sort().join('.');
-	}
+	// private normalizeType(type: string): string {
+	// 	return type.split('.').sort().join('.');
+	// }
 
 	private getStyle(testNode: Element, scope: string): string {
 
@@ -116,25 +116,27 @@ class Snapper {
 
 	public captureSyntaxTokens(fileName: string, content: string): TPromise<Data[]> {
 		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
-			let result: Data[] = [];
-			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId());
-			for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-				let lineTokens = model.getLineTokens(lineNumber, false);
-				let lineContent = model.getLineContent(lineNumber);
+			// TODO@tokenization
+			throw new Error('TODO@tokenization');
+			// let result: Data[] = [];
+			// let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId());
+			// for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+			// 	let lineTokens = model.getLineTokens(lineNumber, false);
+			// 	let lineContent = model.getLineContent(lineNumber);
 
-				for (let i = 0, len = lineTokens.getTokenCount(); i < len; i++) {
-					let tokenType = lineTokens.getTokenType(i);
-					let tokenStartOffset = lineTokens.getTokenStartOffset(i);
-					let tokenEndOffset = lineTokens.getTokenEndOffset(i);
+			// 	for (let i = 0, len = lineTokens.getTokenCount(); i < len; i++) {
+			// 		let tokenType = lineTokens.getTokenType(i);
+			// 		let tokenStartOffset = lineTokens.getTokenStartOffset(i);
+			// 		let tokenEndOffset = lineTokens.getTokenEndOffset(i);
 
-					result.push({
-						c: lineContent.substring(tokenStartOffset, tokenEndOffset),
-						t: this.normalizeType(tokenType),
-						r: {}
-					});
-				}
-			}
-			return this.appendThemeInformation(result);
+			// 		result.push({
+			// 			c: lineContent.substring(tokenStartOffset, tokenEndOffset),
+			// 			t: this.normalizeType(tokenType),
+			// 			r: {}
+			// 		});
+			// 	}
+			// }
+			// return this.appendThemeInformation(result);
 		});
 	}
 }

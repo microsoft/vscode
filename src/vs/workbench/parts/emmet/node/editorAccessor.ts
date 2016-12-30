@@ -10,6 +10,7 @@ import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 
 import emmet = require('emmet');
@@ -18,8 +19,13 @@ export interface IGrammarContributions {
 	getGrammar(mode: string): string;
 }
 
+export interface ILanguageIdentifierResolver {
+	getLanguageIdentifier(modeId: LanguageId): LanguageIdentifier;
+}
+
 export class EditorAccessor implements emmet.Editor {
 
+	private _languageIdentifierResolver: ILanguageIdentifierResolver;
 	private _editor: ICommonCodeEditor;
 	private _syntaxProfiles: any;
 	private _excludedLanguages: any;
@@ -29,7 +35,8 @@ export class EditorAccessor implements emmet.Editor {
 
 	private emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 
-	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
+	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
+		this._languageIdentifierResolver = languageIdentifierResolver;
 		this._editor = editor;
 		this._syntaxProfiles = syntaxProfiles;
 		this._excludedLanguages = excludedLanguages;
@@ -137,7 +144,8 @@ export class EditorAccessor implements emmet.Editor {
 
 	public getSyntax(): string {
 		let position = this._editor.getSelection().getStartPosition();
-		let modeId = this._editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
+		let languageId = this._editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
+		let modeId = this._languageIdentifierResolver.getLanguageIdentifier(languageId).sid;
 		let syntax = modeId.split('.').pop();
 
 		if (this._excludedLanguages.indexOf(syntax) !== -1) {

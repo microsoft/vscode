@@ -2062,8 +2062,14 @@ declare module monaco.editor {
         readonly uri: Uri;
         /**
          * Get the language associated with this model.
+         * TODO@tokenization
+         * @deprecated
          */
         getModeId(): string;
+        /**
+         * Get the language associated with this model.
+         */
+        getLanguageIdentifier(): languages.LanguageIdentifier;
         /**
          * Get the word under or besides `position`.
          * @param position The position to look for a word.
@@ -2086,12 +2092,20 @@ declare module monaco.editor {
     export interface ITokenizedModel extends ITextModel {
         /**
          * Get the current language mode associated with the model.
+         * TODO@tokenization
+         * @deprecated
          */
         getMode(): languages.IMode;
         /**
          * Get the language associated with this model.
+         * TODO@tokenization
+         * @deprecated
          */
         getModeId(): string;
+        /**
+         * Get the language associated with this model.
+         */
+        getLanguageIdentifier(): languages.LanguageIdentifier;
         /**
          * Get the word under or besides `position`.
          * @param position The position to look for a word.
@@ -4230,20 +4244,30 @@ declare module monaco.languages {
          */
         removeText?: number;
     }
+    /**
+     * An identifier for a registered language.
+     */
+    export class LanguageIdentifier {
+        public readonly sid: string;
+        public readonly iid: number;
+
+        constructor(sid: string, iid: number);
+    }
 
     /**
      * A mode. Will soon be obsolete.
      */
     export interface IMode {
         getId(): string;
+        getLanguageIdentifier(): LanguageIdentifier;
     }
 
     /**
-     * A token. Only supports a single scope, but will soon support a scope array.
+     * A token.
      */
     export interface IToken {
         startIndex: number;
-        scopes: string | string[];
+        scopes: string;
     }
 
     /**

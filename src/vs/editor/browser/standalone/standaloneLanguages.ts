@@ -23,7 +23,10 @@ import { compile } from 'vs/editor/common/modes/monarch/monarchCompile';
 import { createTokenizationSupport } from 'vs/editor/common/modes/monarch/monarchLexer';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { TokenizationSupport2Adapter } from 'vs/editor/common/services/modeServiceImpl';
+import { Token } from 'vs/editor/common/core/token';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+
 /**
  * Register information about a new language.
  */
@@ -61,14 +64,101 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
  * Set the editing configuration for a language.
  */
 export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
-	return LanguageConfigurationRegistry.register(languageId, configuration);
+	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
+	if (!languageIdentifier) {
+		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
+	}
+	return LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+}
+
+/**
+ * @internal
+ */
+export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
+
+	private readonly _standaloneColorService: IStandaloneColorService;
+	private readonly _languageIdentifier: modes.LanguageIdentifier;
+	private readonly _actual: modes.TokensProvider;
+
+	constructor(standaloneColorService: IStandaloneColorService, languageIdentifier: modes.LanguageIdentifier, actual: modes.TokensProvider) {
+		this._standaloneColorService = standaloneColorService;
+		this._languageIdentifier = languageIdentifier;
+		this._actual = actual;
+	}
+
+	public getInitialState(): modes.IState {
+		return this._actual.getInitialState();
+	}
+
+	private _toClassicTokens(tokens: modes.IToken2[], offsetDelta: number): Token[] {
+		let result: Token[] = [];
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			let t = tokens[i];
+			result[i] = new Token(t.startIndex + offsetDelta, t.scopes);
+		}
+		return result;
+	}
+
+	public tokenize(line: string, state: modes.IState, offsetDelta: number): modes.ILineTokens {
+		let actualResult = this._actual.tokenize(line, state);
+		let tokens = this._toClassicTokens(actualResult.tokens, offsetDelta);
+
+		let endState: modes.IState;
+		// try to save an object if possible
+		if (actualResult.endState.equals(state)) {
+			endState = state;
+		} else {
+			endState = actualResult.endState;
+		}
+
+		return {
+			tokens: tokens,
+			endState: endState,
+			modeTransitions: [new ModeTransition(offsetDelta, this._languageIdentifier.sid)],
+		};
+	}
+
+	private _toBinaryTokens(tokens: modes.IToken2[], offsetDelta: number): Uint32Array {
+		let languageId = this._languageIdentifier.iid;
+		let theme = this._standaloneColorService.getTheme();
+
+		let result = new Uint32Array(tokens.length << 1);
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			let t = tokens[i];
+			result[(i << 1)] = t.startIndex;
+			result[(i << 1) + 1] = theme.match(languageId, t.scopes);
+		}
+		return result;
+	}
+
+	public tokenize3(line: string, state: modes.IState, offsetDelta: number): modes.ILineTokens3 {
+		let actualResult = this._actual.tokenize(line, state);
+		let tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
+
+		let endState: modes.IState;
+		// try to save an object if possible
+		if (actualResult.endState.equals(state)) {
+			endState = state;
+		} else {
+			endState = actualResult.endState;
+		}
+
+		return {
+			tokens: tokens,
+			endState: endState
+		};
+	}
 }
 
 /**
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId: string, provider: modes.TokensProvider): IDisposable {
-	let adapter = new TokenizationSupport2Adapter(languageId, provider);
+	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
+	if (!languageIdentifier) {
+		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
+	}
+	let adapter = new TokenizationSupport2Adapter(StaticServices.standaloneColorService.get(), languageIdentifier, provider);
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
 
@@ -77,7 +167,7 @@ export function setTokensProvider(languageId: string, provider: modes.TokensProv
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable {
 	let lexer = compile(languageId, languageDef);
-	let adapter = createTokenizationSupport(StaticServices.modeService.get(), languageId, lexer);
+	let adapter = createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneColorService.get(), languageId, lexer);
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
 
@@ -515,6 +605,9 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: IndentAction
+		IndentAction: IndentAction,
+
+		// classes
+		LanguageIdentifier: modes.LanguageIdentifier
 	};
 }
