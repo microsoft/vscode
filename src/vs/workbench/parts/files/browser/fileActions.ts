@@ -1174,7 +1174,6 @@ export class CompareResourcesAction extends Action {
 	constructor(
 		resource: URI,
 		tree: ITree,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel());

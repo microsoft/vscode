@@ -425,7 +425,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
-		const disposables = [];
+		const disposables: IDisposable[] = [];
 
 		// Open on Click
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {

@@ -60,7 +60,8 @@ function extractDomain(url: string): string {
 }
 
 export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
-	let domains = new ArraySet<string>(), match;
+	let domains = new ArraySet<string>();
+	let match: RegExpExecArray;
 	while (match = RemoteMatcher.exec(text)) {
 		let domain = extractDomain(match[1]);
 		if (domain) {
@@ -242,7 +243,7 @@ export class WorkspaceStats {
 		);
 	}
 
-	private reportAzure(uri) {
+	private reportAzure(uri: URI) {
 		const tags: Tags = Object.create(null);
 		this.reportAzureNode(uri, tags).then((tags) => {
 			return this.reportAzureJava(uri, tags);

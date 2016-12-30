@@ -306,7 +306,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
-		let cwd;
+		let cwd: string;
 
 		// TODO: Handle non-existent customCwd
 		if (!ignoreCustomCwd) {
@@ -355,7 +355,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this._onProcessIdReady.fire(this);
 			}
 		});
-		this._process.on('exit', (exitCode) => {
+		this._process.on('exit', (exitCode: number) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this._isExiting) {
 				this.dispose();
