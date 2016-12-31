@@ -557,8 +557,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			if (fileNames) {
 				for (let fileName in fileNames) {
 					let selectors = [];
-					let segments = fileName.toLowerCase().split('.');
-					selectors.push(`.${escapeCSS(fileName.toLowerCase())}-name-file-icon`);
+					fileName = fileName.toLowerCase();
+					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
+					let segments = fileName.split('.');
 					for (let i = 1; i < segments.length; i++) {
 						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 					}
