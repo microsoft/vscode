@@ -72,7 +72,7 @@
 			<key>name</key>
 			<string>Template Definition</string>
 			<key>scope</key>
-			<string>punctuation.definition.template-expression.begin.ts, punctuation.definition.template-expression.end.ts, punctuation.definition.template-expression.begin.js, punctuation.definition.template-expression.end.js</string>
+			<string>punctuation.definition.template-expression</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
