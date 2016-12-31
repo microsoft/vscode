@@ -39,14 +39,6 @@ export class SelectedChange implements IChange {
 		return this.modifiedStartLineNumber === this.fullModifiedStartLineNumber &&
 			this.modifiedEndLineNumber === this.fullModifiedEndLineNumber;
 	}
-
-	/**
-	 * True when `other` is a selected portion of the same full change as this one
-	 */
-	fullChangeEquals(other: SelectedChange): boolean {
-		return this.fullModifiedStartLineNumber === other.fullModifiedStartLineNumber &&
-			this.fullModifiedEndLineNumber === other.fullModifiedEndLineNumber;
-	}
 }
 
 function sortChanges(changes: IChange[]): void {
@@ -201,35 +193,32 @@ export function getChangeRevertEdits(original: IModel, modified: IModel, changes
 			// Get the original lines and insert at the deleted position
 			const value = original.getValueInRange(getLinesRangeWithOneSurroundingNewline(original, change.originalStartLineNumber, change.originalEndLineNumber));
 			return EditOperation.insert(new Position(change.modifiedStartLineNumber + 1, 1), value);
-		} else {
+		} else if (change.isCompletelySelected) {
 			// If the entire change is selected, then revert the whole thing.
-			// But if only a portion is selected, then get the matching original lines and replace with them.
-			if (change.isCompletelySelected) {
-				const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
-				return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1), value);
-			} else {
-				// Find the matching lines - e.g. if lines 2-4 are selected, replace with lines 2-4 from the original model (if they exist)
-				const copyOffset = change.modifiedStartLineNumber - change.fullModifiedStartLineNumber;
-				const numLinesToCopy = change.modifiedEndLineNumber - change.modifiedStartLineNumber;
-				const copyStartLine = change.originalStartLineNumber + copyOffset;
-				const copyEndLine = Math.min(copyStartLine + numLinesToCopy, original.getLineCount());
-				if (copyStartLine > copyEndLine) {
-					return getDeleteOperation(change);
-				}
-
-				// Compute the range to copy, and intersect with the full original range to validate
-				const originalRange = new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber, original.getLineMaxColumn(change.originalEndLineNumber));
-				const rangeToCopy = originalRange.intersectRanges(
-					new Range(copyStartLine, 1, copyEndLine, original.getLineMaxColumn(copyEndLine)));
-
-				// No intersection, so delete the added text
-				if (!rangeToCopy) {
-					return getDeleteOperation(change);
-				}
-
-				const value = original.getValueInRange(rangeToCopy);
-				return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber, modified.getLineMaxColumn(change.modifiedEndLineNumber)), value);
+			const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
+			return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1), value);
+		} else {
+			// If only a portion is selected, replace with the matching lines - e.g. if lines 2-4 are selected, replace with lines 2-4 from the original model (if they exist)
+			const copyOffset = change.modifiedStartLineNumber - change.fullModifiedStartLineNumber;
+			const numLinesToCopy = change.modifiedEndLineNumber - change.modifiedStartLineNumber;
+			const copyStartLine = change.originalStartLineNumber + copyOffset;
+			const copyEndLine = Math.min(copyStartLine + numLinesToCopy, original.getLineCount());
+			if (copyStartLine > copyEndLine) {
+				return getDeleteOperation(change);
 			}
+
+			// Compute the range to copy, and intersect with the full original range to validate
+			const originalRange = new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber, original.getLineMaxColumn(change.originalEndLineNumber));
+			const rangeToCopy = originalRange.intersectRanges(
+				new Range(copyStartLine, 1, copyEndLine, original.getLineMaxColumn(copyEndLine)));
+
+			// No intersection, so delete the added text
+			if (!rangeToCopy) {
+				return getDeleteOperation(change);
+			}
+
+			const value = original.getValueInRange(rangeToCopy);
+			return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber, modified.getLineMaxColumn(change.modifiedEndLineNumber)), value);
 		}
 	});
 }
