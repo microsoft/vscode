@@ -87,8 +87,8 @@ export interface IWindowService {
 }
 
 export interface IWindowSettings {
-	openFilesInNewWindow: boolean;
-	openFoldersInNewWindow: boolean;
+	openFilesInNewWindow: 'on' | 'off' | 'default';
+	openFoldersInNewWindow: 'on' | 'off' | 'default';
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;

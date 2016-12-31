@@ -374,8 +374,8 @@ export class WindowsManager implements IWindowsMainService {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
 		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
-		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && windowConfig && typeof windowConfig.openFoldersInNewWindow === 'boolean') {
-			openFolderInNewWindow = windowConfig.openFoldersInNewWindow;
+		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && windowConfig && (windowConfig.openFoldersInNewWindow === 'on' || windowConfig.openFoldersInNewWindow === 'off')) {
+			openFolderInNewWindow = (windowConfig.openFoldersInNewWindow === 'on');
 		}
 
 		// Handle files to open/diff or to create when we dont open a folder
@@ -390,8 +390,8 @@ export class WindowsManager implements IWindowsMainService {
 					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
 				}
 
-				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && typeof windowConfig.openFilesInNewWindow === 'boolean') {
-					openFilesInNewWindow = windowConfig.openFilesInNewWindow;
+				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off')) {
+					openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
 				}
 			}
 
