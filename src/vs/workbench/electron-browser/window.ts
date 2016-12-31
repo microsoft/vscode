@@ -137,7 +137,7 @@ export class ElectronWindow {
 								DOM.EventHelper.stop(e, true);
 
 								this.focus(); // make sure this window has focus so that the open call reaches the right window!
-								this.windowsService.windowOpen(draggedExternalResources.map(r => r.fsPath));
+								this.windowsService.openWindow(draggedExternalResources.map(r => r.fsPath), { forceReuseWindow: true });
 
 								cleanUp();
 							})

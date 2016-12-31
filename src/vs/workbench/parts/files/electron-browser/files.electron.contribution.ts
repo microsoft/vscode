@@ -92,7 +92,7 @@ CommandsRegistry.registerCommand('_files.openFolderPicker', (accessor: ServicesA
 
 CommandsRegistry.registerCommand('_files.windowOpen', (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
-	windowsService.windowOpen(paths, forceNewWindow);
+	windowsService.openWindow(paths, { forceNewWindow });
 });
 
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', (accessor: ServicesAccessor) => {
