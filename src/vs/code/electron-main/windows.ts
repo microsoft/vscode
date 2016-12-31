@@ -207,7 +207,12 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				this.open({ context: OpenContext.DOCK, cli: this.environmentService.args, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
+				this.open({
+					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
+					cli: this.environmentService.args,
+					pathsToOpen: macOpenFiles,
+					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+				});
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
@@ -381,7 +386,7 @@ export class WindowsManager implements IWindowsMainService {
 			if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
 				openFilesInNewWindow = openConfig.forceNewWindow && !openConfig.forceReuseWindow;
 			} else {
-				if (openConfig.preferNewWindow && openConfig.context === OpenContext.DOCK) {
+				if (openConfig.context === OpenContext.DOCK) {
 					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
 				}
 
