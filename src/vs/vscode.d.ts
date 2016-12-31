@@ -45,45 +45,33 @@ declare module 'vscode' {
 
 		/**
 		 * The zero-based line number.
-		 *
-		 * @readonly
 		 */
 		readonly lineNumber: number;
 
 		/**
 		 * The text of this line without the line separator characters.
-		 *
-		 * @readonly
 		 */
 		readonly text: string;
 
 		/**
 		 * The range this line covers without the line separator characters.
-		 *
-		 * @readonly
 		 */
 		readonly range: Range;
 
 		/**
 		 * The range this line covers with the line separator characters.
-		 *
-		 * @readonly
 		 */
 		readonly rangeIncludingLineBreak: Range;
 
 		/**
 		 * The offset of the first character which is not a whitespace character as defined
 		 * by `/\s/`. **Note** that if a line is all whitespaces the length of the line is returned.
-		 *
-		 * @readonly
 		 */
 		readonly firstNonWhitespaceCharacterIndex: number;
 
 		/**
 		 * Whether this line is whitespace only, shorthand
 		 * for [TextLine.firstNonWhitespaceCharacterIndex](#TextLine.firstNonWhitespaceCharacterIndex) === [TextLine.text.length](#TextLine.text).
-		 *
-		 * @readonly
 		 */
 		readonly isEmptyOrWhitespace: boolean;
 	}
@@ -98,45 +86,33 @@ declare module 'vscode' {
 		 * The associated URI for this document. Most documents have the __file__-scheme, indicating that they
 		 * represent files on disk. However, some documents may have other schemes indicating that they are not
 		 * available on disk.
-		 *
-		 * @readonly
 		 */
 		readonly uri: Uri;
 
 		/**
 		 * The file system path of the associated resource. Shorthand
 		 * notation for [TextDocument.uri.fsPath](#TextDocument.uri). Independent of the uri scheme.
-		 *
-		 * @readonly
 		 */
 		readonly fileName: string;
 
 		/**
 		 * Is this document representing an untitled file.
-		 *
-		 * @readonly
 		 */
 		readonly isUntitled: boolean;
 
 		/**
 		 * The identifier of the language associated with this document.
-		 *
-		 * @readonly
 		 */
 		readonly languageId: string;
 
 		/**
 		 * The version number of this document (it will strictly increase after each
 		 * change, including undo/redo).
-		 *
-		 * @readonly
 		 */
 		readonly version: number;
 
 		/**
 		 * true if there are unpersisted changes.
-		 *
-		 * @readonly
 		 */
 		readonly isDirty: boolean;
 
@@ -151,8 +127,6 @@ declare module 'vscode' {
 
 		/**
 		 * The number of lines in this document.
-		 *
-		 * @readonly
 		 */
 		readonly lineCount: number;
 
@@ -249,13 +223,11 @@ declare module 'vscode' {
 
 		/**
 		 * The zero-based line value.
-		 * @readonly
 		 */
 		readonly line: number;
 
 		/**
 		 * The zero-based character value.
-		 * @readonly
 		 */
 		readonly character: number;
 
@@ -370,13 +342,11 @@ declare module 'vscode' {
 
 		/**
 		 * The start position. It is before or equal to [end](#Range.end).
-		 * @readonly
 		 */
 		readonly start: Position;
 
 		/**
 		 * The end position. It is after or equal to [start](#Range.start).
-		 * @readonly
 		 */
 		readonly end: Position;
 
@@ -656,7 +626,6 @@ declare module 'vscode' {
 
 		/**
 		 * Internal representation of the handle.
-		 * @readonly
 		 */
 		readonly key: string;
 
@@ -1542,8 +1511,6 @@ declare module 'vscode' {
 
 		/**
 		 * An array of diagnostics.
-		 *
-		 * @readonly
 		 */
 		readonly diagnostics: Diagnostic[];
 	}
@@ -2004,8 +1971,6 @@ declare module 'vscode' {
 
 		/**
 		 * The number of affected resources.
-		 *
-		 * @readonly
 		 */
 		readonly size: number;
 
@@ -2850,7 +2815,6 @@ declare module 'vscode' {
 
 		/**
 		 * Readable dictionary that backs this configuration.
-		 * @readonly
 		 */
 		readonly [key: string]: any;
 	}
@@ -2965,7 +2929,6 @@ declare module 'vscode' {
 		 * The name of this diagnostic collection, for instance `typescript`. Every diagnostic
 		 * from this collection will be associated with this name. Also, the task framework uses this
 		 * name when defining [problem matchers](https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher).
-		 * @readonly
 		 */
 		readonly name: string;
 
@@ -3057,7 +3020,6 @@ declare module 'vscode' {
 
 		/**
 		 * The human-readable name of this output channel.
-		 * @readonly
 		 */
 		readonly name: string;
 
@@ -3134,16 +3096,12 @@ declare module 'vscode' {
 
 		/**
 		 * The alignment of this item.
-		 *
-		 * @readonly
 		 */
 		readonly alignment: StatusBarAlignment;
 
 		/**
 		 * The priority of this item. Higher value means the item should
 		 * be shown more to the left.
-		 *
-		 * @readonly
 		 */
 		readonly priority: number;
 
@@ -3197,15 +3155,11 @@ declare module 'vscode' {
 
 		/**
 		 * The name of the terminal.
-		 *
-		 * @readonly
 		 */
 		readonly name: string;
 
 		/**
 		 * The process ID of the shell process.
-		 *
-		 * @readonly
 		 */
 		readonly processId: Thenable<number>;
 
@@ -3247,37 +3201,27 @@ declare module 'vscode' {
 
 		/**
 		 * The canonical extension identifier in the form of: `publisher.name`.
-		 *
-		 * @readonly
 		 */
 		readonly id: string;
 
 		/**
 		 * The absolute file path of the directory containing this extension.
-		 *
-		 * @readonly
 		 */
 		readonly extensionPath: string;
 
 		/**
 		 * `true` if the extension has been activated.
-		 *
-		 * @readonly
 		 */
 		readonly isActive: boolean;
 
 		/**
 		 * The parsed contents of the extension's package.json.
-		 *
-		 * @readonly
 		 */
 		readonly packageJSON: any;
 
 		/**
 		 * The public API exported by this extension. It is an invalid action
 		 * to access this field before this extension has been activated.
-		 *
-		 * @readonly
 		 */
 		readonly exports: T;
 
@@ -3864,8 +3808,6 @@ declare module 'vscode' {
 		/**
 		 * The folder that is open in VS Code. `undefined` when no folder
 		 * has been opened.
-		 *
-		 * @readonly
 		 */
 		export let rootPath: string | undefined;
 
