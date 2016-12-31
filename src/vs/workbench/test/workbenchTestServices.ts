@@ -887,8 +887,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	// Global methods
-	// TODO@joao: rename, shouldn't this be openWindow?
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	openNewWindow(): TPromise<void> {
