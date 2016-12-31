@@ -210,7 +210,6 @@ function handleCommandDeprecations(): void {
 		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
 		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
 		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
-		'workbench.action.terminal.focus': 'workbench.action.focusPanel',
 		'workbench.action.showEditorsInLeftGroup': 'workbench.action.showEditorsInFirstGroup',
 		'workbench.action.showEditorsInCenterGroup': 'workbench.action.showEditorsInSecondGroup',
 		'workbench.action.showEditorsInRightGroup': 'workbench.action.showEditorsInThirdGroup',
