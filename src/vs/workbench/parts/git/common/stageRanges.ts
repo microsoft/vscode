@@ -10,6 +10,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 
+/**
+ * Represents the selected portion of an IChange, and includes the start/end line numbers of the full change
+ */
 export class SelectedChange implements IChange {
 	readonly originalStartLineNumber: number;
 	readonly originalEndLineNumber: number;
@@ -29,11 +32,17 @@ export class SelectedChange implements IChange {
 		this.fullModifiedEndLineNumber = full.modifiedEndLineNumber;
 	}
 
+	/**
+	 * True when the change is entirely selected
+	 */
 	get isCompletelySelected(): boolean {
 		return this.modifiedStartLineNumber === this.fullModifiedStartLineNumber &&
 			this.modifiedEndLineNumber === this.fullModifiedEndLineNumber;
 	}
 
+	/**
+	 * True when `other` is a selected portion of the same full change as this one
+	 */
 	fullChangeEquals(other: SelectedChange): boolean {
 		return this.fullModifiedStartLineNumber === other.fullModifiedStartLineNumber &&
 			this.fullModifiedEndLineNumber === other.fullModifiedEndLineNumber;
@@ -52,54 +61,6 @@ function sortChanges(changes: IChange[]): void {
 		return 1;
 	});
 }
-
-function fullChangeIsSelected(from: number, changes: SelectedChange[]): boolean {
-	const change = changes[from];
-	if (change.isCompletelySelected) {
-		return true;
-	} else if (change.modifiedStartLineNumber === change.fullModifiedStartLineNumber) {
-		let i = from + 1;
-		while (changes[i] && change.fullChangeEquals(changes[i]) && changes[i].modifiedStartLineNumber + 1 === change.modifiedEndLineNumber) {
-			if (changes[i].modifiedEndLineNumber === change.fullModifiedEndLineNumber) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-// function coalesceSelectedChanges(changes: SelectedChange[]): SelectedChange[] {
-// 	const result: SelectedChange[] = [];
-// 	for (let i = 0; i < changes.length; i++) {
-// 		const change = changes[i];
-// 		if (change.isCompletelySelected) {
-// 			result.push(change);
-// 		} else {
-// 			if (change.modifiedStartLineNumber === change.fullModifiedStartLineNumber) {
-// 				let j = i + 1;
-// 				while (changes[j] && changes[j].fullModifiedStartLineNumber === change.fullModifiedStartLineNumber) {
-// 					if (changes[j].modifiedEndLineNumber === changes[j].fullModifiedEndLineNumber) {
-// 						const fullChange: IChange = {
-// 							originalStartLineNumber: change.originalStartLineNumber,
-// 							originalEndLineNumber: change.originalEndLineNumber,
-// 							modifiedStartLineNumber: change.fullModifiedStartLineNumber,
-// 							modifiedEndLineNumber: change.fullModifiedEndLineNumber
-// 						 };
-
-// 						result.push(new SelectedChange(fullChange, fullChange));
-// 						i = j;
-// 						break;
-// 					}
-// 				}
-// 			} else {
-// 				result.push(change);
-// 			}
-// 		}
-// 	}
-
-// 	return result;
-// }
 
 function sortSelections(selections: Selection[]): void {
 	selections.sort((left, right) => {
@@ -227,36 +188,43 @@ export function applyChangesToModel(original: IModel, modified: IModel, changes:
 export function getChangeRevertEdits(original: IModel, modified: IModel, changes: SelectedChange[]): IIdentifiedSingleEditOperation[] {
 	sortChanges(changes);
 
+	const getDeleteOperation = (change: IChange) => {
+		const fullRange = getLinesRangeWithOneSurroundingNewline(modified, change.modifiedStartLineNumber, change.modifiedEndLineNumber);
+		return EditOperation.delete(fullRange);
+	};
+
 	return changes.map((change, i) => {
 		if (isInsertion(change)) {
 			// Delete inserted range
-			const fullRange = getLinesRangeWithOneSurroundingNewline(modified, change.modifiedStartLineNumber, change.modifiedEndLineNumber);
-			return EditOperation.delete(fullRange);
+			return getDeleteOperation(change);
 		} else if (isDeletion(change)) {
 			// Get the original lines and insert at the deleted position
 			const value = original.getValueInRange(getLinesRangeWithOneSurroundingNewline(original, change.originalStartLineNumber, change.originalEndLineNumber));
 			return EditOperation.insert(new Position(change.modifiedStartLineNumber + 1, 1), value);
 		} else {
-			// If the entire change hunk is selected, then revert the whole thing.
-			// But if only a portion is selected, then get the matching lines from the original side and revert with that.
-
-			// Get the original lines and replace the new lines with it
-			if (fullChangeIsSelected(i, changes)) {
-				// skip the other changes
+			// If the entire change is selected, then revert the whole thing.
+			// But if only a portion is selected, then get the matching original lines and replace with them.
+			if (change.isCompletelySelected) {
 				const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
 				return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1), value);
 			} else {
+				// Find the matching lines - e.g. if lines 2-4 are selected, replace with lines 2-4 from the original model (if they exist)
 				const copyOffset = change.modifiedStartLineNumber - change.fullModifiedStartLineNumber;
 				const numLinesToCopy = change.modifiedEndLineNumber - change.modifiedStartLineNumber;
 				const copyStartLine = change.originalStartLineNumber + copyOffset;
 				const copyEndLine = Math.min(copyStartLine + numLinesToCopy, original.getLineCount());
+				if (copyStartLine > copyEndLine) {
+					return getDeleteOperation(change);
+				}
+
+				// Compute the range to copy, and intersect with the full original range to validate
 				const originalRange = new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber, original.getLineMaxColumn(change.originalEndLineNumber));
 				const rangeToCopy = originalRange.intersectRanges(
 					new Range(copyStartLine, 1, copyEndLine, original.getLineMaxColumn(copyEndLine)));
 
+				// No intersection, so delete the added text
 				if (!rangeToCopy) {
-					const fullRange = getLinesRangeWithOneSurroundingNewline(modified, change.modifiedStartLineNumber, change.modifiedEndLineNumber);
-					return EditOperation.delete(fullRange);
+					return getDeleteOperation(change);
 				}
 
 				const value = original.getValueInRange(rangeToCopy);
