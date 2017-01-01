@@ -336,14 +336,14 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 		let bLen = b.length;
 		let cLen = (c !== null ? c.length : 0);
 
-		// Fast path
-		if (bLen === 0) {
-			if (aLen === 0) {
-				return c;
-			}
-			if (cLen === 0) {
-				return a;
-			}
+		if (aLen === 0 && bLen === 0 && cLen === 0) {
+			return new Uint32Array(0);
+		}
+		if (aLen === 0 && bLen === 0) {
+			return c;
+		}
+		if (bLen === 0 && cLen === 0) {
+			return a;
 		}
 
 		let result = new Uint32Array(aLen + bLen + cLen);
