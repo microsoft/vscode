@@ -38,6 +38,7 @@
 	"selectEOL": "Выберите последовательность конца строки",
 	"selectEncoding": "Выберите кодировку",
 	"selectLanguageMode": "Выберите языковой режим",
+	"showLanguageExtensions": "Поиск \"{0}\" среди расширений Marketplace...",
 	"singleSelection": "Строка {0}, столбец {1}",
 	"singleSelectionRange": "Строка {0}, столбец {1} (выбрано {2})",
 	"spacesSize": "Пробелов: {0}",

@@ -168,4 +168,12 @@ suite('Marker Service', () => {
 		service.changeOne('far', URI.parse('some:uri/path'), [data]);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 	});
+
+	test('MapMap#remove returns bad values, https://github.com/Microsoft/vscode/issues/13548', () => {
+		let service = new markerService.MarkerService();
+
+		service.changeOne('o', URI.parse('some:uri/1'), [randomMarkerData()]);
+		service.changeOne('o', URI.parse('some:uri/2'), []);
+
+	});
 });

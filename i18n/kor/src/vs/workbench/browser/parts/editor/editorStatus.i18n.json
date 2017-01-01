@@ -38,9 +38,10 @@
 	"selectEOL": "줄 시퀀스의 끝 선택",
 	"selectEncoding": "인코딩 선택",
 	"selectLanguageMode": "언어 모드 선택",
+	"showLanguageExtensions": "'{0}'의 마켓플레이스 확장 검색...",
 	"singleSelection": "줄 {0}, 열 {1}",
 	"singleSelectionRange": "줄 {0}, 열 {1}({2} 선택됨)",
-	"spacesSize": "공간: {0}",
+	"spacesSize": "공백: {0}",
 	"tabFocusModeEnabled": "Tab으로 포커스 이동",
 	"tabSize": "Tab 크기: {0}"
 }

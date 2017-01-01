@@ -16,13 +16,7 @@ import { fromRange, TextDocumentSaveReason } from 'vs/workbench/api/node/extHost
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-
-declare class WeakMap<K, V> {
-	// delete(key: K): boolean;
-	get(key: K): V;
-	// has(key: K): boolean;
-	set(key: K, value?: V): WeakMap<K, V>;
-}
+import * as vscode from 'vscode';
 
 export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipantShape {
 

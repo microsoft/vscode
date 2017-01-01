@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -14,15 +14,13 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IEventService } from 'vs/platform/event/common/event';
-import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -32,8 +30,9 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { ISharedProcessInitData } from './sharedProcess';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
-import { WindowEventChannelClient } from 'vs/code/common/windowsIpc';
-import { IWindowEventService, ActiveWindowManager } from 'vs/code/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { ActiveWindowManager } from 'vs/code/common/windows';
 
 function quit(err?: Error) {
 	if (err) {
@@ -61,22 +60,18 @@ const eventPrefix = 'monacoworkbench';
 function main(server: Server, initData: ISharedProcessInitData): void {
 	const services = new ServiceCollection();
 
-	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	const windowEventService: IWindowEventService = new WindowEventChannelClient(server.getChannel('windowEvent', {
-		routeCall: (command: any, arg: any) => {
-			return 'main';
-		}
-	}));
-	services.set(IWindowEventService, windowEventService);
+	const windowsChannel = server.getChannel('windows', { route: () => 'main' });
+	const windowsService = new WindowsChannelClient(windowsChannel);
+	services.set(IWindowsService, windowsService);
 
-	const activeWindowManager = new ActiveWindowManager(windowEventService);
-	services.set(IChoiceService, new ChoiceChannelClient(server.getChannel('choice', {
-		routeCall: () => activeWindowManager.activeClientId
-	})));
+	const activeWindowManager = new ActiveWindowManager(windowsService);
+
+	const choiceChannel = server.getChannel('choice', { route: () => activeWindowManager.activeClientId });
+	services.set(IChoiceService, new ChoiceChannelClient(choiceChannel));
 
 	const instantiationService = new InstantiationService(services);
 

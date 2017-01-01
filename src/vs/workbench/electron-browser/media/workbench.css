@@ -43,21 +43,7 @@
 	left: 0;
 	height: 100%;
 	width: 100%;
-	z-index: 3000000;
-}
-
-.vs #monaco-workbench-drop-overlay {
-	background-color: rgba(51,153,255, 0.18);
-}
-
-.vs-dark #monaco-workbench-drop-overlay {
-	background-color: rgba(83, 89, 93, 0.5);
-}
-
-.hc-black #monaco-workbench-drop-overlay {
-	background: none !important;
-	outline: 2px dashed #f38518;
-	outline-offset: -2px;
+	z-index: 10000;
 }
 
 /* ---------- Light Theme ---------- */
@@ -72,6 +58,10 @@
 
 .vs .monaco-workbench input:disabled {
 	background-color: #E1E1E1;
+}
+
+.vs #monaco-workbench-drop-overlay {
+	background-color: rgba(51,153,255, 0.18);
 }
 
 /* ---------- Dark Theme ---------- */
@@ -104,6 +94,10 @@
 .vs-dark .monaco-workbench .stacked-view .action-label		{ color: inherit; }
 .vs-dark .monaco-workbench .stacked-view .action-label:hover { color: #3399FF; }
 
+.vs-dark #monaco-workbench-drop-overlay {
+	background-color: rgba(83, 89, 93, 0.5);
+}
+
 /* ---------- HC Theme ---------- */
 
 .hc-black .monaco-workbench { color: #FFF; background-color: #000; }
@@ -115,11 +109,12 @@
 	background-color: #000;
 }
 
-.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled,
-.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled:hover {
-	opacity: 1;
-}
-
 .hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled {
 	opacity: .4;
+}
+
+.hc-black #monaco-workbench-drop-overlay {
+	background: none !important;
+	outline: 2px dashed #f38518;
+	outline-offset: -2px;
 }

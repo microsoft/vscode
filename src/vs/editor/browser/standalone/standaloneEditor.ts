@@ -6,6 +6,9 @@
 
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+/* tslint:disable:duplicate-imports */
+import { IModel } from 'vs/editor/common/editorCommon';
+/* tslint:disable:duplicate-imports */
 import { ContentWidgetPositionPreference, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -15,9 +18,8 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenerService } from 'vs/platform/opener/browser/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IModel } from 'vs/editor/common/editorCommon';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/browser/standalone/colorizer';
-import { SimpleEditorService } from 'vs/editor/browser/standalone/simpleServices';
+import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/browser/standalone/simpleServices';
 import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -30,6 +32,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 /**
  * @internal
@@ -48,6 +51,12 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 		services.set(IEditorService, simpleEditorService);
 	}
 
+	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
+	if (!services.has(ITextModelResolverService)) {
+		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
+		services.set(ITextModelResolverService, simpleEditorModelResolverService);
+	}
+
 	if (!services.has(IOpenerService)) {
 		services.set(IOpenerService, new OpenerService(services.get(IEditorService), services.get(ICommandService)));
 	}
@@ -56,6 +65,10 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 
 	if (simpleEditorService) {
 		simpleEditorService.setEditor(result);
+	}
+
+	if (simpleEditorModelResolverService) {
+		simpleEditorModelResolverService.setEditor(result);
 	}
 
 	return result;
@@ -110,9 +123,9 @@ export interface IDiffNavigator {
 }
 
 export interface IDiffNavigatorOptions {
-	followsCaret?: boolean;
-	ignoreCharChanges?: boolean;
-	alwaysRevealFirst?: boolean;
+	readonly followsCaret?: boolean;
+	readonly ignoreCharChanges?: boolean;
+	readonly alwaysRevealFirst?: boolean;
 }
 
 export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
@@ -155,7 +168,9 @@ export function setModelLanguage(model: IModel, language: string): void {
  * Set the markers for a model.
  */
 export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void {
-	StaticServices.markerService.get().changeOne(owner, model.uri, markers);
+	if (model) {
+		StaticServices.markerService.get().changeOne(owner, model.uri, markers);
+	}
 }
 
 /**
@@ -174,6 +189,7 @@ export function getModels(): IModel[] {
 
 /**
  * Emitted when a model is created.
+ * @event
  */
 export function onDidCreateModel(listener: (model: IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelAdded(listener);
@@ -181,6 +197,7 @@ export function onDidCreateModel(listener: (model: IModel) => void): IDisposable
 
 /**
  * Emitted right before a model is disposed.
+ * @event
  */
 export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelRemoved(listener);
@@ -188,8 +205,9 @@ export function onWillDisposeModel(listener: (model: IModel) => void): IDisposab
 
 /**
  * Emitted when a different language is set to a model.
+ * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { model: IModel; oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: IModel; readonly oldLanguage: string; }) => void): IDisposable {
 	return StaticServices.modelService.get().onModelModeChanged((e) => {
 		listener({
 			model: e.model,
@@ -287,6 +305,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EditorLayoutInfo: <any>editorCommon.EditorLayoutInfo,
 		BareFontInfo: <any>editorCommon.BareFontInfo,
 		FontInfo: <any>editorCommon.FontInfo,
+		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
 
 		// vars
 		EditorType: editorCommon.EditorType,

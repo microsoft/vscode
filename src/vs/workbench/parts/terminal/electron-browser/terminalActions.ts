@@ -8,7 +8,7 @@ import os = require('os');
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -57,7 +57,7 @@ export class KillTerminalAction extends Action {
 
 /**
  * Copies the terminal selection. Note that since the command palette takes focus from the terminal,
- * this can only be triggered via a keybinding.
+ * this cannot be triggered through the command palette.
  */
 export class CopyTerminalSelectionAction extends Action {
 
@@ -198,15 +198,17 @@ export class RunSelectedTextInTerminalAction extends Action {
 			terminalInstance = this.terminalService.createInstance();
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		let selection = editor.getSelection();
-		let text: string;
-		if (selection.isEmpty()) {
-			text = editor.getValue();
-		} else {
-			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		if (editor) {
+			let selection = editor.getSelection();
+			let text: string;
+			if (selection.isEmpty()) {
+				text = editor.getValue();
+			} else {
+				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			}
+			terminalInstance.sendText(text, true);
 		}
-		terminalInstance.sendText(text, true);
 		return TPromise.as(void 0);
 	}
 }
@@ -225,7 +227,10 @@ export class SwitchTerminalInstanceAction extends Action {
 	}
 
 	public run(item?: string): TPromise<any> {
-		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
+		if (!item) {
+			return TPromise.as(null);
+		}
+		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
 		return this.terminalService.showPanel(true);
 	}

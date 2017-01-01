@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "找不到偵錯配接器可執行檔 '{0}'。",
 	"debugAdapterCrash": "偵錯配接器處理序已意外終止",
-	"debuggee": "偵錯項目",
 	"moreInfo": "詳細資訊",
 	"noDebugAdapterExtensionInstalled": "未針對 '{0}' 偵錯安裝擴充功能。",
 	"stoppingDebugAdapter": "{0}。正在停止偵錯配接器。",

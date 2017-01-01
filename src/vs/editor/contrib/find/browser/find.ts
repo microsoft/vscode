@@ -13,7 +13,7 @@ import { FindWidget, IFindController } from 'vs/editor/contrib/find/browser/find
 import { CommonFindController, FindStartFocusAction, IFindStartOptions } from 'vs/editor/contrib/find/common/findController';
 
 @editorContribution
-class FindController extends CommonFindController implements IFindController {
+export class FindController extends CommonFindController implements IFindController {
 
 	private _widget: FindWidget;
 

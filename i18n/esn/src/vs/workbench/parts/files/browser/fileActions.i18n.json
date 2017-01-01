@@ -46,6 +46,7 @@
 	"openToSide": "Abrir en el lateral",
 	"pasteFile": "Pegar",
 	"permDelete": "Eliminar permanentemente",
+	"pickHistory": "Seleccione una entrada del historial del editor para comparar",
 	"refresh": "Actualizar",
 	"refreshExplorer": "Actualizar Explorador",
 	"rename": "Cambiar nombre",

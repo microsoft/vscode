@@ -8,18 +8,16 @@ import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalFont } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
@@ -62,12 +60,12 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners();
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
-		this._register(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
-		this._register(this._configurationService.onDidUpdateConfiguration(this._updateConfig.bind(this)));
+		this._register(this._themeService.onDidColorThemeChange(themeId => this._updateTheme(themeId)));
+		this._register(this._configurationService.onDidUpdateConfiguration(() => this._updateFont()));
+		this._updateFont();
 		this._updateTheme();
-		this._updateConfig();
 
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
@@ -86,12 +84,12 @@ export class TerminalPanel extends Panel {
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
-				this._updateConfig();
+				this._updateFont();
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
 					this._terminalService.createInstance();
-					this._updateConfig();
+					this._updateFont();
 					this._updateTheme();
 				});
 			}
@@ -151,25 +149,30 @@ export class TerminalPanel extends Panel {
 				// occurs on the selection itself.
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
-				// Trigger the context menu on right click
-				let anchor: HTMLElement | { x: number, y: number } = this._parentDomElement;
-				if (event instanceof MouseEvent) {
-					const standardEvent = new StandardMouseEvent(event);
-					anchor = { x: standardEvent.posx, y: standardEvent.posy };
-				}
-
-				this._contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => TPromise.as(this._getContextMenuActions()),
-					getActionsContext: () => this._parentDomElement,
-					getKeyBinding: (action) => {
-						const opts = this._keybindingService.lookupKeybindings(action.id);
-						if (opts.length > 0) {
-							return opts[0]; // only take the first one
-						}
-						return null;
+				if (this._terminalService.configHelper.getRightClickCopyPaste()) {
+					let terminal = this._terminalService.getActiveInstance();
+					if (terminal.hasSelection()) {
+						terminal.copySelection();
+						terminal.clearSelection();
+					} else {
+						terminal.paste();
 					}
-				});
+				} else {
+					const standardEvent = new StandardMouseEvent(event);
+					let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+					this._contextMenuService.showContextMenu({
+						getAnchor: () => anchor,
+						getActions: () => TPromise.as(this._getContextMenuActions()),
+						getActionsContext: () => this._parentDomElement,
+						getKeyBinding: (action) => {
+							const opts = this._keybindingService.lookupKeybindings(action.id);
+							if (opts.length > 0) {
+								return opts[0]; // only take the first one
+							}
+							return null;
+						}
+					});
+				}
 			}
 		}));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
@@ -224,12 +227,6 @@ export class TerminalPanel extends Panel {
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
-	private _updateConfig(): void {
-		this._updateFont();
-		this._updateCursorBlink();
-		this._updateCommandsToSkipShell();
-	}
-
 	private _updateFont(): void {
 		if (this._terminalService.terminalInstances.length === 0) {
 			return;
@@ -253,17 +250,5 @@ export class TerminalPanel extends Panel {
 			a.fontFamily !== b.fontFamily ||
 			a.fontSize !== b.fontSize ||
 			a.lineHeight !== b.lineHeight;
-	}
-
-	private _updateCursorBlink(): void {
-		this._terminalService.terminalInstances.forEach((instance) => {
-			instance.setCursorBlink(this._terminalService.configHelper.getCursorBlink());
-		});
-	}
-
-	private _updateCommandsToSkipShell(): void {
-		this._terminalService.terminalInstances.forEach((instance) => {
-			instance.setCommandsToSkipShell(this._terminalService.configHelper.getCommandsToSkipShell());
-		});
 	}
 }

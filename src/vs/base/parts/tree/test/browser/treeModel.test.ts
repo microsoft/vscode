@@ -78,7 +78,9 @@ class EventCounter {
 	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
 		let r = emitter.addListener2(event, (e) => {
 			this._count++;
-			fn && fn(e);
+			if (fn) {
+				fn(e);
+			}
 		});
 
 		this.listeners.push(r);

@@ -554,7 +554,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -895,7 +895,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1005,7 +1005,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1137,7 +1137,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1357,7 +1357,7 @@
 		"t": "constant.mathematical-symbols.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1566,7 +1566,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -2545,7 +2545,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -2732,7 +2732,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -3689,7 +3689,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -3809,8 +3809,8 @@
 		"c": "rgba",
 		"t": "function.meta.misc.scss.set.support.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -3832,7 +3832,7 @@
 		"t": "color.constant.meta.numeric.rgb-value.scss.set.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.rgb-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.rgb-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.rgb-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.rgb-value rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.rgb-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.rgb-value rgb(212, 212, 212)"
@@ -3865,7 +3865,7 @@
 		"t": "color.constant.meta.numeric.rgb-value.scss.set.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.rgb-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.rgb-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.rgb-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.rgb-value rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.rgb-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.rgb-value rgb(212, 212, 212)"
@@ -3898,7 +3898,7 @@
 		"t": "color.constant.meta.numeric.rgb-value.scss.set.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.rgb-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.rgb-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.rgb-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.rgb-value rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.rgb-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.rgb-value rgb(212, 212, 212)"
@@ -4602,7 +4602,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -4844,7 +4844,7 @@
 		"t": "function.meta.misc.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -5031,7 +5031,7 @@
 		"t": "function.meta.misc.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -5481,8 +5481,8 @@
 		"c": "grid-width",
 		"t": "at-rule.function.meta.misc.scss.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -5889,7 +5889,7 @@
 		"t": "function.meta.misc.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -6108,8 +6108,8 @@
 		"c": "unquote",
 		"t": "function.meta.misc.scss.set.support.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -6262,8 +6262,8 @@
 		"c": "url",
 		"t": "at-rule.function.import.meta.misc.scss.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -6780,7 +6780,7 @@
 		"t": "at-rule.constant.media.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -7539,7 +7539,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -7605,7 +7605,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -7980,7 +7980,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -8110,8 +8110,8 @@
 		"c": "unitless",
 		"t": "at-rule.function.if.meta.misc.property-list.scss.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -8473,8 +8473,8 @@
 		"c": "unitless",
 		"t": "at-rule.function.if.meta.misc.property-list.scss.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -8837,7 +8837,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -9343,7 +9343,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -9585,7 +9585,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -9673,7 +9673,7 @@
 		"t": "at-rule.constant.if.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -9783,7 +9783,7 @@
 		"t": "constant.meta.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -10091,7 +10091,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -10223,7 +10223,7 @@
 		"t": "color.constant.meta.property-list.property-value.scss.support.w3c-standard-color-name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -10982,7 +10982,7 @@
 		"t": "at-rule.each.function.meta.misc.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -11707,8 +11707,8 @@
 		"c": "foo",
 		"t": "at-rule.each.function.meta.misc.scss.support.while",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -12015,8 +12015,8 @@
 		"c": "unit",
 		"t": "at-rule.each.function.if.meta.misc.property-list.scss.support.while",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -12622,7 +12622,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -12742,7 +12742,7 @@
 		"t": "at-rule.constant.each.font-name.meta.property-list.property-value.scss.support.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -12885,7 +12885,7 @@
 		"t": "at-rule.constant.each.meta.property-list.property-value.scss.support.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -13106,7 +13106,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -13282,7 +13282,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -13633,7 +13633,7 @@
 		"t": "at-rule.constant.each.meta.property-list.property-value.scss.support.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -13766,7 +13766,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -13898,7 +13898,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -14272,7 +14272,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -14646,7 +14646,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -15174,7 +15174,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -15317,7 +15317,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -15515,7 +15515,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -15646,7 +15646,7 @@
 		"t": "at-rule.each.function.meta.misc.property-list.property-value.scss.support.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -15856,7 +15856,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -16241,7 +16241,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -16679,8 +16679,8 @@
 		"c": "white",
 		"t": "at-rule.color.constant.each.meta.property-list.scss.set.support.variable.w3c-standard-color-name.while",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -16724,7 +16724,7 @@
 		"t": "at-rule.constant.each.meta.property-list.property-value.scss.set.support.variable.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -16822,8 +16822,8 @@
 		"c": "black",
 		"t": "at-rule.color.constant.each.meta.property-list.scss.set.support.variable.w3c-standard-color-name.while",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -17010,7 +17010,7 @@
 		"t": "at-rule.each.function.meta.misc.property-list.property-value.scss.support.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -17132,7 +17132,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -17186,7 +17186,7 @@
 		"t": "at-rule.constant.each.meta.mixin.property-list.property-value.scss.support.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -17748,7 +17748,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -18022,7 +18022,7 @@
 		"t": "at-rule.each.function.meta.misc.property-list.property-value.scss.support.while",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -19706,7 +19706,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}

@@ -17,7 +17,7 @@ import {
 	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IMode, IndentAction } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -439,7 +439,7 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move up and down with end of lines starting from a long one', () => {
 		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length - 1));
+		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 		moveToEndOfLine(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 		moveDown(thisCursor, 1);
@@ -474,9 +474,9 @@ suite('Editor Controller - Cursor', () => {
 	test('move to beginning of line from whitespace at beginning of line', () => {
 		moveTo(thisCursor, 1, 2);
 		moveToBeginningOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
-		moveToBeginningOfLine(thisCursor);
 		assertCursor(thisCursor, new Position(1, 6));
+		moveToBeginningOfLine(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
 	});
 
 	test('move to beginning of line from within line selection', () => {
@@ -487,11 +487,53 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Selection(1, 8, 1, 1));
 	});
 
+	test('move to beginning of line with selection multiline forward', () => {
+		moveTo(thisCursor, 1, 8);
+		moveTo(thisCursor, 3, 9, true);
+		moveToBeginningOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+	});
+
+	test('move to beginning of line with selection multiline backward', () => {
+		moveTo(thisCursor, 3, 9);
+		moveTo(thisCursor, 1, 8, true);
+		moveToBeginningOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(1, 6, 1, 6));
+	});
+
+	test('move to beginning of line with selection single line forward', () => {
+		moveTo(thisCursor, 3, 2);
+		moveTo(thisCursor, 3, 9, true);
+		moveToBeginningOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+	});
+
+	test('move to beginning of line with selection single line backward', () => {
+		moveTo(thisCursor, 3, 9);
+		moveTo(thisCursor, 3, 2, true);
+		moveToBeginningOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+	});
+
+	test('issue #15401: "End" key is behaving weird when text is selected part 1', () => {
+		moveTo(thisCursor, 1, 8);
+		moveTo(thisCursor, 3, 9, true);
+		moveToBeginningOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+	});
+
+	test('issue #17011: Shift+home/end now go to the end of the selection start\'s line, not the selection\'s end', () => {
+		moveTo(thisCursor, 1, 8);
+		moveTo(thisCursor, 3, 9, true);
+		moveToBeginningOfLine(thisCursor, true);
+		assertCursor(thisCursor, new Selection(1, 8, 3, 5));
+	});
+
 	// --------- move to end of line
 
 	test('move to end of line', () => {
 		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length - 1));
+		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 		moveToEndOfLine(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
@@ -499,7 +541,7 @@ suite('Editor Controller - Cursor', () => {
 	test('move to end of line from within line', () => {
 		moveTo(thisCursor, 1, 6);
 		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length - 1));
+		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 		moveToEndOfLine(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
@@ -509,15 +551,50 @@ suite('Editor Controller - Cursor', () => {
 		moveToEndOfLine(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length - 1));
+		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
 
 	test('move to end of line from within line selection', () => {
 		moveTo(thisCursor, 1, 6);
 		moveToEndOfLine(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 6, 1, LINE1.length - 1));
+		assertCursor(thisCursor, new Selection(1, 6, 1, LINE1.length + 1));
 		moveToEndOfLine(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 6, 1, LINE1.length + 1));
+	});
+
+	test('move to end of line with selection multiline forward', () => {
+		moveTo(thisCursor, 1, 1);
+		moveTo(thisCursor, 3, 9, true);
+		moveToEndOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+	});
+
+	test('move to end of line with selection multiline backward', () => {
+		moveTo(thisCursor, 3, 9);
+		moveTo(thisCursor, 1, 1, true);
+		moveToEndOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(1, 21, 1, 21));
+	});
+
+	test('move to end of line with selection single line forward', () => {
+		moveTo(thisCursor, 3, 1);
+		moveTo(thisCursor, 3, 9, true);
+		moveToEndOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+	});
+
+	test('move to end of line with selection single line backward', () => {
+		moveTo(thisCursor, 3, 9);
+		moveTo(thisCursor, 3, 1, true);
+		moveToEndOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+	});
+
+	test('issue #15401: "End" key is behaving weird when text is selected part 2', () => {
+		moveTo(thisCursor, 1, 1);
+		moveTo(thisCursor, 3, 9, true);
+		moveToEndOfLine(thisCursor, false);
+		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
 	});
 
 	// --------- move to beginning of buffer
@@ -1148,7 +1225,7 @@ suite('Editor Controller - Regression tests', () => {
 			modeId: new BracketMode().getId()
 		}, (model, cursor) => {
 			// ensure is tokenized
-			model.getLineContext(1);
+			model.getLineTokens(1, false);
 
 			moveTo(cursor, 1, 20);
 
@@ -1553,6 +1630,28 @@ suite('Editor Controller - Regression tests', () => {
 				'and more lines',
 				'just some text',
 			].join('\n'), '003');
+		});
+	});
+
+	test('issue #12950: Cannot Double Click To Insert Emoji Using OSX Emoji Panel', () => {
+		usingCursor({
+			text: [
+				'some lines',
+				'and more lines',
+				'just some text',
+			],
+			modeId: null,
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 1, false);
+
+			cursorCommand(cursor, H.Type, { text: '😍' }, 'keyboard');
+
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'😍just some text',
+			].join('\n'));
 		});
 	});
 
@@ -2704,3 +2803,165 @@ function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor)
 	config.dispose();
 	model.dispose();
 }
+
+class ElectricCharMode extends MockMode {
+	constructor() {
+		super();
+		LanguageConfigurationRegistry.register(this.getId(), {
+			__electricCharacterSupport: {
+				docComment: { open: '/**', close: ' */' }
+			},
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			]
+		});
+	}
+}
+
+suite('ElectricCharacter', () => {
+	test('does nothing if no electric char', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				''
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '*');
+		});
+	});
+
+	test('indents in order to match bracket', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				''
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }');
+		});
+	});
+
+	test('unindents in order to match bracket', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'    '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 5);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }');
+		});
+	});
+
+	test('matches with correct bracket', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'    if (b) {',
+				'    }',
+				'    '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 1);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(4), '  }    ');
+		});
+	});
+
+	test('does nothing if bracket does not match', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'    if (b) {',
+				'    }',
+				'  }  '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 6);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(4), '  }  }');
+		});
+	});
+
+	test('matches bracket even in line with content', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'// hello'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }// hello');
+		});
+	});
+
+	test('is no-op if bracket is lined up', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'  '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 3);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }');
+		});
+	});
+
+	test('is no-op if there is non-whitespace text before', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'a'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 2);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  a}');
+		});
+	});
+
+	test('appends text', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'/*'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 3);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '/** */');
+		});
+	});
+
+	test('appends text 2', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'  /*'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 5);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  /** */');
+		});
+	});
+});

@@ -12,7 +12,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleStatusbarVisibilityAction extends Action {
 
@@ -34,7 +34,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const visibility = !this.partService.isStatusBarHidden();
+		const visibility = this.partService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleStatusbarVisibilityAction.statusbarVisibleKey, value: newVisibilityValue }).then(null, error => {
@@ -45,5 +45,5 @@ export class ToggleStatusbarVisibilityAction extends Action {
 	}
 }
 
-let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, ToggleStatusbarVisibilityAction.LABEL), 'View: Toggle Status Bar Visibility', nls.localize('view', "View"));

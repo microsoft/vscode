@@ -18,13 +18,13 @@ export class MainThreadStatusBar extends MainThreadStatusBarShape {
 		this.mapIdToDisposable = Object.create(null);
 	}
 
-	$setEntry(id: number, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void {
+	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void {
 
 		// Dispose any old
 		this.$dispose(id);
 
 		// Add new
-		let disposeable = this.statusbarService.addEntry({ text, tooltip, command, color }, alignment, priority);
+		let disposeable = this.statusbarService.addEntry({ text, tooltip, command, color, extensionId }, alignment, priority);
 		this.mapIdToDisposable[id] = disposeable;
 	}
 

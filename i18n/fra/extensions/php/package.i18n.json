@@ -7,5 +7,5 @@
 	"configuration.title": "PHP",
 	"configuration.validate.enable": "Spécifie si la validation PHP est activée ou non.",
 	"configuration.validate.executablePath": "Pointe vers l'exécutable PHP.",
-	"configuration.validate.run": "Spécifie si les vérifications lint sont exécutées au moment de l'enregistrement ou de la saisie."
+	"configuration.validate.run": "Spécifie si linter est exécuté au moment de l'enregistrement ou de la saisie."
 }

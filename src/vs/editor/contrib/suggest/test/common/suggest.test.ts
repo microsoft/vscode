@@ -25,7 +25,6 @@ suite('Suggest', function () {
 			triggerCharacters: [],
 			provideCompletionItems() {
 				return {
-					currentWord: '',
 					incomplete: false,
 					suggestions: [{
 						label: 'aaa',

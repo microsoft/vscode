@@ -20,6 +20,7 @@ export interface SiblingClause {
 
 const PATH_REGEX = '[/\\\\]';		// any slash or backslash
 const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
+const ALL_FORWARD_SLASHES = /\//g;
 
 function starsToRegExp(starCount: number): string {
 	switch (starCount) {
@@ -348,7 +349,7 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 
 // common patterns: **/something/else just need endsWith check, something/else just needs and equals check
 function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
-	const nativePath = path.replace(paths.sep, paths.nativeSep);
+	const nativePath = paths.nativeSep !== paths.sep ? path.replace(ALL_FORWARD_SLASHES, paths.nativeSep) : path;
 	const nativePathEnd = paths.nativeSep + nativePath;
 	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (path, basename) {
 		return path && (path === nativePath || strings.endsWith(path, nativePathEnd)) ? pattern : null;

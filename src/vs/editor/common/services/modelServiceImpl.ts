@@ -61,10 +61,10 @@ class ModelData implements IDisposable {
 
 class ModelMarkerHandler {
 
-	public static setMarkers(modelData: ModelData, markers: IMarker[]): void {
+	public static setMarkers(modelData: ModelData, markerService: IMarkerService): void {
 
 		// Limit to the first 500 errors/warnings
-		markers = markers.slice(0, 500);
+		const markers = markerService.read({ resource: modelData.model.uri, take: 500 });
 
 		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
@@ -76,34 +76,32 @@ class ModelMarkerHandler {
 		modelData.acceptMarkerDecorations(newModelDecorations);
 	}
 
-	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): editorCommon.IRange {
+	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): Range {
 		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
 		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
-				ret.startColumn = word.startColumn;
-				ret.endColumn = word.endColumn;
+				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
 			} else {
 				let maxColumn = model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
 					model.getLineMaxColumn(marker.startLineNumber);
 
 				if (maxColumn === 1) {
 					// empty line
-					//					console.warn('marker on empty line:', marker);
+					// console.warn('marker on empty line:', marker);
 				} else if (ret.endColumn >= maxColumn) {
 					// behind eol
-					ret.endColumn = maxColumn;
-					ret.startColumn = maxColumn - 1;
+					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
 				} else {
 					// extend marker to width = 1
-					ret.endColumn += 1;
+					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
 				}
 			}
 		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
 			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
 			if (minColumn < ret.endColumn) {
-				ret.startColumn = minColumn;
+				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
 				rawMarker.startColumn = minColumn;
 			}
 		}
@@ -138,10 +136,16 @@ class ModelMarkerHandler {
 		let {message, source} = marker;
 
 		if (typeof message === 'string') {
+			message = message.trim();
+
 			if (source) {
-				const indent = new Array(source.length + 1 + 3 /*'[] '.length*/).join(' ');
-				message = nls.localize('diagAndSource', "[{0}] {1}", source, message.replace(/\n/g, '\n' + indent));
+				if (/\n/g.test(message)) {
+					message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
+				} else {
+					message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
+				}
 			}
+
 			hoverMessage = [{ language: '_', value: message }];
 		}
 
@@ -329,7 +333,7 @@ export class ModelServiceImpl implements IModelService {
 			if (!modelData) {
 				return;
 			}
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: resource, take: 500 }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		});
 	}
 
@@ -379,7 +383,7 @@ export class ModelServiceImpl implements IModelService {
 
 		// handle markers (marker service => model)
 		if (this._markerService) {
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.uri }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		}
 
 		this._onModelAdded.fire(modelData.model);
@@ -450,11 +454,10 @@ export class ModelServiceImpl implements IModelService {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
 
-		this._cleanUp(model);
-
 		delete this._models[modelId];
 		modelData.dispose();
 
+		this._cleanUp(model);
 		this._onModelRemoved.fire(model);
 	}
 

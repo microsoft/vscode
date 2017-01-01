@@ -6,7 +6,11 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item {
 	display: block;
 	position: relative;
-	margin: 10px 0;
+	padding: 5px 0;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.dropfeedback {
+	background-color: #403F3F;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
@@ -28,10 +32,14 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	content: "";
 	position: absolute;
-	top: 4px;
+	top: 9px;
 	height: 32px;
 	width: 0;
 	border-left: 2px solid;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.clicked:focus:before {
+	border-left: none !important; /* no focus feedback when using mouse */
 }
 
 .vs .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before,
@@ -49,6 +57,10 @@
 
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
 	right: 1px;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.toggle-more {
+	background-image: url('ellipsis-global.svg');
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
@@ -74,7 +86,7 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
 	position: absolute;
-	top: 0;
+	top: 5px;
 	left: 0;
 	overflow: hidden;
 	width: 50px;
@@ -133,7 +145,7 @@
 	content: "";
 	opacity: 0.6;
 	position: absolute;
-	top: 4px;
+	top: 9px;
 	left: 9px;
 	height: 32px;
 	width: 32px;
@@ -144,8 +156,13 @@
 	opacity: 1;
 }
 
-.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before {
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before {
 	outline: 1px solid #f38518;
+}
+
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:hover:before {
+	outline: 1px dashed #f38518;
 }
 
 .hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {

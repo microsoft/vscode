@@ -147,7 +147,7 @@ export class FileWalker {
 
 			// For each root folder
 			flow.parallel<string, void>(rootFolders, (rootFolder: string, rootFolderDone: (err?: Error) => void) => {
-				traverse.call(this, rootFolder, onResult, (err?: Error) => {
+				this.call(traverse, this, rootFolder, onResult, (err?: Error) => {
 					if (err) {
 						if (isNodeTraversal) {
 							rootFolderDone(err);
@@ -166,6 +166,14 @@ export class FileWalker {
 				done(err ? err[0] : null, this.isLimitHit);
 			});
 		});
+	}
+
+	private call(fun: Function, that: any, ...args: any[]): void {
+		try {
+			fun.apply(that, args);
+		} catch (e) {
+			args[args.length - 1](e);
+		}
 	}
 
 	private findTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {

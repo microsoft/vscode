@@ -17,7 +17,7 @@ if not "%BUILD_BUILDID%" == "" (
 
 rem Otherwise
 if "%BUILD_BUILDID%" == "" (
-	%CODE% .\node_modules\mocha\bin\_mocha --reporter dot %* | .\resources\win32\bin\cat
+	%CODE% .\node_modules\mocha\bin\_mocha --reporter dot %*
 )
 popd
 

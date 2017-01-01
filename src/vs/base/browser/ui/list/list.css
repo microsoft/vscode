@@ -39,19 +39,19 @@
 
 /* for OS X ballistic scrolling */
 .monaco-list-row.scrolling {
-	display: none;
+	display: none !important;
 }
 
 /* Hover */
 .monaco-list-row:hover { background-color: #F0F0F0; }
 .vs-dark .monaco-list-row:hover { background-color: rgba(255, 255, 255, 0.08); }
-.hc-black .monaco-list-row:hover { outline: 1px dashed #f38518; background: transparent; }
+.hc-black .monaco-list-row:hover { outline: 1px dashed #f38518; outline-offset: -1px; background: transparent; }
 
 /* Focus */
 .monaco-list.element-focused { outline: 0 !important; }
 .monaco-list-row.focused { background-color: #DCEBFC; }
 .vs-dark .monaco-list-row.focused { background-color: #073655; }
-.hc-black .monaco-list-row.focused { outline: 1px dotted #f38518; background: transparent }
+.hc-black .monaco-list-row.focused { outline: 1px dotted #f38518; outline-offset: -1px; background: transparent }
 
 /* Selection */
 .monaco-list-row.selected { background-color: #4FA7FF; color: white; }

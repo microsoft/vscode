@@ -33,13 +33,10 @@ export function viewModelHelper(model): IViewModelHelper {
 		convertViewSelectionToModelSelection: (viewSelection: Selection) => {
 			return viewSelection;
 		},
-		convertViewRangeToModelRange: (modelRange: Range) => {
-			return modelRange;
-		},
-		validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
+		validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
 			return modelPosition;
 		},
-		validateViewRange: (viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range) => {
+		validateViewRange: (viewRange: Range, modelRange: Range): Range => {
 			return modelRange;
 		}
 	};

@@ -29,11 +29,11 @@ interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
+	export const type: NotificationType<ISchemaAssociations, any> = { get method() { return 'json/schemaAssociations'; }, _: null };
 }
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
+	export const type: RequestType<string, string, any, any> = { get method() { return 'vscode/content'; }, _: null };
 }
 
 // Create a connection for the server
@@ -56,7 +56,9 @@ const filesAssociationContribution = new FileAssociationContribution();
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
-	filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
+	if (params.initializationOptions) {
+		filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
+	}
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -64,8 +66,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: true,
-			documentFormattingProvider: true
+			documentRangeFormattingProvider: !params.initializationOptions || params.initializationOptions['format.enable']
 		}
 	};
 });
@@ -276,11 +277,6 @@ connection.onDocumentSymbol(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
 	return languageService.findDocumentSymbols(document, jsonDocument);
-});
-
-connection.onDocumentFormatting(formatParams => {
-	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, null, formatParams.options);
 });
 
 connection.onDocumentRangeFormatting(formatParams => {

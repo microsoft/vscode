@@ -7,6 +7,7 @@
 	"defaultKeybindings": "Standard-Tastaturkurzbefehle",
 	"defaultKeybindingsHeader": "Überschreiben Sie Tastenzuordnungen, indem Sie sie in die Tastenzuordnungsdatei einfügen.",
 	"defaultName": "Standardeinstellungen",
+	"defaultSettingsEditor": "Standard-Editor für Einstellungen",
 	"defaultSettingsHeader": "Überschreiben Sie Einstellungen, indem Sie sie in die Einstellungsdatei einfügen.",
 	"defaultSettingsHeader2": "Unter http://go.microsoft.com/fwlink/?LinkId=808995 finden Sie die am häufigsten verwendeten Einstellungen.",
 	"emptyKeybindingsHeader": "Platzieren Sie Ihre Tastenzuordnungen in dieser Datei, um die Standardwerte zu überschreiben.",

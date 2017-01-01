@@ -62,11 +62,10 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
-		if (e.type === 'manual') {
-			this._lightBulbWidget.hide();
+		if (e && e.type === 'manual') {
 			this._quickFixContextMenu.show(e.fixes, e.position);
 
-		} else if (e.fixes) {
+		} else if (e && e.fixes) {
 			// auto magically triggered
 			// * update an existing list of code actions
 			// * manage light bulb
@@ -85,7 +84,6 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		this._lightBulbWidget.hide();
 		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
 	}
 
@@ -99,7 +97,7 @@ export class QuickFixController implements IEditorContribution {
 		if (kb) {
 			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", this._keybindingService.getLabelFor(kb));
 		} else {
-			title = nls.localize('quickFix', "Show Fixes", this._keybindingService.getLabelFor(kb));
+			title = nls.localize('quickFix', "Show Fixes");
 		}
 		this._lightBulbWidget.getDomNode().title = title;
 	}

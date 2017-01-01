@@ -10,10 +10,14 @@
 	"appStalled": "ウィンドウから応答がありません",
 	"appStalledDetail": "ウィンドウを再度開くか、閉じるか、このまま待機できます。",
 	"close": "閉じる",
+	"folderDesc": "{0} {1}",
 	"hiddenMenuBar": "引き続き **Alt** キーを押してメニュー バーにアクセスできます。",
+	"newWindow": "新しいウィンドウ",
+	"newWindowDesc": "新しいウィンドウを開く",
 	"ok": "OK",
 	"pathNotExistDetail": "パス '{0}' はディスクに存在しなくなったようです。",
 	"pathNotExistTitle": "パスが存在しません",
+	"recentFolders": "最近使用したフォルダー",
 	"reopen": "もう一度開く",
 	"wait": "待機を続ける"
 }

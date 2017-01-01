@@ -6,5 +6,7 @@
 {
 	"app.extension.identifier.errorMessage": "Formato imprevisto '${publisher}.${name}'. Esempio: 'vscode.csharp'.",
 	"app.extensions.json.recommendations": "Elenco delle estensioni consigliate. L'identificatore di un'estensione è sempre '${publisher}.${name}'. Ad esempio: 'vscode.csharp'.",
-	"app.extensions.json.title": "Estensioni"
+	"app.extensions.json.title": "Estensioni",
+	"app.extensionsstorage.json.disabled": "Elenco delle estensioni disabilitate. L'identificatore di un'estensione è sempre '${publisher}.${name}'. Ad esempio: 'vscode.csharp'.",
+	"app.extensionsstorage.json.title": "Archivio estensioni"
 }

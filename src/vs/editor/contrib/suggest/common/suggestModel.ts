@@ -13,7 +13,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
-import { provideSuggestionItems, getSuggestionComparator } from './suggest';
+import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 
 export interface ICancelEvent {
@@ -32,15 +32,14 @@ export interface ISuggestEvent {
 
 export class Context {
 
-	lineNumber: number;
-	column: number;
-	isInEditableRange: boolean;
+	readonly lineNumber: number;
+	readonly column: number;
+	readonly isInEditableRange: boolean;
 
-	lineContentBefore: string;
-	lineContentAfter: string;
+	readonly lineContentBefore: string;
 
-	wordBefore: string;
-	wordAfter: string;
+	readonly wordBefore: string;
+	readonly wordAfter: string;
 
 	constructor(model: IModel, position: IPosition, private auto: boolean) {
 		const lineContent = model.getLineContent(position.lineNumber);
@@ -57,10 +56,8 @@ export class Context {
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
 		this.lineContentBefore = lineContent.substr(0, position.column - 1);
-		this.lineContentAfter = lineContent.substr(position.column - 1);
 
 		this.isInEditableRange = true;
-
 		if (model.hasEditableRange()) {
 			const editableRange = model.getEditableRange();
 
@@ -101,7 +98,7 @@ export class Context {
 			return true;
 		}
 
-		if (!startsWith(context.lineContentBefore, this.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
+		if (!startsWith(context.lineContentBefore, this.lineContentBefore)) {
 			// Line has changed before position
 			return true;
 		}
@@ -115,7 +112,7 @@ export class Context {
 	}
 
 	shouldRetrigger(context: Context): boolean {
-		if (!startsWith(this.lineContentBefore, context.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
+		if (!startsWith(this.lineContentBefore, context.lineContentBefore)) {
 			// Doesn't look like the same line
 			return false;
 		}
@@ -316,16 +313,12 @@ export class SuggestModel implements IDisposable {
 					this.trigger(true);
 				});
 			}
-
-		} else if (this.completionModel && this.completionModel.incomplete.length > 0) {
-			this.triggerFromIncomplete(this.state === State.Auto);
-
 		} else {
 			this.onNewContext(ctx);
 		}
 	}
 
-	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[]): void {
+	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[], existingItems?: ISuggestionItem[]): void {
 
 		const model = this.editor.getModel();
 
@@ -361,6 +354,11 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
+			if (!isFalsyOrEmpty(existingItems)) {
+				const cmpFn = getSuggestionComparator(this.editor.getConfiguration().contribInfo.snippetSuggestions);
+				items = items.concat(existingItems).sort(cmpFn);
+			}
+
 			const ctx = new Context(model, this.editor.getPosition(), auto);
 			this.completionModel = new CompletionModel(items, this.context.column, {
 				leadingLineContent: ctx.lineContentBefore,
@@ -369,30 +367,6 @@ export class SuggestModel implements IDisposable {
 			this.onNewContext(ctx);
 
 		}).then(null, onUnexpectedError);
-	}
-
-	private triggerFromIncomplete(auto: boolean): void {
-
-		this.requestPromise = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(),
-			this.editor.getConfiguration().contribInfo.snippetSuggestions,
-			this.completionModel.incomplete
-		).then(items => {
-
-			this.requestPromise = null;
-			if (this.state === State.Idle) {
-				return;
-			}
-			const model = this.editor.getModel();
-			if (!model) {
-				return;
-			}
-
-			this.completionModel.replaceIncomplete(
-				items,
-				getSuggestionComparator(this.editor.getConfiguration().contribInfo.snippetSuggestions)
-			);
-			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
-		});
 	}
 
 	private onNewContext(ctx: Context): void {
@@ -404,6 +378,12 @@ export class SuggestModel implements IDisposable {
 			}
 
 		} else if (this.completionModel) {
+
+			if (this.completionModel.incomplete && ctx.column > this.context.column) {
+				const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
+				this.trigger(this.state === State.Auto, true, incomplete, complete);
+				return;
+			}
 
 			const auto = this.state === State.Auto;
 			const oldLineContext = this.completionModel.lineContext;

@@ -81,10 +81,11 @@ abstract class ExtensionManifestHandler {
 }
 
 class ExtensionManifestParser extends ExtensionManifestHandler {
+
 	public parse(): TPromise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			let errors: json.ParseError[] = [];
-			let extensionDescription: IExtensionDescription = json.parse(manifestContents.toString(), errors);
+			const extensionDescription = json.parse(manifestContents.toString(), errors);
 			if (errors.length > 0) {
 				errors.forEach((error) => {
 					this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, json.getParseErrorMessage(error.error)));
@@ -93,6 +94,10 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			}
 			return extensionDescription;
 		}, (err) => {
+			if (err.code === 'ENOENT') {
+				return null;
+			}
+
 			this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
 			return null;
 		});
@@ -198,7 +203,22 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 }
 
 class ExtensionManifestValidator extends ExtensionManifestHandler {
-	validate(extensionDescription: IExtensionDescription): IExtensionDescription {
+	validate(_extensionDescription: IExtensionDescription): IExtensionDescription {
+		// Relax the readonly properties here, it is the one place where we check and normalize values
+		interface IRelaxedExtensionDescription {
+			id: string;
+			name: string;
+			version: string;
+			publisher: string;
+			isBuiltin: boolean;
+			extensionFolderPath: string;
+			engines: {
+				vscode: string;
+			};
+			main?: string;
+			enableProposedApi?: boolean;
+		}
+		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
 
 		let notices: string[] = [];

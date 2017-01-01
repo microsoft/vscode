@@ -5,6 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import { marked } from 'vs/base/common/marked/marked';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 
 suite('HtmlContent', () => {
@@ -154,5 +155,47 @@ suite('HtmlContent', () => {
 		});
 		assert.strictEqual(result.children.length, 0);
 		assert.strictEqual(result.innerHTML, '**bold**');
+	});
+	test('image rendering conforms to default', () => {
+		const renderableContent = {
+			markdown: `![image](someimageurl 'caption')`
+		};
+		const result: HTMLElement = <any>renderHtml(renderableContent);
+		const renderer = new marked.Renderer();
+		const imageFromMarked = marked(renderableContent.markdown, {
+			sanitize: true,
+			renderer
+		}).trim();
+		assert.strictEqual(result.innerHTML, imageFromMarked);
+	});
+	test('image rendering conforms to default without title', () => {
+		const renderableContent = {
+			markdown: `![image](someimageurl)`
+		};
+		const result: HTMLElement = <any>renderHtml(renderableContent);
+		const renderer = new marked.Renderer();
+		const imageFromMarked = marked(renderableContent.markdown, {
+			sanitize: true,
+			renderer
+		}).trim();
+		assert.strictEqual(result.innerHTML, imageFromMarked);
+	});
+	test('image width from title params', () => {
+		var result: HTMLElement = <any>renderHtml({
+			markdown: `![image](someimageurl|width=100 'caption')`
+		});
+		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100"></p>`);
+	});
+	test('image height from title params', () => {
+		var result: HTMLElement = <any>renderHtml({
+			markdown: `![image](someimageurl|height=100 'caption')`
+		});
+		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" height="100"></p>`);
+	});
+	test('image width and height from title params', () => {
+		var result: HTMLElement = <any>renderHtml({
+			markdown: `![image](someimageurl|height=200,width=100 'caption')`
+		});
+		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100" height="200"></p>`);
 	});
 });

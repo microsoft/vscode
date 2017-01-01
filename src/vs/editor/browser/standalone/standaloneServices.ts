@@ -10,8 +10,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IEventService } from 'vs/platform/event/common/event';
-import { EventService } from 'vs/platform/event/common/eventService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -121,8 +119,6 @@ export module StaticServices {
 
 	export const telemetryService = define(ITelemetryService, () => NullTelemetryService);
 
-	export const eventService = define(IEventService, () => new EventService());
-
 	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
 
 	export const messageService = define(IMessageService, () => new SimpleMessageService());
@@ -135,7 +131,7 @@ export module StaticServices {
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), messageService.get(o)));
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o)));
 
 	export const codeEditorService = define(ICodeEditorService, () => new CodeEditorServiceImpl());
 

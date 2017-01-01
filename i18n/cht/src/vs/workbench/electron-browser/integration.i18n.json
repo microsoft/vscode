@@ -6,10 +6,8 @@
 {
 	"copy": "複製",
 	"cut": "剪下",
-	"files": "檔案",
-	"folders": "資料夾",
-	"openRecentPlaceHolder": "選取要開啟的路徑 (按住 Ctrl 鍵以在新視窗開啟)",
-	"openRecentPlaceHolderMac": "選取路徑 (按住 Cmd 鍵以在新視窗開啟)",
+	"developer": "開發人員",
+	"file": "檔案",
 	"paste": "貼上",
 	"redo": "取消復原",
 	"selectAll": "全選",

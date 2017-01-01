@@ -9,6 +9,6 @@
 	"errorInvalidConfiguration": "設定を書き込めません。**User Settings** を開いて、ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"errorInvalidConfigurationWorkspace": "設定を書き込めません。**Workspace Settings** を開いて、ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"errorInvalidTarget": "構成ファイルに書き込めません (無効なターゲット)",
-	"errorNoWorkspaceOpened": "開いているフォルダーがないため、設定を書き込めきません。最初にフォルダーを開いてから、もう一度お試しください。",
+	"errorNoWorkspaceOpened": "開いているフォルダーがないため、設定を書き込めません。最初にフォルダーを開いてから、もう一度お試しください。",
 	"errorUnknownKey": "構成ファイルに書き込めません (不明なキー)"
 }

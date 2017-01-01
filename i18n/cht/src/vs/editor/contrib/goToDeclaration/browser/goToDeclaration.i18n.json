@@ -8,5 +8,5 @@
 	"actions.goToDeclToSide.label": "在一側開啟定義",
 	"actions.previewDecl.label": "預覽定義",
 	"meta.title": " - {0} 個定義",
-	"multipleResults": "按一下以顯示找到的 {0} 個定義。"
+	"multipleResults": "按一下以顯示 {0} 項定義。"
 }

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
@@ -128,7 +128,7 @@ let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
 
 	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
-	if (browser.isIE11orEarlier) {
+	if (browser.isIE) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
 	} else if (browser.isFirefox) {
 		KEY_CODE_MAP[59] = KeyCode.US_SEMICOLON;
@@ -166,16 +166,16 @@ export function setExtractKeyCode(newExtractKeyCode: (e: KeyboardEvent) => KeyCo
 }
 
 export interface IKeyboardEvent {
-	browserEvent: KeyboardEvent;
-	target: HTMLElement;
+	readonly browserEvent: KeyboardEvent;
+	readonly target: HTMLElement;
 
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	altKey: boolean;
-	metaKey: boolean;
-	keyCode: KeyCode;
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly keyCode: KeyCode;
 
-	asKeybinding(): number;
+	toKeybinding(): Keybinding;
 	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
@@ -189,16 +189,16 @@ const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
 
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
-	public browserEvent: KeyboardEvent;
-	public target: HTMLElement;
+	public readonly browserEvent: KeyboardEvent;
+	public readonly target: HTMLElement;
 
-	public ctrlKey: boolean;
-	public shiftKey: boolean;
-	public altKey: boolean;
-	public metaKey: boolean;
-	public keyCode: KeyCode;
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly keyCode: KeyCode;
 
-	private _asKeybinding: number;
+	private _asKeybinding: Keybinding;
 
 	constructor(source: KeyboardEvent) {
 		let e = <KeyboardEvent>source;
@@ -234,15 +234,15 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 	}
 
-	public asKeybinding(): number {
+	public toKeybinding(): Keybinding {
 		return this._asKeybinding;
 	}
 
 	public equals(other: number): boolean {
-		return (this._asKeybinding === other);
+		return this._asKeybinding.value === other;
 	}
 
-	private _computeKeybinding(): number {
+	private _computeKeybinding(): Keybinding {
 		let key = KeyCode.Unknown;
 		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
 			key = this.keyCode;
@@ -263,6 +263,6 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 		result |= key;
 
-		return result;
+		return new Keybinding(result);
 	}
 }

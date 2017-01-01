@@ -14,6 +14,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm {
 	background-color: transparent!important;
 	position: relative;
+	height: 100%;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:focus {
@@ -24,6 +25,7 @@
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus,
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
 	outline: 2px solid #f38518;
+	outline-offset: -2px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
@@ -38,7 +40,7 @@
 	 * Move textarea out of the screen to the far left, so that the cursor is not visible.
 	 */
 	left: -9999em;
-	top: -9999em;
+	top: 0;
 	opacity: 0;
 	width: 0;
 	height: 0;
@@ -128,6 +130,11 @@
 	position: absolute;
 	left: 0;
 	bottom: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-rows > div {
+	/* Lines containing spans and text nodes ocassionally wrap despite being the same width (#327) */
+	white-space: nowrap;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-scroll-area {

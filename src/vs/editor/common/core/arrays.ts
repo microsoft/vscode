@@ -17,7 +17,7 @@ export namespace Arrays {
 	 * @param desiredIndex The search
 	 * @return The index of the containing segment in the array.
 	 */
-	export function findIndexInSegmentsArray(arr: { startIndex: number; }[], desiredIndex: number): number {
+	export function findIndexInSegmentsArray(arr: { readonly startIndex: number; }[], desiredIndex: number): number {
 
 		let low = 0;
 		let high = arr.length - 1;

@@ -13,15 +13,13 @@ import { Delayer } from 'vs/base/common/async';
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import builder = require('vs/base/browser/builder');
-import { Action } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { Panel } from 'vs/workbench/browser/panel';
-import { IAction } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IProblemsConfiguration, MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
@@ -67,7 +65,6 @@ export class MarkersPanel extends Panel {
 		@IMarkerService private markerService: IMarkerService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -226,8 +223,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onEditorsChanged(): void {
-		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		this.currentActiveFile = editorInput ? editorInput.getResource() : null;
+		this.currentActiveFile = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		this.autoReveal();
 	}
 

@@ -11,5 +11,7 @@
 	"inputModeEntry": "Presione \"Entrar\" para confirmar su entrada o \"Esc\" para cancelar",
 	"inputModeEntryDescription": "{0} (Presione \"Entrar\" para confirmar o \"Esc\" para cancelar)",
 	"noResultsFound1": "No se encontraron resultados",
-	"quickOpenInput": "Escriba '?' para obtener ayuda con las acciones que puede realizar desde aquí"
+	"pickHistory": "Seleccione una entrada del editor para quitarla del historial",
+	"quickOpenInput": "Escriba '?' para obtener ayuda con las acciones que puede realizar desde aquí",
+	"removeFromEditorHistory": "Quitar del historial"
 }

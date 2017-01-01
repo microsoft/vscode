@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
-import { illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -34,6 +34,9 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 					} else {
 						rejects.push(result.rejectReason);
 					}
+				}, err => {
+					onUnexpectedExternalError(err);
+					return TPromise.wrapError<WorkspaceEdit>('provider failed');
 				});
 			}
 		};

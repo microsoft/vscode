@@ -10,7 +10,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
-
 /**
  * An event that is send out when the window is about to close. Clients have a chance to veto the closing by either calling veto
  * with a boolean "true" directly or with a promise that resolves to a boolean. Returning a promise is useful
@@ -20,8 +19,23 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
  * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
 export interface ShutdownEvent {
-
 	veto(value: boolean | TPromise<boolean>): void;
+	reason: ShutdownReason;
+}
+
+export enum ShutdownReason {
+
+	/** Window is closed */
+	CLOSE,
+
+	/** Application is quit */
+	QUIT,
+
+	/** Window is reloaded */
+	RELOAD,
+
+	/** Other configuration loaded into window */
+	LOAD
 }
 
 /**
@@ -47,13 +61,15 @@ export interface ILifecycleService {
 	/**
 	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
 	 * like running processes. Can also be used to save UI state to storage.
+	 *
+	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
-	onShutdown: Event<void>;
+	onShutdown: Event<ShutdownReason>;
 }
 
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	willShutdown: false,
 	onWillShutdown: () => ({ dispose() { } }),
-	onShutdown: () => ({ dispose() { } })
+	onShutdown: (reason) => ({ dispose() { } })
 };

@@ -7,13 +7,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -42,17 +42,19 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 
 /**
  * An event emitted when a language is first time needed (e.g. a model has it set).
+ * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let isDisposed = false;
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
-		if (!isDisposed) {
+	const desired = 'onLanguage:' + languageId;
+	let disposable = onWillActivate.event((activationEvent) => {
+		if (activationEvent === desired) {
+			// stop listening
+			disposable.dispose();
+			// invoke actual listener
 			callback();
 		}
 	});
-	return {
-		dispose: () => { isDisposed = true; }
-	};
+	return disposable;
 }
 
 /**
@@ -221,7 +223,7 @@ export interface CodeActionContext {
 	 *
 	 * @readonly
 	 */
-	markers: IMarkerData[];
+	readonly markers: IMarkerData[];
 }
 
 /**
@@ -256,7 +258,8 @@ export enum CompletionItemKind {
 	Snippet,
 	Color,
 	File,
-	Reference
+	Reference,
+	Folder
 }
 /**
  * A completion item represents a text snippet that is
@@ -375,6 +378,7 @@ function convertKind(kind: CompletionItemKind): modes.SuggestionType {
 		case CompletionItemKind.Color: return 'color';
 		case CompletionItemKind.File: return 'file';
 		case CompletionItemKind.Reference: return 'reference';
+		case CompletionItemKind.Folder: return 'folder';
 	}
 	return 'property';
 }
@@ -395,7 +399,8 @@ class SuggestAdapter {
 			detail: item.detail,
 			documentation: item.documentation,
 			sortText: item.sortText,
-			filterText: item.filterText
+			filterText: item.filterText,
+			snippetType: 'internal'
 		};
 	}
 
@@ -403,15 +408,14 @@ class SuggestAdapter {
 
 		return toThenable<CompletionItem[] | CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
 			const result: modes.ISuggestResult = {
-				suggestions: [],
-				currentWord: '',
+				suggestions: []
 			};
 
 			// default text edit start
-			let wordStartPos = position.clone();
+			let wordStartPos = position;
 			const word = model.getWordUntilPosition(position);
 			if (word) {
-				wordStartPos.column = word.startColumn;
+				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
 			}
 
 			let list: CompletionList;
@@ -511,6 +515,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: modes.IndentAction
+		IndentAction: IndentAction
 	};
 }

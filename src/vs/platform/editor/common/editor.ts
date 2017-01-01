@@ -20,11 +20,6 @@ export interface IEditorService {
 	 * Specific overload to open an instance of IResourceInput.
 	 */
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
-
-	/**
-	 * Specific overload to resolve a IResourceInput to an editor model with a text representation.
-	 */
-	resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
 export interface IEditorModel {
@@ -42,11 +37,25 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: any;
+export interface IBaseResourceInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+
+	/**
+	 * Label to show for the diff editor
+	 */
+	label?: string;
+
+	/**
+	 * Description to show for the diff editor
+	 */
+	description?: string;
 }
 
-export interface IResourceInput {
+export interface IResourceInput extends IBaseResourceInput {
 
 	/**
 	 * The resource URL of the resource to open.
@@ -57,11 +66,32 @@ export interface IResourceInput {
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;
+}
+
+export interface IResourceDiffInput extends IBaseResourceInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * The left hand side URI to open inside a diff editor.
 	 */
-	options?: ITextEditorOptions;
+	leftResource: URI;
+
+	/**
+	 * The right hand side URI to open inside a diff editor.
+	 */
+	rightResource: URI;
+}
+
+export interface IResourceSideBySideInput extends IBaseResourceInput {
+
+	/**
+	 * The right hand side URI to open inside a side by side editor.
+	 */
+	masterResource: URI;
+
+	/**
+	 * The left hand side URI to open inside a side by side editor.
+	 */
+	detailResource: URI;
 }
 
 export interface IEditorControl {
@@ -111,17 +141,17 @@ export interface IEditor {
  */
 export enum Position {
 
-	/** Opens the editor in the LEFT most position replacing the input currently showing */
-	LEFT = 0,
+	/** Opens the editor in the first position replacing the input currently showing */
+	ONE = 0,
 
-	/** Opens the editor in the CENTER position replacing the input currently showing */
-	CENTER = 1,
+	/** Opens the editor in the second position replacing the input currently showing */
+	TWO = 1,
 
-	/** Opens the editor in the RIGHT most position replacing the input currently showing */
-	RIGHT = 2
+	/** Opens the editor in the third most position replacing the input currently showing */
+	THREE = 2
 }
 
-export const POSITIONS = [Position.LEFT, Position.CENTER, Position.RIGHT];
+export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
 
 export enum Direction {
 	LEFT,
@@ -141,6 +171,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns the display description of this input.
 	 */
 	getDescription(verbose?: boolean): string;
+
+	/**
+	 * Resolves the input.
+	 */
+	resolve(): TPromise<IEditorModel>;
 
 	/**
 	 * Returns if this input is dirty or not.
@@ -202,4 +237,9 @@ export interface ITextEditorOptions extends IEditorOptions {
 		endLineNumber?: number;
 		endColumn?: number;
 	};
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	revealInCenterIfOutsideViewport?: boolean;
 }

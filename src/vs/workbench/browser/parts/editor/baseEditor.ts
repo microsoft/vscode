@@ -67,7 +67,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Sets the given input with the options to the part. An editor has to deal with the
 	 * situation that the same input is being set with different options.
 	 */
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		this._input = input;
 		this._options = options;
 
@@ -113,7 +113,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return promise;
 	}
 
-	public setEditorVisible(visible, position: Position = null): void {
+	public setEditorVisible(visible: boolean, position: Position = null): void {
 		this._position = position;
 	}
 
@@ -225,7 +225,7 @@ class EditorRegistry implements IEditorRegistry {
 					const inputClass = inputDescriptors[j].ctor;
 
 					// Direct check on constructor type (ignores prototype chain)
-					if (!byInstanceOf && (<any>input).constructor === inputClass) {
+					if (!byInstanceOf && input.constructor === inputClass) {
 						matchingDescriptors.push(editor);
 						break;
 					}
@@ -334,7 +334,7 @@ export interface IEditorInputActionContext {
  */
 export class EditorInputActionContributor extends ActionBarContributor {
 
-	// The following data structures are partitioned into arrays of Position (left, center, right)
+	// The following data structures are partitioned into arrays of Position (one, two, three)
 	private mapEditorInputActionContextToPrimaryActions: { [id: string]: IEditorInputAction[] }[];
 	private mapEditorInputActionContextToSecondaryActions: { [id: string]: IEditorInputAction[] }[];
 

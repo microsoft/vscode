@@ -4,6 +4,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
 # If root, ensure that --user-data-dir is specified
+ARGS=$@
 if [ "$(id -u)" = "0" ]; then
 	while test $# -gt 0
 	do
@@ -24,7 +25,7 @@ if [ ! -L $0 ]; then
 else
 	if which readlink >/dev/null; then
 		# if readlink exists, follow the symlink and find relatively
-		VSCODE_PATH="$(dirname $(readlink $0))/.."
+		VSCODE_PATH="$(dirname $(readlink -f $0))/.."
 	else
 		# else use the standard install location
 		VSCODE_PATH="/usr/share/@@NAME@@"
@@ -33,5 +34,5 @@ fi
 
 ELECTRON="$VSCODE_PATH/@@NAME@@"
 CLI="$VSCODE_PATH/resources/app/out/cli.js"
-ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" $ARGS
 exit $?

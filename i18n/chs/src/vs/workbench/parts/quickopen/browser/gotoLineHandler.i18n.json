@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "首先打开文本文件以转到行",
 	"gotoLine": "转到行...",
-	"gotoLineColumnLabel": "转到行 {0} 和列 {1}",
+	"gotoLineColumnLabel": "转到行 {0} 和字符 {1}",
 	"gotoLineHandlerAriaLabel": "键入要导航到的行号。",
 	"gotoLineLabel": "转至行 {0}",
 	"gotoLineLabelEmpty": "键入要导航到的行号",

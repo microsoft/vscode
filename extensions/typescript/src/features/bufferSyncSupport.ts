@@ -4,20 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
+import { workspace, window, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, MessageItem } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import LinkedMap from './linkedMap';
 
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
+
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
 
-const Mode2ScriptKind: Map<'TS' | 'JS' | 'TSX' | 'JSX'> = {
+const Mode2ScriptKind: ObjectMap<'TS' | 'JS' | 'TSX' | 'JSX'> = {
 	'typescript': 'TS',
 	'typescriptreact': 'TSX',
 	'javascript': 'JS',
@@ -96,24 +100,26 @@ export interface Diagnostics {
 	delete(file: string): void;
 }
 
+const checkTscVersionSettingKey = 'check.tscVersion';
 export default class BufferSyncSupport {
 
 	private client: ITypescriptServiceClient;
 
 	private _validate: boolean;
-	private modeIds: Map<boolean>;
-	private extensions: Map<boolean>;
+	private modeIds: ObjectMap<boolean>;
+	private extensions: ObjectMap<boolean>;
 	private diagnostics: Diagnostics;
 	private disposables: Disposable[] = [];
-	private syncedBuffers: Map<SyncedBuffer>;
+	private syncedBuffers: ObjectMap<SyncedBuffer>;
 
 	private projectValidationRequested: boolean;
 
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
 	private emitQueue: LinkedMap<string>;
+	private checkGlobalTSCVersion: boolean;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: Map<boolean>, validate: boolean = true) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: ObjectMap<boolean>, validate: boolean = true) {
 		this.client = client;
 		this.modeIds = Object.create(null);
 		modeIds.forEach(modeId => this.modeIds[modeId] = true);
@@ -128,6 +134,9 @@ export default class BufferSyncSupport {
 
 		this.syncedBuffers = Object.create(null);
 		this.emitQueue = new LinkedMap<string>();
+
+		const tsConfig = workspace.getConfiguration('typescript');
+		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds['typescript'] === true && tsConfig.get(checkTscVersionSettingKey, true);
 	}
 
 	public listen(): void {
@@ -158,7 +167,10 @@ export default class BufferSyncSupport {
 
 	public dispose(): void {
 		while (this.disposables.length) {
-			this.disposables.pop().dispose();
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
 		}
 	}
 
@@ -178,10 +190,11 @@ export default class BufferSyncSupport {
 		this.syncedBuffers[filepath] = syncedBuffer;
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
+		this.checkTSCVersion();
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
-		let filepath: string = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -198,7 +211,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
-		let filepath: string = this.client.asAbsolutePath(e.document.uri);
+		let filepath = this.client.asAbsolutePath(e.document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -210,7 +223,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidSaveTextDocument(document: TextDocument): void {
-		let filepath: string = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -275,5 +288,75 @@ export default class BufferSyncSupport {
 		};
 		this.client.execute('geterr', args, false);
 		this.pendingDiagnostics = Object.create(null);
+	}
+
+	private checkTSCVersion() {
+		if (!this.checkGlobalTSCVersion) {
+			return;
+		}
+		this.checkGlobalTSCVersion = false;
+
+		interface MyMessageItem extends MessageItem {
+			id: number;
+		}
+
+		function openUrl(url: string) {
+			let cmd: string;
+			switch (process.platform) {
+				case 'darwin':
+					cmd = 'open';
+					break;
+				case 'win32':
+					cmd = 'start';
+					break;
+				default:
+					cmd = 'xdg-open';
+			}
+			return cp.exec(cmd + ' ' + url);
+		}
+
+		let tscVersion: string | undefined = undefined;
+		try {
+			let out = cp.execSync('tsc --version', { encoding: 'utf8' });
+			if (out) {
+				let matches = out.trim().match(/Version\s*(.*)$/);
+				if (matches && matches.length === 2) {
+					tscVersion = matches[1];
+				}
+			}
+		} catch (error) {
+		}
+		if (tscVersion && tscVersion !== this.client.apiVersion.versionString) {
+			window.showInformationMessage<MyMessageItem>(
+				localize('versionMismatch', 'Version mismatch! global tsc ({0}) != VS Code\'s language service ({1}). Inconsistent compile errors might occur', tscVersion, this.client.apiVersion.versionString),
+				{
+					title: localize('moreInformation', 'More Information'),
+					id: 1
+				},
+				{
+					title: localize('doNotCheckAgain', 'Don\'t Check Again'),
+					id: 2
+				},
+				{
+					title: localize('close', 'Close'),
+					id: 3,
+					isCloseAffordance: true
+				}
+			).then((selected) => {
+				if (!selected || selected.id === 3) {
+					return;
+				}
+				switch (selected.id) {
+					case 1:
+						openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
+						break;
+					case 2:
+						const tsConfig = workspace.getConfiguration('typescript');
+						tsConfig.update(checkTscVersionSettingKey, false, true);
+						window.showInformationMessage(localize('updateTscCheck', 'Updated user setting \'typescript.check.tscVersion\' to false'));
+						break;
+				}
+			});
+		}
 	}
 }

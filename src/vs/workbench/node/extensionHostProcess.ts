@@ -7,20 +7,30 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionHostMain, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
+import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
+import { createQueuedSender } from 'vs/base/node/processes';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 
 interface IRendererConnection {
 	remoteCom: IMainProcessExtHostIPC;
 	initData: IInitData;
 }
 
+/**
+ * Flag set when in shutdown phase to avoid communicating to the main process.
+ */
+let isTerminating = false;
+
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function () {
 	exit();
 };
+
+// Utility to not flood the process.send() with messages if it is busy catching up
+const queuedSender = createQueuedSender(process);
 
 function connectToRenderer(): TPromise<IRendererConnection> {
 	return new TPromise<IRendererConnection>((c, e) => {
@@ -32,13 +42,18 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			let msg = marshalling.parse(raw);
 
 			const remoteCom = createIPC(data => {
-				process.send(data);
+				// Needed to avoid EPIPE errors in process.send below when a channel is closed
+				if (isTerminating === true) {
+					return;
+				}
+				queuedSender.send(data);
 				stats.push(data.length);
 			});
 
 			// Listen to all other messages
 			process.on('message', (msg) => {
 				if (msg.type === '__$terminate') {
+					isTerminating = true;
 					onTerminate();
 					return;
 				}
@@ -48,7 +63,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
+			const unhandledPromises: TPromise<any>[] = [];
 			process.on('unhandledRejection', (reason, promise) => {
 				unhandledPromises.push(promise);
 				setTimeout(() => {
@@ -92,13 +107,13 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			}, 1000);
 
 			// Tell the outside that we are initialized
-			process.send('initialized');
+			queuedSender.send('initialized');
 
 			c({ remoteCom, initData: msg });
 		});
 
 		// Tell the outside that we are ready to receive messages
-		process.send('ready');
+		queuedSender.send('ready');
 	});
 }
 

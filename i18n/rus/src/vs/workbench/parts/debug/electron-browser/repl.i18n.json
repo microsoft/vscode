@@ -7,5 +7,5 @@
 	"actions.repl.acceptInput": "Прием входных данных REPL",
 	"actions.repl.historyNext": "Журнал — далее",
 	"actions.repl.historyPrevious": "Журнал — назад",
-	"replAriaLabel": "Панель цикла чтение-вычисление-печать"
+	"replAriaLabel": "Панель read–eval–print loop"
 }

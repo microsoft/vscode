@@ -13,7 +13,7 @@
 	"moveSelectionToPreviousFindMatch": "將最後一個選擇項目移至前一個找到的相符項",
 	"nextSelectionMatchFindAction": "尋找下一個選取項目",
 	"previousSelectionMatchFindAction": "尋找上一個選取項目",
-	"selectAllOccurencesOfFindMatch": "選取所有找到的相符項出現處",
+	"selectAllOccurencesOfFindMatch": "選取所有找到的相符項目",
 	"startFindAction": "尋找",
 	"startReplace": "取代"
 }

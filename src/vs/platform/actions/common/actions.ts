@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature2, IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export interface ICommandAction {
@@ -25,7 +23,7 @@ export interface ICommandAction {
 
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(): [string, IAction[]][];
+	getActions(arg?: any): [string, MenuItemAction[]][];
 }
 
 export interface IMenuItem {
@@ -41,7 +39,12 @@ export enum MenuId {
 	EditorTitleContext = 2,
 	EditorContext = 3,
 	ExplorerContext = 4,
-	ProblemsPanelContext = 5
+	ProblemsPanelContext = 5,
+	DebugVariablesContext = 6,
+	DebugWatchContext = 7,
+	DebugCallStackContext = 8,
+	DebugBreakpointsContext = 9,
+	DebugConsoleContext = 10
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -101,55 +104,6 @@ export const MenuRegistry: IMenuRegistry = new class {
 	}
 };
 
-
-export class MenuItemAction extends Action {
-
-	private static _getMenuItemId(item: IMenuItem): string {
-		let result = item.command.id;
-		if (item.alt) {
-			result += `||${item.alt.id}`;
-		}
-		return result;
-	}
-
-	private _resource: URI;
-
-	constructor(
-		private _item: IMenuItem,
-		@ICommandService private _commandService: ICommandService
-	) {
-		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
-
-		this.order = this._item.order; //TODO@Ben order is menu item property, not an action property
-	}
-
-	set resource(value: URI) {
-		this._resource = value;
-	}
-
-	get resource() {
-		return this._resource;
-	}
-
-	get item(): IMenuItem {
-		return this._item;
-	}
-
-	get command() {
-		return this._item.command;
-	}
-
-	get altCommand() {
-		return this._item.alt;
-	}
-
-	run(alt: boolean) {
-		const {id} = alt === true && this._item.alt || this._item.command;
-		return this._commandService.executeCommand(id, this._resource);
-	}
-}
-
-
 export class ExecuteCommandAction extends Action {
 
 	constructor(
@@ -162,6 +116,33 @@ export class ExecuteCommandAction extends Action {
 
 	run(...args: any[]): TPromise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
+	}
+}
+
+export class MenuItemAction extends ExecuteCommandAction {
+
+	private _arg: any;
+
+	readonly item: ICommandAction;
+	readonly alt: MenuItemAction;
+
+	constructor(
+		item: ICommandAction,
+		alt: ICommandAction,
+		arg: any,
+		@ICommandService commandService: ICommandService
+	) {
+		super(item.id, item.title, commandService);
+		this._cssClass = item.iconClass;
+		this._enabled = true;
+		this._arg = arg;
+
+		this.item = item;
+		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
+	}
+
+	run(): TPromise<any> {
+		return super.run(this._arg);
 	}
 }
 

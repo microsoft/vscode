@@ -7,13 +7,11 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
 import { values } from 'vs/base/common/collections';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
 
 export class MenuService implements IMenuService {
 
@@ -35,7 +33,7 @@ export class MenuService implements IMenuService {
 	}
 }
 
-type MenuItemGroup = [string, MenuItemAction[]];
+type MenuItemGroup = [string, IMenuItem[]];
 
 class Menu implements IMenu {
 
@@ -52,7 +50,7 @@ class Menu implements IMenu {
 		this._extensionService.onReady().then(_ => {
 
 			const menuItems = MenuRegistry.getMenuItems(id);
-			const keysFilter: { [key: string]: boolean } = Object.create(null);
+			const keysFilter = new Set<string>();
 
 			let group: MenuItemGroup;
 			menuItems.sort(Menu._compareMenuItems);
@@ -64,7 +62,7 @@ class Menu implements IMenu {
 					group = [groupName, []];
 					this._menuGroups.push(group);
 				}
-				group[1].push(new MenuItemAction(item, this._commandService));
+				group[1].push(item);
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
@@ -73,7 +71,7 @@ class Menu implements IMenu {
 			// subscribe to context changes
 			this._disposables.push(this._contextKeyService.onDidChangeContext(keys => {
 				for (let k of keys) {
-					if (keysFilter[k]) {
+					if (keysFilter.has(k)) {
 						this._onDidChange.fire();
 						return;
 					}
@@ -93,14 +91,15 @@ class Menu implements IMenu {
 		return this._onDidChange.event;
 	}
 
-	getActions(): [string, IAction[]][] {
-		const result: MenuItemGroup[] = [];
+	getActions(arg?: any): [string, MenuItemAction[]][] {
+		const result: [string, MenuItemAction[]][] = [];
 		for (let group of this._menuGroups) {
-			const [id, actions] = group;
+			const [id, items] = group;
 			const activeActions: MenuItemAction[] = [];
-			for (let action of actions) {
-				if (this._contextKeyService.contextMatchesRules(action.item.when)) {
-					action.resource = ResourceContextKey.Resource.getValue(this._contextKeyService);
+			for (const item of items) {
+				if (this._contextKeyService.contextMatchesRules(item.when)) {
+					const action = new MenuItemAction(item.command, item.alt, arg, this._commandService);
+					action.order = item.order; //TODO@Ben order is menu item property, not an action property
 					activeActions.push(action);
 				}
 			}
@@ -111,10 +110,10 @@ class Menu implements IMenu {
 		return result;
 	}
 
-	private static _fillInKbExprKeys(exp: ContextKeyExpr, set: { [k: string]: boolean }): void {
+	private static _fillInKbExprKeys(exp: ContextKeyExpr, set: Set<string>): void {
 		if (exp) {
 			for (let key of exp.keys()) {
-				set[key] = true;
+				set.add(key);
 			}
 		}
 	}

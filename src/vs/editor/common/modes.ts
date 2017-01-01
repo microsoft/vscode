@@ -7,7 +7,6 @@
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
@@ -21,60 +20,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 /**
  * @internal
  */
-export interface IState {
-	clone(): IState;
-	equals(other: IState): boolean;
-	getModeId(): string;
-	getStateData(): IState;
-	setStateData(state: IState): void;
-}
-
-/**
- * @internal
- */
 export interface IModeDescriptor {
 	id: string;
-}
-
-/**
- * @internal
- */
-export interface ILineContext {
-	/**
-	 * Get the content of the line.
-	 */
-	getLineContent(): string;
-
-	/**
-	 * The mode transitions on this line.
-	 */
-	modeTransitions: ModeTransition[];
-
-	/**
-	 * Get the number of tokens on this line.
-	 */
-	getTokenCount(): number;
-
-	/**
-	 * Get the start offset of the token at `tokenIndex`.
-	 */
-	getTokenStartOffset(tokenIndex: number): number;
-
-	/**
-	 * Get the type of the token at `tokenIndex`.
-	 */
-	getTokenType(tokenIndex: number): string;
-
-	/**
-	 * Find the token containing offset `offset`.
-	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
-	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
-	 *    Searching for 5, 6, 7 or 8 will return 1.
-	 *    Searching for 9, 10, 11, ... will return 2.
-	 * @param offset The search offset
-	 * @return The index of the token containing the offset.
-	 */
-	findIndexOfOffset(offset: number): number;
 }
 
 /**
@@ -127,20 +74,16 @@ export interface ILineTokens2 {
 	 * The tokenization end state.
 	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
 	 */
-	endState: IState2;
-	/**
-	 * An optional promise to force the model to retokenize this line (e.g. missing information at the point of tokenization)
-	 */
-	retokenize?: TPromise<void>;
+	endState: IState;
 }
 /**
  * The state of the tokenizer between two lines.
  * It is useful to store flags such as in multiline comment, etc.
  * The model will clone the previous line's state and pass it in to tokenize the next line.
  */
-export interface IState2 {
-	clone(): IState2;
-	equals(other: IState2): boolean;
+export interface IState {
+	clone(): IState;
+	equals(other: IState): boolean;
 }
 /**
  * A "manual" provider of tokens.
@@ -149,11 +92,11 @@ export interface TokensProvider {
 	/**
 	 * The initial state of a language. Will be the state passed in to tokenize the first line.
 	 */
-	getInitialState(): IState2;
+	getInitialState(): IState;
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenize(line: string, state: IState2): ILineTokens2;
+	tokenize(line: string, state: IState): ILineTokens2;
 }
 
 /**
@@ -208,7 +151,13 @@ export type SuggestionType = 'method'
 	| 'color'
 	| 'file'
 	| 'reference'
-	| 'customcolor';
+	| 'customcolor'
+	| 'folder';
+
+/**
+ * @internal
+ */
+export type SnippetType = 'internal' | 'textmate';
 
 /**
  * @internal
@@ -226,14 +175,13 @@ export interface ISuggestion {
 	overwriteAfter?: number;
 	additionalTextEdits?: editorCommon.ISingleEditOperation[];
 	command?: Command;
-	isTMSnippet?: boolean;
+	snippetType?: SnippetType;
 }
 
 /**
  * @internal
  */
 export interface ISuggestResult {
-	currentWord: string;
 	suggestions: ISuggestion[];
 	incomplete?: boolean;
 }
@@ -285,7 +233,7 @@ export interface ParameterInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation: string;
+	documentation?: string;
 }
 /**
  * Represents the signature of something callable. A signature
@@ -302,7 +250,7 @@ export interface SignatureInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation: string;
+	documentation?: string;
 	/**
 	 * The parameters of this signature.
 	 */
@@ -699,131 +647,9 @@ export interface ICodeLensSymbol {
 	command?: Command;
 }
 export interface CodeLensProvider {
+	onDidChange?: Event<this>;
 	provideCodeLenses(model: editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
 	resolveCodeLens?(model: editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
-}
-
-/**
- * A tuple of two characters, like a pair of
- * opening and closing brackets.
- */
-export type CharacterPair = [string, string];
-
-export interface IAutoClosingPairConditional extends IAutoClosingPair {
-	notIn?: string[];
-
-}
-
-/**
- * Interface used to support electric characters
- * @internal
- */
-export interface IElectricAction {
-	// Only one of the following properties should be defined:
-
-	// The line will be indented at the same level of the line
-	// which contains the matching given bracket type.
-	matchOpenBracket?: string;
-
-	// The text will be appended after the electric character.
-	appendText?: string;
-
-	// The number of characters to advance the cursor, useful with appendText
-	advanceCount?: number;
-}
-
-/**
- * Describes what to do with the indentation when pressing Enter.
- */
-export enum IndentAction {
-	/**
-	 * Insert new line and copy the previous line's indentation.
-	 */
-	None = 0,
-	/**
-	 * Insert new line and indent once (relative to the previous line's indentation).
-	 */
-	Indent = 1,
-	/**
-	 * Insert two new lines:
-	 *  - the first one indented which will hold the cursor
-	 *  - the second one at the same indentation level
-	 */
-	IndentOutdent = 2,
-	/**
-	 * Insert new line and outdent once (relative to the previous line's indentation).
-	 */
-	Outdent = 3
-}
-
-/**
- * Describes what to do when pressing Enter.
- */
-export interface EnterAction {
-	/**
-	 * Describe what to do with the indentation.
-	 */
-	indentAction: IndentAction;
-	/**
-	 * Describes text to be appended after the new line and after the indentation.
-	 */
-	appendText?: string;
-	/**
-	 * Describes the number of characters to remove from the new line's indentation.
-	 */
-	removeText?: number;
-}
-
-/**
- * @internal
- */
-export interface IRichEditElectricCharacter {
-	getElectricCharacters(): string[];
-	// Should return opening bracket type to match indentation with
-	onElectricCharacter(context: ILineContext, offset: number): IElectricAction;
-}
-
-/**
- * @internal
- */
-export interface IRichEditOnEnter {
-	onEnter(model: editorCommon.ITokenizedModel, position: editorCommon.IPosition): EnterAction;
-}
-
-/**
- * Interface used to support insertion of mode specific comments.
- * @internal
- */
-export interface ICommentsConfiguration {
-	lineCommentToken?: string;
-	blockCommentStartToken?: string;
-	blockCommentEndToken?: string;
-}
-
-export interface IAutoClosingPair {
-	open: string;
-	close: string;
-}
-
-/**
- * @internal
- */
-export interface IRichEditCharacterPair {
-	getAutoClosingPairs(): IAutoClosingPairConditional[];
-	shouldAutoClosePair(character: string, context: ILineContext, offset: number): boolean;
-	getSurroundingPairs(): IAutoClosingPair[];
-}
-
-/**
- * @internal
- */
-export interface IRichEditBrackets {
-	maxBracketLength: number;
-	forwardRegex: RegExp;
-	reversedRegex: RegExp;
-	brackets: editorCommon.IRichEditBracket[];
-	textIsBracket: { [text: string]: editorCommon.IRichEditBracket; };
-	textIsOpenBracket: { [text: string]: boolean; };
 }
 
 // --- feature registries ------

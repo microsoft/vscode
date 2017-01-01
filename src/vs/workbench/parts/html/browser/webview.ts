@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -12,12 +13,14 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { isLightTheme, isDarkTheme } from 'vs/platform/theme/common/themes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
 	autoSize: 'on';
 	nodeintegration: 'on';
 	disablewebsecurity: 'on';
+	preload: string;
 
 	getURL(): string;
 	getTitle(): string;
@@ -27,19 +30,27 @@ declare interface WebviewElement extends HTMLElement {
 	closeDevTools(): any;
 }
 
-CommandsRegistry.registerCommand('_webview.openDevTools',
-	function () {
-		const elements = document.querySelectorAll('webview.ready');
-		for (let i = 0; i < elements.length; i++) {
-			try {
-				(<WebviewElement>elements.item(i)).openDevTools();
-			} catch (e) {
-				console.error(e);
-			}
+CommandsRegistry.registerCommand('_webview.openDevTools', function () {
+	const elements = document.querySelectorAll('webview.ready');
+	for (let i = 0; i < elements.length; i++) {
+		try {
+			(<WebviewElement>elements.item(i)).openDevTools();
+		} catch (e) {
+			console.error(e);
 		}
-	});
+	}
+});
+
+MenuRegistry.addCommand({
+	id: '_webview.openDevTools',
+	title: localize('devtools.webview', "Developer: Webview Tools")
+});
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
+
+export interface WebviewOptions {
+	nodeintegration: boolean;
+}
 
 export default class Webview {
 
@@ -49,7 +60,7 @@ export default class Webview {
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
-	constructor(private _parent: HTMLElement, private _styleElement: Element) {
+	constructor(parent: HTMLElement, private _styleElement: Element, options: WebviewOptions) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -57,7 +68,11 @@ export default class Webview {
 		this._webview.style.outline = '0';
 		this._webview.style.opacity = '0';
 		this._webview.autoSize = 'on';
-		this._webview.nodeintegration = 'on';
+		if (options.nodeintegration) {
+			this._webview.nodeintegration = 'on';
+		}
+
+		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
 
 		this._ready = new TPromise<this>(resolve => {
@@ -96,7 +111,9 @@ export default class Webview {
 			})
 		];
 
-		this._parent.appendChild(this._webview);
+		if (parent) {
+			parent.appendChild(this._webview);
+		}
 	}
 
 	dispose(): void {
@@ -107,6 +124,10 @@ export default class Webview {
 		if (this._webview.parentElement) {
 			this._webview.parentElement.removeChild(this._webview);
 		}
+	}
+
+	get domNode(): HTMLElement {
+		return this._webview;
 	}
 
 	get onDidClickLink(): Event<URI> {

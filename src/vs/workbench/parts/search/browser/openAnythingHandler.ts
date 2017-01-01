@@ -267,8 +267,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				if (patternMatch.length > 3) {
 					const startColumn = parseInt(patternMatch[3], 10);
 					if (types.isNumber(startColumn)) {
-						range.startColumn = startColumn;
-						range.endColumn = startColumn;
+						range = {
+							startLineNumber: range.startLineNumber,
+							startColumn: startColumn,
+							endLineNumber: range.endLineNumber,
+							endColumn: startColumn
+						};
 					}
 				}
 			}

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BinaryKeybindings } from 'vs/base/common/keyCodes';
-import { ISimplifiedPlatform, Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, BinaryKeybindings } from 'vs/base/common/keyCodes';
+import { ISimplifiedPlatform, KeybindingLabels } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -13,6 +13,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 export interface IResolveResult {
 	enterChord: number;
 	commandId: string;
+	commandArgs: any;
 }
 
 export interface IBoundCommands {
@@ -31,11 +32,13 @@ interface ICommandEntry {
 	when: ContextKeyExpr;
 	keybinding: number;
 	commandId: string;
+	commandArgs: any;
 }
 
 export class NormalizedKeybindingItem {
 	keybinding: number;
 	command: string;
+	commandArgs: any;
 	when: ContextKeyExpr;
 	isDefault: boolean;
 	actualCommand: string;
@@ -45,12 +48,13 @@ export class NormalizedKeybindingItem {
 		if (source.when) {
 			when = source.when.normalize();
 		}
-		return new NormalizedKeybindingItem(source.keybinding, source.command, when, isDefault);
+		return new NormalizedKeybindingItem(source.keybinding, source.command, source.commandArgs, when, isDefault);
 	}
 
-	constructor(keybinding: number, command: string, when: ContextKeyExpr, isDefault: boolean) {
+	constructor(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean) {
 		this.keybinding = keybinding;
 		this.command = command;
+		this.commandArgs = commandArgs;
 		this.actualCommand = this.command ? this.command.replace(/^\^/, '') : this.command;
 		this.when = when;
 		this.isDefault = isDefault;
@@ -97,7 +101,8 @@ export class KeybindingResolver {
 			let entry: ICommandEntry = {
 				when: k.when,
 				keybinding: k.keybinding,
-				commandId: k.command
+				commandId: k.command,
+				commandArgs: k.commandArgs
 			};
 
 			if (BinaryKeybindings.hasChord(k.keybinding)) {
@@ -187,7 +192,7 @@ export class KeybindingResolver {
 			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && item.isDefault) {
-					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress) + ' due to ' + item.command);
+					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + KeybindingLabels.toUserSettingsLabel(keypress) + ' due to ' + item.command);
 				}
 				this._lookupMapUnreachable[conflict.commandId] = this._lookupMapUnreachable[conflict.commandId] || [];
 				this._lookupMapUnreachable[conflict.commandId].push(conflict.keybinding);
@@ -291,7 +296,7 @@ export class KeybindingResolver {
 	}
 
 	public resolve(context: any, currentChord: number, keypress: number): IResolveResult {
-		// console.log('resolve: ' + Keybinding.toLabel(keypress));
+		// console.log('resolve: ' + Keybinding.toUserSettingsLabel(keypress));
 		let lookupMap: ICommandEntry[] = null;
 
 		if (currentChord !== 0) {
@@ -313,13 +318,15 @@ export class KeybindingResolver {
 		if (currentChord === 0 && BinaryKeybindings.hasChord(result.keybinding)) {
 			return {
 				enterChord: keypress,
-				commandId: null
+				commandId: null,
+				commandArgs: null
 			};
 		}
 
 		return {
 			enterChord: 0,
-			commandId: result.commandId
+			commandId: result.commandId,
+			commandArgs: result.commandArgs
 		};
 	}
 
@@ -404,7 +411,7 @@ export class IOSupport {
 		} else {
 			out.write(`${quotedSerializeCommand} `);
 		}
-		//		out.write(String(item.weight));
+		// out.write(String(item.weight1 + '-' + item.weight2));
 		out.write('}');
 	}
 
@@ -424,9 +431,15 @@ export class IOSupport {
 			command = input.command;
 		}
 
+		let commandArgs: any = null;
+		if (typeof input.args !== 'undefined') {
+			commandArgs = input.args;
+		}
+
 		return {
 			keybinding: key,
 			command: command,
+			commandArgs: commandArgs,
 			when: when,
 			weight1: 1000,
 			weight2: index
@@ -434,11 +447,11 @@ export class IOSupport {
 	}
 
 	public static writeKeybinding(input: number, Platform: ISimplifiedPlatform = platform): string {
-		return Keybinding.toUserSettingsLabel(input, Platform);
+		return KeybindingLabels.toUserSettingsLabel(input, Platform);
 	}
 
 	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = platform): number {
-		return Keybinding.fromUserSettingsLabel(input, Platform);
+		return KeybindingLabels.fromUserSettingsLabel(input, Platform);
 	}
 
 	public static readKeybindingWhen(input: string): ContextKeyExpr {

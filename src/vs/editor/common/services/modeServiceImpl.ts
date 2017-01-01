@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
@@ -20,16 +20,15 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import { Token } from 'vs/editor/common/core/token';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 
-let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
+export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '{{languageId}}', aliases: ['{{label}}'], extensions: ['{{extension}}'], configuration: './language-configuration.json' } }],
+		defaultSnippets: [{ body: { id: '${1:languageId}', aliases: ['${2:label}'], extensions: ['${3:extension}'], configuration: './language-configuration.json' } }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
@@ -94,7 +93,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: IExtensionMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
 	if (!value) {
 		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;
@@ -306,51 +305,6 @@ export class ModeServiceImpl implements IModeService {
 	}
 }
 
-export class TokenizationState2Adapter implements modes.IState {
-
-	private _modeId: string;
-	private _actual: modes.IState2;
-	private _stateData: modes.IState;
-
-	constructor(modeId: string, actual: modes.IState2, stateData: modes.IState) {
-		this._modeId = modeId;
-		this._actual = actual;
-		this._stateData = stateData;
-	}
-
-	public get actual(): modes.IState2 { return this._actual; }
-
-	public clone(): TokenizationState2Adapter {
-		return new TokenizationState2Adapter(this._modeId, this._actual.clone(), AbstractState.safeClone(this._stateData));
-	}
-
-	public equals(other: modes.IState): boolean {
-		if (other instanceof TokenizationState2Adapter) {
-			if (!this._actual.equals(other._actual)) {
-				return false;
-			}
-			return AbstractState.safeEquals(this._stateData, other._stateData);
-		}
-		return false;
-	}
-
-	public getModeId(): string {
-		return this._modeId;
-	}
-
-	public tokenize(stream: any): any {
-		throw new Error('Unexpected tokenize call!');
-	}
-
-	public getStateData(): modes.IState {
-		return this._stateData;
-	}
-
-	public setStateData(stateData: modes.IState): void {
-		this._stateData = stateData;
-	}
-}
-
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	private _modeId: string;
@@ -362,32 +316,37 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public getInitialState(): modes.IState {
-		return new TokenizationState2Adapter(this._modeId, this._actual.getInitialState(), null);
+		return this._actual.getInitialState();
 	}
 
 	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
-		if (state instanceof TokenizationState2Adapter) {
-			let actualResult = this._actual.tokenize(line, state.actual);
-			let tokens: Token[] = [];
-			actualResult.tokens.forEach((t) => {
-				if (typeof t.scopes === 'string') {
-					tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
-				} else if (Array.isArray(t.scopes) && t.scopes.length === 1) {
-					tokens.push(new Token(t.startIndex + offsetDelta, t.scopes[0]));
-				} else {
-					throw new Error('Only token scopes as strings or of precisely 1 length are supported at this time!');
-				}
-			});
-			return {
-				tokens: tokens,
-				actualStopOffset: offsetDelta + line.length,
-				endState: new TokenizationState2Adapter(state.getModeId(), actualResult.endState, state.getStateData()),
-				modeTransitions: [new ModeTransition(offsetDelta, state.getModeId())],
-			};
-		}
-		throw new Error('Unexpected state to tokenize with!');
-	}
+		let actualResult = this._actual.tokenize(line, state);
+		let tokens: Token[] = [];
+		actualResult.tokens.forEach((t) => {
+			if (typeof t.scopes === 'string') {
+				tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
+			} else if (Array.isArray(t.scopes) && t.scopes.length === 1) {
+				tokens.push(new Token(t.startIndex + offsetDelta, t.scopes[0]));
+			} else {
+				throw new Error('Only token scopes as strings or of precisely 1 length are supported at this time!');
+			}
+		});
 
+		let endState: modes.IState;
+		// try to save an object if possible
+		if (actualResult.endState.equals(state)) {
+			endState = state;
+		} else {
+			endState = actualResult.endState;
+		}
+
+		return {
+			tokens: tokens,
+			actualStopOffset: offsetDelta + line.length,
+			endState: endState,
+			modeTransitions: [new ModeTransition(offsetDelta, this._modeId)],
+		};
+	}
 }
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {

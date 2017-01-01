@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
@@ -18,14 +18,12 @@ import { SearchResult, Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/p
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -305,7 +303,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 	private getNavigatorAt(element: FileMatchOrMatch, viewer: ITree): INavigator<any> {
 		let navigator: INavigator<any> = viewer.getNavigator();
-		while (navigator.current() !== element && !!navigator.next()) { };
+		while (navigator.current() !== element && !!navigator.next()) { }
 		return navigator;
 	}
 }
@@ -380,21 +378,49 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	public run(): TPromise<any> {
+		this.enabled = false;
 		this.telemetryService.publicLog('replace.action.selected');
-		let elementToFocus = this.getElementToFocusAfterRemoved(this.viewer, this.element);
-		let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 
 		return this.element.parent().replace(this.element).then(() => {
+			let elementToFocus = this.getElementToFocusAfterReplace();
 			if (elementToFocus) {
 				this.viewer.setFocus(elementToFocus);
 			}
+			let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 			this.viewer.DOMFocus();
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
 			} else {
-				this.replaceService.openReplacePreviewEditor(elementToShowReplacePreview, true);
+				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
 			}
 		});
+	}
+
+	private getElementToFocusAfterReplace(): Match {
+		let navigator: INavigator<any> = this.viewer.getNavigator();
+		let fileMatched = false;
+		let elementToFocus = null;
+		do {
+			elementToFocus = navigator.current();
+			if (elementToFocus instanceof Match) {
+				if (elementToFocus.parent().id() === this.element.parent().id()) {
+					fileMatched = true;
+					if (this.element.range().getStartPosition().isBeforeOrEqual((<Match>elementToFocus).range().getStartPosition())) {
+						// Closest next match in the same file
+						break;
+					}
+				} else if (fileMatched) {
+					// First match in the next file (if expanded)
+					break;
+				}
+			} else if (fileMatched) {
+				if (!this.viewer.isExpanded(elementToFocus)) {
+					// Next file match (if collapsed)
+					break;
+				}
+			}
+		} while (!!navigator.next());
+		return elementToFocus;
 	}
 
 	private getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Match {
@@ -413,9 +439,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		if (editorInput) {
-			return editorInput.getResource().fsPath === this.element.parent().resource().fsPath;
+		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		if (file) {
+			return file.fsPath === this.element.parent().resource().fsPath;
 		}
 		return false;
 	}
@@ -423,7 +449,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 export class ConfigureGlobalExclusionsAction extends Action {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IPreferencesService private preferencesService: IPreferencesService) {
 		super('configureGlobalExclusionsAction');
 
 		this.label = nls.localize('ConfigureGlobalExclusionsAction.label', "Open Settings");
@@ -432,9 +458,6 @@ export class ConfigureGlobalExclusionsAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
-		action.run().done(() => action.dispose(), errors.onUnexpectedError);
-
-		return TPromise.as(null);
+		return this.preferencesService.openGlobalSettings().then(null, errors.onUnexpectedError);
 	}
 }

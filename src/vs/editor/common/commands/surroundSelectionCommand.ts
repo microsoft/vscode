@@ -36,9 +36,9 @@ export class SurroundSelectionCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var firstOperationRange = inverseEditOperations[0].range;
-		var secondOperationRange = inverseEditOperations[1].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let firstOperationRange = inverseEditOperations[0].range;
+		let secondOperationRange = inverseEditOperations[1].range;
 
 		return new Selection(
 			firstOperationRange.endLineNumber,

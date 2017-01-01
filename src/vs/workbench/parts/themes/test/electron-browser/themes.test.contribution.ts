@@ -16,7 +16,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 
 interface Data {
@@ -118,18 +118,22 @@ class Snapper {
 		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
 			let result: Data[] = [];
 			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId());
-			model.tokenIterator({ lineNumber: 1, column: 1 }, iterator => {
-				while (iterator.hasNext()) {
-					let tokenInfo = iterator.next();
-					let lineNumber = tokenInfo.lineNumber;
-					let content = model.getValueInRange({ startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: tokenInfo.startColumn, endColumn: tokenInfo.endColumn });
+			for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+				let lineTokens = model.getLineTokens(lineNumber, false);
+				let lineContent = model.getLineContent(lineNumber);
+
+				for (let i = 0, len = lineTokens.getTokenCount(); i < len; i++) {
+					let tokenType = lineTokens.getTokenType(i);
+					let tokenStartOffset = lineTokens.getTokenStartOffset(i);
+					let tokenEndOffset = lineTokens.getTokenEndOffset(i);
+
 					result.push({
-						c: content,
-						t: this.normalizeType(tokenInfo.type),
+						c: lineContent.substring(tokenStartOffset, tokenEndOffset),
+						t: this.normalizeType(tokenType),
 						r: {}
 					});
 				}
-			});
+			}
 			return this.appendThemeInformation(result);
 		});
 	}
@@ -149,9 +153,9 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 	if (!resource) {
 		let editorService = accessor.get(IWorkbenchEditorService);
-		let fileEditorInput = asFileEditorInput(editorService.getActiveEditorInput());
-		if (fileEditorInput) {
-			process(fileEditorInput.getResource()).then(result => {
+		let file = toResource(editorService.getActiveEditorInput(), { filter: 'file' });
+		if (file) {
+			process(file).then(result => {
 				console.log(result);
 			});
 		} else {

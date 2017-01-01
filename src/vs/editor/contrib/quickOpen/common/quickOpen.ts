@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
@@ -32,7 +32,7 @@ export function getDocumentSymbols(model: IModel): TPromise<IOutline> {
 				entries.push(...result);
 			}
 		}, err => {
-			onUnexpectedError(err);
+			onUnexpectedExternalError(err);
 		});
 	});
 

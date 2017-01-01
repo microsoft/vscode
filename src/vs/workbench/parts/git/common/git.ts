@@ -242,6 +242,7 @@ export interface IGitConfiguration {
 	allowLargeRepositories: boolean;
 	confirmSync: boolean;
 	countBadge: string;
+	checkoutType: string;
 }
 
 // Service interfaces
@@ -293,6 +294,7 @@ export interface IRawGitService {
 	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
+	clone(url: string, parentPath: string): TPromise<string>;
 	getCommitTemplate(): TPromise<string>;
 	getCommit(ref: string): TPromise<ICommit>;
 }
@@ -322,6 +324,7 @@ export interface IGitService extends IEventEmitter {
 	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IModel>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	buffer(path: string, treeish?: string): TPromise<string>;
+	clone(url: string, parentPath: string): TPromise<string>;
 
 	getState(): ServiceState;
 	getModel(): IModel;
@@ -336,10 +339,4 @@ export interface IGitService extends IEventEmitter {
 
 export interface IAskpassService {
 	askpass(id: string, host: string, command: string): TPromise<ICredentials>;
-}
-
-// Utils
-
-export function isValidBranchName(value: string): boolean {
-	return !/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$/.test(value);
 }

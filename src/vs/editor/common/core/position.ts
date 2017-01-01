@@ -13,11 +13,11 @@ export class Position {
 	/**
 	 * line number (starts at 1)
 	 */
-	public lineNumber: number;
+	public readonly lineNumber: number;
 	/**
 	 * column (the first character in a line is between column 1 and column 2)
 	 */
-	public column: number;
+	public readonly column: number;
 
 	constructor(lineNumber: number, column: number) {
 		this.lineNumber = lineNumber;

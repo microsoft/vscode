@@ -125,15 +125,11 @@ export class InputBox extends Widget {
 		this.onfocus(this.input, () => this.onFocus());
 
 		// Add placeholder shim for IE because IE decides to hide the placeholder on focus (we dont want that!)
-		if (this.placeholder && Bal.isIE11orEarlier) {
+		if (this.placeholder && Bal.isIE) {
 			this.onclick(this.input, (e) => {
 				dom.EventHelper.stop(e, true);
 				this.input.focus();
 			});
-
-			if (Bal.isIE9) {
-				this.onkeyup(this.input, () => this.onValueChange());
-			}
 		}
 
 		setTimeout(() => this.updateMirror(), 0);

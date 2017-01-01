@@ -8,7 +8,6 @@
 	"json.npm.latestversion": "패키지의 현재 최신 버전",
 	"json.npm.majorversion": "최신 주 버전(1.x.x)을 일치시킵니다.",
 	"json.npm.minorversion": "최신 부 버전(1.2.x)을 일치시킵니다.",
-	"json.npm.package.hover": "{0}",
 	"json.npm.version.hover": "최신 버전: {0}",
 	"json.package.default": "기본 package.json"
 }

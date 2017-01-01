@@ -16,9 +16,12 @@ import { asFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { GlobalNewUntitledFileAction, SaveFileAsAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/electron-browser/dirtyFilesTracker';
-import { OpenFolderAction, OpenFileAction, OpenFileFolderAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { OpenFileAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 class FileViewerActionContributor extends ActionBarContributor {
 
@@ -66,7 +69,7 @@ if (env.isMacintosh) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'Files: Open...', category);
 } else {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'Files: Open File...', category);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL), 'Files: Open Folder...', category);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'Files: Open Folder...', category);
 }
 
 // Contribute to File Viewers
@@ -77,3 +80,14 @@ actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContr
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
 	DirtyFilesTracker
 );
+
+// Register Commands
+CommandsRegistry.registerCommand('_files.openFolderPicker', (accessor: ServicesAccessor, forceNewWindow: boolean) => {
+	const windowService = accessor.get(IWindowService);
+	windowService.openFolderPicker(forceNewWindow);
+});
+
+CommandsRegistry.registerCommand('_files.windowOpen', (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
+	const windowsService = accessor.get(IWindowsService);
+	windowsService.windowOpen(paths, forceNewWindow);
+});

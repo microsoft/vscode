@@ -5,7 +5,6 @@ var event_stream_1 = require('event-stream');
 var File = require('vinyl');
 var sm = require('source-map');
 var assign = require('object-assign');
-var clone = require('clone');
 var path = require('path');
 var CollectStepResult;
 (function (CollectStepResult) {
@@ -26,6 +25,13 @@ function collect(node, fn) {
         }
     }
     loop(node);
+    return result;
+}
+function clone(object) {
+    var result = {};
+    for (var id in object) {
+        result[id] = object[id];
+    }
     return result;
 }
 function template(lines) {

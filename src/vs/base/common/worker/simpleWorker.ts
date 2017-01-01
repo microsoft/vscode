@@ -221,13 +221,13 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 		// Gather loader configuration
 		let loaderConfiguration: any = null;
-		let globalRequire = (<any>window).require;
+		let globalRequire = (<any>self).require;
 		if (typeof globalRequire.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
 			loaderConfiguration = globalRequire.getConfig();
-		} else if (typeof (<any>window).requirejs !== 'undefined') {
+		} else if (typeof (<any>self).requirejs !== 'undefined') {
 			// Get the configuration from requirejs
-			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
+			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
 
 		this._lazyProxy = new TPromise((c, e, p) => {

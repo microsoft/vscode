@@ -28,7 +28,7 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, undefined);
 		commands.registerCommand('foo', () => { }).dispose();
 		assert.equal(lastUnregister, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
@@ -49,7 +49,7 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, undefined);
 		const reg = commands.registerCommand('foo', () => { });
 		reg.dispose();
 		reg.dispose();

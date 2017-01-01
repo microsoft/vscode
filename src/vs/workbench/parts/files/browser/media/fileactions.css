@@ -57,13 +57,22 @@
 	background: url('CollapseAll_inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .quick-open-sidebyside {
-	background-image: url('SplitEditor.svg');
+.monaco-workbench .quick-open-sidebyside-vertical {
+	background-image: url('split-editor-vertical.svg');
 }
 
-.vs-dark .monaco-workbench .quick-open-sidebyside,
-.hc-black .monaco-workbench .quick-open-sidebyside {
-	background-image: url('SplitEditor_inverse.svg');
+.vs-dark .monaco-workbench .quick-open-sidebyside-vertical,
+.hc-black .monaco-workbench .quick-open-sidebyside-vertical {
+	background-image: url('split-editor-vertical-inverse.svg');
+}
+
+.monaco-workbench .quick-open-sidebyside-horizontal {
+	background-image: url('split-editor-horizontal.svg');
+}
+
+.vs-dark .monaco-workbench .quick-open-sidebyside-horizontal,
+.hc-black .monaco-workbench .quick-open-sidebyside-horizontal {
+	background-image: url('split-editor-horizontal-inverse.svg');
 }
 
 .monaco-workbench .conflict-editor-action.accept-changes {

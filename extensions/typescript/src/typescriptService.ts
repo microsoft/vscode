@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CancellationToken, Uri } from 'vscode';
+import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
 import * as semver from 'semver';
 
@@ -18,47 +18,64 @@ export interface ITypescriptServiceClientHost {
 
 export class API {
 
-	private version: string;
+	private _version: string;
 
-	constructor(version: string) {
-		this.version = semver.valid(version);
-		if (!this.version) {
-			this.version = '1.0.0';
+	constructor(private _versionString: string) {
+		this._version = semver.valid(_versionString);
+		if (!this._version) {
+			this._version = '1.0.0';
 		} else {
 			// Cut of any prerelease tag since we sometimes consume those
 			// on purpose.
-			let index = version.indexOf('-');
+			let index = _versionString.indexOf('-');
 			if (index >= 0) {
-				this.version = this.version.substr(0, index);
+				this._version = this._version.substr(0, index);
 			}
 		}
 	}
 
+	public get versionString(): string {
+		return this._versionString;
+	}
+
 	public has1xFeatures(): boolean {
-		return semver.gte(this.version, '1.0.0');
+		return semver.gte(this._version, '1.0.0');
 	}
 
 	public has203Features(): boolean {
-		return semver.gte(this.version, '2.0.3');
+		return semver.gte(this._version, '2.0.3');
 	}
 
 	public has206Features(): boolean {
-		return semver.gte(this.version, '2.0.6');
+		return semver.gte(this._version, '2.0.6');
+	}
+
+	public has208Features(): boolean {
+		return semver.gte(this._version, '2.0.8');
+	}
+
+	public has213Features(): boolean {
+		return semver.gte(this._version, '2.1.3');
 	}
 }
 
 export interface ITypescriptServiceClient {
-	asAbsolutePath(resource: Uri): string;
+	asAbsolutePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 
 	info(message: string, data?: any): void;
 	warn(message: string, data?: any): void;
 	error(message: string, data?: any): void;
 
-	logTelemetry(eventName: string, properties?: { [prop: string]: string });
+	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
+	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
+	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
+
+	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
 	experimentalAutoBuild: boolean;
 	apiVersion: API;
+	checkGlobalTSCVersion: boolean;
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
@@ -82,6 +99,8 @@ export interface ITypescriptServiceClient {
 	execute(command: 'reload', args: Proto.ReloadRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
 	execute(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs, token?: CancellationToken): Promise<any>;
 	execute(command: 'navtree', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.NavTreeResponse>;
+	execute(command: 'getCodeFixes', args: Proto.CodeFixRequestArgs, token?: CancellationToken): Promise<Proto.GetCodeFixesResponse>;
+	execute(command: 'getSupportedCodeFixes', args: null, token?: CancellationToken): Promise<Proto.GetSupportedCodeFixesResponse>;
 	// execute(command: 'compileOnSaveAffectedFileList', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<Proto.CompileOnSaveAffectedFileListResponse>;
 	// execute(command: 'compileOnSaveEmitFile', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<any>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;

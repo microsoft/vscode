@@ -3,7 +3,8 @@
 		"noLib": true,
 		"target": "es5",
 		"module": "commonjs",
-		"outDir": "./out"
+		"outDir": "./out",
+		"strictNullChecks": true
 	},
 	"exclude": [
 		"node_modules"

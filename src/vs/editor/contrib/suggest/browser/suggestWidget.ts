@@ -607,7 +607,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				return false;
 			case State.Details:
-				this.details.scrollDown();
+				this.list.focusNext(1, true);
+				this.renderDetails();
 				return true;
 			case State.Loading:
 				return !this.isAuto;
@@ -637,7 +638,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				return false;
 			case State.Details:
-				this.details.scrollUp();
+				this.list.focusPrevious(1, true);
+				this.renderDetails();
 				return true;
 			case State.Loading:
 				return !this.isAuto;
@@ -675,6 +677,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.setState(State.Details);
 		this.editor.focus();
+		this.telemetryService.publicLog('suggestWidget:toggleDetails');
 	}
 
 	private show(): void {
@@ -688,6 +691,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private hide(): void {
 		this.suggestWidgetVisible.reset();
+		this.suggestWidgetMultipleSuggestions.reset();
 		removeClass(this.element, 'visible');
 	}
 

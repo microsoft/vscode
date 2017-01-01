@@ -18,8 +18,8 @@ interface IThrottledGestureEvent {
 	translationY: number;
 }
 
-var gestureChangeEventMerger = (lastEvent: IThrottledGestureEvent, currentEvent: MSGestureEvent): IThrottledGestureEvent => {
-	var r = {
+function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent, currentEvent: MSGestureEvent): IThrottledGestureEvent {
+	let r = {
 		translationY: currentEvent.translationY,
 		translationX: currentEvent.translationX
 	};
@@ -49,13 +49,13 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 		this._installGestureHandlerTimeout = window.setTimeout(() => {
 			this._installGestureHandlerTimeout = -1;
 			if ((<any>window).MSGesture) {
-				var touchGesture = new MSGesture();
-				var penGesture = new MSGesture();
+				let touchGesture = new MSGesture();
+				let penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
 				this.viewHelper.linesContentDomNode.addEventListener('MSPointerDown', (e: MSPointerEvent) => {
 					// Circumvent IE11 breaking change in e.pointerType & TypeScript's stale definitions
-					var pointerType = <any>e.pointerType;
+					let pointerType = <any>e.pointerType;
 					if (pointerType === ((<any>e).MSPOINTER_TYPE_MOUSE || 'mouse')) {
 						this._lastPointerType = 'mouse';
 						return;
@@ -131,12 +131,12 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 
 			// TODO@Alex: replace the usage of MSGesture here with something that works across all browsers
 			if ((<any>window).MSGesture) {
-				var touchGesture = new MSGesture();
-				var penGesture = new MSGesture();
+				let touchGesture = new MSGesture();
+				let penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
 				this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: MSPointerEvent) => {
-					var pointerType = <any>e.pointerType;
+					let pointerType = <any>e.pointerType;
 					if (pointerType === 'mouse') {
 						this._lastPointerType = 'mouse';
 						return;

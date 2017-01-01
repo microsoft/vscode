@@ -8,5 +8,5 @@
 	"actions.goToDeclToSide.label": "Apri definizione lateralmente",
 	"actions.previewDecl.label": "Visualizza la definizione",
 	"meta.title": " - Definizioni di {0}",
-	"multipleResults": "Fare clic per visualizzare le {0} definizioni trovate."
+	"multipleResults": "Fare clic per visualizzare {0} definizioni."
 }

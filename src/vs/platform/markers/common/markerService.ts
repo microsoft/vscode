@@ -33,13 +33,14 @@ namespace MapMap {
 	}
 
 	export function remove(map: MapMap<any>, key1: string, key2: string): boolean {
-		if (map[key1]) {
-			const result = delete map[key1][key2];
+		if (map[key1] && map[key1][key2]) {
+			delete map[key1][key2];
 			if (isEmptyObject(map[key1])) {
 				delete map[key1];
 			}
-			return result;
+			return true;
 		}
+		return false;
 	}
 }
 

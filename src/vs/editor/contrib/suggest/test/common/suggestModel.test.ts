@@ -90,7 +90,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		triggerCharacters: [],
 		provideCompletionItems(doc, pos) {
 			return <ISuggestResult>{
-				currentWord: '',
 				incomplete: false,
 				suggestions: []
 			};

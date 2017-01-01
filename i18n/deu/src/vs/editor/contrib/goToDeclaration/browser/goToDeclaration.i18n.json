@@ -8,5 +8,5 @@
 	"actions.goToDeclToSide.label": "Definition an der Seite öffnen",
 	"actions.previewDecl.label": "Peek-Definition",
 	"meta.title": " – {0} Definitionen",
-	"multipleResults": "Klicken Sie, um die gefundenen {0}-Definitionen anzuzeigen."
+	"multipleResults": "Klicken Sie, um {0} Definitionen anzuzeigen."
 }

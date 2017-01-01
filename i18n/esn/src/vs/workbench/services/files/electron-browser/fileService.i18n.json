@@ -6,5 +6,6 @@
 {
 	"installNet": "Descargar .NET Framework 4.5",
 	"netVersionError": "Requiere Microsoft .NET Framework 4.5. Siga el vínculo para instalarlo.",
+	"neverShowAgain": "No volver a mostrar",
 	"trashFailed": "No se pudo mover '{0}' a la papelera"
 }

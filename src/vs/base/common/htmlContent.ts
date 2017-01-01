@@ -10,7 +10,7 @@
  * or a code-block that provides a language and a code snippet. Note that
  * markdown strings will be sanitized - that means html will be escaped.
  */
-export type MarkedString = string | { language: string; value: string };
+export type MarkedString = string | { readonly language: string; readonly value: string };
 
 export interface IHTMLContentElementCode {
 	language: string;
@@ -71,6 +71,12 @@ export function textToMarkedString(text: string): MarkedString {
 	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&'); // escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 }
 
+export function removeMarkdownEscapes(text: string): string {
+	if (!text) {
+		return text;
+	}
+	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+}
 
 export interface IHTMLContentElement {
 	/**

@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "Ejecutar texto seleccionado en el terminal activo",
 	"workbench.action.terminal.scrollDown": "Desplazar hacia abajo (línea)",
 	"workbench.action.terminal.scrollDownPage": "Desplazar hacia abajo (página)",
+	"workbench.action.terminal.scrollToBottom": "Desplazar al final",
+	"workbench.action.terminal.scrollToTop": "Desplazar al principio",
 	"workbench.action.terminal.scrollUp": "Desplazar hacia arriba (línea)",
 	"workbench.action.terminal.scrollUpPage": "Desplazar hacia arriba (página)",
 	"workbench.action.terminal.switchTerminalInstance": "Cambiar instancia del terminal",

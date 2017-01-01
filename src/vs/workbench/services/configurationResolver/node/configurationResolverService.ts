@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import uri from 'vs/base/common/uri';
@@ -15,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -65,6 +64,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return paths.basename(this.getFilePath());
 	}
 
+	private get fileBasenameNoExtension(): string {
+		const basename = this.fileBasename;
+		return basename.slice(0, basename.length - paths.extname(basename).length);
+	}
+
 	private get fileDirname(): string {
 		return paths.dirname(this.getFilePath());
 	}
@@ -78,12 +82,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		if (!input) {
 			return '';
 		}
-		let fileEditorInput = asFileEditorInput(input);
-		if (!fileEditorInput) {
+		let fileResource = toResource(input, { filter: 'file' });
+		if (!fileResource) {
 			return '';
 		}
-		let resource = fileEditorInput.getResource();
-		return paths.normalize(resource.fsPath, true);
+		return paths.normalize(fileResource.fsPath, true);
 	}
 
 	public resolve(value: string): string;
@@ -221,18 +224,17 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				let commandId = null;
 				commandId = interactiveVariablesMap ? interactiveVariablesMap[interactiveVariable] : null;
 				if (!commandId) {
-					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Interactive variable {0} is not contributed but is specified in a configuration.", interactiveVariable));
-				} else {
-					return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
-						if (!result) {
-							// TODO@Isidor remove this hack
-							configuration.silentlyAbort = true;
-						}
+					// Just launch any command if the interactive variable is not contributed by the adapter #12735
+					commandId = interactiveVariable;
+				}
+
+				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
+					if (result) {
 						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
 							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
 						);
-					});
-				}
+					}
+				});
 			};
 		});
 

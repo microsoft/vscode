@@ -15,9 +15,13 @@
 		"out-build",
 		"out-vscode",
 		"out-vscode-min",
+		"out-editor",
+		"out-editor-min",
+		"out-monaco-editor-core",
 		"resources",
 		"scripts",
 		".build",
-		"node_modules"
+		"node_modules",
+		"build/monaco/node_modules"
 	]
 }

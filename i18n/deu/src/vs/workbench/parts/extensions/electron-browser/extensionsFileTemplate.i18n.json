@@ -6,5 +6,7 @@
 {
 	"app.extension.identifier.errorMessage": "Erwartetes Format: \"${publisher}.${name}\". Beispiel: \"vscode.csharp\".",
 	"app.extensions.json.recommendations": "Liste der Erweiterungsempfehlungen. Der Bezeichner einer Erweiterung lautet immer \"${publisher}.${name}\". Beispiel: \"vscode.csharp\".",
-	"app.extensions.json.title": "Erweiterungen"
+	"app.extensions.json.title": "Erweiterungen",
+	"app.extensionsstorage.json.disabled": "Eine Liste der deaktivierten Erweiterungen. Der Bezeichner einer Erweiterung lautet immer \"${publisher}.${name}\". Beispiel: \"vscode.csharp\".",
+	"app.extensionsstorage.json.title": "Erweiterungsspeicher"
 }

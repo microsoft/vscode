@@ -7,6 +7,7 @@
 	"defaultKeybindings": "기본 바로 가기 키",
 	"defaultKeybindingsHeader": "키 바인딩을 키 바인딩 파일에 배치하여 덮어씁니다.",
 	"defaultName": "기본 설정",
+	"defaultSettingsEditor": "기본 설정 편집기",
 	"defaultSettingsHeader": "설정을 설정 파일에 배치하여 덮어씁니다.",
 	"defaultSettingsHeader2": "가장 일반적으로 사용되는 설정은 http://go.microsoft.com/fwlink/?LinkId=808995를 참조하세요.",
 	"emptyKeybindingsHeader": "키 바인딩을 이 파일에 넣어서 기본값을 덮어씁니다.",

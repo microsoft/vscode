@@ -6,7 +6,7 @@
 var gulp = require('gulp');
 var path = require('path');
 var util = require('./lib/util');
-var common = require('./gulpfile.common');
+var common = require('./lib/optimize');
 var es = require('event-stream');
 var File = require('vinyl');
 
@@ -69,7 +69,7 @@ function editorLoaderConfig() {
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,

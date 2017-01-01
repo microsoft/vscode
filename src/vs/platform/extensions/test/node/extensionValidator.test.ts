@@ -29,63 +29,54 @@ suite('Extension Version Validator', () => {
 	});
 
 	test('parseVersion', () => {
-		function assertParseVersion(version: string, hasCaret: boolean, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, preRelease: string): void {
-			let actual = parseVersion(version);
-			let expected: IParsedVersion = {
-				hasCaret: hasCaret,
-				majorBase: majorBase,
-				majorMustEqual: majorMustEqual,
-				minorBase: minorBase,
-				minorMustEqual: minorMustEqual,
-				patchBase: patchBase,
-				patchMustEqual: patchMustEqual,
-				preRelease: preRelease
-			};
+		function assertParseVersion(version: string, hasCaret: boolean, hasGreaterEquals: boolean, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, preRelease: string): void {
+			const actual = parseVersion(version);
+			const expected: IParsedVersion = { hasCaret, hasGreaterEquals, majorBase, majorMustEqual, minorBase, minorMustEqual, patchBase, patchMustEqual, preRelease };
+
 			assert.deepEqual(actual, expected, 'parseVersion for ' + version);
 		}
 
-		assertParseVersion('0.10.0-dev', false, 0, true, 10, true, 0, true, '-dev');
-		assertParseVersion('0.10.0', false, 0, true, 10, true, 0, true, null);
-		assertParseVersion('0.10.1', false, 0, true, 10, true, 1, true, null);
-		assertParseVersion('0.10.100', false, 0, true, 10, true, 100, true, null);
-		assertParseVersion('0.11.0', false, 0, true, 11, true, 0, true, null);
+		assertParseVersion('0.10.0-dev', false, false, 0, true, 10, true, 0, true, '-dev');
+		assertParseVersion('0.10.0', false, false, 0, true, 10, true, 0, true, null);
+		assertParseVersion('0.10.1', false, false, 0, true, 10, true, 1, true, null);
+		assertParseVersion('0.10.100', false, false, 0, true, 10, true, 100, true, null);
+		assertParseVersion('0.11.0', false, false, 0, true, 11, true, 0, true, null);
 
-		assertParseVersion('x.x.x', false, 0, false, 0, false, 0, false, null);
-		assertParseVersion('0.x.x', false, 0, true, 0, false, 0, false, null);
-		assertParseVersion('0.10.x', false, 0, true, 10, true, 0, false, null);
-		assertParseVersion('^0.10.0', true, 0, true, 10, true, 0, true, null);
-		assertParseVersion('^0.10.2', true, 0, true, 10, true, 2, true, null);
-		assertParseVersion('^1.10.2', true, 1, true, 10, true, 2, true, null);
-		assertParseVersion('*', false, 0, false, 0, false, 0, false, null);
+		assertParseVersion('x.x.x', false, false, 0, false, 0, false, 0, false, null);
+		assertParseVersion('0.x.x', false, false, 0, true, 0, false, 0, false, null);
+		assertParseVersion('0.10.x', false, false, 0, true, 10, true, 0, false, null);
+		assertParseVersion('^0.10.0', true, false, 0, true, 10, true, 0, true, null);
+		assertParseVersion('^0.10.2', true, false, 0, true, 10, true, 2, true, null);
+		assertParseVersion('^1.10.2', true, false, 1, true, 10, true, 2, true, null);
+		assertParseVersion('*', false, false, 0, false, 0, false, 0, false, null);
+
+		assertParseVersion('>=0.0.1', false, true, 0, true, 0, true, 1, true, null);
+		assertParseVersion('>=2.4.3', false, true, 2, true, 4, true, 3, true, null);
 	});
 
 	test('normalizeVersion', () => {
-		function assertNormalizeVersion(version: string, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean): void {
-			let actual = normalizeVersion(parseVersion(version));
-			let expected: INormalizedVersion = {
-				majorBase: majorBase,
-				majorMustEqual: majorMustEqual,
-				minorBase: minorBase,
-				minorMustEqual: minorMustEqual,
-				patchBase: patchBase,
-				patchMustEqual: patchMustEqual
-			};
+		function assertNormalizeVersion(version: string, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, isMinimum: boolean): void {
+			const actual = normalizeVersion(parseVersion(version));
+			const expected: INormalizedVersion = { majorBase, majorMustEqual, minorBase, minorMustEqual, patchBase, patchMustEqual, isMinimum };
 			assert.deepEqual(actual, expected, 'parseVersion for ' + version);
 		}
 
-		assertNormalizeVersion('0.10.0-dev', 0, true, 10, true, 0, true);
-		assertNormalizeVersion('0.10.0', 0, true, 10, true, 0, true);
-		assertNormalizeVersion('0.10.1', 0, true, 10, true, 1, true);
-		assertNormalizeVersion('0.10.100', 0, true, 10, true, 100, true);
-		assertNormalizeVersion('0.11.0', 0, true, 11, true, 0, true);
+		assertNormalizeVersion('0.10.0-dev', 0, true, 10, true, 0, true, false);
+		assertNormalizeVersion('0.10.0', 0, true, 10, true, 0, true, false);
+		assertNormalizeVersion('0.10.1', 0, true, 10, true, 1, true, false);
+		assertNormalizeVersion('0.10.100', 0, true, 10, true, 100, true, false);
+		assertNormalizeVersion('0.11.0', 0, true, 11, true, 0, true, false);
 
-		assertNormalizeVersion('x.x.x', 0, false, 0, false, 0, false);
-		assertNormalizeVersion('0.x.x', 0, true, 0, false, 0, false);
-		assertNormalizeVersion('0.10.x', 0, true, 10, true, 0, false);
-		assertNormalizeVersion('^0.10.0', 0, true, 10, true, 0, false);
-		assertNormalizeVersion('^0.10.2', 0, true, 10, true, 2, false);
-		assertNormalizeVersion('^1.10.2', 1, true, 10, false, 2, false);
-		assertNormalizeVersion('*', 0, false, 0, false, 0, false);
+		assertNormalizeVersion('x.x.x', 0, false, 0, false, 0, false, false);
+		assertNormalizeVersion('0.x.x', 0, true, 0, false, 0, false, false);
+		assertNormalizeVersion('0.10.x', 0, true, 10, true, 0, false, false);
+		assertNormalizeVersion('^0.10.0', 0, true, 10, true, 0, false, false);
+		assertNormalizeVersion('^0.10.2', 0, true, 10, true, 2, false, false);
+		assertNormalizeVersion('^1.10.2', 1, true, 10, false, 2, false, false);
+		assertNormalizeVersion('*', 0, false, 0, false, 0, false, false);
+
+		assertNormalizeVersion('>=0.0.1', 0, true, 0, true, 1, true, true);
+		assertNormalizeVersion('>=2.4.3', 2, true, 4, true, 3, true, true);
 	});
 
 	test('isValidVersion', () => {
@@ -102,6 +93,11 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('0.10.0-dev', '0.10.x', true);
 		testIsValidVersion('0.10.0-dev', '^0.10.0', true);
 		testIsValidVersion('0.10.0-dev', '*', true);
+		testIsValidVersion('0.10.0-dev', '>=0.0.1', true);
+		testIsValidVersion('0.10.0-dev', '>=0.0.10', true);
+		testIsValidVersion('0.10.0-dev', '>=0.10.0', true);
+		testIsValidVersion('0.10.0-dev', '>=0.10.1', false);
+		testIsValidVersion('0.10.0-dev', '>=1.0.0', false);
 
 		testIsValidVersion('0.10.0', 'x.x.x', true);
 		testIsValidVersion('0.10.0', '0.x.x', true);
@@ -152,6 +148,14 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('1.0.0', '^1.0.0', true);
 		testIsValidVersion('1.0.0', '^2.0.0', false);
 		testIsValidVersion('1.0.0', '*', true);
+		testIsValidVersion('1.0.0', '>=0.0.1', true);
+		testIsValidVersion('1.0.0', '>=0.0.10', true);
+		testIsValidVersion('1.0.0', '>=0.10.0', true);
+		testIsValidVersion('1.0.0', '>=0.10.1', true);
+		testIsValidVersion('1.0.0', '>=1.0.0', true);
+		testIsValidVersion('1.0.0', '>=1.1.0', false);
+		testIsValidVersion('1.0.0', '>=1.0.1', false);
+		testIsValidVersion('1.0.0', '>=2.0.0', false);
 
 		testIsValidVersion('1.0.100', 'x.x.x', true);
 		testIsValidVersion('1.0.100', '0.x.x', true);
@@ -179,6 +183,9 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('1.100.0', '^1.100.0', true);
 		testIsValidVersion('1.100.0', '^2.0.0', false);
 		testIsValidVersion('1.100.0', '*', true);
+		testIsValidVersion('1.100.0', '>=1.99.0', true);
+		testIsValidVersion('1.100.0', '>=1.100.0', true);
+		testIsValidVersion('1.100.0', '>=1.101.0', false);
 
 		testIsValidVersion('2.0.0', 'x.x.x', true);
 		testIsValidVersion('2.0.0', '0.x.x', false);

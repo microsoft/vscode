@@ -26,7 +26,7 @@
 			"include": "#special_block"
 		},
 		{
-			"include": "source.c"
+			"include": "#strings"
 		},
 		{
 			"match": "\\b(friend|explicit|virtual|override|final|noexcept)\\b",
@@ -45,7 +45,6 @@
 			"name": "keyword.control.cpp"
 		},
 		{
-			"comment": "common C++ instance var naming idiom -- fMemberName",
 			"match": "\\b(f|m)[A-Z]\\w*\\b",
 			"name": "variable.other.readwrite.member.cpp"
 		},
@@ -78,7 +77,7 @@
 			"name": "storage.modifier.cpp"
 		},
 		{
-			"begin": "(?x)\n    \t\t\t\t(?:  ^                                 # begin-of-line\n    \t\t\t\t  |  (?: (?<!else|new|=) )             #  or word + space before name\n    \t\t\t\t)\n    \t\t\t\t((?:[A-Za-z_][A-Za-z0-9_]*::)*+~[A-Za-z_][A-Za-z0-9_]*) # actual name\n    \t\t\t\t \\s*(\\()                           # start bracket or end-of-line\n    \t\t\t",
+			"begin": "(?x)\n(?:\n  ^ |                  # beginning of line\n  (?:(?<!else|new|=))  # or word + space before name\n)\n((?:[A-Za-z_][A-Za-z0-9_]*::)*+~[A-Za-z_][A-Za-z0-9_]*) # actual name\n\\s*(\\()              # opening bracket",
 			"beginCaptures": {
 				"1": {
 					"name": "entity.name.function.cpp"
@@ -101,7 +100,7 @@
 			]
 		},
 		{
-			"begin": "(?x)\n    \t\t\t\t(?:  ^                                 # begin-of-line\n    \t\t\t\t  |  (?: (?<!else|new|=) )             #  or word + space before name\n    \t\t\t\t)\n    \t\t\t\t((?:[A-Za-z_][A-Za-z0-9_]*::)*+~[A-Za-z_][A-Za-z0-9_]*) # actual name\n    \t\t\t\t \\s*(\\()                           # terminating semi-colon\n    \t\t\t",
+			"begin": "(?x)\n(?:\n  ^ |                  # beginning of line\n  (?:(?<!else|new|=))  # or word + space before name\n)\n((?:[A-Za-z_][A-Za-z0-9_]*::)*+~[A-Za-z_][A-Za-z0-9_]*) # actual name\n\\s*(\\()              # opening bracket",
 			"beginCaptures": {
 				"1": {
 					"name": "entity.name.function.cpp"
@@ -122,6 +121,9 @@
 					"include": "$base"
 				}
 			]
+		},
+		{
+			"include": "source.c"
 		}
 	],
 	"repository": {
@@ -162,7 +164,7 @@
 							"name": "punctuation.definition.parameters.c"
 						}
 					},
-					"match": "(?x)\n    \t\t\t\t(\n    \t\t\t\t\t(?!while|for|do|if|else|switch|catch|enumerate|return|r?iterate)(?: \\b[A-Za-z_][A-Za-z0-9_]*+\\b | :: )*+                  # actual name\n    \t\t\t\t)\n    \t\t\t\t \\s*(\\()",
+					"match": "(?x)\n(\n  (?!while|for|do|if|else|switch|catch|enumerate|return|r?iterate)\n  (?:\\b[A-Za-z_][A-Za-z0-9_]*+\\b|::)*+ # actual name\n)\n\\s*(\\() # opening bracket",
 					"name": "meta.function-call.c"
 				},
 				{
@@ -173,7 +175,7 @@
 		"constructor": {
 			"patterns": [
 				{
-					"begin": "(?x)\n    \t\t\t\t(?:  ^\\s*)                             # begin-of-line\n    \t\t\t\t((?!while|for|do|if|else|switch|catch|enumerate|r?iterate)[A-Za-z_][A-Za-z0-9_:]*) # actual name\n    \t\t\t\t \\s*(\\()                            # start bracket or end-of-line\n    \t\t\t",
+					"begin": "(?x)\n(?:^\\s*)  # beginning of line\n((?!while|for|do|if|else|switch|catch|enumerate|r?iterate)[A-Za-z_][A-Za-z0-9_:]*) # actual name\n\\s*(\\()  # opening bracket",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.cpp"
@@ -196,7 +198,7 @@
 					]
 				},
 				{
-					"begin": "(?x)\n    \t\t\t\t(:)                            # begin-of-line\n    \t\t\t\t((?=\\s*[A-Za-z_][A-Za-z0-9_:]* # actual name\n    \t\t\t\t \\s*(\\()))                      # start bracket or end-of-line\n    \t\t\t",
+					"begin": "(?x)\n(:)\n(\n  (?=\n    \\s*[A-Za-z_][A-Za-z0-9_:]* # actual name\n    \\s* (\\() # opening bracket\n  )\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.parameters.c"
@@ -383,7 +385,71 @@
 					]
 				}
 			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"begin": "(u|u8|U|L)?\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.cpp"
+						},
+						"1": {
+							"name": "meta.encoding.cpp"
+						}
+					},
+					"end": "\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.cpp"
+						}
+					},
+					"name": "string.quoted.double.cpp",
+					"patterns": [
+						{
+							"match": "\\\\u\\h{4}|\\\\U\\h{8}",
+							"name": "constant.character.escape.cpp"
+						},
+						{
+							"match": "\\\\['\"?\\\\abfnrtv]",
+							"name": "constant.character.escape.cpp"
+						},
+						{
+							"match": "\\\\[0-7]{1,3}",
+							"name": "constant.character.escape.cpp"
+						},
+						{
+							"match": "\\\\x\\h+",
+							"name": "constant.character.escape.cpp"
+						}
+					]
+				},
+				{
+					"begin": "(u|u8|U|L)?R\"(?:([^ ()\\\\\\t]{0,16})|([^ ()\\\\\\t]*))\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.cpp"
+						},
+						"1": {
+							"name": "meta.encoding.cpp"
+						},
+						"3": {
+							"name": "invalid.illegal.delimiter-too-long.cpp"
+						}
+					},
+					"end": "\\)\\2(\\3)\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.cpp"
+						},
+						"1": {
+							"name": "invalid.illegal.delimiter-too-long.cpp"
+						}
+					},
+					"name": "string.quoted.double.raw.cpp"
+				}
+			]
 		}
 	},
-	"version": "https://github.com/atom/language-c/commit/7922a226b706d3125601561ed670eed97c4d674b"
+	"version": "https://github.com/atom/language-c/commit/80db38512efabb3030d600a8d8f8b6d91abbc96b"
 }

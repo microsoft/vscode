@@ -13,7 +13,7 @@ import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, 
 import { getLanguageModelCache } from './languageModelCache';
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
 }
 
 export interface Settings {
@@ -172,8 +172,11 @@ connection.onCodeAction(codeActionParams => {
 
 connection.onRequest(ColorSymbolRequest.type, uri => {
 	let document = documents.get(uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findColorSymbols(document, stylesheet);
+	if (document) {
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findColorSymbols(document, stylesheet);
+	}
+	return [];
 });
 
 connection.onRenameRequest(renameParameters => {

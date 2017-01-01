@@ -15,6 +15,7 @@ import { OneGetThreadService } from './testThreadService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import * as vscode from 'vscode';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -35,6 +36,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				lines: ['foo'],
 				BOM: '',
 				length: -1,
+				containsRTL: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,
@@ -181,9 +183,6 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 			assert.equal(callCount, 2);
 			assert.equal(values.length, 2);
-			const [first, second] = values;
-			assert.equal(first, true);
-			assert.equal(second, true);
 		});
 	});
 
@@ -299,7 +298,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 				text: 'bar',
 				rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
-			}]);
+			}], true);
 
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
@@ -324,7 +323,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 						text: newText,
 						versionId: documents.getDocumentData(resource).version + 1,
 						rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
-					}]);
+					}], true);
 				}
 				return TPromise.as(true);
 			}

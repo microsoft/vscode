@@ -14,36 +14,41 @@ import path = require('path');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
-import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance implements ITerminalInstance {
-	private static EOL_REGEX = /\r?\n/g;
+	/** The amount of time to consider terminal errors to be related to the launch */
+	private static readonly LAUNCHING_DURATION = 500;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
 
 	private _id: number;
 	private _isExiting: boolean;
+	private _hadFocusOnExit: boolean;
+	private _isLaunching: boolean;
 	private _isVisible: boolean;
 	private _onDisposed: Emitter<TerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
 	private _processId: number;
-	private _skipTerminalKeybindings: Keybinding[];
+	private _skipTerminalCommands: string[];
 	private _title: string;
 	private _toDispose: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: any;
 	private _xtermElement: HTMLDivElement;
+	private _terminalHasTextContextKey: IContextKey<boolean>;
 
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
@@ -51,28 +56,34 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
+	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
-		workspace: IWorkspace,
 		name: string,
 		shell: IShell,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService
+		@IMessageService private _messageService: IMessageService,
+		@IPanelService private _panelService: IPanelService,
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
 		this._toDispose = [];
-		this._skipTerminalKeybindings = [];
+		this._skipTerminalCommands = [];
 		this._isExiting = false;
+		this._hadFocusOnExit = false;
+		this._isLaunching = true;
 		this._isVisible = false;
 		this._id = TerminalInstance._idCounter++;
+		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(workspace, name, shell);
+		this._createProcess(this._contextService.getWorkspace(), name, shell);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -97,6 +108,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.open(this._xtermElement);
 
 		this._process.on('message', (message) => {
+			if (!this._xterm) {
+				return;
+			}
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
 			}
@@ -104,15 +118,17 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.on('data', (data) => {
 			this._process.send({
 				event: 'input',
-				data: this.sanitizeInput(data)
+				data: this._sanitizeInput(data)
 			});
 			return false;
 		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
-			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
-			// be escaped
-			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-			if (this._skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+			// Skip processing by xterm.js of keyboard events that resolve to commands described
+			// within commandsToSkipShell
+			const standardKeyboardEvent = new StandardKeyboardEvent(event);
+			const keybinding = standardKeyboardEvent.toKeybinding();
+			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
+			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();
 				return false;
 			}
@@ -121,6 +137,22 @@ export class TerminalInstance implements ITerminalInstance {
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
 			}
+		});
+		(<HTMLElement>this._xterm.element).addEventListener('mouseup', event => {
+			// Wait until mouseup has propogated through the DOM before evaluating the new selection
+			// state.
+			setTimeout(() => {
+				this._refreshSelectionContextKey();
+			}, 0);
+		});
+
+		// xterm.js currently drops selection on keyup as we need to handle this case.
+		(<HTMLElement>this._xterm.element).addEventListener('keyup', event => {
+			// Wait until keyup has propogated through the DOM before evaluating the new selection
+			// state.
+			setTimeout(() => {
+				this._refreshSelectionContextKey();
+			}, 0);
 		});
 
 		let xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
@@ -142,12 +174,14 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 
 		this._wrapperElement.appendChild(this._xtermElement);
@@ -158,6 +192,11 @@ export class TerminalInstance implements ITerminalInstance {
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
+		this.updateConfig();
+	}
+
+	public hasSelection(): boolean {
+		return !document.getSelection().isCollapsed;
 	}
 
 	public copySelection(): void {
@@ -168,8 +207,16 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	public clearSelection(): void {
+		document.getSelection().empty();
+	}
+
 	public dispose(): void {
 		this._isExiting = true;
+
+		if (this._xterm && this._xterm.element) {
+			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
+		}
 		if (this._wrapperElement) {
 			this._container.removeChild(this._wrapperElement);
 			this._wrapperElement = null;
@@ -248,16 +295,46 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.clear();
 	}
 
-	private sanitizeInput(data: any) {
+	private _refreshSelectionContextKey() {
+		const activePanel = this._panelService.getActivePanel();
+		const isFocused = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		this._terminalHasTextContextKey.set(isFocused && !window.getSelection().isCollapsed);
+	}
+
+	private _sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
+	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
+		let cwd;
+
+		// TODO: Handle non-existent customCwd
+		if (!ignoreCustomCwd) {
+			// Evaluate custom cwd first
+			const customCwd = this._configHelper.getCwd();
+			if (customCwd) {
+				if (path.isAbsolute(customCwd)) {
+					cwd = customCwd;
+				} else if (workspace) {
+					cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+				}
+			}
+		}
+
+		// If there was no custom cwd or it was relative with no workspace
+		if (!cwd) {
+			cwd = workspace ? workspace.resource.fsPath : os.homedir();
+		}
+
+		return TerminalInstance._sanitizeCwd(cwd);
+	}
+
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
 		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
+		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -283,13 +360,23 @@ export class TerminalInstance implements ITerminalInstance {
 			if (!this._isExiting) {
 				this.dispose();
 				if (exitCode) {
-					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					if (this._isLaunching) {
+						const args = shell.args && shell.args.length ? ' ' + shell.args.map(a => a.indexOf(' ') !== -1 ? `'${a}'` : a).join(' ') : '';
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', shell.executable, args, exitCode));
+					} else {
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					}
 				}
 			}
 		});
+		setTimeout(() => {
+			this._isLaunching = false;
+		}, TerminalInstance.LAUNCHING_DURATION);
 	}
 
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
+	// TODO: This should be private/protected
+	// TODO: locale should not be optional
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, cwd: string, locale?: string): IStringDictionary<string> {
 		let env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
@@ -298,7 +385,7 @@ export class TerminalInstance implements ITerminalInstance {
 				env[`PTYSHELLARG${i}`] = arg;
 			});
 		}
-		env['PTYCWD'] = TerminalInstance._sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
+		env['PTYCWD'] = cwd;
 		if (locale) {
 			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		}
@@ -330,22 +417,30 @@ export class TerminalInstance implements ITerminalInstance {
 		return parts.join('_') + '.UTF-8';
 	}
 
-	public setCursorBlink(blink: boolean): void {
+	public updateConfig(): void {
+		this._setCursorBlink(this._configHelper.getCursorBlink());
+		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
+		this._setScrollback(this._configHelper.getScrollback());
+	}
+
+	private _setCursorBlink(blink: boolean): void {
 		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
 		}
 	}
 
-	public setCommandsToSkipShell(commands: string[]): void {
-		this._skipTerminalKeybindings = commands.map((c) => {
-			return this._keybindingService.lookupKeybindings(c);
-		}).reduce((prev, curr) => {
-			return prev.concat(curr);
-		}, []);
+	private _setCommandsToSkipShell(commands: string[]): void {
+		this._skipTerminalCommands = commands;
 	}
 
-	public layout(dimension: Dimension): void {
+	private _setScrollback(lineCount: number): void {
+		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
+			this._xterm.setOption('scrollback', lineCount);
+		}
+	}
+
+	public layout(dimension: { width: number, height: number }): void {
 		let font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;

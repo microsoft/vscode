@@ -146,64 +146,8 @@
 	transform: none;
 }
 
-/* Status bar */
-.monaco-shell .extensions-statusbar {
-	display: flex !important;
-	flex-direction: column;
-	justify-content: center;
-	position: relative;
-	padding: 0 5px;
-	width: 14px;
-}
-
-.monaco-shell .extensions-statusbar > .icon {
-	background-size: 14px;
-	width: 14px;
-	height: 14px;
-}
-
-.monaco-shell .extensions-statusbar > .icon,
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.extensions {
 	background: url('extensions-status.svg') center center no-repeat;
-}
-
-.monaco-shell .extensions-statusbar.has-updates::after {
-	content: '';
-	width: 6px;
-	height: 6px;
-	background-color: #39A71E;
-	position: absolute;
-	top: 2px;
-	right: 3px;
-	border-radius: 10px;
-	border: 1px solid white;
-}
-
-.monaco-shell .extensions-statusbar.has-errors::after {
-	content: '';
-	width: 6px;
-	height: 6px;
-	background-color: #CC6633;
-	position: absolute;
-	top: 2px;
-	right: 3px;
-	border-radius: 10px;
-	border: 1px solid white;
-}
-
-.monaco-shell .extensions-statusbar.is-installing .icon {
-	opacity: 0.8;
-}
-
-.monaco-shell .extensions-statusbar.is-installing .icon::before {
-	content: '';
-	display: block;
-	height: 100%;
-	width: 100%;
-	background-color: rgba(132, 132, 132, 0.5);
-	background-size: 8px;
-	background-image: linear-gradient(-45deg, rgba(255, 255, 255, 0.5) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.5) 75%, transparent 75%, transparent);
-	animation: move-background 0.5s linear infinite;
 }
 
 /* Global action */

@@ -33,7 +33,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 	}
 
 	private _updateShouldShow(): boolean {
-		var newShouldShow = (this._useShadows && this._scrollTop > 0);
+		let newShouldShow = (this._useShadows && this._scrollTop > 0);
 		if (this._shouldShow !== newShouldShow) {
 			this._shouldShow = newShouldShow;
 			return true;

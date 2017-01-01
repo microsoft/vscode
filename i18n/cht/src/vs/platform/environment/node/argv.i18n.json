@@ -6,6 +6,7 @@
 {
 	"diff": "開啟 Diff 編輯器。要求傳遞兩個檔案路徑作為引數。",
 	"disableExtensions": "停用所有已安裝的擴充功能。",
+	"disableGPU": "停用 GPU 硬體加速。",
 	"extensionHomePath": "設定擴充功能的根路徑。",
 	"goto": "開啟位於行與欄中路徑的檔案 (將 :line[:column] 加入路徑中)。",
 	"gotoValidation": "`--goto` 模式中的引數格式應為 `FILE(:LINE(:COLUMN))`。",
@@ -19,6 +20,7 @@
 	"paths": "路徑",
 	"performance": "在已啟用 'Developer: Startup Performance' 命令的情況下開始。",
 	"reuseWindow": "強制在最近使用的視窗中開啟檔案或資料夾。",
+	"showVersions": "使用 --list-extension 時，顯示安裝的擴充功能版本。",
 	"uninstallExtension": "解除安裝擴充功能。",
 	"usage": "使用方式",
 	"userDataDir": "指定保留使用者資料的目錄，這在以根目錄身分執行時有用。",

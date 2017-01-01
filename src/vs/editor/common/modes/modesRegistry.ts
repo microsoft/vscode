@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/platform';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 // Define extension point ids
 export var Extensions = {
 	ModesRegistry: 'editor.modesRegistry'
@@ -50,4 +50,11 @@ ModesRegistry.registerLanguage({
 	extensions: ['.txt', '.gitignore'],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: ['text/plain']
+});
+LanguageConfigurationRegistry.register(PLAINTEXT_MODE_ID, {
+	brackets: [
+		['(', ')'],
+		['[', ']'],
+		['{', '}'],
+	]
 });

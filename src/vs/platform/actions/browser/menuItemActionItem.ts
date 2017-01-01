@@ -17,14 +17,19 @@ import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 
 
-export function fillInActions(menu: IMenu, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }): void {
-	const groups = menu.getActions();
+export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, ignoreAltKey?: boolean): void {
+	const groups = menu.getActions(context);
 	if (groups.length === 0) {
 		return;
 	}
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
+
+		if (!ignoreAltKey && _altKey.value) {
+			swapWithAltActionsIfPossible(actions);
+		}
+
 		if (group === 'navigation') {
 
 			const head = Array.isArray<IAction>(target) ? target : target.primary;
@@ -62,6 +67,13 @@ export function fillInActions(menu: IMenu, target: IAction[] | { primary: IActio
 	}
 }
 
+function swapWithAltActionsIfPossible(actions: MenuItemAction[]): void {
+	for (let i = 0; i < actions.length; i++) {
+		if (actions[i].alt) {
+			actions[i] = actions[i].alt;
+		}
+	}
+}
 
 export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService): ActionItem {
 	if (action instanceof MenuItemAction) {
@@ -74,6 +86,8 @@ const _altKey = new class extends Emitter<boolean> {
 
 	private _subscriptions: IDisposable[] = [];
 
+	private _value = false;
+
 	constructor() {
 		super();
 
@@ -81,6 +95,15 @@ const _altKey = new class extends Emitter<boolean> {
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
 		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.fire(false)));
+	}
+
+	fire(value: boolean) {
+		super.fire(value);
+		this._value = value;
+	}
+
+	get value() {
+		return this._value;
 	}
 
 	dispose() {
@@ -98,21 +121,18 @@ class MenuItemActionItem extends ActionItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService
 	) {
-		super(undefined, action, { icon: !!action.command.iconClass, label: !action.command.iconClass });
+		super(undefined, action, { icon: !!action.class, label: !action.class });
 	}
 
 	private get _command() {
-		const {command, altCommand} = <MenuItemAction>this._action;
-		return this._wantsAltCommand && altCommand || command;
+		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
 	}
 
 	onClick(event: MouseEvent): void {
 		event.preventDefault();
 		event.stopPropagation();
 
-		(<MenuItemAction>this._action).run(this._wantsAltCommand).done(undefined, err => {
-			this._messageService.show(Severity.Error, err);
-		});
+		this._command.run().done(undefined, err => this._messageService.show(Severity.Error, err));
 	}
 
 	render(container: HTMLElement): void {
@@ -149,7 +169,7 @@ class MenuItemActionItem extends ActionItem {
 
 	_updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this._command.title);
+			this.$e.text(this._command.label);
 		}
 	}
 
@@ -159,20 +179,19 @@ class MenuItemActionItem extends ActionItem {
 		const keybindingLabel = keybinding && this._keybindingService.getLabelFor(keybinding);
 
 		element.title = keybindingLabel
-			? localize('titleAndKb', "{0} ({1})", this._command.title, keybindingLabel)
-			: this._command.title;
+			? localize('titleAndKb', "{0} ({1})", this._command.label, keybindingLabel)
+			: this._command.label;
 	}
 
 	_updateClass(): void {
 		if (this.options.icon) {
 			const element = this.$e.getHTMLElement();
-			const {command, altCommand} = (<MenuItemAction>this._action);
-			if (this._command !== command) {
-				element.classList.remove(command.iconClass);
-			} else if (altCommand) {
-				element.classList.remove(altCommand.iconClass);
+			if (this._command !== this._action) {
+				element.classList.remove(this._action.class);
+			} else if ((<MenuItemAction>this._action).alt) {
+				element.classList.remove((<MenuItemAction>this._action).alt.class);
 			}
-			element.classList.add('icon', this._command.iconClass);
+			element.classList.add('icon', this._command.class);
 		}
 	}
 }

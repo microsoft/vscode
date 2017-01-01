@@ -9,8 +9,7 @@ import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/brow
 import * as DOM from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';

@@ -5,7 +5,7 @@
 'use strict';
 
 import { Registry, BaseRegistry } from 'vs/platform/platform';
-import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 // --- Workbench Contribution Registry
 
@@ -38,6 +38,8 @@ export interface IWorkbenchContributionsRegistry {
 	 * Returns all workbench contributions that are known to the platform.
 	 */
 	getWorkbenchContributions(): IWorkbenchContribution[];
+
+	setInstantiationService(service: IInstantiationService): void;
 }
 
 class WorkbenchContributionsRegistry extends BaseRegistry<IWorkbenchContribution> implements IWorkbenchContributionsRegistry {

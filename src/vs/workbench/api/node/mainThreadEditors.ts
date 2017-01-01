@@ -16,7 +16,6 @@ import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEventService } from 'vs/platform/event/common/event';
 import { equals as arrayEquals } from 'vs/base/common/arrays';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
@@ -40,7 +39,6 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ICodeEditorService editorService: ICodeEditorService,
-		@IEventService eventService: IEventService,
 		@IModelService modelService: IModelService
 	) {
 		super();
@@ -190,7 +188,22 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 				return;
 			}
 
-			return new TPromise<void>(c => {
+			const findEditor = (): string => {
+				// find the editor we have just opened and return the
+				// id we have assigned to it.
+				for (let id in this._textEditorsMap) {
+					if (this._textEditorsMap[id].matches(editor)) {
+						return id;
+					}
+				}
+			};
+
+			const syncEditorId = findEditor();
+			if (syncEditorId) {
+				return TPromise.as(syncEditorId);
+			}
+
+			return new TPromise<void>(resolve => {
 				// not very nice but the way it is: changes to the editor state aren't
 				// send to the ext host as they happen but stuff is delayed a little. in
 				// order to provide the real editor on #openTextEditor we need to sync on
@@ -200,7 +213,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 				function contd() {
 					subscription.dispose();
 					clearTimeout(handle);
-					c(undefined);
+					resolve(undefined);
 				}
 				subscription = this._editorTracker.onDidUpdateTextEditors(() => {
 					contd();
@@ -209,15 +222,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 					contd();
 				}, 1000);
 
-			}).then(() => {
-				// find the editor we have just opened and return the
-				// id we have assigned to it.
-				for (let id in this._textEditorsMap) {
-					if (this._textEditorsMap[id].matches(editor)) {
-						return id;
-					}
-				}
-			});
+			}).then(findEditor);
 		});
 	}
 

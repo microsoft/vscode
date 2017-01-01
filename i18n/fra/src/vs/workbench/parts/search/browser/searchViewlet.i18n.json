@@ -20,7 +20,7 @@
 	"removeAll.message": "{0} occurrences supprimées dans {1} fichiers.",
 	"replaceAll.confirm.button": "Remplacer",
 	"replaceAll.confirmation.message": "Remplacer {0} occurrences dans {1} fichiers avec '{2}' ?",
-	"replaceAll.confirmation.title": "Remplacer tout",
+	"replaceAll.confirmation.title": "Tout remplacer",
 	"replaceAll.message": "{0} occurrences remplacées dans {1} fichiers avec {2}.",
 	"rerunSearch.message": "Rechercher à nouveau",
 	"rerunSearchInAll.message": "Rechercher à nouveau dans tous les fichiers",

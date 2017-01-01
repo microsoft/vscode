@@ -4,14 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as flags from 'vs/base/common/flags';
+import { globals } from 'vs/base/common/platform';
 import { logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory } from 'vs/base/common/worker/simpleWorker';
+
+// Option for hosts to overwrite the worker script url (used in the standalone editor)
+const getCrossOriginWorkerScriptUrl: (workerId: string, label: string) => string = environment('getWorkerUrl', null);
+
+function environment(name: string, fallback: any = false): any {
+	if (globals.MonacoEnvironment && globals.MonacoEnvironment.hasOwnProperty(name)) {
+		return globals.MonacoEnvironment[name];
+	}
+
+	return fallback;
+}
 
 function defaultGetWorkerUrl(workerId: string, label: string): string {
 	return require.toUrl('./' + workerId) + '#' + label;
 }
-var getWorkerUrl = flags.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
-
+var getWorkerUrl = getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 
 /**
  * A worker that uses HTML5 web workers so that is has

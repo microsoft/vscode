@@ -6,11 +6,14 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import extfs = require('vs/base/node/extfs');
-import paths = require('vs/base/common/paths');
+import * as extfs from 'vs/base/node/extfs';
+import * as paths from 'vs/base/common/paths';
 import { dirname, join } from 'path';
-import { nfcall } from 'vs/base/common/async';
-import fs = require('fs');
+import { nfcall, Queue } from 'vs/base/common/async';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as platform from 'vs/base/common/platform';
+import { once } from 'vs/base/common/event';
 
 export function readdir(path: string): TPromise<string[]> {
 	return nfcall(extfs.readdir, path);
@@ -62,7 +65,7 @@ export function rimraf(path: string): TPromise<void> {
 		}
 	}, (err: NodeJS.ErrnoException) => {
 		if (err.code === 'ENOENT') {
-			return;
+			return void 0;
 		}
 
 		return TPromise.wrapError<void>(err);
@@ -101,8 +104,10 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-export function utimes(path: string, atime: Date, mtime: Date): TPromise<void> {
-	return nfcall(fs.utimes, path, atime, mtime);
+export function touch(path: string): TPromise<void> {
+	const now = Date.now() / 1000; // the value should be a Unix timestamp in seconds
+
+	return nfcall(fs.utimes, path, now, now);
 }
 
 export function readFile(path: string): TPromise<Buffer>;
@@ -111,16 +116,42 @@ export function readFile(path: string, encoding?: string): TPromise<Buffer | str
 	return nfcall(fs.readFile, path, encoding);
 }
 
+// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
+// Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
+const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
+
 export function writeFile(path: string, data: string, encoding?: string): TPromise<void>;
 export function writeFile(path: string, data: NodeBuffer, encoding?: string): TPromise<void>;
 export function writeFile(path: string, data: any, encoding: string = 'utf8'): TPromise<void> {
-	return nfcall(fs.writeFile, path, data, encoding);
+	let queueKey = toQueueKey(path);
+
+	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, encoding));
 }
 
-export function writeFileAndFlush(path: string, data: string, encoding?: string): TPromise<void>;
-export function writeFileAndFlush(path: string, data: NodeBuffer, encoding?: string): TPromise<void>;
-export function writeFileAndFlush(path: string, data: any, encoding: string = 'utf8'): TPromise<void> {
-	return nfcall(extfs.writeFileAndFlush, path, data, encoding);
+function toQueueKey(path: string): string {
+	let queueKey = path;
+	if (platform.isWindows || platform.isMacintosh) {
+		queueKey = queueKey.toLowerCase(); // accomodate for case insensitive file systems
+	}
+
+	return queueKey;
+}
+
+function ensureWriteFileQueue(queueKey: string): Queue<void> {
+	let writeFileQueue = writeFilePathQueue[queueKey];
+	if (!writeFileQueue) {
+		writeFileQueue = new Queue<void>();
+		writeFilePathQueue[queueKey] = writeFileQueue;
+
+		const onFinish = once(writeFileQueue.onFinished);
+		onFinish(() => {
+			delete writeFilePathQueue[queueKey];
+			writeFileQueue.dispose();
+		});
+	}
+
+	return writeFileQueue;
 }
 
 /**
@@ -146,4 +177,12 @@ export function dirExists(path: string): TPromise<boolean> {
 */
 export function fileExists(path: string): TPromise<boolean> {
 	return stat(path).then(stat => stat.isFile(), () => false);
+}
+
+/**
+ * Deletes a path from disk.
+ */
+const tmpDir = os.tmpdir();
+export function del(path: string, tmp = tmpDir): TPromise<void> {
+	return nfcall(extfs.del, path, tmp);
 }

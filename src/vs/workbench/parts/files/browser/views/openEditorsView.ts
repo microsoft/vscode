@@ -21,10 +21,11 @@ import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { AdaptiveCollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 import { IFilesConfiguration, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, OpenEditor, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 
 const $ = dom.$;
 
@@ -77,6 +78,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	public getActions(): IAction[] {
 		return [
+			this.instantiationService.createInstance(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL),
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
 			this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL)
 		];
@@ -130,8 +132,12 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// Also handle configuration updates
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
-		// Also handle dirty count indicator #10556
-		this.toDispose.push(this.textFileService.models.onModelDirty(e => this.updateDirtyIndicator()));
+		// Handle dirty counter
+		this.toDispose.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
+		this.toDispose.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
+		this.toDispose.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
+		this.toDispose.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
+		this.toDispose.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
 
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
 		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => {
@@ -160,7 +166,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			this.structuralTreeRefreshScheduler.schedule(this.structuralRefreshDelay);
 		} else {
 			const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
-			this.updateDirtyIndicator();
 			this.tree.refresh(toRefresh, false).done(() => this.highlightActiveEditor(), errors.onUnexpectedError);
 		}
 	}

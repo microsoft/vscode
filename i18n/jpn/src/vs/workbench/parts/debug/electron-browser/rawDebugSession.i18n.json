@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "デバッグ アダプターの実行可能ファイル '{0}' が見つかりません。",
 	"debugAdapterCrash": "デバッグ アダプター プロセスが予期せず終了しました",
-	"debuggee": "デバッグ対象",
 	"moreInfo": "詳細情報",
 	"noDebugAdapterExtensionInstalled": "'{0}' デバッグにインストールされている拡張機能はありません。",
 	"stoppingDebugAdapter": "{0}。デバッグ アダプターを停止しています。",

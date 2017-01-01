@@ -136,4 +136,12 @@ suite('Keybinding IO', () => {
 		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
 		assert.equal(normalizedKeybindingItem.keybinding, 0);
 	});
+
+	test('test commands args', () => {
+		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.commandArgs.text, 'theText');
+	});
 });

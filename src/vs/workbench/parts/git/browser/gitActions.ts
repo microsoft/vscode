@@ -20,16 +20,14 @@ import platform = require('vs/base/common/platform');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditor } from 'vs/platform/editor/common/editor';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, IChoiceService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBranch, GitErrorCodes, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
@@ -309,15 +307,13 @@ export class GlobalStageAction extends BaseStageAction {
 
 export abstract class BaseUndoAction extends GitAction {
 
-	private eventService: IEventService;
 	private editorService: IWorkbenchEditorService;
 	private messageService: IMessageService;
 	private fileService: IFileService;
 	private contextService: IWorkspaceContextService;
 
-	constructor(id: string, label: string, className: string, gitService: IGitService, eventService: IEventService, messageService: IMessageService, fileService: IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, className: string, gitService: IGitService, messageService: IMessageService, fileService: IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
 		super(id, label, className, gitService);
-		this.eventService = eventService;
 		this.editorService = editorService;
 		this.messageService = messageService;
 		this.fileService = fileService;
@@ -326,7 +322,7 @@ export abstract class BaseUndoAction extends GitAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && !!this.eventService && !!this.editorService && !!this.fileService;
+		return super.isEnabled() && !!this.editorService && !!this.fileService;
 	}
 
 	public run(context?: any): Promise {
@@ -452,7 +448,6 @@ export abstract class BaseUndoAction extends GitAction {
 	}
 
 	public dispose(): void {
-		this.eventService = null;
 		this.editorService = null;
 		this.fileService = null;
 
@@ -462,8 +457,8 @@ export abstract class BaseUndoAction extends GitAction {
 
 export class UndoAction extends BaseUndoAction {
 	static ID = 'workbench.action.git.undo';
-	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
+	constructor( @IGitService gitService: IGitService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, messageService, fileService, editorService, contextService);
 	}
 }
 
@@ -471,8 +466,8 @@ export class GlobalUndoAction extends BaseUndoAction {
 
 	static ID = 'workbench.action.git.undoAll';
 
-	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
+	constructor( @IGitService gitService: IGitService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, messageService, fileService, editorService, contextService);
 	}
 
 	protected isEnabled(): boolean {
@@ -641,7 +636,7 @@ export class CheckoutAction extends GitAction {
 
 		var result = this.gitService.checkout(this.branch.name).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stage your work first.")));
+				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stash your work first.")));
 			}
 
 			return Promise.wrapError(err);
@@ -936,7 +931,7 @@ export class PullAction extends GitAction {
 	protected pull(rebase = false): Promise {
 		return this.gitService.pull(rebase).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stage your work first."), { severity: Severity.Warning }));
+				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stash your work first."), { severity: Severity.Warning }));
 			} else if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
 			}
@@ -1152,7 +1147,7 @@ export class SyncAction extends GitAction {
 		@IGitService gitService: IGitService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IWindowService private windowService: IWindowService
+		@IChoiceService private choiceService: IChoiceService
 	) {
 		super(id, label, 'git-action sync', gitService);
 	}
@@ -1187,30 +1182,25 @@ export class SyncAction extends GitAction {
 			return this.sync();
 		}
 
+
 		const model = this.gitService.getModel();
 		const HEAD = model.getHEAD();
-		const window = this.windowService.getWindow();
-		const choice = window.showMessageBox({
-			title: SyncAction.LABEL,
-			message: nls.localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream),
-			type: 'warning',
-			detail: nls.localize('do you want to continue', "Are you sure you want to continue?"),
-			buttons: [nls.localize('ok', "OK"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")],
-			noLink: true,
-			cancelId: 1
-		});
+		const message = nls.localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
+		const options = [nls.localize('ok', "OK"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
 
-		switch (choice) {
-			case 0:
-				return this.sync();
-			case 1:
-				return TPromise.as(null);
-			case 2:
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'git.confirmSync', value: false })
-					.then(() => this.sync());
-			default:
-				return TPromise.as(null);
-		}
+		return this.choiceService.choose(Severity.Warning, message, options).then(choice => {
+			switch (choice) {
+				case 0:
+					return this.sync();
+				case 1:
+					return TPromise.as(null);
+				case 2:
+					return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'git.confirmSync', value: false })
+						.then(() => this.sync());
+				default:
+					return TPromise.as(null);
+			}
+		});
 	}
 
 	private sync(): TPromise<any> {
@@ -1249,14 +1239,7 @@ export class UndoLastCommitAction extends GitAction {
 		const model = this.gitService.getModel();
 		const HEAD = model.getHEAD();
 
-		if (!HEAD || !HEAD.commit) {
-			return false;
-		}
-
-		const status = model.getStatus();
-
-		return status.getIndexStatus().all().length === 0
-			&& status.getWorkingTreeStatus().all().length === 0;
+		return !!(HEAD && HEAD.commit);
 	}
 
 	public run(): Promise {

@@ -4,21 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
+import * as json from 'vs/base/common/json';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
+import { IFileService } from 'vs/platform/files/common/files';
+
+interface IExtensionsContent {
+	recommendations: string[];
+}
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
@@ -26,7 +33,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _recommendations: { [id: string]: boolean; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
-	private importantRecommendations: { [pattern: string]: string[] };
+	private importantRecommendations: { [id: string]: { name: string; pattern: string; } };
 	private importantRecommendationsIgnoreList: string[];
 	private _disposables: IDisposable[] = [];
 
@@ -37,7 +44,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		if (!this._galleryService.isEnabled()) {
 			return;
@@ -47,19 +55,28 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this._suggestWorkspaceRecommendations();
 	}
 
-	getWorkspaceRecommendations(): string[] {
-		const configuration = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
-		if (configuration.recommendations) {
-			const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-			return configuration.recommendations.filter((element, position) => {
-				return configuration.recommendations.indexOf(element) === position && regEx.test(element);
-			});
+	getWorkspaceRecommendations(): TPromise<string[]> {
+		if (!this.contextService.hasWorkspace()) {
+			return TPromise.as([]);
 		}
-		return configuration.recommendations || [];
+		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => {
+			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
+			if (extensionsContent.recommendations) {
+				const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+				return extensionsContent.recommendations.filter((element, position) => {
+					return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
+				});
+			}
+			return [];
+		}, err => []);
 	}
 
 	getRecommendations(): string[] {
 		return Object.keys(this._recommendations);
+	}
+
+	getKeymapRecommendations(): string[] {
+		return product.keymapExtensionTips || [];
 	}
 
 	private _suggestTips() {
@@ -127,13 +144,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					.filter(id => this.importantRecommendationsIgnoreList.indexOf(id) === -1)
 					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id))
 					.forEach(id => {
-						const pattern = this.importantRecommendations[id];
+						const { pattern, name } = this.importantRecommendations[id];
 
 						if (!match(pattern, uri.fsPath)) {
 							return;
 						}
 
-						const message = localize('reallyRecommended', "It is recommended to install the '{0}' extension.", id);
+						const message = localize('reallyRecommended', "It is recommended to install the '{0}' extension.", name);
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 						const options = [
 							recommendationsAction.label,
@@ -166,36 +183,37 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			return;
 		}
 
-		const allRecommendations = this.getWorkspaceRecommendations();
-
-		if (!allRecommendations.length) {
-			return;
-		}
-
-		this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
-			const recommendations = allRecommendations
-				.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
-
-			if (!recommendations.length) {
+		this.getWorkspaceRecommendations().done(allRecommendations => {
+			if (!allRecommendations.length) {
 				return;
 			}
 
-			const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
-			const action = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
+				const recommendations = allRecommendations
+					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
 
-			const options = [
-				action.label,
-				localize('neverShowAgain', "Don't show again"),
-				localize('close', "Close")
-			];
-
-			this.choiceService.choose(Severity.Info, message, options).done(choice => {
-				switch (choice) {
-					case 0: return action.run();
-					case 1: return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
+				if (!recommendations.length) {
+					return;
 				}
+
+				const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
+				const action = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+
+				const options = [
+					action.label,
+					localize('neverShowAgain', "Don't show again"),
+					localize('close', "Close")
+				];
+
+				this.choiceService.choose(Severity.Info, message, options).done(choice => {
+					switch (choice) {
+						case 0: return action.run();
+						case 1: return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
+					}
+				});
 			});
 		});
+
 	}
 
 	dispose() {

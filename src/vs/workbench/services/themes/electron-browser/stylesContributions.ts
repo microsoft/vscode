@@ -368,7 +368,7 @@ class EditorWhiteSpaceStyleRules extends EditorStyleRules {
 		let themeSelector = theme.getSelector();
 		if (theme.getGlobalSettings().invisibles) {
 			let invisibles = new Color(theme.getGlobalSettings().invisibles);
-			cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
+			cssRules.push(`.monaco-editor.${themeSelector} .token.vs-whitespace { color: ${invisibles} !important; }`);
 		}
 	}
 }

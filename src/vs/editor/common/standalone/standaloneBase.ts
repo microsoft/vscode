@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -27,10 +27,10 @@ export enum Severity {
 // This is repeated here so it can be exported
 // --------------------------------------------
 export class KeyMod {
-	public static CtrlCmd: number = ConstKeyMod.CtrlCmd;
-	public static Shift: number = ConstKeyMod.Shift;
-	public static Alt: number = ConstKeyMod.Alt;
-	public static WinCtrl: number = ConstKeyMod.WinCtrl;
+	public static readonly CtrlCmd: number = ConstKeyMod.CtrlCmd;
+	public static readonly Shift: number = ConstKeyMod.Shift;
+	public static readonly Alt: number = ConstKeyMod.Alt;
+	public static readonly WinCtrl: number = ConstKeyMod.WinCtrl;
 
 	public static chord(firstPart: number, secondPart: number): number {
 		return KeyChord(firstPart, secondPart);
@@ -223,6 +223,7 @@ export function createMonacoBaseAPI(): typeof monaco {
 		Emitter: Emitter,
 		KeyCode: KeyCode,
 		KeyMod: KeyMod,
+		Keybinding: <any>Keybinding,
 		Position: Position,
 		Range: Range,
 		Selection: Selection,

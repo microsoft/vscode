@@ -25,6 +25,12 @@ export interface IConfigurationService {
 	lookup<T>(key: string): IConfigurationValue<T>;
 
 	/**
+	 * Returns the defined keys of configurations in the different scopes
+	 * the key is defined.
+	 */
+	keys(): IConfigurationKeys;
+
+	/**
 	 * Similar to #getConfiguration() but ensures that the latest configuration
 	 * from disk is fetched.
 	 */
@@ -36,14 +42,36 @@ export interface IConfigurationService {
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
 }
 
+export enum ConfigurationSource {
+	Default = 1,
+	User,
+	Workspace
+}
+
 export interface IConfigurationServiceEvent {
+	/**
+	 * The full configuration.
+	 */
 	config: any;
+	/**
+	 * The type of source that triggered this event.
+	 */
+	source: ConfigurationSource;
+	/**
+	 * The part of the configuration contributed by the source of this event.
+	 */
+	sourceConfig: any;
 }
 
 export interface IConfigurationValue<T> {
 	value: T;
 	default: T;
 	user: T;
+}
+
+export interface IConfigurationKeys {
+	default: string[];
+	user: string[];
 }
 
 /**
@@ -54,7 +82,7 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 		let current = config;
 		for (let i = 0; i < path.length; i++) {
 			current = current[path[i]];
-			if (!current) {
+			if (typeof current === 'undefined') {
 				return undefined;
 			}
 		}

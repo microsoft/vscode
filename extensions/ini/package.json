@@ -6,15 +6,25 @@
 	"contributes": {
 		"languages": [{
 			"id": "ini",
-			"extensions": [ ".ini", ".properties", ".gitconfig" ],
-			"filenames": ["config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig"],
+			"extensions": [ ".ini"],
 			"aliases": [ "Ini", "ini" ],
-			"configuration": "./language-configuration.json"
+			"configuration": "./ini.language-configuration.json"
+		},
+		{
+			"id": "properties",
+			"extensions": [ ".properties", ".gitconfig", ".cfg", ".conf" ],
+			"filenames": [ "config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig" ],
+			"aliases": [ "Properties", "properties" ],
+			"configuration": "./properties.language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "ini",
-			"scopeName": "source.ini",
-			"path": "./syntaxes/Ini.plist"
+			"scopeName": "source.properties",
+			"path": "./syntaxes/properties.plist"
+		},{
+			"language": "properties",
+			"scopeName": "source.properties",
+			"path": "./syntaxes/properties.plist"
 		}]
 	}
 }

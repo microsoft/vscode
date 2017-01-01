@@ -19,7 +19,7 @@ suite('window namespace tests', () => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
-				assert.ok(pathEquals(active.document.uri.fsPath, doc.uri.fsPath));
+				assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
 			});
 		});
 	});
@@ -311,7 +311,7 @@ suite('window namespace tests', () => {
 	});
 
 	test('createTerminal, Terminal.name', () => {
-		var terminal = window.createTerminal('foo');
+		const terminal = window.createTerminal('foo');
 		assert.equal(terminal.name, 'foo');
 
 		assert.throws(() => {
@@ -319,18 +319,28 @@ suite('window namespace tests', () => {
 		}, 'Terminal.name should be readonly');
 	});
 
-	test('createTerminal, immediate Terminal.sendText', () => {
-		var terminal = window.createTerminal();
-		// This should not throw an exception
-		terminal.sendText('echo "foo"');
+	test('terminal, sendText immediately after createTerminal should not throw', () => {
+		const terminal = window.createTerminal();
+		assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 	});
 
-	test('onDidCloseTerminal, event fires when terminal is disposed', (done) => {
-		var terminal = window.createTerminal();
+	test('terminal, onDidCloseTerminal event fires when terminal is disposed', (done) => {
+		const terminal = window.createTerminal();
 		window.onDidCloseTerminal((eventTerminal) => {
 			assert.equal(terminal, eventTerminal);
 			done();
 		});
 		terminal.dispose();
+	});
+
+	test('terminal, processId immediately after createTerminal should fetch the pid', (done) => {
+		window.createTerminal().processId.then(id => {
+			assert.ok(id > 0);
+			done();
+		});
+	});
+
+	test('terminal, name should set terminal.name', () => {
+		assert.equal(window.createTerminal('foo').name, 'foo');
 	});
 });

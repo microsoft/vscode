@@ -63,14 +63,14 @@ export abstract class EditorAction extends ConfigEditorCommand {
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
 		this.reportTelemetry(accessor);
-		return this.run(accessor, editor);
+		return this.run(accessor, editor, args);
 	}
 
 	protected reportTelemetry(accessor: ServicesAccessor) {
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void | TPromise<void>;
+	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
 export interface IHandlerActionOptions extends IActionOptions {
@@ -134,13 +134,16 @@ export module CommonEditorRegistry {
 		registerLanguageCommand(id, function (accessor, args) {
 
 			const {resource, position} = args;
-			if (!(resource instanceof URI) || !Position.isIPosition(position)) {
-				throw illegalArgument();
+			if (!(resource instanceof URI)) {
+				throw illegalArgument('resource');
+			}
+			if (!Position.isIPosition(position)) {
+				throw illegalArgument('position');
 			}
 
 			const model = accessor.get(IModelService).getModel(resource);
 			if (!model) {
-				throw illegalArgument();
+				throw illegalArgument('Can not find open model for ' + resource);
 			}
 
 			const editorPosition = Position.lift(position);

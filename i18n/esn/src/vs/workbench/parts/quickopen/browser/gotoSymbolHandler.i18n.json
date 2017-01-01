@@ -8,7 +8,7 @@
 	"array": "matrices ({0})",
 	"boolean": "booleanos ({0})",
 	"cannotRunGotoSymbol": "Abrir un archivo de texto antes de ir a un símbolo",
-	"cannotRunGotoSymbolInFile": "Lamentablemente, no tenemos información de símbolos para el archivo",
+	"cannotRunGotoSymbolInFile": "No hay información de símbolos para el archivo.",
 	"class": "clases ({0})",
 	"entryAriaLabel": "{0}, símbolos",
 	"enum": "enumeraciones ({0})",

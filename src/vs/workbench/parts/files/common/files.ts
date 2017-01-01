@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/editorCommon';
-import { EncodingMode, EditorInput, IFileEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -32,24 +32,6 @@ export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
  * Binary file editor id.
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
-
-/**
- * API class to denote file editor inputs. Internal implementation is provided.
- *
- * Note: This class is not intended to be instantiated.
- */
-export abstract class FileEditorInput extends EditorInput implements IFileEditorInput {
-
-	public abstract setResource(resource: URI): void;
-
-	public abstract getResource(): URI;
-
-	public abstract setPreferredEncoding(encoding: string): void;
-
-	public abstract setEncoding(encoding: string, mode: EncodingMode): void;
-
-	public abstract getEncoding(): string;
-}
 
 export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {

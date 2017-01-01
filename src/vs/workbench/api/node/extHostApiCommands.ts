@@ -14,21 +14,20 @@ import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IQuickFix2 } from 'vs/editor/contrib/quickFix/common/quickFix';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 
-export function registerApiCommands(commands: ExtHostCommands) {
-	new ExtHostApiCommands(commands).registerCommands();
-}
+export class ExtHostApiCommands {
 
-class ExtHostApiCommands {
+	static register(commands: ExtHostCommands) {
+		return new ExtHostApiCommands(commands).registerCommands();
+	}
 
 	private _commands: ExtHostCommands;
 	private _disposables: IDisposable[] = [];
 
-	constructor(commands: ExtHostCommands) {
+	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
 	}
 
@@ -184,12 +183,12 @@ class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.openFolder', (uri?: URI, newWindow?: boolean) => {
+		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
 			if (!uri) {
-				return this._commands.executeCommand('_workbench.ipc', 'vscode:openFolderPicker', [newWindow]);
+				return this._commands.executeCommand('_files.openFolderPicker', forceNewWindow);
 			}
 
-			return this._commands.executeCommand('_workbench.ipc', 'vscode:windowOpen', [[uri.fsPath], newWindow]);
+			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
 		}, {
 				description: 'Open a folder in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
 				args: [
@@ -336,21 +335,16 @@ class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionItem[] | types.CompletionList> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position),
 			triggerCharacter
 		};
-		return this._commands.executeCommand<{ suggestion: modes.ISuggestion; container: modes.ISuggestResult }[]>('_executeCompletionItemProvider', args).then(values => {
-			if (values) {
-				let items: types.CompletionItem[] = [];
-				let incomplete: boolean;
-				for (let item of values) {
-					incomplete = item.container.incomplete || incomplete;
-					items.push(typeConverters.Suggest.to(item.container, position, item.suggestion));
-				}
-				return new types.CompletionList(items, incomplete);
+		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
+			if (result) {
+				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
+				return new types.CompletionList(items, result.incomplete);
 			}
 		});
 	}
@@ -371,11 +365,11 @@ class ExtHostApiCommands {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<IQuickFix2[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<modes.CodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
 				return;
 			}
-			return value.map(quickFix => typeConverters.Command.to(quickFix.command));
+			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
 		});
 	}
 
@@ -386,7 +380,7 @@ class ExtHostApiCommands {
 				return value.map(item => {
 					return new types.CodeLens(
 						typeConverters.toRange(item.symbol.range),
-						typeConverters.Command.to(item.symbol.command));
+						this._commands.converter.fromInternal(item.symbol.command));
 				});
 			}
 		});

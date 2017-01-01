@@ -224,7 +224,7 @@
 		"t": "function.meta.misc.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -367,7 +367,7 @@
 		"t": "function.meta.misc.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -433,7 +433,7 @@
 		"t": "function.meta.misc.property-list.property-value.scss.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value.scss rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value.scss rgb(4, 81, 165)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"

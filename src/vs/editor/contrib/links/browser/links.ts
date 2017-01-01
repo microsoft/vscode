@@ -31,7 +31,7 @@ class LinkOccurence {
 			range: {
 				startLineNumber: link.range.startLineNumber,
 				startColumn: link.range.startColumn,
-				endLineNumber: link.range.startLineNumber,
+				endLineNumber: link.range.endLineNumber,
 				endColumn: link.range.endColumn
 			},
 			options: LinkOccurence._getOptions(link, false)
@@ -282,7 +282,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			startColumn: position.column,
 			endLineNumber: position.lineNumber,
 			endColumn: position.column
-		}, null, true);
+		}, 0, true);
 
 		for (var i = 0; i < decorations.length; i++) {
 			var decoration = decorations[i];

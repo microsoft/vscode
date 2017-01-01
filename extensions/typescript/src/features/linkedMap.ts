@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 interface Item<T> {
-	previous: Item<T>;
-	next: Item<T>;
+	previous: Item<T> | undefined;
+	next: Item<T> | undefined;
 	key: string;
 	value: T;
 }
 
 export default class LinkedMap<T> {
 
-	private map: Map<Item<T>>;
-	private head: Item<T>;
-	private tail: Item<T>;
+	private map: ObjectMap<Item<T>>;
+	private head: Item<T> | undefined;
+	private tail: Item<T> | undefined;
 	private _length: number;
 
 	constructor() {
@@ -32,7 +32,7 @@ export default class LinkedMap<T> {
 		return this._length;
 	}
 
-	public get(key: string): T {
+	public get(key: string): T | undefined {
 		const item = this.map[key];
 		if (!item) {
 			return undefined;
@@ -61,7 +61,7 @@ export default class LinkedMap<T> {
 		}
 	}
 
-	public remove(key: string): T {
+	public remove(key: string): T | undefined {
 		const item = this.map[key];
 		if (!item) {
 			return undefined;
@@ -72,9 +72,12 @@ export default class LinkedMap<T> {
 		return item.value;
 	}
 
-	public shift(): T {
+	public shift(): T | undefined {
 		if (!this.head && !this.tail) {
 			return undefined;
+		}
+		if (!this.head || !this.tail) {
+			throw new Error('Invalid list');
 		}
 		const item = this.head;
 		delete this.map[item.key];
@@ -87,8 +90,9 @@ export default class LinkedMap<T> {
 		// First time Insert
 		if (!this.head && !this.tail) {
 			this.tail = item;
-		}
-		else {
+		} else if (!this.head) {
+			throw new Error('Invalid list');
+		} else {
 			item.next = this.head;
 			this.head.previous = item;
 		}
@@ -99,8 +103,9 @@ export default class LinkedMap<T> {
 		// First time Insert
 		if (!this.head && !this.tail) {
 			this.head = item;
-		}
-		else {
+		} else if (!this.tail) {
+			throw new Error('Invalid list');
+		} else {
 			item.previous = this.tail;
 			this.tail.next = item;
 		}
@@ -121,6 +126,9 @@ export default class LinkedMap<T> {
 		else {
 			const next = item.next;
 			const previous = item.previous;
+			if (!next || !previous) {
+				throw new Error('Invalid list');
+			}
 			next.previous = previous;
 			previous.next = next;
 		}
@@ -140,13 +148,20 @@ export default class LinkedMap<T> {
 		}
 		else {
 			// Both next and previous are not null since item was neither head nor tail.
-			next.previous = previous;
-			previous.next = next;
+			if (next) {
+				next.previous = previous;
+			}
+			if (previous) {
+				previous.next = next;
+			}
 		}
 
 		// Insert the node at head
 		item.previous = undefined;
 		item.next = this.head;
+		if (!this.head) {
+			throw new Error('Invalid list');
+		}
 		this.head.previous = item;
 		this.head = item;
 	}

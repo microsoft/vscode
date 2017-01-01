@@ -5,6 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -14,7 +15,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyServiceTarget, IContextKeyServi
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { EditorState } from 'vs/editor/common/core/editorState';
 import { Position } from 'vs/editor/common/core/position';
@@ -32,52 +33,24 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
-var EDITOR_ID = 0;
+let EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
-	public onDidChangeModelRawContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
-	}
-	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
-	}
-	public onDidChangeModelMode(listener: (e: editorCommon.IModelModeChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
-	}
-	public onDidChangeModelOptions(listener: (e: editorCommon.IModelOptionsChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
-	}
-	public onDidChangeModelDecorations(listener: (e: editorCommon.IModelDecorationsChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelDecorationsChanged, listener);
-	}
-	public onDidChangeConfiguration(listener: (e: editorCommon.IConfigurationChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ConfigurationChanged, listener);
-	}
-	public onDidChangeModel(listener: (e: editorCommon.IModelChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelChanged, listener);
-	}
-	public onDidChangeCursorPosition(listener: (e: editorCommon.ICursorPositionChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.CursorPositionChanged, listener);
-	}
-	public onDidChangeCursorSelection(listener: (e: editorCommon.ICursorSelectionChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.CursorSelectionChanged, listener);
-	}
-	public onDidFocusEditorText(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorTextFocus, listener);
-	}
-	public onDidBlurEditorText(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorTextBlur, listener);
-	}
-	public onDidFocusEditor(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorFocus, listener);
-	}
-	public onDidBlurEditor(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorBlur, listener);
-	}
-	public onDidDispose(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.Disposed, listener);
-	}
+	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
+	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent2> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged2);
+	public readonly onDidChangeModelMode: Event<editorCommon.IModelModeChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelModeChanged);
+	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelOptionsChanged);
+	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelDecorationsChanged);
+	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ConfigurationChanged);
+	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelChanged);
+	public readonly onDidChangeCursorPosition: Event<editorCommon.ICursorPositionChangedEvent> = fromEventEmitter(this, editorCommon.EventType.CursorPositionChanged);
+	public readonly onDidChangeCursorSelection: Event<editorCommon.ICursorSelectionChangedEvent> = fromEventEmitter(this, editorCommon.EventType.CursorSelectionChanged);
+	public readonly onDidFocusEditorText: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorTextFocus);
+	public readonly onDidBlurEditorText: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorTextBlur);
+	public readonly onDidFocusEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorFocus);
+	public readonly onDidBlurEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorBlur);
+	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
 
 	protected domElement: IContextKeyServiceTarget;
 
@@ -256,7 +229,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		let position = this.model.validatePosition(rawPosition);
 		let tabSize = this.model.getOptions().tabSize;
 
-		return CursorMoveHelper.visibleColumnFromColumn(this.model, position.lineNumber, position.column, tabSize) + 1;
+		return CursorColumns.visibleColumnFromColumn(this.model.getLineContent(position.lineNumber), position.column, tabSize) + 1;
 	}
 
 	public getPosition(): Position {
@@ -284,7 +257,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 	}
 
-	private _sendRevealRange(range: editorCommon.IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private _sendRevealRange(range: Range, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!this.model || !this.cursor) {
 			return;
 		}
@@ -304,66 +277,63 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	}
 
 	public revealLine(lineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: lineNumber,
-			startColumn: 1,
-			endLineNumber: lineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Simple, false);
+		this._revealLine(lineNumber, editorCommon.VerticalRevealType.Simple);
 	}
 
 	public revealLineInCenter(lineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: lineNumber,
-			startColumn: 1,
-			endLineNumber: lineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Center, false);
+		this._revealLine(lineNumber, editorCommon.VerticalRevealType.Center);
 	}
 
 	public revealLineInCenterIfOutsideViewport(lineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: lineNumber,
-			startColumn: 1,
-			endLineNumber: lineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, false);
+		this._revealLine(lineNumber, editorCommon.VerticalRevealType.CenterIfOutsideViewport);
+	}
+
+	private _revealLine(lineNumber: number, revealType: editorCommon.VerticalRevealType): void {
+		if (typeof lineNumber !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+
+		this._sendRevealRange(
+			new Range(lineNumber, 1, lineNumber, 1),
+			revealType,
+			false
+		);
 	}
 
 	public revealPosition(position: editorCommon.IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
-		if (!Position.isIPosition(position)) {
-			throw new Error('Invalid arguments');
-		}
-		this._sendRevealRange({
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		}, revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, revealHorizontal);
+		this._revealPosition(
+			position,
+			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
+			revealHorizontal
+		);
 	}
 
 	public revealPositionInCenter(position: editorCommon.IPosition): void {
-		if (!Position.isIPosition(position)) {
-			throw new Error('Invalid arguments');
-		}
-		this._sendRevealRange({
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		}, editorCommon.VerticalRevealType.Center, true);
+		this._revealPosition(
+			position,
+			editorCommon.VerticalRevealType.Center,
+			true
+		);
 	}
 
 	public revealPositionInCenterIfOutsideViewport(position: editorCommon.IPosition): void {
+		this._revealPosition(
+			position,
+			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
+			true
+		);
+	}
+
+	private _revealPosition(position: editorCommon.IPosition, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Position.isIPosition(position)) {
 			throw new Error('Invalid arguments');
 		}
-		this._sendRevealRange({
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, true);
+
+		this._sendRevealRange(
+			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+			verticalType,
+			revealHorizontal
+		);
 	}
 
 	public getSelection(): Selection {
@@ -423,42 +393,75 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	}
 
 	public revealLines(startLineNumber: number, endLineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: startLineNumber,
-			startColumn: 1,
-			endLineNumber: endLineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Simple, false);
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			editorCommon.VerticalRevealType.Simple
+		);
 	}
 
 	public revealLinesInCenter(startLineNumber: number, endLineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: startLineNumber,
-			startColumn: 1,
-			endLineNumber: endLineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Center, false);
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			editorCommon.VerticalRevealType.Center
+		);
 	}
 
 	public revealLinesInCenterIfOutsideViewport(startLineNumber: number, endLineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: startLineNumber,
-			startColumn: 1,
-			endLineNumber: endLineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, false);
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			editorCommon.VerticalRevealType.CenterIfOutsideViewport
+		);
+	}
+
+	private _revealLines(startLineNumber: number, endLineNumber: number, verticalType: editorCommon.VerticalRevealType): void {
+		if (typeof startLineNumber !== 'number' || typeof endLineNumber !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+
+		this._sendRevealRange(
+			new Range(startLineNumber, 1, endLineNumber, 1),
+			verticalType,
+			false
+		);
 	}
 
 	public revealRange(range: editorCommon.IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
-		this._sendRevealRange(range, revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, revealHorizontal);
+		this._revealRange(
+			range,
+			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
+			revealHorizontal
+		);
 	}
 
 	public revealRangeInCenter(range: editorCommon.IRange): void {
-		this._sendRevealRange(range, editorCommon.VerticalRevealType.Center, true);
+		this._revealRange(
+			range,
+			editorCommon.VerticalRevealType.Center,
+			true
+		);
 	}
 
 	public revealRangeInCenterIfOutsideViewport(range: editorCommon.IRange): void {
-		this._sendRevealRange(range, editorCommon.VerticalRevealType.CenterIfOutsideViewport, true);
+		this._revealRange(
+			range,
+			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
+			true
+		);
+	}
+
+	private _revealRange(range: editorCommon.IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+		if (!Range.isIRange(range)) {
+			throw new Error('Invalid arguments');
+		}
+
+		this._sendRevealRange(
+			Range.lift(range),
+			verticalType,
+			revealHorizontal
+		);
 	}
 
 	public setSelections(ranges: editorCommon.ISelection[]): void {
@@ -597,7 +600,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return true;
 	}
 
-	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[]): boolean {
+	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean {
 		if (!this.cursor) {
 			// no view, no cursor
 			return false;
@@ -608,8 +611,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 
 		this.model.pushEditOperations(this.cursor.getSelections(), edits, () => {
-			return this.cursor.getSelections();
+			return endCursorState ? endCursorState : this.cursor.getSelections();
 		});
+
+		if (endCursorState) {
+			this.cursor.setSelections(source, endCursorState);
+		}
 
 		return true;
 	}
@@ -782,14 +789,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				convertViewSelectionToModelSelection: (viewSelection: editorCommon.ISelection) => {
 					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
 				},
-				convertViewRangeToModelRange: (viewRange: Range) => {
-					return this.viewModel.convertViewRangeToModelRange(viewRange);
+				validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
+					return this.viewModel.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
 				},
-				validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
-					return this.viewModel.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
-				},
-				validateViewRange: (viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range) => {
-					return this.viewModel.validateViewRange(viewStartLineNumber, viewStartColumn, viewEndLineNumber, viewEndColumn, modelRange);
+				validateViewRange: (viewRange: Range, modelRange: Range): Range => {
+					return this.viewModel.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
 				}
 			};
 

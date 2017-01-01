@@ -64,11 +64,17 @@ export interface IChoiceService {
 	/**
 	 * Prompt the user for a choice between multiple options.
 	 *
+	 * @param when `modal` is true, this will block the user until chooses.
+	 *
 	 * @returns A promise with the selected choice index. The promise is cancellable
 	 * which hides the message. The promise can return an error, meaning that
 	 * the user refused to choose.
+	 *
+	 * When `modal` is true and user refused to choose, then promise with index of
+	 * `Cancel` option is returned. If there is no such option then promise with
+	 * `0` index is returned.
 	 */
-	choose(severity: Severity, message: string, options: string[]): TPromise<number>;
+	choose(severity: Severity, message: string, options: string[], modal?: boolean): TPromise<number>;
 }
 
 export import Severity = Severity;

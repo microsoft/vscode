@@ -6,8 +6,7 @@
 'use strict';
 
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 
 export interface IRawFileChange {
 	type: FileChangeType;
@@ -106,7 +105,7 @@ class EventNormalizer {
 		}).sort((e1, e2) => {
 			return e1.path.length - e2.path.length; // shortest path first
 		}).filter(e => {
-			if (deletedPaths.some(d => this.isParent(e.path, d))) {
+			if (deletedPaths.some(d => isParent(e.path, d))) {
 				return false; // DELETE is ignored if parent is deleted already
 			}
 
@@ -115,9 +114,5 @@ class EventNormalizer {
 
 			return true;
 		}).concat(addedChangeEvents);
-	}
-
-	private isParent(p: string, candidate: string): boolean {
-		return p.indexOf(candidate + paths.nativeSep) === 0;
 	}
 }

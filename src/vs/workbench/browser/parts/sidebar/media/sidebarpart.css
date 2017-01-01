@@ -20,11 +20,6 @@
 	visibility: hidden !important;
 }
 
-.monaco-workbench.nopanel > .panel {
-	display: none !important;
-	visibility: hidden !important;
-}
-
 .monaco-workbench .viewlet .collapsible.header .title {
 	overflow: hidden;
 	text-overflow: ellipsis;

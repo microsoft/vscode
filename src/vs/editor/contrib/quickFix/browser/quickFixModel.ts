@@ -14,8 +14,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommonCodeEditor, IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
-import { IQuickFix2, getCodeActions } from '../common/quickFix';
+import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
+import { getCodeActions } from '../common/quickFix';
 
 
 class QuickFixOracle {
@@ -55,20 +55,20 @@ class QuickFixOracle {
 			type: 'auto',
 			range,
 			position: this._editor.getPosition(),
-			fixes: range && getCodeActions(this._editor.getModel(), Range.lift(range))
+			fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
 		});
 	}
 
 	private _markerAtPosition(): IMarker {
 
-		const {positionLineNumber, positionColumn} = this._editor.getSelection();
+		const position = this._editor.getPosition();
 		const {uri} = this._editor.getModel();
 		const markers = this._markerService.read({ resource: uri }).sort(Range.compareRangesUsingStarts);
 
-		let idx = arrays.findFirst(markers, marker => marker.startLineNumber >= positionLineNumber);
-		while (idx < markers.length && markers[idx].startLineNumber === positionLineNumber) {
+		let idx = arrays.findFirst(markers, marker => marker.endLineNumber >= position.lineNumber);
+		while (idx < markers.length && markers[idx].endLineNumber >= position.lineNumber) {
 			const marker = markers[idx];
-			if (marker.startColumn <= positionColumn && marker.endColumn >= positionColumn) {
+			if (Range.containsPosition(marker, position)) {
 				return marker;
 			}
 			idx++;
@@ -98,7 +98,7 @@ export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
 	range: IRange;
 	position: IPosition;
-	fixes: TPromise<IQuickFix2[]>;
+	fixes: TPromise<CodeAction[]>;
 }
 
 export class QuickFixModel {
@@ -130,7 +130,11 @@ export class QuickFixModel {
 	}
 
 	private _update(): void {
-		dispose(this._quickFixOracle);
+
+		if (this._quickFixOracle) {
+			dispose(this._quickFixOracle);
+			this._onDidChangeFixes.fire(undefined);
+		}
 
 		if (this._editor.getModel()
 			&& CodeActionProviderRegistry.has(this._editor.getModel())

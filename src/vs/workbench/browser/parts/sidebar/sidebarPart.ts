@@ -12,8 +12,8 @@ import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Scope } from 'vs/workbench/browser/actionBarRegistry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,7 +25,16 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
-export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
+export interface ISidebar {
+	onDidViewletOpen: Event<IViewlet>;
+	onDidViewletClose: Event<IViewlet>;
+	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
+	getActiveViewlet(): IViewlet;
+	getLastActiveViewletId(): string;
+	hideActiveViewlet(): TPromise<void>;
+}
+
+export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
 
 	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -51,7 +60,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			partService,
 			keybindingService,
 			instantiationService,
-			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)),
+			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
 			'sideBar',
 			'viewlet',
@@ -74,7 +83,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 
 		// First check if sidebar is hidden and show if so
-		if (this.partService.isSideBarHidden()) {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
 				this.partService.setSideBarHidden(false);
@@ -116,7 +125,7 @@ class FocusSideBarAction extends Action {
 	public run(): TPromise<boolean> {
 
 		// Show side bar
-		if (this.partService.isSideBarHidden()) {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			this.partService.setSideBarHidden(false);
 		}
 

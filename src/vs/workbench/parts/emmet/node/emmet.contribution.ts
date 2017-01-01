@@ -52,7 +52,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'emmet.excludeLanguages': {
 			'type': 'array',
-			'default': [],
+			'default': ['markdown'],
 			'description': nls.localize('emmetExclude', "An array of languages where emmet abbreviations should not be expanded.")
 		},
 	}

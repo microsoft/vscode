@@ -46,6 +46,7 @@
 	"openToSide": "打开到侧边",
 	"pasteFile": "粘贴",
 	"permDelete": "永久删除",
+	"pickHistory": "选择要进行比较的编辑器历史记录项",
 	"refresh": "刷新",
 	"refreshExplorer": "刷新资源管理器",
 	"rename": "重命名",

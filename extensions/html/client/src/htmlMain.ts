@@ -6,14 +6,29 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
+import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
+import { activateColorDecorations } from './colorDecorators';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
+}
+
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
+}
+
 export function activate(context: ExtensionContext) {
+
+	let packageInfo = getPackageInfo(context);
+	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
@@ -27,26 +42,37 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
+	let documentSelector = ['html', 'handlebars', 'razor'];
+	let embeddedLanguages = { css: true, javascript: true };
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		// Register the server for json documents
-		documentSelector: ['html', 'handlebars', 'razor'],
+		documentSelector,
 		synchronize: {
-			// Synchronize the setting section 'html' to the server
-			configurationSection: ['html'],
+			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
 		},
 		initializationOptions: {
+			embeddedLanguages,
+			['format.enable']: workspace.getConfiguration('html').get('format.enable')
 		}
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
-
+	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions, true);
 	let disposable = client.start();
-
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
+	client.onReady().then(() => {
+		let colorRequestor = (uri: string) => {
+			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
+		};
+		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
+		context.subscriptions.push(disposable);
+		client.onTelemetry(e => {
+			if (telemetryReporter) {
+				telemetryReporter.sendTelemetryEvent(e.key, e.data);
+			}
+		});
+	});
 
 	languages.setLanguageConfiguration('html', {
 		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
@@ -92,4 +118,16 @@ export function activate(context: ExtensionContext) {
 			}
 		],
 	});
+}
+
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	if (extensionPackage) {
+		return {
+			name: extensionPackage.name,
+			version: extensionPackage.version,
+			aiKey: extensionPackage.aiKey
+		};
+	}
+	return null;
 }

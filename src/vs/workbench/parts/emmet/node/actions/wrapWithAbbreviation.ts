@@ -10,7 +10,7 @@ import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/
 
 import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorCommon';
-import { IQuickOpenService, IInputOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 
 @editorAction
 class WrapWithAbbreviationAction extends EmmetEditorAction {

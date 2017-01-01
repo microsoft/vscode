@@ -6,7 +6,8 @@
 {
 	"entryAriaLabel": "{0}、エディター グループの選択",
 	"groupLabel": "グループ: {0}",
-	"noOpenedEditors": "開いているエディターの一覧は現在、空です",
+	"noOpenedEditors": "グループ内で開いているエディターの一覧は現在、空です",
+	"noOpenedEditorsAllGroups": "開いているエディターの一覧は現在、空です",
 	"noResultsFound": "一致する開いているエディターがありません",
 	"noResultsFoundInGroup": "グループ内に一致する開いているエディターがありません"
 }

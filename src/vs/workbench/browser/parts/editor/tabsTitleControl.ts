@@ -7,12 +7,14 @@
 
 import 'vs/css!./media/tabstitle';
 import nls = require('vs/nls');
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, IEditorIdentifier, asFileEditorInput, getResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
@@ -28,9 +30,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
@@ -51,7 +54,7 @@ export class TabsTitleControl extends TitleControl {
 	private activeTab: HTMLElement;
 	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
-	private tabDisposeables: IDisposable[] = [];
+	private tabDisposeables: IDisposable[];
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -65,7 +68,8 @@ export class TabsTitleControl extends TitleControl {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
@@ -105,8 +109,9 @@ export class TabsTitleControl extends TitleControl {
 				DOM.EventHelper.stop(e);
 
 				const group = this.context;
-
-				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }); // untitled are always pinned
+				if (group) {
+					this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }).done(null, errors.onUnexpectedError); // untitled are always pinned
+				}
 			}
 		}));
 
@@ -201,7 +206,7 @@ export class TabsTitleControl extends TitleControl {
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
-				const isPinned = group.isPinned(editor);
+				const isPinned = group.isPinned(index);
 				const isActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
 
@@ -211,12 +216,12 @@ export class TabsTitleControl extends TitleControl {
 				const verboseDescription = label.verboseDescription || '';
 
 				// Container
-				tabContainer.setAttribute('aria-label', `tab, ${name}`);
+				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
 
 				// Label
 				const tabLabel = this.editorLabels[index];
-				tabLabel.setLabel({ name, description, resource: getResource(editor) }, { extraClasses: ['tab-label'], italic: !isPinned });
+				tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
 
 				// Active state
 				if (isActive) {
@@ -305,8 +310,9 @@ export class TabsTitleControl extends TitleControl {
 			return; // return early if we are being closed
 		}
 
-		// Refresh Tabs
-		this.refreshTabs(group);
+		// Handle Tabs
+		this.handleTabs(group.count);
+		DOM.addClass(this.titleContainer, 'shows-tabs');
 
 		// Update Tabs
 		this.doUpdate();
@@ -316,47 +322,70 @@ export class TabsTitleControl extends TitleControl {
 		DOM.clearNode(this.tabsContainer);
 
 		this.tabDisposeables = dispose(this.tabDisposeables);
-		this.editorLabels = dispose(this.editorLabels);
+		this.editorLabels = [];
+
+		DOM.removeClass(this.titleContainer, 'shows-tabs');
 	}
 
-	private refreshTabs(group: IEditorGroup): void {
+	private handleTabs(tabsNeeded: number): void {
+		const tabs = this.tabsContainer.children;
+		const tabsCount = tabs.length;
 
-		// Empty container first
-		this.clearTabs();
+		// Nothing to do if count did not change
+		if (tabsCount === tabsNeeded) {
+			return;
+		}
 
-		const tabContainers: HTMLElement[] = [];
+		// We need more tabs: create new ones
+		if (tabsCount < tabsNeeded) {
+			for (let i = tabsCount; i < tabsNeeded; i++) {
+				this.tabsContainer.appendChild(this.createTab(i));
+			}
+		}
 
-		// Add a tab for each opened editor
-		this.context.getEditors().forEach(editor => {
+		// We need less tabs: delete the ones we do not need
+		else {
+			for (let i = 0; i < tabsCount - tabsNeeded; i++) {
+				(this.tabsContainer.lastChild as HTMLElement).remove();
+				this.editorLabels.pop();
+				this.tabDisposeables.pop().dispose();
+			}
+		}
+	}
 
-			// Tab Container
-			const tabContainer = document.createElement('div');
-			tabContainer.draggable = true;
-			tabContainer.tabIndex = 0;
-			tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
-			DOM.addClass(tabContainer, 'tab monaco-editor-background');
-			tabContainers.push(tabContainer);
+	private createTab(index: number): HTMLElement {
 
-			// Tab Editor Label
-			const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
-			this.editorLabels.push(editorLabel);
+		// Tab Container
+		const tabContainer = document.createElement('div');
+		tabContainer.draggable = true;
+		tabContainer.tabIndex = 0;
+		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
+		DOM.addClass(tabContainer, 'tab monaco-editor-background');
 
-			// Tab Close
-			const tabCloseContainer = document.createElement('div');
-			DOM.addClass(tabCloseContainer, 'tab-close');
-			tabContainer.appendChild(tabCloseContainer);
+		if (!this.tabOptions.showTabCloseButton) {
+			DOM.addClass(tabContainer, 'no-close-button');
+		} else {
+			DOM.removeClass(tabContainer, 'no-close-button');
+		}
 
-			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
-			bar.push(this.closeEditorAction, { icon: true, label: false });
+		// Tab Editor Label
+		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
+		this.editorLabels.push(editorLabel);
 
-			this.tabDisposeables.push(bar);
+		// Tab Close
+		const tabCloseContainer = document.createElement('div');
+		DOM.addClass(tabCloseContainer, 'tab-close');
+		tabContainer.appendChild(tabCloseContainer);
 
-			// Eventing
-			this.hookTabListeners(tabContainer, { editor, group });
-		});
+		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner: new TabActionRunner(() => this.context, index) });
+		bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
 
-		// Add to tabs container
-		tabContainers.forEach(tab => this.tabsContainer.appendChild(tab));
+		// Eventing
+		const disposable = this.hookTabListeners(tabContainer, index);
+
+		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
+
+		return tabContainer;
 	}
 
 	public layout(): void {
@@ -395,43 +424,49 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): void {
-		const {editor, group} = identifier;
-		const position = this.stacks.positionOfGroup(group);
+	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
+		const disposables = [];
 
 		// Open on Click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			tab.blur();
 
-			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
+			const { editor, position } = this.toTabContext(index);
+			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass((e.target || e.srcElement) as HTMLElement, 'monaco-action-bar', 'tab')) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
 		}));
 
 		// Close on mouse middle click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button */) {
+				const { editor, position } = this.toTabContext(index);
+
 				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
 			}
 		}));
 
 		// Context menu on Shift+F10
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
 				DOM.EventHelper.stop(e);
 
-				this.onContextMenu(identifier, e, tab);
+				const { group, editor } = this.toTabContext(index);
+
+				this.onContextMenu({ group, editor }, e, tab);
 			}
 		}));
 
 		// Keyboard accessibility
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
+
+			const { group, position, editor } = this.toTabContext(index);
 
 			// Run action on Enter/Space
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -441,8 +476,6 @@ export class TabsTitleControl extends TitleControl {
 
 			// Navigate in editors
 			else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(kb => event.equals(kb))) {
-				const index = group.indexOf(editor);
-
 				let targetIndex: number;
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
 					targetIndex = index - 1;
@@ -473,58 +506,89 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Pin on double click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
+
+			const { group, editor } = this.toTabContext(index);
 
 			this.editorGroupService.pinEditor(group, editor);
 		}));
 
 		// Context menu
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(identifier, e, tab)));
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
+			const { group, editor } = this.toTabContext(index);
+
+			this.onContextMenu({ group, editor }, e, tab);
+		}));
 
 		// Drag start
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
+			const { group, editor } = this.toTabContext(index);
+
 			this.onEditorDragStart({ editor, group });
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Insert transfer accordingly
-			const fileInput = asFileEditorInput(editor, true);
-			if (fileInput) {
-				const resource = fileInput.getResource().toString();
+			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
+			if (fileResource) {
+				const resource = fileResource.toString();
 				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
 				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
 			}
 		}));
 
+		// We need to keep track of DRAG_ENTER and DRAG_LEAVE events because a tab is not just a div without children,
+		// it contains a label and a close button. HTML gives us DRAG_ENTER and DRAG_LEAVE events when hovering over
+		// these children and this can cause flicker of the drop feedback. The workaround is to count the events and only
+		// remove the drop feedback when the counter is 0 (see https://github.com/Microsoft/vscode/issues/14470)
+		let counter = 0;
+
 		// Drag over
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			counter++;
 			DOM.addClass(tab, 'dropfeedback');
 		}));
 
 		// Drag leave
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			DOM.removeClass(tab, 'dropfeedback');
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			counter--;
+			if (counter === 0) {
+				DOM.removeClass(tab, 'dropfeedback');
+			}
 		}));
 
 		// Drag end
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
 			this.onEditorDragEnd();
 		}));
 
 		// Drop
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
-			const targetPosition = this.stacks.positionOfGroup(group);
-			const targetIndex = group.indexOf(editor);
+			const { group, position } = this.toTabContext(index);
 
-			this.onDrop(e, group, targetPosition, targetIndex);
+			this.onDrop(e, group, position, index);
 		}));
+
+		return combinedDisposable(disposables);
+	}
+
+	private toTabContext(index: number): { group: IEditorGroup, position: Position, editor: IEditorInput } {
+		const group = this.context;
+		const position = this.stacks.positionOfGroup(group);
+		const editor = group.getEditor(index);
+
+		return { group, position, editor };
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+		DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
 		const draggedEditor = TabsTitleControl.getDraggedEditor();
@@ -551,21 +615,33 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		const resources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
+		const resources = extractResources(e).filter(d => d.resource.scheme === 'file' || d.resource.scheme === 'untitled');
 
-		// Open resources if found
+		// Handle resources
 		if (resources.length) {
 			DOM.EventHelper.stop(e, true);
 
-			this.editorService.openEditors(resources.map(resource => {
+			// Add external ones to recently open list
+			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
+			if (externalResources.length) {
+				this.windowService.addToRecentlyOpen(externalResources.map(resource => {
+					return {
+						path: resource.fsPath,
+						isFile: true
+					};
+				}));
+			}
+
+			// Open in Editor
+			this.editorService.openEditors(resources.map(d => {
 				return {
-					input: { resource, options: { pinned: true, index: targetIndex } },
+					input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
 					position: targetPosition
 				};
-			})).done(() => {
+			})).then(() => {
 				this.editorGroupService.focusGroup(targetPosition);
-				window.focus();
-			}, errors.onUnexpectedError);
+				return this.windowService.focusWindow();
+			}).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -573,5 +649,18 @@ export class TabsTitleControl extends TitleControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return !isCopy || source.id === target.id;
+	}
+}
+
+class TabActionRunner extends ActionRunner {
+
+	constructor(private group: () => IEditorGroup, private index: number) {
+		super();
+	}
+
+	public run(action: IAction, context?: any): TPromise<any> {
+		const group = this.group();
+
+		return super.run(action, { group, editor: group.getEditor(this.index) });
 	}
 }

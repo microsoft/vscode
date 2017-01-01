@@ -11,5 +11,5 @@ if [ "$(expr substr $(uname -s) 1 9)" == "CYGWIN_NT" ]; then
 else
 	CLI="$VSCODE_PATH/resources/app/out/cli.js"
 fi
-ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@" | cat
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?

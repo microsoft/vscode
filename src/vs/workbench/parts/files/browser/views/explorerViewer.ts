@@ -25,8 +25,8 @@ import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
-import { LocalFileChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileOperationResult, FileOperationResult, IFileStat, IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
@@ -34,36 +34,30 @@ import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/tre
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class FileDataSource implements IDataSource {
-	private workspace: IWorkspace;
-
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
-	) {
-		this.workspace = contextService.getWorkspace();
-	}
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) { }
 
 	public getId(tree: ITree, stat: FileStat): string {
 		return stat.getId();
@@ -115,7 +109,7 @@ export class FileDataSource implements IDataSource {
 		}
 
 		// Return if root reached
-		if (this.workspace && stat.resource.toString() === this.workspace.resource.toString()) {
+		if (this.contextService.hasWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			return TPromise.as(null);
 		}
 
@@ -258,6 +252,9 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 
 // Explorer Renderer
 export class FileRenderer extends ActionsRenderer implements IRenderer {
+
+	private static ITEM_HEIGHT = 22;
+
 	private state: FileViewletState;
 
 	constructor(
@@ -275,7 +272,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
-		return 22;
+		return FileRenderer.ITEM_HEIGHT;
 	}
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
@@ -303,7 +300,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	private renderInputBox(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
 		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
 
-		const extraClasses = ['explorer-item'];
+		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const isFolder = stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder());
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, isFolder, extraClasses };
 		label.setFile(stat.resource, labelOptions);
@@ -329,7 +326,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = async.once(commit => {
+		const done = async.once((commit: boolean) => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
@@ -378,22 +375,19 @@ export class FileController extends DefaultController {
 
 	private contributedContextMenu: IMenu;
 
-	private workspace: IWorkspace;
-
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
-
-		this.workspace = contextService.getWorkspace();
 
 		this.didCatchEnterDown = false;
 
@@ -437,7 +431,7 @@ export class FileController extends DefaultController {
 		}
 
 		// Handle root
-		if (this.workspace && stat.resource.toString() === this.workspace.resource.toString()) {
+		if (this.contextService.getWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 
@@ -503,12 +497,12 @@ export class FileController extends DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => {
 				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
-					fillInActions(this.contributedContextMenu, actions);
+					fillInActions(this.contributedContextMenu, stat.resource, actions);
 					return actions;
 				});
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
-			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
+			getKeyBinding: (a): Keybinding => keybindingForAction(a.id, this.keybindingService),
 			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,
@@ -725,7 +719,6 @@ export class FileDragAndDrop implements IDragAndDrop {
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEventService private eventService: IEventService,
 		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -845,7 +838,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 		// All
 		if (target.isDirectory) {
-			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY : DRAG_OVER_ACCEPT_BUBBLE_DOWN;
+			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
 		if (target.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
@@ -914,12 +907,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
 					let didHandleConflict = false;
 
-					const onMove = (result: IFileStat) => {
-						this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(source.clone(), result));
-					};
-
-					// Move File/Folder and emit event
-					return this.fileService.moveFile(source.resource, targetResource).then(onMove, error => {
+					// Move File/Folder
+					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
 						// Conflict
 						if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -932,12 +921,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 							};
 
 							if (this.messageService.confirm(confirm)) {
-								return this.fileService.moveFile(source.resource, targetResource, true).then(result => {
-									const fakeTargetState = new FileStat(targetResource);
-									this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(fakeTargetState, null));
-
-									onMove(result);
-								}, (error) => {
+								return this.fileService.moveFile(source.resource, targetResource, true).then(null, (error) => {
 									this.messageService.show(Severity.Error, error);
 								});
 							}

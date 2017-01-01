@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "まずテキスト ファイルを開いてから指定行に移動します",
 	"gotoLine": "指定行へ移動...",
-	"gotoLineColumnLabel": "行 {0} 列 {1} へ移動",
+	"gotoLineColumnLabel": "行 {0} 文字 {1} へ移動",
 	"gotoLineHandlerAriaLabel": "移動先の行番号を入力してください。",
 	"gotoLineLabel": "行 {0} へ移動",
 	"gotoLineLabelEmpty": "移動先の行番号を入力してください",

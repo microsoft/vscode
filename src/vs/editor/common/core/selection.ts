@@ -29,19 +29,19 @@ export class Selection extends Range {
 	/**
 	 * The line number on which the selection has started.
 	 */
-	public selectionStartLineNumber: number;
+	public readonly selectionStartLineNumber: number;
 	/**
 	 * The column on `selectionStartLineNumber` where the selection has started.
 	 */
-	public selectionStartColumn: number;
+	public readonly selectionStartColumn: number;
 	/**
 	 * The line number on which the selection has ended.
 	 */
-	public positionLineNumber: number;
+	public readonly positionLineNumber: number;
 	/**
 	 * The column on `positionLineNumber` where the selection has ended.
 	 */
-	public positionColumn: number;
+	public readonly positionColumn: number;
 
 	constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number) {
 		super(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);

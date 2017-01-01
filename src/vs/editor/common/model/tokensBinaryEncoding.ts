@@ -63,7 +63,7 @@ export class TokensBinaryEncoding {
 			token = tokens[i];
 
 			if (token.startIndex <= prevStartIndex) {
-				token.startIndex = prevStartIndex + 1;
+				token = new Token(prevStartIndex + 1, token.type);
 				onUnexpectedError({
 					message: 'Invalid tokens detected',
 					tokens: tokens

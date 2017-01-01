@@ -11,5 +11,7 @@
 	"inputModeEntry": "Premere 'INVIO' per confermare l'input oppure 'ESC' per annullare",
 	"inputModeEntryDescription": "{0} (premere 'INVIO' per confermare oppure 'ESC' per annullare)",
 	"noResultsFound1": "Non sono stati trovati risultati",
-	"quickOpenInput": "Digitare '?' per visualizzare la Guida relativa alle azioni che è possibile eseguire qui"
+	"pickHistory": "Selezionare una voce dell'editor da rimuovere dalla cronologia",
+	"quickOpenInput": "Digitare '?' per visualizzare la Guida relativa alle azioni che è possibile eseguire qui",
+	"removeFromEditorHistory": "Rimuovi dalla cronologia"
 }

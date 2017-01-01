@@ -12,7 +12,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { IRange } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
-	NextMatchFindAction, StartFindAction, SelectHighlightsAction
+	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
+	AddSelectionToNextFindMatchAction
 } from 'vs/editor/contrib/find/common/findController';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -314,6 +315,38 @@ suite('FindController', () => {
 			findController.showPreviousFindTerm();
 			findController.showNextFindTerm();
 			assert.deepEqual(['1', '2', '3', '4'], toArray(findController.getHistory()));
+		});
+	});
+
+	test('AddSelectionToNextFindMatchAction can work with multiline', () => {
+		withMockCodeEditor([
+			'',
+			'qwe',
+			'rty',
+			'',
+			'qwe',
+			'',
+			'rty',
+			'qwe',
+			'rty'
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(2, 1, 3, 4));
+
+			addSelectionToNextFindMatch.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[2, 1, 3, 4],
+				[8, 1, 9, 4]
+			]);
+
+			editor.trigger('test', 'removeSecondaryCursors', null);
+
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+
+			findController.dispose();
 		});
 	});
 

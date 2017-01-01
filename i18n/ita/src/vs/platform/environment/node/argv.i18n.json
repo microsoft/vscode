@@ -6,6 +6,7 @@
 {
 	"diff": "Apre un editor diff. Richiede il passaggio di due percorsi di file come argomenti.",
 	"disableExtensions": "Disabilita tutte le estensioni installate.",
+	"disableGPU": "Disabilita l'accelerazione hardware della GPU.",
 	"extensionHomePath": "Impostare il percorso radice per le estensioni.",
 	"goto": "Apre il file nel percorso e alla riga e colonna indicate (aggiunge :line[:column] al percorso).",
 	"gotoValidation": "Gli argomenti nella modalità `--goto` devono essere espressi nel formato `FILE(:LINE(:COLUMN))`.",
@@ -19,6 +20,7 @@
 	"paths": "percorsi",
 	"performance": "Eseguire l'avvio con il comando 'Developer: Startup Performance' abilitato.",
 	"reuseWindow": "Forza l'apertura di un file o di una cartella nell'ultima finestra attiva.",
+	"showVersions": "Mostra le versioni delle estensioni installate, quando si usa --list-extension.",
 	"uninstallExtension": "Disinstalla un'estensione.",
 	"usage": "Utilizzo",
 	"userDataDir": "Consente di specificare la directory in cui si trovano i dati utente. Utile quando viene eseguito come root.",

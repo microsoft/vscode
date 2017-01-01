@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "在活动终端运行所选文本",
 	"workbench.action.terminal.scrollDown": "向下滚动(行)",
 	"workbench.action.terminal.scrollDownPage": "向下滚动(页)",
+	"workbench.action.terminal.scrollToBottom": "滚动到底部",
+	"workbench.action.terminal.scrollToTop": "滚动到顶部",
 	"workbench.action.terminal.scrollUp": "向上滚动(行)",
 	"workbench.action.terminal.scrollUpPage": "向上滚动(页)",
 	"workbench.action.terminal.switchTerminalInstance": "切换终端实例",

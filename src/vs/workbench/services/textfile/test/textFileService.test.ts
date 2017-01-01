@@ -6,10 +6,9 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { onError, toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -17,10 +16,6 @@ import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-
-function toResource(path) {
-	return URI.file(paths.join('C:\\', path));
-}
 
 class ServiceAccessor {
 	constructor(
@@ -34,6 +29,7 @@ class ServiceAccessor {
 class ShutdownEventImpl implements ShutdownEvent {
 
 	public value: boolean | TPromise<boolean>;
+	public reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | TPromise<boolean>): void {
 		this.value = value;
@@ -49,8 +45,6 @@ suite('Files - TextFileService', () => {
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
-		model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/file.txt'), 'utf8');
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 	});
 
 	teardown(() => {
@@ -61,17 +55,30 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('confirm onWillShutdown - no veto', function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const event = new ShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		assert.ok(!event.value);
+		const veto = event.value;
+		if (typeof veto === 'boolean') {
+			assert.ok(!veto);
+		} else {
+			veto.then(veto => {
+				assert.ok(!veto);
+			});
+		}
 	});
 
 	test('confirm onWillShutdown - veto if user cancels', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.CANCEL);
 
-		model.load().then(() => {
+		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
 			assert.equal(service.getDirty().length, 1);
@@ -82,14 +89,17 @@ suite('Files - TextFileService', () => {
 			assert.ok(event.value);
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('confirm onWillShutdown - no veto if user does not want to save', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.DONT_SAVE);
 
-		model.load().then(() => {
+		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
 			assert.equal(service.getDirty().length, 1);
@@ -97,17 +107,29 @@ suite('Files - TextFileService', () => {
 			const event = new ShutdownEventImpl();
 			accessor.lifecycleService.fireWillShutdown(event);
 
-			assert.ok(!event.value);
+			const veto = event.value;
+			if (typeof veto === 'boolean') {
+				assert.ok(!veto);
 
-			done();
-		});
+				done();
+			} else {
+				veto.then(veto => {
+					assert.ok(!veto);
+
+					done();
+				});
+			}
+		}, error => onError(error, done));
 	});
 
 	test('confirm onWillShutdown - save', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.SAVE);
 
-		model.load().then(() => {
+		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
 			assert.equal(service.getDirty().length, 1);
@@ -121,12 +143,15 @@ suite('Files - TextFileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('isDirty/getDirty - files and untitled', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
-		model.load().then(() => {
+		model.load().done(() => {
 			assert.ok(!service.isDirty(model.getResource()));
 			model.textEditorModel.setValue('foo');
 
@@ -146,13 +171,16 @@ suite('Files - TextFileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('save - file', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
 
-		model.load().then(() => {
+		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(service.isDirty(model.getResource()));
@@ -163,13 +191,16 @@ suite('Files - TextFileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('saveAll - file', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
 
-		model.load().then(() => {
+		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(service.isDirty(model.getResource()));
@@ -182,14 +213,17 @@ suite('Files - TextFileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('saveAs - file', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
 		service.setPromptPath(model.getResource().fsPath);
 
-		model.load().then(() => {
+		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(service.isDirty(model.getResource()));
@@ -200,14 +234,17 @@ suite('Files - TextFileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('revert - file', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
 		const service = accessor.textFileService;
 		service.setPromptPath(model.getResource().fsPath);
 
-		model.load().then(() => {
+		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(service.isDirty(model.getResource()));
@@ -218,6 +255,6 @@ suite('Files - TextFileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 });

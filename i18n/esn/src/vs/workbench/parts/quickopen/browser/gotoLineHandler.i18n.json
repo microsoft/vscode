@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "Abrir un archivo de texto antes de ir a una línea",
 	"gotoLine": "Ir a la línea...",
-	"gotoLineColumnLabel": "Ir a la línea {0} y la columna {1}",
+	"gotoLineColumnLabel": "Ir a la línea {0} y al carácter {1}",
 	"gotoLineHandlerAriaLabel": "Escriba el número de la línea a la que quiere navegar.",
 	"gotoLineLabel": "Ir a la línea {0}",
 	"gotoLineLabelEmpty": "Escriba el número de línea a la cual quiera navegar.",

@@ -3,26 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalConfiguration } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-
-export interface IIntegratedTerminalConfiguration {
-	terminal: {
-		integrated: {
-			shell: {
-				windows: string,
-				linux: string,
-				osx: string
-			}
-		}
-	};
-}
 
 export class TerminalSupport {
 
@@ -66,7 +53,7 @@ export class TerminalSupport {
 
 		// get the shell configuration for the current platform
 		let shell: string;
-		const shell_config = configurationService.getConfiguration<IIntegratedTerminalConfiguration>().terminal.integrated.shell;
+		const shell_config = configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated.shell;
 		if (platform.isWindows) {
 			shell = shell_config.windows;
 		} else if (platform.isLinux) {

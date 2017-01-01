@@ -4,24 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IRichEditCharacterPair, CharacterPair } from 'vs/editor/common/modes';
-import { handleEvent } from 'vs/editor/common/modes/supports';
-import { LanguageConfigurationRegistryImpl } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
-export class CharacterPairSupport implements IRichEditCharacterPair {
+export class CharacterPairSupport {
 
-	private _registry: LanguageConfigurationRegistryImpl;
-	private _modeId: string;
-	private _autoClosingPairs: IAutoClosingPairConditional[];
-	private _surroundingPairs: IAutoClosingPair[];
+	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
+	private readonly _surroundingPairs: IAutoClosingPair[];
 
-	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[] }) {
-		this._registry = registry;
-		this._modeId = modeId;
-		this._autoClosingPairs = config.autoClosingPairs;
-		if (!this._autoClosingPairs) {
-			this._autoClosingPairs = config.brackets ? config.brackets.map(b => ({ open: b[0], close: b[1] })) : [];
+	constructor(config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[] }) {
+		if (config.autoClosingPairs) {
+			this._autoClosingPairs = config.autoClosingPairs.map(el => new StandardAutoClosingPairConditional(el));
+		} else if (config.brackets) {
+			this._autoClosingPairs = config.brackets.map(b => new StandardAutoClosingPairConditional({ open: b[0], close: b[1] }));
+		} else {
+			this._autoClosingPairs = [];
 		}
+
 		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}
 
@@ -29,41 +28,24 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 		return this._autoClosingPairs;
 	}
 
-	public shouldAutoClosePair(character: string, context: ILineContext, offset: number): boolean {
-		return handleEvent(context, offset, (nestedModeId: string, context: ILineContext, offset: number) => {
-			if (this._modeId === nestedModeId) {
+	public shouldAutoClosePair(character: string, context: ScopedLineTokens, column: number): boolean {
+		// Always complete on empty line
+		if (context.getTokenCount() === 0) {
+			return true;
+		}
 
-				// Always complete on empty line
-				if (context.getTokenCount() === 0) {
-					return true;
-				}
+		let tokenIndex = context.findTokenIndexAtOffset(column - 2);
+		let standardTokenType = context.getStandardTokenType(tokenIndex);
 
-				var tokenIndex = context.findIndexOfOffset(offset - 1);
-				var tokenType = context.getTokenType(tokenIndex);
+		for (let i = 0; i < this._autoClosingPairs.length; ++i) {
+			let autoClosingPair = this._autoClosingPairs[i];
 
-				for (var i = 0; i < this._autoClosingPairs.length; ++i) {
-					if (this._autoClosingPairs[i].open === character) {
-						if (this._autoClosingPairs[i].notIn) {
-							for (var notInIndex = 0; notInIndex < this._autoClosingPairs[i].notIn.length; ++notInIndex) {
-								if (tokenType.indexOf(this._autoClosingPairs[i].notIn[notInIndex]) > -1) {
-									return false;
-								}
-							}
-						}
-						break;
-					}
-				}
-
-				return true;
+			if (autoClosingPair.open === character) {
+				return autoClosingPair.isOK(standardTokenType);
 			}
+		}
 
-			let characterPairSupport = this._registry.getCharacterPairSupport(nestedModeId);
-			if (characterPairSupport) {
-				return characterPairSupport.shouldAutoClosePair(character, context, offset);
-			}
-
-			return null;
-		});
+		return true;
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {

@@ -14,6 +14,7 @@ function adaptToJavaScript(grammar) {
 	var fixScopeNames = function(rule) {
 		if (typeof rule.name === 'string') {
 			rule.name = rule.name.replace(/\.tsx/g, '.js');
+			rule.name = rule.name.replace(/^\S+ (\S+)$/g, '$1');
 		}
 		for (var property in rule) {
 			var value = rule[property];
@@ -27,14 +28,30 @@ function adaptToJavaScript(grammar) {
 	for (var key in repository) {
 		fixScopeNames(repository[key]);
 	}
-	// disable type parameters
-	if (repository['type-parameters']) {
-		repository['type-parameters']['begin'] = 'DO_NOT_MATCH';
+}
+
+function fixSpacesInNames(grammar) {
+	var fixScopeNames = function(rule) {
+		if (typeof rule.name === 'string') {
+			rule.name = rule.name.replace(/^\S+ (\S+)$/g, '$1');
+		}
+		for (var property in rule) {
+			var value = rule[property];
+			if (typeof value === 'object') {
+				fixScopeNames(value);
+			}
+		}
+	};
+
+	var repository = grammar.repository;
+	for (var key in repository) {
+		fixScopeNames(repository[key]);
 	}
 }
+
 var tsGrammarRepo = 'Microsoft/TypeScript-TmLanguage';
-updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json');
-updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json');
+updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json', fixSpacesInNames);
+updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json', fixSpacesInNames);
 updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScript.tmLanguage.json', adaptToJavaScript);
 
 

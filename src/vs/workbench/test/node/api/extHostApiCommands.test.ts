@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
@@ -21,14 +21,15 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/node/mainThreadLanguageFeatures';
-import { registerApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
+import { IHeapService } from 'vs/workbench/api/node/mainThreadHeapService';
+import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import * as vscode from 'vscode';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -57,7 +58,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		let instantiationService = new TestInstantiationService();
 		threadService = new TestThreadService();
-
+		instantiationService.stub(IHeapService, {
+			_serviceBrand: undefined,
+			trackRecursive(args) {
+				// nothing
+				return args;
+			}
+		});
 		instantiationService.stub(ICommandService, {
 			_serviceBrand: undefined,
 			executeCommand(id, args): any {
@@ -92,6 +99,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
 				length: -1,
+				containsRTL: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,
@@ -101,16 +109,17 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			},
 		});
 
-		commands = new ExtHostCommands(threadService, null);
+		const heapService = new ExtHostHeapService();
+
+		commands = new ExtHostCommands(threadService, null, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		ExtHostTypeConverters.Command.initialize(commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
-		registerApiCommands(commands);
+		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, new ExtHostHeapService(), diagnostics);
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
@@ -279,7 +288,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- suggest
 
-	test('Suggest, back and forth', function (done) {
+	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(doc, pos): any {
 				let a = new types.CompletionItem('item1');
@@ -287,53 +296,54 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
 				let c = new types.CompletionItem('item3');
 				c.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 6), 'foobar'); // overwite before & after
+
+				// snippet string!
 				let d = new types.CompletionItem('item4');
-				d.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 4), ''); // overwite before
+				d.range = new types.Range(0, 1, 0, 4);// overwite before
+				d.insertText = new types.SnippetString('foo$0bar');
 				return [a, b, c, d];
 			}
 		}, []));
 
-		threadService.sync().then(() => {
-			commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
-				try {
-					assert.ok(list instanceof types.CompletionList);
-					let values = list.items;
-					assert.ok(Array.isArray(values));
-					assert.equal(values.length, 4);
-					let [first, second, third, forth] = values;
-					assert.equal(first.label, 'item1');
-					assert.equal(first.textEdit.newText, 'item1');
-					assert.equal(first.textEdit.range.start.line, 0);
-					assert.equal(first.textEdit.range.start.character, 0);
-					assert.equal(first.textEdit.range.end.line, 0);
-					assert.equal(first.textEdit.range.end.character, 4);
+		return threadService.sync().then(() => {
+			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 
-					assert.equal(second.label, 'item2');
-					assert.equal(second.textEdit.newText, 'foo');
-					assert.equal(second.textEdit.range.start.line, 0);
-					assert.equal(second.textEdit.range.start.character, 4);
-					assert.equal(second.textEdit.range.end.line, 0);
-					assert.equal(second.textEdit.range.end.character, 8);
+				assert.ok(list instanceof types.CompletionList);
+				let values = list.items;
+				assert.ok(Array.isArray(values));
+				assert.equal(values.length, 4);
+				let [first, second, third, forth] = values;
+				assert.equal(first.label, 'item1');
+				assert.equal(first.textEdit.newText, 'item1');
+				assert.equal(first.textEdit.range.start.line, 0);
+				assert.equal(first.textEdit.range.start.character, 0);
+				assert.equal(first.textEdit.range.end.line, 0);
+				assert.equal(first.textEdit.range.end.character, 4);
 
-					assert.equal(third.label, 'item3');
-					assert.equal(third.textEdit.newText, 'foobar');
-					assert.equal(third.textEdit.range.start.line, 0);
-					assert.equal(third.textEdit.range.start.character, 1);
-					assert.equal(third.textEdit.range.end.line, 0);
-					assert.equal(third.textEdit.range.end.character, 6);
+				assert.equal(second.label, 'item2');
+				assert.equal(second.textEdit.newText, 'foo');
+				assert.equal(second.textEdit.range.start.line, 0);
+				assert.equal(second.textEdit.range.start.character, 4);
+				assert.equal(second.textEdit.range.end.line, 0);
+				assert.equal(second.textEdit.range.end.character, 8);
 
-					assert.equal(forth.label, 'item4');
-					assert.equal(forth.textEdit.newText, '');
-					assert.equal(forth.textEdit.range.start.line, 0);
-					assert.equal(forth.textEdit.range.start.character, 1);
-					assert.equal(forth.textEdit.range.end.line, 0);
-					assert.equal(forth.textEdit.range.end.character, 4);
-					done();
-				} catch (e) {
-					done(e);
-				}
-			}, done);
-		}, done);
+				assert.equal(third.label, 'item3');
+				assert.equal(third.textEdit.newText, 'foobar');
+				assert.equal(third.textEdit.range.start.line, 0);
+				assert.equal(third.textEdit.range.start.character, 1);
+				assert.equal(third.textEdit.range.end.line, 0);
+				assert.equal(third.textEdit.range.end.character, 6);
+
+				assert.equal(forth.label, 'item4');
+				assert.equal(forth.textEdit, undefined);
+				assert.equal(forth.range.start.line, 0);
+				assert.equal(forth.range.start.character, 1);
+				assert.equal(forth.range.end.line, 0);
+				assert.equal(forth.range.end.character, 4);
+				assert.ok(forth.insertText instanceof types.SnippetString);
+				assert.equal((<types.SnippetString>forth.insertText).value, 'foo$0bar');
+			});
+		});
 	});
 
 	test('Suggest, return CompletionList !array', function (done) {

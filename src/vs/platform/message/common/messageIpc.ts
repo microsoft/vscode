@@ -16,12 +16,12 @@ export interface IChoiceChannel extends IChannel {
 
 export class ChoiceChannel implements IChoiceChannel {
 
-	constructor(private service: IChoiceService) {
+	constructor( @IChoiceService private choiceService: IChoiceService) {
 	}
 
 	call(command: string, args?: any): TPromise<any> {
 		switch (command) {
-			case 'choose': return this.service.choose(<Severity>args[0], <string>args[1], <string[]>args[2]);
+			case 'choose': return this.choiceService.choose(<Severity>args[0], <string>args[1], <string[]>args[2], <boolean>args[3]);
 		}
 		return TPromise.wrapError('invalid command');
 	}
@@ -33,8 +33,7 @@ export class ChoiceChannelClient implements IChoiceService {
 
 	constructor(private channel: IChoiceChannel) { }
 
-	choose(severity: Severity, message: string, options: string[]): TPromise<number> {
-		return this.channel.call('choose', [severity, message, options]);
+	choose(severity: Severity, message: string, options: string[], modal?: boolean): TPromise<number> {
+		return this.channel.call('choose', [severity, message, options, modal]);
 	}
-
 }

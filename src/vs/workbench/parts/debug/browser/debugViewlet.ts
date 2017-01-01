@@ -4,40 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/debugViewlet';
-import nls = require('vs/nls');
-import builder = require('vs/base/browser/builder');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
+import { $, Builder, Dimension } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import actions = require('vs/base/common/actions');
-import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import { IAction } from 'vs/base/common/actions';
+import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import memento = require('vs/workbench/common/memento');
+import { Scope } from 'vs/workbench/common/memento';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
 import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import dbgactionitems = require('vs/workbench/parts/debug/browser/debugActionItems');
+import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-
-import IDebugService = debug.IDebugService;
-const $ = builder.$;
+import env = require('vs/base/common/platform');
+import { Button } from 'vs/base/browser/ui/button/button';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 
 export class DebugViewlet extends Viewlet {
 
 	private toDispose: lifecycle.IDisposable[];
-	private actions: actions.IAction[];
+	private actions: IAction[];
+	private startDebugActionItem: StartDebugActionItem;
 	private progressRunner: IProgressRunner;
 	private viewletSettings: any;
 
-	private $el: builder.Builder;
+	private $el: Builder;
 	private splitView: SplitView;
 	private views: IViewletView[];
-
-	private lastFocusedView: IViewletView;
+	private openFolderButton: Button;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -47,24 +48,24 @@ export class DebugViewlet extends Viewlet {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(debug.VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService);
 
 		this.progressRunner = null;
-		this.viewletSettings = this.getMemento(storageService, memento.Scope.WORKSPACE);
+		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.toDispose = [];
 		this.views = [];
-		this.toDispose.push(this.debugService.onDidChangeState((state) => {
-			this.onDebugServiceStateChange(state);
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
+			this.onDebugServiceStateChange();
 		}));
 	}
 
 	// viewlet
 
-	public create(parent: builder.Builder): TPromise<void> {
+	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 		this.$el = parent.div().addClass('debug-viewlet');
 
-		if (this.contextService.getWorkspace()) {
+		if (this.contextService.hasWorkspace()) {
 			const actionRunner = this.getActionRunner();
 			this.views = DebugViewRegistry.getDebugViews().map(viewConstructor => this.instantiationService.createInstance(
 				viewConstructor,
@@ -75,18 +76,28 @@ export class DebugViewlet extends Viewlet {
 			this.splitView = new SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
 			this.views.forEach(v => this.splitView.addView(v));
-
-			// Track focus
-			this.toDispose.push(this.splitView.onFocus((view: IViewletView) => {
-				this.lastFocusedView = view;
-			}));
 		} else {
-			this.$el.append($([
+			const noworkspace = $([
 				'<div class="noworkspace-view">',
-				'<p>', nls.localize('noWorkspace', "There is no currently opened folder."), '</p>',
+				'<p>', nls.localize('noWorkspaceHelp', "You have not yet opened a folder."), '</p>',
 				'<p>', nls.localize('pleaseRestartToDebug', "Open a folder in order to start debugging."), '</p>',
 				'</div>'
-			].join('')));
+			].join(''));
+
+			this.openFolderButton = new Button(noworkspace);
+			this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
+			this.openFolderButton.addListener2('click', () => {
+				const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+				const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+				this.actionRunner.run(action).done(() => {
+					action.dispose();
+				}, err => {
+					action.dispose();
+					errors.onUnexpectedError(err);
+				});
+			});
+
+			this.$el.append(noworkspace);
 		}
 
 		return TPromise.as(null);
@@ -98,7 +109,7 @@ export class DebugViewlet extends Viewlet {
 		});
 	}
 
-	public layout(dimension: builder.Dimension): void {
+	public layout(dimension: Dimension): void {
 		if (this.splitView) {
 			this.splitView.layout(dimension.height);
 		}
@@ -107,27 +118,26 @@ export class DebugViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
-			this.lastFocusedView.focusBody();
+		if (this.openFolderButton) {
+			this.openFolderButton.getElement().focus();
 			return;
 		}
 
-		if (this.views.length > 0) {
-			this.views[0].focusBody();
+		if (this.startDebugActionItem) {
+			this.startDebugActionItem.focus();
 		}
 	}
 
-	public getActions(): actions.IAction[] {
-		if (this.debugService.state === debug.State.Disabled) {
+	public getActions(): IAction[] {
+		if (this.debugService.state === State.Disabled) {
 			return [];
 		}
 
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(debugactions.StartAction, debugactions.StartAction.ID, debugactions.StartAction.LABEL),
-				this.instantiationService.createInstance(debugactions.SelectConfigAction, debugactions.SelectConfigAction.ID, debugactions.SelectConfigAction.LABEL),
-				this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
-				this.instantiationService.createInstance(debugactions.ToggleReplAction, debugactions.ToggleReplAction.ID, debugactions.ToggleReplAction.LABEL)
+				this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL),
+				this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL),
+				this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
@@ -138,20 +148,24 @@ export class DebugViewlet extends Viewlet {
 		return this.actions;
 	}
 
-	public getActionItem(action: actions.IAction): actionbar.IActionItem {
-		if (action.id === debugactions.SelectConfigAction.ID) {
-			return this.instantiationService.createInstance(dbgactionitems.DebugSelectActionItem, action);
+	public getActionItem(action: IAction): IActionItem {
+		if (action.id === StartAction.ID) {
+			if (!this.startDebugActionItem) {
+				this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
+			}
+
+			return this.startDebugActionItem;
 		}
 
 		return null;
 	}
 
-	private onDebugServiceStateChange(newState: debug.State): void {
+	private onDebugServiceStateChange(): void {
 		if (this.progressRunner) {
 			this.progressRunner.done();
 		}
 
-		if (newState === debug.State.Initializing) {
+		if (this.debugService.state === State.Initializing) {
 			this.progressRunner = this.progressService.show(true);
 		} else {
 			this.progressRunner = null;

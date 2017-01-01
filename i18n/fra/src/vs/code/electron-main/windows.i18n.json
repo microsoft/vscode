@@ -10,10 +10,14 @@
 	"appStalled": "La fenêtre ne répond plus",
 	"appStalledDetail": "Vous pouvez rouvrir ou fermer la fenêtre, ou continuer à patienter.",
 	"close": "Fermer",
+	"folderDesc": "{0} {1}",
 	"hiddenMenuBar": "Vous pouvez toujours accéder à la barre de menus en appuyant sur la touche **Alt**.",
+	"newWindow": "Nouvelle fenêtre",
+	"newWindowDesc": "Ouvre une nouvelle fenêtre",
 	"ok": "OK",
 	"pathNotExistDetail": "Le chemin d'accès '{0}' ne semble plus exister sur le disque.",
 	"pathNotExistTitle": "Le chemin d'accès n'existe pas",
+	"recentFolders": "Dossiers récents",
 	"reopen": "Rouvrir",
 	"wait": "Continuer à attendre"
 }

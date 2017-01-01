@@ -33,9 +33,9 @@ export class ScrollManager implements IDisposable {
 		this.privateViewEventBus = privateViewEventBus;
 		this.linesContent = linesContent;
 
-		var configScrollbarOpts = this.configuration.editor.viewInfo.scrollbar;
+		let configScrollbarOpts = this.configuration.editor.viewInfo.scrollbar;
 
-		var scrollbarOptions: ScrollableElementCreationOptions = {
+		let scrollbarOptions: ScrollableElementCreationOptions = {
 			canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
@@ -78,11 +78,11 @@ export class ScrollManager implements IDisposable {
 		// the browser will try desperately to reveal that dom node, unexpectedly
 		// changing the .scrollTop of this.linesContent
 
-		var onBrowserDesperateReveal = (domNode: HTMLElement, lookAtScrollTop: boolean, lookAtScrollLeft: boolean) => {
+		let onBrowserDesperateReveal = (domNode: HTMLElement, lookAtScrollTop: boolean, lookAtScrollLeft: boolean) => {
 			let newScrollPosition: INewScrollPosition = {};
 
 			if (lookAtScrollTop) {
-				var deltaTop = domNode.scrollTop;
+				let deltaTop = domNode.scrollTop;
 				if (deltaTop) {
 					newScrollPosition.scrollTop = this.getScrollTop() + deltaTop;
 					domNode.scrollTop = 0;
@@ -90,7 +90,7 @@ export class ScrollManager implements IDisposable {
 			}
 
 			if (lookAtScrollLeft) {
-				var deltaLeft = domNode.scrollLeft;
+				let deltaLeft = domNode.scrollLeft;
 				if (deltaLeft) {
 					newScrollPosition.scrollLeft = this.getScrollLeft() + deltaLeft;
 					domNode.scrollLeft = 0;

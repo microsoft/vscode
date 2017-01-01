@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import URI from 'vs/base/common/uri';
@@ -12,23 +11,20 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { Registry } from 'vs/platform/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 export class WorkbenchContentProvider implements IWorkbenchContribution {
 
-	private modelService: IModelService;
-	private modeService: IModeService;
-
 	constructor(
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+		@IModelService private modelService: IModelService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IModeService private modeService: IModeService
 	) {
-		this.modelService = modelService;
-		this.modeService = modeService;
-
 		this.start();
 	}
 
@@ -37,7 +33,7 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 	}
 
 	private start(): void {
-		ResourceEditorInput.registerResourceContentProvider('vscode', {
+		this.textModelResolverService.registerTextModelContentProvider('vscode', {
 			provideTextContent: (uri: URI): TPromise<IModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
@@ -51,10 +47,17 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 						return TPromise.as(this.modelService.createModel(modelContent, mode, uri));
 					}
 				}
-				return null;
+				return this.preferencesService.createDefaultPreferencesEditorModel(uri)
+					.then(preferencesModel => {
+						if (preferencesModel) {
+							let mode = this.modeService.getOrCreateMode('json');
+							return TPromise.as(this.modelService.createModel(preferencesModel.content, mode, uri));
+						}
+						return null;
+					});
 			}
 		});
 	}
 }
 
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(WorkbenchContentProvider);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkbenchContentProvider);

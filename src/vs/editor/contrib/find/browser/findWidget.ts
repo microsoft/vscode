@@ -144,15 +144,18 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
 			this._findInputFocussed.set(true);
-			let selection = this._codeEditor.getSelection();
-			if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-				selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
-			}
-			let currentMatch = this._state.currentMatch;
-			if (selection.startLineNumber !== selection.endLineNumber) {
-				if (!Range.equalsRange(selection, currentMatch)) {
-					// Reseed find scope
-					this._state.change({ searchScope: selection }, true);
+
+			if (this._toggleSelectionFind.checked) {
+				let selection = this._codeEditor.getSelection();
+				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+					selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+				}
+				let currentMatch = this._state.currentMatch;
+				if (selection.startLineNumber !== selection.endLineNumber) {
+					if (!Range.equalsRange(selection, currentMatch)) {
+						// Reseed find scope
+						this._state.change({ searchScope: selection }, true);
+					}
 				}
 			}
 		});
@@ -353,7 +356,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.asKeybinding()) {
+		switch (e.toKeybinding().value) {
 			case KeyCode.Enter:
 				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
 				e.preventDefault();
@@ -382,7 +385,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.asKeybinding()) {
+		switch (e.toKeybinding().value) {
 			case KeyCode.Enter:
 				this._controller.replace();
 				e.preventDefault();

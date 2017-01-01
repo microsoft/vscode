@@ -9,6 +9,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import { IOptions } from 'vs/workbench/common/options';
+import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
@@ -17,21 +18,21 @@ import timer = require('vs/base/common/timer');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { EventService } from 'vs/platform/event/common/eventService';
-import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { realpath } from 'vs/base/node/pfs';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
-import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
+import { IInitData } from 'vs/workbench/services/timer/common/timerService';
+import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 
+import { webFrame } from 'electron';
+
+import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-const timers = (<any>window).MonacoEnvironment.timers;
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
@@ -40,9 +41,16 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
 
 	workspacePath?: string;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
+	// Ensure others can listen to zoom level changes
+	browser.setZoomFactor(webFrame.getZoomFactor());
+	browser.setZoomLevel(webFrame.getZoomLevel());
+	browser.setFullscreen(!!configuration.fullscreen);
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
@@ -66,11 +74,15 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	});
 }
 
-function toInputs(paths: IPath[]): IResourceInput[] {
+function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 	return paths.map(p => {
-		const input = <IResourceInput>{
-			resource: uri.file(p.filePath)
-		};
+		const input = <IResourceInput>{};
+
+		if (isUntitledFile) {
+			input.resource = uri.from({ scheme: 'untitled', path: p.filePath });
+		} else {
+			input.resource = uri.file(p.filePath);
+		}
 
 		if (p.lineNumber) {
 			input.options = {
@@ -102,13 +114,14 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 
 		const workspaceResource = uri.file(realWorkspacePath);
 		const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
-		const folderStat = fs.statSync(realWorkspacePath);
 
-		return <IWorkspace>{
-			'resource': workspaceResource,
-			'name': folderName,
-			'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-		};
+		return stat(realWorkspacePath).then(folderStat => {
+			return <IWorkspace>{
+				'resource': workspaceResource,
+				'name': folderName,
+				'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+			};
+		});
 	}, (error) => {
 		errors.onUnexpectedError(error);
 
@@ -117,32 +130,28 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 }
 
 function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
-	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
-	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
+	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return configurationService.initialize().then(() => {
-		timers.beforeReady = new Date();
+		timerService.beforeDOMContentLoaded = new Date();
 
 		return domContentLoaded().then(() => {
-			timers.afterReady = new Date();
+			timerService.afterDOMContentLoaded = new Date();
 
 			// Open Shell
-			const beforeOpen = new Date();
-			const shell = new WorkbenchShell(document.body, workspace, {
+			timerService.beforeWorkbenchOpen = new Date();
+			const shell = new WorkbenchShell(document.body, {
 				configurationService,
-				eventService,
 				contextService,
-				environmentService
+				environmentService,
+				timerService
 			}, options);
 			shell.open();
-
-			shell.joinCreation().then(() => {
-				timer.start(timer.Topic.STARTUP, 'Open Shell, Viewlet & Editor', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
-			});
 
 			// Inform user about loading issues from the loader
 			(<any>self).require.config({

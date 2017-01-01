@@ -6,14 +6,17 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import URI from 'vs/base/common/uri';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { createMockModelService, TestEditorService } from 'vs/test/utils/servicesTestUtils';
+import { TestEditorService } from 'vs/workbench/test/workbenchTestServices';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 
 suite('Workbench - StringEditorInput', () => {
@@ -26,8 +29,8 @@ suite('Workbench - StringEditorInput', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
-		modeService = instantiationService.stub(IModeService);
-		modelService = <IModelService>instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
+		modelService = <IModelService>instantiationService.stub(IModelService, stubModelService(instantiationService));
 	});
 
 	test('StringEditorInput', function (done) {
@@ -51,22 +54,22 @@ suite('Workbench - StringEditorInput', () => {
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
-		editorService.resolveEditorModel(input, true).then(resolved => {
+		input.resolve(true).then(resolved => {
 			let resolvedModelA = resolved;
-			return editorService.resolveEditorModel(input, true).then(resolved => {
+			return input.resolve(true).then(resolved => {
 				assert(resolvedModelA === resolved); // assert: Resolved Model cached per instance
 
 				let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
-				return editorService.resolveEditorModel(otherInput, true).then(resolved => {
+				return otherInput.resolve(true).then(resolved => {
 					assert(resolvedModelA !== resolved); // NOT assert: Different instance, different model
 
 					input.dispose();
 
-					return editorService.resolveEditorModel(input, true).then(resolved => {
+					return input.resolve(true).then(resolved => {
 						assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
 						let model = (<any>resolved).textEditorModel;
-						return editorService.resolveEditorModel(input, true).then(againResolved => {
+						return input.resolve(true).then(againResolved => {
 							assert(model === (<any>againResolved).textEditorModel); // Models should not differ because string input is constant
 
 							input.dispose();
@@ -110,16 +113,8 @@ suite('Workbench - StringEditorInput', () => {
 		assert.strictEqual(stringEditorInput.matches(stringEditorInput2), true);
 	});
 
-	test('ResourceEditorInput', function (done) {
-		let resource = URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' });
-		modelService.createModel('function test() {}', modeService.getOrCreateMode('text'), resource);
-		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
-
-		input.resolve().then((model: ResourceEditorModel) => {
-			assert.ok(model);
-			assert.equal(model.getValue(), 'function test() {}');
-
-			done();
-		});
-	});
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 });

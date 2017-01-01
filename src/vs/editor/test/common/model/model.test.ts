@@ -690,6 +690,23 @@ suite('Editor Model - Find', () => {
 		);
 	});
 
+	test('multiline find for non-regex string', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'some text text',
+				'some text again',
+				'again some text',
+				'but not some'
+			].join('\n'),
+			'text\nsome', false, false, false,
+			[
+				[1, 16, 2, 5],
+				[2, 11, 3, 5],
+			]
+		);
+	});
+
 	test('findNextMatch without regex', () => {
 		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
 

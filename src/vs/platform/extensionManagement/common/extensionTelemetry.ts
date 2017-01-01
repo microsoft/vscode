@@ -14,7 +14,8 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		galleryId: extension.metadata ? extension.metadata.id : null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,
 		publisherName: extension.manifest.publisher,
-		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null
+		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,
+		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0
 	};
 }
 
@@ -25,6 +26,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		galleryId: extension.id,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
-		publisherDisplayName: extension.publisherDisplayName
+		publisherDisplayName: extension.publisherDisplayName,
+		dependencies: extension.properties.dependencies.length > 0
 	};
 }

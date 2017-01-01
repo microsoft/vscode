@@ -4,8 +4,8 @@ environment:
 
 install:
   - ps: Install-Product node 6.6.0 x64
-  - npm install -g npm
-  - npm install -g gulp mocha
+  - npm install -g npm --silent
+  - npm install -g gulp mocha --silent
 
 build_script:
   - .\scripts\npm.bat install --force

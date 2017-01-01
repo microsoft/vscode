@@ -20,5 +20,8 @@ export class ResourceEditorModel extends BaseTextEditorModel {
 		@IModelService modelService: IModelService
 	) {
 		super(modelService, modeService, resource);
+
+		// TODO@Joao: force this class to dispose the underlying model
+		this.createdEditorModel = true;
 	}
 }
