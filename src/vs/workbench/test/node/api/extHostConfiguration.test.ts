@@ -67,7 +67,6 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(config.get('config4'), '');
 		assert.equal(config['config0'], true);
 		assert.equal(config['config4'], '');
-		assert.throws(() => config['config4'] = 'valuevalue');
 
 		assert.ok(config.has('nested.config1'));
 		assert.equal(config.get('nested.config1'), 42);
