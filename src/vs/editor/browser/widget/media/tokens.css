@@ -5,6 +5,7 @@
 
 .monaco-editor .token.vs-whitespace {
 	display:inline-block;
+	font-weight: normal !important;
 }
 .monaco-editor.hc-black .token {
 	mix-blend-mode: difference;
