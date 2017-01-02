@@ -122,13 +122,23 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		let languageId = this._languageIdentifier.iid;
 		let theme = this._standaloneColorService.getTheme();
 
-		let result = new Uint32Array(tokens.length << 1);
+		let result: number[] = [], resultLen = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			let t = tokens[i];
-			result[(i << 1)] = t.startIndex;
-			result[(i << 1) + 1] = theme.match(languageId, t.scopes);
+			let metadata = theme.match(languageId, t.scopes);
+			if (resultLen > 0 && result[resultLen - 1] === metadata) {
+				// same metadata
+				continue;
+			}
+			result[resultLen++] = t.startIndex;
+			result[resultLen++] = metadata;
 		}
-		return result;
+
+		let actualResult = new Uint32Array(resultLen);
+		for (let i = 0; i < resultLen; i++) {
+			actualResult[i] = result[i];
+		}
+		return actualResult;
 	}
 
 	public tokenize3(line: string, state: modes.IState, offsetDelta: number): modes.ILineTokens3 {
