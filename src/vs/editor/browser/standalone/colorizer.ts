@@ -14,6 +14,7 @@ import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineParts } from 'vs/editor/common/core/lineParts';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -26,7 +27,7 @@ export interface IColorizerElementOptions extends IColorizerOptions {
 
 export class Colorizer {
 
-	public static colorizeElement(modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+	public static colorizeElement(standaloneColorService: IStandaloneColorService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
 		options = options || {};
 		let theme = options.theme || 'vs';
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
@@ -34,6 +35,9 @@ export class Colorizer {
 			console.error('Mode not detected');
 			return;
 		}
+
+		standaloneColorService.setTheme(theme);
+
 		let text = domNode.firstChild.nodeValue;
 		domNode.className += 'monaco-editor ' + theme;
 		let render = (str: string) => {
@@ -53,7 +57,7 @@ export class Colorizer {
 
 		return new TPromise<void>((c, e, p) => {
 			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.languageId === languageId) {
+				if (e.languageIds.indexOf(languageId) >= 0) {
 					stopListening();
 					c(void 0);
 				}
