@@ -826,7 +826,7 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export interface ITokenizationSupportChangedEvent {
-	languageId: string;
+	languageIds: string[];
 }
 
 /**
@@ -850,26 +850,31 @@ export class TokenizationRegistryImpl {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	public fire(languageId: string): void {
-		this._onDidChange.fire({ languageId: languageId });
+	public fire(languageIds: string[]): void {
+		this._onDidChange.fire({ languageIds: languageIds });
 	}
 
 	public register(languageId: string, support: ITokenizationSupport): IDisposable {
 		this._map[languageId] = support;
-		this.fire(languageId);
+		this.fire([languageId]);
 		return {
 			dispose: () => {
 				if (this._map[languageId] !== support) {
 					return;
 				}
 				delete this._map[languageId];
-				this.fire(languageId);
+				this.fire([languageId]);
 			}
 		};
 	}
 
 	public get(languageId: string): ITokenizationSupport {
 		return (this._map[languageId] || null);
+	}
+
+	public setColorMap(colorMap: string[]): void {
+		this._colorMap = colorMap;
+		this.fire(Object.keys(this._map));
 	}
 
 	public getColorMap(): string[] {

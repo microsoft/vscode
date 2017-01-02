@@ -35,6 +35,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 
 /**
  * @internal
@@ -92,7 +93,8 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(ICommandService),
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
-			services.get(IContextViewService)
+			services.get(IContextViewService),
+			services.get(IStandaloneColorService)
 		);
 	});
 }
@@ -240,7 +242,7 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
-	return Colorizer.colorizeElement(StaticServices.modeService.get(), domNode, options);
+	return Colorizer.colorizeElement(StaticServices.standaloneColorService.get(), StaticServices.modeService.get(), domNode, options);
 }
 
 /**

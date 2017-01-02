@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Theme } from 'vs/editor/common/modes/supports/tokenization';
 
@@ -13,7 +12,7 @@ export var IStandaloneColorService = createDecorator<IStandaloneColorService>('s
 export interface IStandaloneColorService {
 	_serviceBrand: any;
 
-	onThemeChanged: Event<void>;
+	setTheme(themeName: string): void;
 
 	getTheme(): Theme;
 }

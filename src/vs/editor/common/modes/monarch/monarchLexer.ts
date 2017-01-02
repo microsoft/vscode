@@ -408,10 +408,17 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			if (emitting) {
 				return;
 			}
-			let isOneOfMyEmbeddedModes = this._embeddedModes[e.languageId];
+			let isOneOfMyEmbeddedModes = false;
+			for (let i = 0, len = e.languageIds.length; i < len; i++) {
+				let languageId = e.languageIds[i];
+				if (this._embeddedModes[languageId]) {
+					isOneOfMyEmbeddedModes = true;
+					break;
+				}
+			}
 			if (isOneOfMyEmbeddedModes) {
 				emitting = true;
-				modes.TokenizationRegistry.fire(this._modeId);
+				modes.TokenizationRegistry.fire([this._modeId]);
 				emitting = false;
 			}
 		});
@@ -801,15 +808,15 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 		let modeId = this._modeService.getModeId(mimetypeOrModeId);
 
+		// Fire mode loading event
+		this._modeService.getOrCreateMode(modeId);
+
 		let mode = this._modeService.getMode(modeId);
 		if (mode) {
 			// Re-emit tokenizationSupport change events from all modes that I ever embedded
 			this._embeddedModes[modeId] = true;
 			return mode;
 		}
-
-		// Fire mode loading event
-		this._modeService.getOrCreateMode(modeId);
 
 		this._embeddedModes[modeId] = true;
 

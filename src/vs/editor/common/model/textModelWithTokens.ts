@@ -95,7 +95,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 		this._tokenizationListener = TokenizationRegistry.onDidChange((e) => {
-			if (e.languageId !== this._languageIdentifier.sid) {
+			if (e.languageIds.indexOf(this._languageIdentifier.sid) === -1) {
 				return;
 			}
 
