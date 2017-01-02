@@ -53,7 +53,6 @@ export class StandaloneColorServiceImpl implements IStandaloneColorService {
 			default:
 				themeRules = [];
 		}
-		console.log(themeRules);
 		this._theme = Theme.createFromRawTheme(themeRules);
 		let colorMap = this._theme.getColorMap();
 		let cssRules = StandaloneColorServiceImpl._generateCSS(colorMap);
