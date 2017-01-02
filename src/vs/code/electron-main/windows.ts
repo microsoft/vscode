@@ -345,7 +345,11 @@ export class WindowsManager implements IWindowsMainService {
 			filesToOpen = candidates;
 		}
 
-		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
+		let openInNewWindow: boolean = true;
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		if (!openConfig.forceNewWindow && windowConfig && windowConfig.openFoldersInNewWindow === false) {
+			openInNewWindow = false;
+		}
 
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
