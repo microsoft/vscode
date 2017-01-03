@@ -410,7 +410,7 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
+				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick || event.payload.focusEditor;
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
@@ -447,6 +447,57 @@ export class SearchViewlet extends Viewlet {
 				}
 			}
 		}
+	}
+
+	public selectNextResult(): void {
+		const eventPayload = { focusEditor: true };
+
+		this.tree.selectNext(undefined, undefined, eventPayload);
+		let [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		if (!selected) {
+			return;
+		}
+
+		// Expand and go past FileMatch nodes
+		if (!(selected instanceof Match)) {
+			if (!this.tree.isExpanded(selected)) {
+				this.tree.expand(selected);
+			}
+
+			// Select the FileMatch's first child
+			this.tree.selectNext(undefined, undefined, eventPayload);
+		}
+
+		// Reveal the newly selected element
+		[selected] = this.tree.getSelection();
+		this.tree.reveal(selected);
+	}
+
+	public selectPreviousResult(): void {
+		const eventPayload = { focusEditor: true };
+
+		// previous with no current selection?
+		this.tree.selectPrevious(undefined, undefined, eventPayload);
+		let [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		if (!selected) {
+			return;
+		}
+
+		// Expand and go past FileMatch nodes
+		if (!(selected instanceof Match)) {
+			this.tree.selectPrevious(undefined, undefined, eventPayload);
+			[selected] = this.tree.getSelection();
+
+			if (!(selected instanceof Match)) {
+				this.tree.selectNext(undefined, undefined, eventPayload);
+				this.tree.expand(selected);
+				this.tree.selectPrevious(undefined, undefined, eventPayload);
+			}
+		}
+
+		// Reveal the newly selected element
+		[selected] = this.tree.getSelection();
+		this.tree.reveal(selected);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
