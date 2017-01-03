@@ -225,29 +225,51 @@ suite('Editor Contrib - Snippets', () => {
 	});
 
 
-	// test('issue #11890: Bad cursor position', () => {
+	test('issue #11890: Bad cursor position 1/2', () => {
 
-	// 	let snippet = CodeSnippet.fromTextmate([
-	// 		'afterEach((done) => {',
-	// 		'${1}\ttest${2}',
-	// 		'})'
-	// 	].join('\n'));
+		let snippet = CodeSnippet.fromTextmate([
+			'afterEach((done) => {',
+			'${1}\ttest${2}',
+			'})'
+		].join('\n'));
 
-	// 	let boundSnippet = snippet.bind('', 0, 0, {
-	// 		normalizeIndentation(str: string): string {
-	// 			return str.replace(/\t/g, '  ');
-	// 		}
-	// 	});
+		let boundSnippet = snippet.bind('', 0, 0, {
+			normalizeIndentation(str: string): string {
+				return str.replace(/\t/g, '  ');
+			}
+		});
 
-	// 	assert.equal(boundSnippet.lines[1], '  test');
-	// 	assert.equal(boundSnippet.placeHolders.length, 3);
-	// 	assert.equal(boundSnippet.finishPlaceHolderIndex, 2);
-	// 	let [first, second] = boundSnippet.placeHolders;
-	// 	assert.equal(first.occurences.length, 1);
-	// 	assert.equal(first.occurences[0].startColumn, 1);
-	// 	assert.equal(second.occurences.length, 1);
-	// 	assert.equal(second.occurences[0].startColumn, 7);
-	// });
+		assert.equal(boundSnippet.lines[1], '  test');
+		assert.equal(boundSnippet.placeHolders.length, 3);
+		assert.equal(boundSnippet.finishPlaceHolderIndex, 2);
+
+		let [first, second] = boundSnippet.placeHolders;
+		assert.equal(first.occurences.length, 1);
+		assert.equal(first.occurences[0].startColumn, 1);
+		assert.equal(second.occurences.length, 1);
+		assert.equal(second.occurences[0].startColumn, 7);
+	});
+
+	test('issue #11890: Bad cursor position 2/2', () => {
+
+		let snippet = CodeSnippet.fromTextmate('${1}\ttest');
+
+		let boundSnippet = snippet.bind('abc abc abc prefix3', 0, 12, {
+			normalizeIndentation(str: string): string {
+				return str.replace(/\t/g, '  ');
+			}
+		});
+
+		assert.equal(boundSnippet.lines[0], '\ttest');
+		assert.equal(boundSnippet.placeHolders.length, 2);
+		assert.equal(boundSnippet.finishPlaceHolderIndex, 1);
+
+		let [first, second] = boundSnippet.placeHolders;
+		assert.equal(first.occurences.length, 1);
+		assert.equal(first.occurences[0].startColumn, 13);
+		assert.equal(second.occurences.length, 1);
+		assert.equal(second.occurences[0].startColumn, 18);
+	});
 
 	test('issue #17989: Bad selection', () => {
 
