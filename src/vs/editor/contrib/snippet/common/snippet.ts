@@ -122,25 +122,11 @@ export class CodeSnippet implements ICodeSnippet {
 
 			for (let {startLineNumber, startColumn, endLineNumber, endColumn} of originalPlaceHolder.occurences) {
 
-				if (startColumn > 1) {
-					// placeholders that aren't at the beginning of the snippet line
-					// will be moved by how many characters the indentation has been
-					// adjusted
-					startColumn = startColumn + deltaColumns[startLineNumber];
-					endColumn = endColumn + deltaColumns[endLineNumber];
-
-				} else {
-					// placeholders at the beginning of the snippet line
-					// will be indented by the reference indentation
-					startColumn += referenceIndentation.length;
-					endColumn += referenceIndentation.length;
-				}
-
 				resultOccurences.push({
 					startLineNumber: startLineNumber + deltaLine,
-					startColumn,
+					startColumn: startColumn + deltaColumns[startLineNumber],
 					endLineNumber: endLineNumber + deltaLine,
-					endColumn
+					endColumn: endColumn + deltaColumns[endLineNumber]
 				});
 			}
 
