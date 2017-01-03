@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, any } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { QuickFixComputeEvent } from './quickFixModel';
+import { QuickFixComputeEvent } from 'vs/editor/contrib/quickFix/common/quickFixModel';
 
 
 export class LightBulbWidget implements IOverlayWidget, IDisposable {
