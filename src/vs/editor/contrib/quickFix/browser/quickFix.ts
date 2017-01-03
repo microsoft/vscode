@@ -88,7 +88,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	public triggerFromEditorSelection(): void {
-		this._model.triggerManual(this._editor.getSelection());
+		this._model.triggerManual();
 	}
 
 	private _updateLightBulbTitle(): void {

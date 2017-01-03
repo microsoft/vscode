@@ -18,7 +18,7 @@ import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
 suite('QuickFix', () => {
 
 	let uri = URI.parse('fake:path');
-	let model = Model.createFromString('foobar\nfarboo', undefined, 'foo-lang', uri);
+	let model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, 'foo-lang', uri);
 	let markerService: MarkerService;
 	let editor: ICommonCodeEditor;
 
@@ -91,7 +91,7 @@ suite('QuickFix', () => {
 
 	});
 
-	test('Oracle -> ask once per marker', () => {
+	test('Oracle -> ask once per marker/word', () => {
 		let counter = 0;
 		let reg = CodeActionProviderRegistry.register('foo-lang', {
 			provideCodeActions() {
@@ -113,15 +113,16 @@ suite('QuickFix', () => {
 			fixes.push(e.fixes);
 		});
 
-
 		editor.setPosition({ lineNumber: 1, column: 3 }); // marker
-		editor.setPosition({ lineNumber: 1, column: 6 }); // marker
-		editor.setPosition({ lineNumber: 2, column: 2 }); // no marker
+		editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
+		editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
+		editor.setPosition({ lineNumber: 2, column: 2 }); // word
+		editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
 
 		return TPromise.join(fixes).then(_ => {
 			reg.dispose();
 			oracle.dispose();
-			assert.equal(counter, 1);
+			assert.equal(counter, 2);
 		});
 	});
 
