@@ -13,8 +13,8 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 
 interface ILanguageConfiguration {
 	comments?: CommentRule;
@@ -29,7 +29,7 @@ export class LanguageConfigurationFileHandler {
 	private _done: boolean[];
 
 	constructor(
-		tmSyntax: MainProcessTextMateSyntax,
+		@ITextMateService textMateService: ITextMateService,
 		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
@@ -37,7 +37,7 @@ export class LanguageConfigurationFileHandler {
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
 		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
-		tmSyntax.onDidEncounterLanguage((language) => {
+		textMateService.onDidEncounterLanguage((language) => {
 			// TODO@tokenization
 			throw new Error('TODO@tokenization');
 			// this._loadConfigurationsForMode(language);

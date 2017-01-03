@@ -5,20 +5,19 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IExtensionPoint, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { TMState } from 'vs/editor/node/textMate/TMState';
-import { RawLineTokens } from 'vs/editor/common/modes/supports';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IGrammar, Registry, StackElement, IToken, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
-import { Token } from 'vs/editor/common/core/token';
+import { IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
 import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 
 export interface IEmbeddedLanguagesMap {
 	[scopeName: string]: string;
@@ -82,7 +81,7 @@ export class TMScopeRegistry {
 	}
 
 	public register(scopeName: string, filePath: string, embeddedLanguages?: IEmbeddedLanguagesMap): void {
-		this._scopeNameToLanguageRegistration[scopeName] = new TMLanguageRegistration(this, scopeName, filePath, embeddedLanguages);
+		this._scopeNameToLanguageRegistration[scopeName] = new TMLanguageRegistration(scopeName, filePath, embeddedLanguages);
 	}
 
 	public getLanguageRegistration(scopeName: string): TMLanguageRegistration {
@@ -112,11 +111,7 @@ export class TMLanguageRegistration {
 	readonly grammarFilePath: string;
 	readonly embeddedLanguages: IEmbeddedLanguagesMap;
 
-	private readonly _registry: TMScopeRegistry;
-	private readonly _embeddedLanguagesRegex: RegExp;
-
-	constructor(registry: TMScopeRegistry, scopeName: string, grammarFilePath: string, embeddedLanguages: IEmbeddedLanguagesMap) {
-		this._registry = registry;
+	constructor(scopeName: string, grammarFilePath: string, embeddedLanguages: IEmbeddedLanguagesMap) {
 		this.scopeName = scopeName;
 		this.grammarFilePath = grammarFilePath;
 
@@ -136,44 +131,6 @@ export class TMLanguageRegistration {
 				this.embeddedLanguages[scope] = language;
 			}
 		}
-
-		// create the regex
-		let escapedScopes = Object.keys(this.embeddedLanguages).map((scopeName) => strings.escapeRegExpCharacters(scopeName));
-		if (escapedScopes.length === 0) {
-			// no scopes registered
-			this._embeddedLanguagesRegex = null;
-		} else {
-			escapedScopes.sort();
-			escapedScopes.reverse();
-			this._embeddedLanguagesRegex = new RegExp(`^((${escapedScopes.join(')|(')}))($|\\.)`, '');
-		}
-	}
-
-	/**
-	 * Given a produced TM scope, return the language that token describes or null if unknown.
-	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
-	 */
-	public scopeToLanguage(scope: string): string {
-		if (!scope) {
-			return null;
-		}
-		if (!this._embeddedLanguagesRegex) {
-			// no scopes registered
-			return null;
-		}
-		let m = scope.match(this._embeddedLanguagesRegex);
-		if (!m) {
-			// no scopes matched
-			return null;
-		}
-
-		let language = this.embeddedLanguages[m[1]] || null;
-		if (!language) {
-			return null;
-		}
-
-		this._registry.onEncounteredLanguage(language);
-		return language;
 	}
 }
 
@@ -185,12 +142,15 @@ function createStyleSheet(): HTMLStyleElement {
 	return style;
 }
 
-export class MainProcessTextMateSyntax {
+export class MainProcessTextMateSyntax implements ITextMateService {
+	public _serviceBrand: any;
+
 	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
 	private _themeService: IThemeService;
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
+	private _languageToScope: Map<string, string>;
 	private _styleElement: HTMLStyleElement;
 
 	public onDidEncounterLanguage: Event<string>;
@@ -205,6 +165,7 @@ export class MainProcessTextMateSyntax {
 		this._scopeRegistry = new TMScopeRegistry();
 		this.onDidEncounterLanguage = this._scopeRegistry.onDidEncounterLanguage;
 		this._injections = {};
+		this._languageToScope = new Map<string, string>();
 
 		this._grammarRegistry = new Registry({
 			getFilePath: (scopeName: string) => {
@@ -223,6 +184,13 @@ export class MainProcessTextMateSyntax {
 				for (let j = 0; j < grammars.length; j++) {
 					this._handleGrammarExtensionPointUser(extensions[i].description.extensionFolderPath, grammars[j], extensions[i].collector);
 				}
+			}
+		});
+
+		this._modeService.onDidCreateMode((mode) => {
+			let modeId = mode.getId();
+			if (this._languageToScope[modeId]) {
+				this.registerDefinition(modeId);
 			}
 		});
 	}
@@ -289,13 +257,7 @@ export class MainProcessTextMateSyntax {
 
 		let modeId = syntax.language;
 		if (modeId) {
-			let disposable = this._modeService.onDidCreateMode((mode) => {
-				if (mode.getId() !== modeId) {
-					return;
-				}
-				this.registerDefinition(modeId, syntax.scopeName);
-				disposable.dispose();
-			});
+			this._languageToScope[modeId] = syntax.scopeName;
 		}
 	}
 
@@ -313,28 +275,33 @@ export class MainProcessTextMateSyntax {
 		return result;
 	}
 
-	private registerDefinition(modeId: string, scopeName: string): void {
+	public createGrammar(modeId: string): TPromise<IGrammar> {
+		let scopeName = this._languageToScope[modeId];
 		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
 		let languageId = this._modeService.getLanguageIdentifier(modeId).iid;
 
-		this._grammarRegistry.loadGrammarWithEmbeddedLanguages(scopeName, languageId, embeddedLanguages, (err, grammar) => {
-			if (err) {
-				onUnexpectedError(err);
-				return;
-			}
-
-			let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
-			TokenizationRegistry.register(modeId, createTokenizationSupport(languageRegistration, modeId, grammar));
+		return new TPromise<IGrammar>((c, e, p) => {
+			this._grammarRegistry.loadGrammarWithEmbeddedLanguages(scopeName, languageId, embeddedLanguages, (err, grammar) => {
+				if (err) {
+					return e(err);
+				}
+				c(grammar);
+			});
 		});
+	}
+
+	private registerDefinition(modeId: string): void {
+		this.createGrammar(modeId).then((grammar) => {
+			TokenizationRegistry.register(modeId, createTokenizationSupport(grammar));
+		}, onUnexpectedError);
 	}
 }
 
-function createTokenizationSupport(languageRegistration: TMLanguageRegistration, modeId: string, grammar: IGrammar): ITokenizationSupport {
-	var tokenizer = new Tokenizer(languageRegistration, modeId, grammar);
+function createTokenizationSupport(grammar: IGrammar): ITokenizationSupport {
 	return {
 		getInitialState: () => new TMState(null),
-		tokenize: (line, state, offsetDelta) => tokenizer.tokenize(line, <TMState>state, offsetDelta),
+		tokenize: undefined,
 		tokenize3: (line: string, state: TMState, offsetDelta: number) => {
 			if (offsetDelta !== 0) {
 				throw new Error('Unexpected: offsetDelta should be 0.');
@@ -356,286 +323,4 @@ function createTokenizationSupport(languageRegistration: TMLanguageRegistration,
 			};
 		}
 	};
-}
-
-/**
- * Data associated with a text mate scope as part of decoding.
- *
- * e.g.
- * For a scope "punctuation.definition.string.end.html", the tokens are: punctuation, definition, string, end, html.
- * Each of those tokens receive a unique numeric id, so instead of storing the token strings, we store the token ids.
- * Ultimately this means we store something like [23, 21, 12, 13, 1], considering those numbers to be the ids of the tokens.
- */
-export class TMScopeDecodeData {
-	_tmScopeDecodeDataBrand: void;
-
-	/**
-	 * The original text mate scope.
-	 */
-	public readonly scope: string;
-
-	/**
-	 * The language this scope belongs to.
-	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
-	 */
-	public readonly language: string;
-
-	/**
-	 * The token ids this scope consists of.
-	 */
-	public readonly tokenIds: number[];
-
-	constructor(scope: string, language: string, tokenIds: number[]) {
-		this.scope = scope;
-		this.language = language;
-		this.tokenIds = tokenIds;
-	}
-}
-
-/**
- * Data associated with a stack of text mate scopes as part of decoding.
- */
-export class TMScopesDecodeData {
-	_tmScopesDecodeDataBrand: void;
-
-	/**
-	 * The last scope in the stack.
-	 */
-	public readonly scope: string;
-	/**
-	 * The resolved tokens mask.
-	 * tokens[i] === true ===> token with id i is present.
-	 */
-	public readonly tokensMask: boolean[];
-	/**
-	 * The resolved language.
-	 */
-	public readonly language: string;
-
-	constructor(parent: TMScopesDecodeData, scope: TMScopeDecodeData) {
-		// 1) Inherit data from `parent`.
-		let tokensMask: boolean[];
-		let language: string;
-		if (parent) {
-			tokensMask = parent.tokensMask.slice(0);
-			language = parent.language;
-		} else {
-			tokensMask = [];
-			language = null;
-		}
-
-		// 2) Overwrite with data from `scope`.
-		let scopeTokenIds = scope.tokenIds;
-		for (let i = 0, len = scopeTokenIds.length; i < len; i++) {
-			tokensMask[scopeTokenIds[i]] = true;
-		}
-		if (scope.language) {
-			language = scope.language;
-		}
-
-		this.scope = scope.scope;
-		this.tokensMask = tokensMask;
-		this.language = language;
-	}
-}
-
-export class DecodeMap {
-	_decodeMapBrand: void;
-
-	private lastAssignedTokenId: number;
-	private readonly languageRegistration: TMLanguageRegistration;
-	private readonly scopeToTokenIds: { [scope: string]: TMScopeDecodeData; };
-	private readonly tokenToTokenId: { [token: string]: number; };
-	private readonly tokenIdToToken: string[];
-	prevTokenScopes: TMScopesDecodeData[];
-	public readonly topLevelScope: TMScopesDecodeData;
-
-	constructor(languageRegistration: TMLanguageRegistration) {
-		this.lastAssignedTokenId = 0;
-		this.languageRegistration = languageRegistration;
-		this.scopeToTokenIds = Object.create(null);
-		this.tokenToTokenId = Object.create(null);
-		this.tokenIdToToken = [null];
-		this.prevTokenScopes = [];
-		this.topLevelScope = new TMScopesDecodeData(null, new TMScopeDecodeData(languageRegistration.scopeName, this.languageRegistration.scopeToLanguage(languageRegistration.scopeName), []));
-	}
-
-	private _getTokenId(token: string): number {
-		let tokenId = this.tokenToTokenId[token];
-		if (!tokenId) {
-			tokenId = (++this.lastAssignedTokenId);
-			this.tokenToTokenId[token] = tokenId;
-			this.tokenIdToToken[tokenId] = token;
-		}
-		return tokenId;
-	}
-
-	public decodeTMScope(scope: string): TMScopeDecodeData {
-		let result = this.scopeToTokenIds[scope];
-		if (result) {
-			return result;
-		}
-
-		let scopePieces = scope.split('.');
-
-		let tokenIds: number[] = [];
-		for (let i = 0; i < scopePieces.length; i++) {
-			tokenIds[i] = this._getTokenId(scopePieces[i]);
-		}
-
-		result = new TMScopeDecodeData(scope, this.languageRegistration.scopeToLanguage(scope), tokenIds);
-		this.scopeToTokenIds[scope] = result;
-		return result;
-	}
-
-	public getToken(tokenMap: boolean[]): string {
-		let result = '';
-		let isFirst = true;
-		for (let i = 1, len = tokenMap.length; i < len; i++) {
-			if (tokenMap[i]) {
-				if (isFirst) {
-					isFirst = false;
-					result += this.tokenIdToToken[i];
-				} else {
-					result += '.';
-					result += this.tokenIdToToken[i];
-				}
-			}
-		}
-		return result;
-	}
-}
-
-function depth(stackElement: StackElement): number {
-	return stackElement.depth;
-}
-
-class Tokenizer {
-	private _grammar: IGrammar;
-	private _modeId: string;
-	private _decodeMap: DecodeMap;
-	private _stackOverflowReported: boolean;
-
-	constructor(languageRegistration: TMLanguageRegistration, modeId: string, grammar: IGrammar) {
-		this._modeId = modeId;
-		this._grammar = grammar;
-		this._decodeMap = new DecodeMap(languageRegistration);
-		this._stackOverflowReported = false;
-	}
-
-	public tokenize(line: string, state: TMState, offsetDelta: number): ILineTokens {
-
-		// Do not attempt to tokenize if a line has over 20k
-		if (line.length >= 20000) {
-			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
-			return new RawLineTokens(
-				[new Token(offsetDelta, '', this._modeId)],
-				state
-			);
-		}
-
-		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
-		if (depth(state.ruleStack) > 100) {
-			if (!this._stackOverflowReported) {
-				// don't report again unless a good state has been reached again.
-				console.log(`Line (${line.substr(0, 15)}...): stack deeper than 100: tokenization stopped.`, printRuleStack(state.ruleStack));
-				this._stackOverflowReported = true;
-			}
-			return new RawLineTokens(
-				[new Token(offsetDelta, '', this._modeId)],
-				state
-			);
-		}
-		this._stackOverflowReported = false;
-
-		let textMateResult = this._grammar.tokenizeLine(line, state.ruleStack);
-
-		let endState: TMState;
-		// try to save an object if possible
-		if (state.ruleStack !== null && textMateResult.ruleStack.equals(state.ruleStack)) {
-			endState = state;
-		} else {
-			endState = new TMState(textMateResult.ruleStack);
-		}
-
-		return decodeTextMateTokens(this._modeId, this._decodeMap, line, offsetDelta, textMateResult.tokens, endState);
-	}
-}
-
-// TODO: replace with something like ruleStack.toDebugString
-function printRuleStack(ruleStack: StackElement): string[] {
-	// TODO@tokenization
-	throw new Error('Not implemented');
-	// let scopes = [];
-	// while (ruleStack) {
-	// 	scopes.push(ruleStack['_scopeName']);
-	// 	ruleStack = ruleStack._parent;
-	// }
-	// return scopes;
-}
-
-export function decodeTextMateTokens(topLevelModeId: string, decodeMap: DecodeMap, line: string, offsetDelta: number, resultTokens: IToken[], resultState: TMState): RawLineTokens {
-
-	// Create the result early and fill in the tokens later
-	let tokens: Token[] = [];
-
-	let lastTokenType: string = null;
-	let lastTokenLanguage: string = null;
-
-	for (let tokenIndex = 0, len = resultTokens.length; tokenIndex < len; tokenIndex++) {
-		let token = resultTokens[tokenIndex];
-		let tokenStartIndex = token.startIndex;
-
-		let tokenType = '';
-		let tokenModeId = topLevelModeId;
-		let decodedToken = decodeTextMateToken(decodeMap, token.scopes);
-		if (decodedToken) {
-			tokenType = decodeMap.getToken(decodedToken.tokensMask);
-			if (decodedToken.language) {
-				tokenModeId = decodedToken.language;
-			}
-		}
-
-		// do not push a new token if the type is exactly the same (also helps with ligatures)
-		if (tokenType !== lastTokenType || tokenModeId !== lastTokenLanguage) {
-			tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType, tokenModeId));
-			lastTokenType = tokenType;
-			lastTokenLanguage = tokenModeId;
-		}
-	}
-
-	return new RawLineTokens(
-		tokens,
-		resultState
-	);
-}
-
-export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): TMScopesDecodeData {
-	const prevTokenScopes = decodeMap.prevTokenScopes;
-	const prevTokenScopesLength = prevTokenScopes.length;
-
-	let resultScopes: TMScopesDecodeData[] = [decodeMap.topLevelScope];
-	let lastResultScope: TMScopesDecodeData = decodeMap.topLevelScope;
-
-	let sameAsPrev = true;
-	for (let level = 1/* deliberately skip scope 0*/, scopesLength = scopes.length; level < scopesLength; level++) {
-		let scope = scopes[level];
-
-		if (sameAsPrev && level < prevTokenScopesLength) {
-			let prevTokenScope = prevTokenScopes[level];
-			if (prevTokenScope.scope === scope) {
-				// continue reusing the results of the previous token's computation
-				lastResultScope = prevTokenScope;
-				resultScopes[level] = lastResultScope;
-				continue;
-			}
-		}
-		sameAsPrev = false;
-
-		lastResultScope = new TMScopesDecodeData(lastResultScope, decodeMap.decodeTMScope(scope));
-		resultScopes[level] = lastResultScope;
-	}
-
-	decodeMap.prevTokenScopes = resultScopes;
-	return lastResultScope;
 }
