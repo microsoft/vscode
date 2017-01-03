@@ -18,6 +18,7 @@ export interface IThemeService {
 	_serviceBrand: any;
 	setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
 	getColorTheme(): string;
+	getColorThemeDocument(): IThemeDocument;
 	getColorThemes(): TPromise<IThemeData[]>;
 	onDidColorThemeChange: Event<string>;
 

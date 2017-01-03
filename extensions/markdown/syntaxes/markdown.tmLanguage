@@ -294,8 +294,8 @@
 							<string>(^|\G)\s*(&lt;!--)</string>
 							<key>end</key>
 							<string>(--&gt;)</string>
-							<key>contentName</key>
-							<string>block.comment.html</string>
+							<key>name</key>
+							<string>comment.block.html</string>
 							<key>captures</key>
 							<dict>
 								<key>1</key>
@@ -1902,7 +1902,7 @@
 					<key>match</key>
 					<string>(`+)([^`]|(?!(?&lt;!`)\1(?!`))`)*+(\1)</string>
 					<key>name</key>
-					<string>markup.raw.inline.markdown</string>
+					<string>markup.inline.raw.markdown</string>
 				</dict>
 			</dict>
 		</dict>

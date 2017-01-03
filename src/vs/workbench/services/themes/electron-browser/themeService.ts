@@ -103,6 +103,7 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 
 interface IInternalThemeData extends IThemeData {
 	styleSheetContent?: string;
+	document?: IThemeDocument;
 	extensionId: string;
 	extensionPublisher: string;
 	extensionName: string;
@@ -155,6 +156,7 @@ export class ThemeService implements IThemeService {
 
 	private knownColorThemes: IInternalThemeData[];
 	private currentColorTheme: string;
+	private currentColorThemeDocument: IThemeDocument;
 	private container: HTMLElement;
 	private onColorThemeChange: Emitter<string>;
 
@@ -168,6 +170,7 @@ export class ThemeService implements IThemeService {
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.knownColorThemes = [];
+		this.currentColorThemeDocument = null;
 		this.onColorThemeChange = new Emitter<string>();
 		this.knownIconThemes = [];
 		this.currentIconTheme = '';
@@ -258,6 +261,7 @@ export class ThemeService implements IThemeService {
 			} else {
 				this.sendTelemetry(newTheme);
 			}
+			this.currentColorThemeDocument = newTheme.document;
 			this.onColorThemeChange.fire(newThemeId);
 		};
 
@@ -266,6 +270,10 @@ export class ThemeService implements IThemeService {
 
 	public getColorTheme() {
 		return this.currentColorTheme || this.storageService.get(COLOR_THEME_PREF, StorageScope.GLOBAL, DEFAULT_THEME_ID);
+	}
+
+	public getColorThemeDocument(): IThemeDocument {
+		return this.currentColorThemeDocument;
 	}
 
 	private findThemeData(themeId: string, defaultId?: string): TPromise<IInternalThemeData> {
@@ -641,6 +649,7 @@ function applyTheme(theme: IInternalThemeData, onApply: (theme: IInternalThemeDa
 		return TPromise.as(true);
 	}
 	return _loadThemeDocument(theme.path).then(themeDocument => {
+		theme.document = themeDocument;
 		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent, colorThemeRulesClassName);
