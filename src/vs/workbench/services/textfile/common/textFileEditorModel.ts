@@ -56,7 +56,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromise: TPromise<void>;
 	private contentChangeEventScheduler: RunOnceScheduler;
-	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
+	private saveSequentalizer: SaveSequentalizer;
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
@@ -92,7 +92,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.dirty = false;
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
-		this.mapPendingSaveToVersionId = {};
+		this.saveSequentalizer = new SaveSequentalizer();
 
 		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
 		this.toDispose.push(this.contentChangeEventScheduler);
@@ -490,7 +490,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
-				this.doSave(versionId, SaveReason.AUTO); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+				this.doSave(versionId, SaveReason.AUTO).done(null, onUnexpectedError); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 			}
 		});
 
@@ -528,11 +528,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Scenario: user invoked the save action multiple times quickly for the same contents
 		//           while the save was not yet finished to disk
 		//
-		const pendingSave = this.mapPendingSaveToVersionId[versionId];
-		if (pendingSave) {
+		if (this.saveSequentalizer.hasPendingSave(versionId)) {
 			diag(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource, new Date());
 
-			return pendingSave;
+			return this.saveSequentalizer.pendingSave;
 		}
 
 		// Return early if not dirty or version changed meanwhile
@@ -548,17 +547,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return TPromise.as<void>(null);
 		}
 
-		// Return if currently saving by scheduling another auto save. Never ever must 2 saves execute at the same time because
-		// this can lead to dirty writes and race conditions
+		// Return if currently saving by scheduling another auto save if enabled or storing this version id as next save.
+		// Never ever must 2 saves execute at the same time because this can lead to dirty writes and race conditions.
 		//
-		// Scenario: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
-		//           kicks in. since we never want to trigger 2 saves at the same time, we push out this auto save for the
-		//           configured auto save delay assuming that it can proceed next time it triggers.
+		// Scenario A: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
+		//             kicks in. since we never want to trigger 2 saves at the same time, we push out this auto save for the
+		//             configured auto save delay assuming that it can proceed next time it triggers.
+		// Scenario B: save is very slow (e.g. network share) and the user manages to change the buffer and trigger another save
+		//             while the first save has not returned yet.
 		//
-		if (this.isBusySaving()) {
+		if (this.saveSequentalizer.hasPendingSave()) {
 			diag(`doSave(${versionId}) - exit - because busy saving`, this.resource, new Date());
 
-			// Avoid endless loop here and guard if auto save is disabled
+			// Trigger another auto save if enabled
 			if (this.autoSaveAfterMilliesEnabled) {
 				return this.doAutoSave(versionId);
 			}
@@ -590,11 +591,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}).then(onCompleteOrError, onCompleteOrError);
 		}
 
-		this.mapPendingSaveToVersionId[versionId] = saveParticipantPromise.then(newVersionId => {
+		// mark the save participant as current pending save operation
+		return this.saveSequentalizer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
-			// remove save participant promise from pending saves and update versionId with
-			// its new value (if pre-save changes happened)
-			delete this.mapPendingSaveToVersionId[versionId];
+			// update versionId with its new value (if pre-save changes happened)
 			versionId = newVersionId;
 
 			// Clear error flag since we are trying to save again
@@ -604,8 +604,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.lastSaveAttemptTime = Date.now();
 
 			// Save to Disk
+			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-			this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
+			return this.saveSequentalizer.setPending(newVersionId, this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
 				overwriteReadonly,
 				overwriteEncoding,
 				mtime: this.versionOnDiskStat.mtime,
@@ -613,9 +614,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				etag: this.versionOnDiskStat.etag
 			}).then((stat: IFileStat) => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
-
-				// Remove from pending saves
-				delete this.mapPendingSaveToVersionId[versionId];
 
 				// Telemetry
 				this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
@@ -639,9 +637,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}, error => {
 				diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
 
-				// Remove from pending saves
-				delete this.mapPendingSaveToVersionId[versionId];
-
 				// Flag as error state
 				this.inErrorMode = true;
 
@@ -650,12 +645,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Emit as event
 				this._onDidStateChange.fire(StateChange.SAVE_ERROR);
-			});
-
-			return this.mapPendingSaveToVersionId[versionId];
-		});
-
-		return this.mapPendingSaveToVersionId[versionId];
+			}));
+		}));
 	}
 
 	private setDirty(dirty: boolean): () => void {
@@ -753,17 +744,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return ModelState.SAVED;
 		}
 
-		if (this.isBusySaving()) {
+		if (this.saveSequentalizer.hasPendingSave()) {
 			return ModelState.PENDING_SAVE;
 		}
 
 		if (this.dirty) {
 			return ModelState.DIRTY;
 		}
-	}
-
-	private isBusySaving(): boolean {
-		return !types.isEmptyObject(this.mapPendingSaveToVersionId);
 	}
 
 	public getEncoding(): string {
@@ -858,6 +845,45 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.contentChangeEventScheduler.cancel();
 
 		super.dispose();
+	}
+}
+
+interface IPendingSave {
+	versionId: number;
+	promise: TPromise<void>;
+}
+
+class SaveSequentalizer {
+	private _pendingSave: IPendingSave;
+
+	public hasPendingSave(versionId?: number): boolean {
+		if (!this._pendingSave) {
+			return false;
+		}
+
+		if (typeof versionId === 'number') {
+			return this._pendingSave.versionId === versionId;
+		}
+
+		return !!this._pendingSave;
+	}
+
+	public setPending(versionId: number, promise: TPromise<void>): TPromise<void> {
+		this._pendingSave = { versionId, promise };
+
+		promise.done(() => this.donePending(versionId), () => this.donePending(versionId));
+
+		return promise;
+	}
+
+	private donePending(versionId: number): void {
+		if (this._pendingSave && versionId === this._pendingSave.versionId) {
+			this._pendingSave = void 0; // only set pending to done if the promise finished that is associated with that versionId
+		}
+	}
+
+	public get pendingSave(): TPromise<void> {
+		return this._pendingSave ? this._pendingSave.promise : void 0;
 	}
 }
 
