@@ -71,9 +71,18 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
+let validation = {
+	html: true,
+	css: true,
+	javascript: true
+};
+
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
 	settings = change.settings;
+	let validationSettings = settings && settings.html && settings.html.validate || {};
+	validation.css = validationSettings.styles !== false;
+	validation.javascript = validationSettings.scripts !== false;
 
 	languageModes.getAllModes().forEach(m => {
 		if (m.configure) {
@@ -117,7 +126,7 @@ function triggerValidation(textDocument: TextDocument): void {
 function validateTextDocument(textDocument: TextDocument): void {
 	let diagnostics: Diagnostic[] = [];
 	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
-		if (mode.doValidation) {
+		if (mode.doValidation && validation[mode.getId()]) {
 			pushAll(diagnostics, mode.doValidation(textDocument));
 		}
 	});
