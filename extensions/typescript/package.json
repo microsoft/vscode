@@ -261,8 +261,8 @@
 				"title": "%javascript.reloadProjects.title%"
 			},
 			{
-				"command": "typescript.tryAcceptSelectedSuggestion",
-				"title": "try accept select suggestion"
+				"command": "typescript.tryAcceptSelectedSuggestionOnDot",
+				"title": "%typescript.tryAcceptSelectedSuggestionOnDot.title%"
 			}
 		],
 		"breakpoints": [

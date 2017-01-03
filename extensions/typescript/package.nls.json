@@ -12,6 +12,7 @@
 	"typescript.tsserver.experimentalAutoBuild": "Enables experimental auto build. Requires 1.9 dev or 2.x tsserver version and a restart of VS Code after changing it.",
 	"typescript.validate.enable": "Enable/disable TypeScript validation.",
 	"typescript.format.enable": "Enable/disable default TypeScript formatter.",
+	"typescript.tryAcceptSelectedSuggestionOnDot": "Accept current suggestion when a dot is typed",
 	"javascript.format.enable": "Enable/disable default JavaScript formatter.",
 	"format.insertSpaceAfterCommaDelimiter": "Defines space handling after a comma delimiter.",
 	"format.insertSpaceAfterSemicolonInForStatements": " Defines space handling after a semicolon in a for statement.",
