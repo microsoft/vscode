@@ -27,13 +27,6 @@ export interface ILayoutOptions {
 	toggleMaximizedPanel?: boolean;
 }
 
-export interface IZenModeOptions {
-	noFullScreen?: boolean;
-	keepStatusBar?: boolean;
-	keepTabs?: boolean;
-	keepActivityBar?: boolean;
-}
-
 export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
@@ -123,5 +116,5 @@ export interface IPartService {
 	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
-	toggleZenMode(options?: IZenModeOptions): void;
+	toggleZenMode(): void;
 }

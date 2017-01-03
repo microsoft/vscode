@@ -249,3 +249,28 @@ configurationRegistry.registerConfiguration({
 	'type': 'object',
 	'properties': properties
 });
+
+// Configuration: Zen Mode
+configurationRegistry.registerConfiguration({
+	'id': 'zenMode',
+	'order': 9,
+	'title': nls.localize('zenModeConfigurationTitle', "Zen Mode"),
+	'type': 'object',
+	'properties': {
+		'zenMode.fullScreen': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.fullScreen', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
+		},
+		'zenMode.hideTabs': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideTabs', "Controls if turning on Zen Mode also hides workbench tabs.")
+		},
+		'zenMode.hideStatusBar': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+		}
+	}
+});

@@ -41,7 +41,7 @@ import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickO
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { Position, Parts, IPartService, ILayoutOptions, IZenModeOptions } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -95,6 +95,12 @@ export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toN
 interface WorkbenchParams {
 	options: IOptions;
 	serviceCollection: ServiceCollection;
+}
+
+interface IZenModeSettings {
+	fullScreen: boolean;
+	hideTabs: boolean;
+	hideStatusBar: boolean;
 }
 
 export interface IWorkbenchStartedInfo {
@@ -1049,26 +1055,24 @@ export class Workbench implements IPartService {
 		return Identifiers.WORKBENCH_CONTAINER;
 	}
 
-	public toggleZenMode(options?: IZenModeOptions): void {
-		options = options || {};
+	public toggleZenMode(): void {
 		this.zenMode.active = !this.zenMode.active;
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
 		let toggleFullScreen = false;
 		if (this.zenMode.active) {
-			toggleFullScreen = !browser.isFullscreen() && !options.noFullScreen;
+			const config = this.configurationService.getConfiguration<IZenModeSettings>('zenMode');
+			toggleFullScreen = !browser.isFullscreen() && config.fullScreen;
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
 			this.setPanelHidden(true, true);
 			this.setSideBarHidden(true, true);
 
-			if (!options.keepStatusBar) {
+			this.setActivityBarHidden(true, true);
+			if (config.hideStatusBar) {
 				this.setStatusBarHidden(true, true);
 			}
-			if (!options.keepActivityBar) {
-				this.setActivityBarHidden(true, true);
-			}
-			if (!options.keepTabs) {
+			if (config.hideTabs) {
 				this.editorPart.hideTabs(true);
 			}
 		} else {
