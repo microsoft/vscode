@@ -175,6 +175,7 @@ export default class Webview {
 			font-weight: var(--font-weight);
 			font-size: var(--font-size);
 			margin: 0;
+			padding-left: 20px;
 		}
 
 		img {
