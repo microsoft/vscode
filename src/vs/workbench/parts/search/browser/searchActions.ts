@@ -266,6 +266,30 @@ export class ClearSearchResultsAction extends Action {
 	}
 }
 
+export class FocusNextSearchResultAction extends Action {
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super('focusNextSearchResult', nls.localize('FocusNextSearchResult.label', "Focus next search result"));
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
+			searchViewlet.selectNextResult();
+		});
+	}
+}
+
+export class FocusPreviousSearchResultAction extends Action {
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super('focusPreviousSearchResult', nls.localize('FocusPreviousSearchResult.label', "Focus previous search result"));
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
+			searchViewlet.selectPreviousResult();
+		});
+	}
+}
+
 export abstract class AbstractSearchAndReplaceAction extends Action {
 
 	/**

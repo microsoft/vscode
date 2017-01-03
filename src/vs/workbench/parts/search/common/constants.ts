@@ -9,6 +9,9 @@ export const VIEWLET_ID = 'workbench.view.search';
 
 export const FindInFilesActionId = 'workbench.action.findInFiles';
 export const FocusActiveEditorActionId = 'search.action.focusActiveEditor';
+export const FocusNextSearchResultActionId = 'search.action.focusNextSearchResult';
+export const FocusPreviousSearchResultActionId = 'search.action.focusPreviousSearchResult';
+
 export const ToggleCaseSensitiveActionId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordActionId = 'toggleSearchWholeWord';
 export const ToggleRegexActionId = 'toggleSearchRegex';
