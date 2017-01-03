@@ -22,7 +22,7 @@ suite('QuickFix', () => {
 	let markerService: MarkerService;
 	let editor: ICommonCodeEditor;
 
-	CodeActionProviderRegistry.register('foo-lang', {
+	let reg = CodeActionProviderRegistry.register('foo-lang', {
 		provideCodeActions() {
 			return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
 		}
@@ -32,6 +32,11 @@ suite('QuickFix', () => {
 		markerService = new MarkerService();
 		editor = mockCodeEditor([], { model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
+	});
+
+	suiteTeardown(() => {
+		reg.dispose();
+		model.dispose();
 	});
 
 	test('Orcale -> marker added', done => {
