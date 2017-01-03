@@ -5,20 +5,7 @@
 'use strict';
 
 import * as modes from 'vs/editor/common/modes';
-import { Token } from 'vs/editor/common/core/token';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-
-export class RawLineTokens implements modes.ILineTokens {
-	_lineTokensBrand: void;
-
-	tokens: Token[];
-	endState: modes.IState;
-
-	constructor(tokens: Token[], endState: modes.IState) {
-		this.tokens = tokens;
-		this.endState = endState;
-	}
-}
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	let tokenCount = context.getTokenCount();
