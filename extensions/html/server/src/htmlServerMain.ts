@@ -6,8 +6,10 @@
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
-import { TextDocument, Diagnostic, DocumentLink, Range, TextEdit, SymbolInformation } from 'vscode-languageserver-types';
+import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
+
+import { format } from './modes/formatting';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -201,18 +203,11 @@ connection.onSignatureHelp(signatureHelpParms => {
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	let ranges = languageModes.getModesInRange(document, formatParams.range);
-	let result: TextEdit[] = [];
+
 	let unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
-	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/), html: true };
-	ranges.forEach(r => {
-		let mode = r.mode;
-		if (mode && mode.format && enabledModes[mode.getId()] && !r.attributeValue) {
-			let edits = mode.format(document, r, formatParams.options);
-			pushAll(result, edits);
-		}
-	});
-	return result;
+	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
+
+	return format(languageModes, document, formatParams.range, formatParams.options, enabledModes);
 });
 
 connection.onDocumentLinks(documentLinkParam => {
