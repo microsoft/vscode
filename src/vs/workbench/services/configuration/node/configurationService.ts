@@ -187,7 +187,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 			this.cachedWorkspaceConfig = workspaceConfig;
 
 			// Cache keys
-			const workspaceConfigKeys = [];
+			const workspaceConfigKeys: string[] = [];
 			Object.keys(workspaceConfigFiles).forEach(path => {
 				if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
 					workspaceConfigKeys.push(...Object.keys(workspaceConfigFiles[path].raw));

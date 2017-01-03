@@ -177,7 +177,7 @@ export class SearchWorkerEngine {
 				let lineNumber = 0;
 				let lastBufferHadTraillingCR = false;
 
-				const decodeBuffer = (buffer: NodeBuffer, start, end): string => {
+				const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
 					if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
 						return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
 					}

@@ -90,6 +90,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	private static getChannelLabels(outputService: IOutputService): string[] {
 		const contributedChannels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().map(channelData => channelData.label);
+
 		return contributedChannels.sort(); // sort by name
 	}
 }

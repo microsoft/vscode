@@ -373,7 +373,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 			pattern.lastIndex = 0; // the holy grail of software development
 
 			const match = pattern.exec(text);
-			let resource = null;
+			let resource: uri = null;
 			try {
 				resource = match && uri.file(match[1]);
 			} catch (e) { }

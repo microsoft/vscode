@@ -86,8 +86,6 @@ import 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 
-import 'vs/workbench/parts/contentprovider/common/contentprovider.contribution';
-
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
 import 'vs/workbench/parts/feedback/electron-browser/feedback.contribution';
@@ -108,5 +106,3 @@ import 'vs/workbench/electron-browser/main';
 import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
 
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
-
-import 'vs/workbench/parts/viewpicker/browser/viewpicker.contribution';

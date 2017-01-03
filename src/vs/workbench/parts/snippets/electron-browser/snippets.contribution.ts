@@ -40,7 +40,7 @@ class OpenSnippetsAction extends actions.Action {
 	}
 
 	private openFile(filePath: string): winjs.TPromise<void> {
-		return this.windowsService.windowOpen([filePath]);
+		return this.windowsService.openWindow([filePath], { forceReuseWindow: true });
 	}
 
 	public run(): winjs.Promise {

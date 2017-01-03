@@ -16,7 +16,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	private _proxy: ExtHostTreeExplorersShape;
 
 	constructor(
-		@IThreadService private threadService: IThreadService,
+		@IThreadService threadService: IThreadService,
 		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
 		@IMessageService private messageService: IMessageService,
 		@ICommandService private commandService: ICommandService

@@ -503,7 +503,7 @@ export class SearchModel extends Disposable {
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 
-	constructor( @ISearchService private searchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 	}
