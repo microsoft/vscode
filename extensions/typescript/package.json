@@ -248,7 +248,7 @@
 		},
 		"keybindings": {
 			"key": ".",
-			"command": "^acceptSelectedSuggestion",
+			"command": "typescript.tryAcceptSelectedSuggestionOnDot",
 			"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'typescript' && suggestionSupportsAcceptOnKey"
 		},
 		"commands": [
@@ -259,6 +259,10 @@
 			{
 				"command": "javascript.reloadProjects",
 				"title": "%javascript.reloadProjects.title%"
+			},
+			{
+				"command": "typescript.tryAcceptSelectedSuggestion",
+				"title": "try accept select suggestion"
 			}
 		],
 		"breakpoints": [
