@@ -16,7 +16,6 @@ import { TMState } from 'vs/editor/node/textMate/TMState';
 import { RawLineTokens } from 'vs/editor/common/modes/supports';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IGrammar, Registry, StackElement, IToken, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
@@ -530,8 +529,7 @@ class Tokenizer {
 		if (line.length >= 20000) {
 			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
 			return new RawLineTokens(
-				[new Token(offsetDelta, '')],
-				[new ModeTransition(offsetDelta, this._modeId)],
+				[new Token(offsetDelta, '', this._modeId)],
 				state
 			);
 		}
@@ -544,8 +542,7 @@ class Tokenizer {
 				this._stackOverflowReported = true;
 			}
 			return new RawLineTokens(
-				[new Token(offsetDelta, '')],
-				[new ModeTransition(offsetDelta, this._modeId)],
+				[new Token(offsetDelta, '', this._modeId)],
 				state
 			);
 		}
@@ -581,10 +578,9 @@ export function decodeTextMateTokens(topLevelModeId: string, decodeMap: DecodeMa
 
 	// Create the result early and fill in the tokens later
 	let tokens: Token[] = [];
-	let modeTransitions: ModeTransition[] = [];
 
 	let lastTokenType: string = null;
-	let lastModeId: string = null;
+	let lastTokenLanguage: string = null;
 
 	for (let tokenIndex = 0, len = resultTokens.length; tokenIndex < len; tokenIndex++) {
 		let token = resultTokens[tokenIndex];
@@ -601,20 +597,15 @@ export function decodeTextMateTokens(topLevelModeId: string, decodeMap: DecodeMa
 		}
 
 		// do not push a new token if the type is exactly the same (also helps with ligatures)
-		if (tokenType !== lastTokenType) {
-			tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType));
+		if (tokenType !== lastTokenType || tokenModeId !== lastTokenLanguage) {
+			tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType, tokenModeId));
 			lastTokenType = tokenType;
-		}
-
-		if (tokenModeId !== lastModeId) {
-			modeTransitions.push(new ModeTransition(tokenStartIndex + offsetDelta, tokenModeId));
-			lastModeId = tokenModeId;
+			lastTokenLanguage = tokenModeId;
 		}
 	}
 
 	return new RawLineTokens(
 		tokens,
-		modeTransitions,
 		resultState
 	);
 }

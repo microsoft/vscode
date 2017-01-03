@@ -751,6 +751,14 @@ declare module monaco {
          */
         RTL = 1,
     }
+    export class Token {
+        _tokenBrand: void;
+        readonly offset: number;
+        readonly type: string;
+        readonly language: string;
+        constructor(offset: number, type: string, language: string);
+        toString(): string;
+    }
 }
 
 declare module monaco.editor {
@@ -852,12 +860,6 @@ declare module monaco.editor {
      * Colorize a line in a model.
      */
     export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
-
-    export class Token {
-        readonly offset: number;
-        readonly type: string;
-        constructor(offset: number, type: string);
-    }
 
     /**
      * Tokenize `text` using language `languageId`

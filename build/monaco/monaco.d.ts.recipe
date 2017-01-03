@@ -48,11 +48,12 @@ declare module monaco {
 #include(vs/editor/common/core/position): Position
 #include(vs/editor/common/core/range): Range
 #include(vs/editor/common/core/selection): Selection, SelectionDirection
+#include(vs/editor/common/core/token): Token
 }
 
 declare module monaco.editor {
 
-#includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.):
+#includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.;editorCommon.=>):
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
 #include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {

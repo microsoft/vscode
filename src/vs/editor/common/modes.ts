@@ -9,7 +9,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -55,7 +54,6 @@ export interface IMode {
 export interface ILineTokens {
 	tokens: Token[];
 	endState: IState;
-	modeTransitions: ModeTransition[];
 }
 
 /**
