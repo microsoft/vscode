@@ -133,7 +133,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(IDebugService);
-		return debugService.createProcess(configurationOrName);
+		return debugService.createProcess(configurationOrName || debugService.getViewModel().selectedConfigurationName);
 	},
 	when: CONTEXT_NOT_IN_DEBUG_MODE,
 	primary: undefined
