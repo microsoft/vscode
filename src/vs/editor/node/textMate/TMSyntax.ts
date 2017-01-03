@@ -438,12 +438,7 @@ export class DecodeMap {
 }
 
 function depth(stackElement: StackElement): number {
-	let result = 0;
-	while (stackElement) {
-		result++;
-		stackElement = stackElement._parent;
-	}
-	return result;
+	return stackElement.depth;
 }
 
 class Tokenizer {
@@ -502,12 +497,14 @@ class Tokenizer {
 
 // TODO: replace with something like ruleStack.toDebugString
 function printRuleStack(ruleStack: StackElement): string[] {
-	let scopes = [];
-	while (ruleStack) {
-		scopes.push(ruleStack['_scopeName']);
-		ruleStack = ruleStack._parent;
-	}
-	return scopes;
+	// TODO@tokenization
+	throw new Error('Not implemented');
+	// let scopes = [];
+	// while (ruleStack) {
+	// 	scopes.push(ruleStack['_scopeName']);
+	// 	ruleStack = ruleStack._parent;
+	// }
+	// return scopes;
 }
 
 export function decodeTextMateTokens(topLevelModeId: string, decodeMap: DecodeMap, line: string, offsetDelta: number, resultTokens: IToken[], resultState: TMState): RawLineTokens {
