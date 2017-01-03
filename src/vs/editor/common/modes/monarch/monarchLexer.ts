@@ -15,7 +15,6 @@ import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 import { Theme } from 'vs/editor/common/modes/supports/tokenization';
 
@@ -240,35 +239,29 @@ interface IMonarchTokensCollector {
 
 class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 
-	private _modeTransitions: ModeTransition[];
 	private _tokens: Token[];
-
-	private _lastModeId: string;
+	private _language: string;
 	private _lastTokenType: string;
+	private _lastTokenLanguage: string;
 
 	constructor() {
-		this._modeTransitions = [];
 		this._tokens = [];
-
-		this._lastModeId = null;
+		this._language = null;
 		this._lastTokenType = null;
+		this._lastTokenLanguage = null;
 	}
 
 	public enterMode(startOffset: number, modeId: string): void {
-		if (this._lastModeId === modeId) {
-			// Avoid transitioning to the same mode (this can happen in case of empty embedded modes)
-			return;
-		}
-		this._lastModeId = modeId;
-		this._modeTransitions.push(new ModeTransition(startOffset, modeId));
+		this._language = modeId;
 	}
 
 	public emit(startOffset: number, type: string): void {
-		if (this._lastTokenType === type) {
+		if (this._lastTokenType === type && this._lastTokenLanguage === this._language) {
 			return;
 		}
 		this._lastTokenType = type;
-		this._tokens.push(new Token(startOffset, type));
+		this._lastTokenLanguage = this._language;
+		this._tokens.push(new Token(startOffset, type, this._language));
 	}
 
 	public nestedModeTokenize(embeddedModeLine: string, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
@@ -285,15 +278,14 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 		let nestedResult = nestedModeTokenizationSupport.tokenize(embeddedModeLine, embeddedModeState, offsetDelta);
 		this._tokens = this._tokens.concat(nestedResult.tokens);
 		this._lastTokenType = null;
-		this._modeTransitions = this._modeTransitions.concat(nestedResult.modeTransitions);
-		this._lastModeId = null;
+		this._lastTokenLanguage = null;
+		this._language = null;
 		return nestedResult.endState;
 	}
 
 	public finalize(endState: MonarchLineState): modes.ILineTokens {
 		return {
 			tokens: this._tokens,
-			modeTransitions: this._modeTransitions,
 			endState: endState
 		};
 	}

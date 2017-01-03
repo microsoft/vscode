@@ -6,9 +6,6 @@
 
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-/* tslint:disable:duplicate-imports */
-import { IModel } from 'vs/editor/common/editorCommon';
-/* tslint:disable:duplicate-imports */
 import { ContentWidgetPositionPreference, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -33,9 +30,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { Token } from 'vs/editor/common/core/token';
 
 /**
  * @internal
@@ -136,7 +133,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): IModel {
+function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): editorCommon.IModel {
 	return StaticServices.modelService.get().createModel(value, mode, uri);
 }
 
@@ -144,7 +141,7 @@ function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): I
  * Create a new editor model.
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
-export function createModel(value: string, language?: string, uri?: URI): IModel {
+export function createModel(value: string, language?: string, uri?: URI): editorCommon.IModel {
 	value = value || '';
 
 	if (!language) {
@@ -164,14 +161,14 @@ export function createModel(value: string, language?: string, uri?: URI): IModel
 /**
  * Change the language for a model.
  */
-export function setModelLanguage(model: IModel, language: string): void {
+export function setModelLanguage(model: editorCommon.IModel, language: string): void {
 	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(language));
 }
 
 /**
  * Set the markers for a model.
  */
-export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void {
+export function setModelMarkers(model: editorCommon.IModel, owner: string, markers: IMarkerData[]): void {
 	if (model) {
 		StaticServices.markerService.get().changeOne(owner, model.uri, markers);
 	}
@@ -180,14 +177,14 @@ export function setModelMarkers(model: IModel, owner: string, markers: IMarkerDa
 /**
  * Get the model that has `uri` if it exists.
  */
-export function getModel(uri: URI): IModel {
+export function getModel(uri: URI): editorCommon.IModel {
 	return StaticServices.modelService.get().getModel(uri);
 }
 
 /**
  * Get all the created models.
  */
-export function getModels(): IModel[] {
+export function getModels(): editorCommon.IModel[] {
 	return StaticServices.modelService.get().getModels();
 }
 
@@ -195,7 +192,7 @@ export function getModels(): IModel[] {
  * Emitted when a model is created.
  * @event
  */
-export function onDidCreateModel(listener: (model: IModel) => void): IDisposable {
+export function onDidCreateModel(listener: (model: editorCommon.IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelAdded(listener);
 }
 
@@ -203,7 +200,7 @@ export function onDidCreateModel(listener: (model: IModel) => void): IDisposable
  * Emitted right before a model is disposed.
  * @event
  */
-export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable {
+export function onWillDisposeModel(listener: (model: editorCommon.IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelRemoved(listener);
 }
 
@@ -211,7 +208,7 @@ export function onWillDisposeModel(listener: (model: IModel) => void): IDisposab
  * Emitted when a different language is set to a model.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: IModel; readonly oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: editorCommon.IModel; readonly oldLanguage: string; }) => void): IDisposable {
 	return StaticServices.modelService.get().onModelModeChanged((e) => {
 		listener({
 			model: e.model,
@@ -255,31 +252,21 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
 /**
  * Colorize a line in a model.
  */
-export function colorizeModelLine(model: IModel, lineNumber: number, tabSize: number = 4): string {
+export function colorizeModelLine(model: editorCommon.IModel, lineNumber: number, tabSize: number = 4): string {
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
-}
-
-export class Token {
-	public readonly offset: number;
-	public readonly type: string;
-
-	constructor(offset: number, type: string) {
-		this.offset = offset;
-		this.type = type;
-	}
 }
 
 /**
  * @internal
  */
-function getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
-	let tokenizationSupport = TokenizationRegistry.get(languageId);
+function getSafeTokenizationSupport(languageId: string): modes.ITokenizationSupport {
+	let tokenizationSupport = modes.TokenizationRegistry.get(languageId);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, state: IState, deltaOffset: number) => nullTokenize(languageId, line, state, deltaOffset),
+		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(languageId, line, state, deltaOffset),
 		tokenize3: undefined,
 	};
 }
@@ -300,7 +287,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 		let line = lines[i];
 		let tokenizationResult = tokenizationSupport.tokenize(line, state, 0);
 
-		result[i] = tokenizationResult.tokens.map((t) => new Token(t.startIndex, t.type));
+		result[i] = tokenizationResult.tokens;
 		state = tokenizationResult.endState;
 	}
 	return result;
@@ -358,7 +345,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		BareFontInfo: <any>editorCommon.BareFontInfo,
 		FontInfo: <any>editorCommon.FontInfo,
 		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
-		Token: Token,
 
 		// vars
 		EditorType: editorCommon.EditorType,

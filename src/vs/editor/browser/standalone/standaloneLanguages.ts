@@ -24,7 +24,6 @@ import { createTokenizationSupport } from 'vs/editor/common/modes/monarch/monarc
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token } from 'vs/editor/common/core/token';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 
 /**
@@ -90,18 +89,18 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return this._actual.getInitialState();
 	}
 
-	private _toClassicTokens(tokens: modes.IToken2[], offsetDelta: number): Token[] {
+	private _toClassicTokens(tokens: modes.IToken2[], language: string, offsetDelta: number): Token[] {
 		let result: Token[] = [];
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			let t = tokens[i];
-			result[i] = new Token(t.startIndex + offsetDelta, t.scopes);
+			result[i] = new Token(t.startIndex + offsetDelta, t.scopes, language);
 		}
 		return result;
 	}
 
 	public tokenize(line: string, state: modes.IState, offsetDelta: number): modes.ILineTokens {
 		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toClassicTokens(actualResult.tokens, offsetDelta);
+		let tokens = this._toClassicTokens(actualResult.tokens, this._languageIdentifier.sid, offsetDelta);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -113,8 +112,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 		return {
 			tokens: tokens,
-			endState: endState,
-			modeTransitions: [new ModeTransition(offsetDelta, this._languageIdentifier.sid)],
+			endState: endState
 		};
 	}
 

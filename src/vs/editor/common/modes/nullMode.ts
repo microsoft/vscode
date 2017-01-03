@@ -5,7 +5,6 @@
 'use strict';
 
 import { IState, ILineTokens, ILineTokens3, ColorId, MetadataConsts, LanguageIdentifier, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 
 class NullStateImpl implements IState {
@@ -26,14 +25,9 @@ export const NULL_MODE_ID = 'vs.editor.nullMode';
 export const NULL_LANGUAGE_IDENTIFIER = new LanguageIdentifier(NULL_MODE_ID, LanguageId.Null);
 
 export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number): ILineTokens {
-	let tokens: Token[] = [new Token(deltaOffset, '')];
-
-	let modeTransitions: ModeTransition[] = [new ModeTransition(deltaOffset, modeId)];
-
 	return {
-		tokens: tokens,
-		endState: state,
-		modeTransitions: modeTransitions
+		tokens: [new Token(deltaOffset, '', modeId)],
+		endState: state
 	};
 }
 

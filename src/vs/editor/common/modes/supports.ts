@@ -5,7 +5,6 @@
 'use strict';
 
 import * as modes from 'vs/editor/common/modes';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
@@ -13,12 +12,10 @@ export class RawLineTokens implements modes.ILineTokens {
 	_lineTokensBrand: void;
 
 	tokens: Token[];
-	modeTransitions: ModeTransition[];
 	endState: modes.IState;
 
-	constructor(tokens: Token[], modeTransitions: ModeTransition[], endState: modes.IState) {
+	constructor(tokens: Token[], endState: modes.IState) {
 		this.tokens = tokens;
-		this.modeTransitions = modeTransitions;
 		this.endState = endState;
 	}
 }
