@@ -13,14 +13,14 @@ import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommonCodeEditor, IPosition, IRange } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from '../common/quickFix';
 
 
-class QuickFixOracle {
+export class QuickFixOracle {
 
 	private _disposables: IDisposable[] = [];
+	private _currentRange: IRange;
 
 	constructor(private _editor: ICommonCodeEditor, private _markerService: IMarkerService, private _signalChange: (e: QuickFixComputeEvent) => any) {
 
@@ -36,27 +36,25 @@ class QuickFixOracle {
 
 	private _onMarkerChanges(resources: URI[]): void {
 		const {uri} = this._editor.getModel();
-		let affectedBy = false;
 		for (const resource of resources) {
 			if (resource.toString() === uri.toString()) {
-				affectedBy = true;
-				break;
+				this._onCursorChange();
+				return;
 			}
-		}
-		if (affectedBy) {
-			this._onCursorChange();
 		}
 	}
 
 	private _onCursorChange(): void {
 		const range = this._markerAtPosition() || this._wordAtPosition();
-
-		this._signalChange({
-			type: 'auto',
-			range,
-			position: this._editor.getPosition(),
-			fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
-		});
+		if (!Range.equalsRange(this._currentRange, range)) {
+			this._currentRange = range;
+			this._signalChange({
+				type: 'auto',
+				range,
+				position: this._editor.getPosition(),
+				fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
+			});
+		}
 	}
 
 	private _markerAtPosition(): IMarker {
@@ -109,7 +107,7 @@ export class QuickFixModel {
 	private _onDidChangeFixes = new Emitter<QuickFixComputeEvent>();
 	private _disposables: IDisposable[] = [];
 
-	constructor(editor: ICodeEditor, markerService: IMarkerService) {
+	constructor(editor: ICommonCodeEditor, markerService: IMarkerService) {
 		this._editor = editor;
 		this._markerService = markerService;
 
