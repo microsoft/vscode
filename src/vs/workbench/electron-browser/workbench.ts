@@ -262,7 +262,7 @@ export class Workbench implements IPartService {
 			// Workbench Layout
 			this.createWorkbenchLayout();
 
-			// Load composits and editors in parallel
+			// Load composites and editors in parallel
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Restore last opened viewlet
@@ -357,7 +357,7 @@ export class Workbench implements IPartService {
 
 			// Files to diff is exclusive
 			if (filesToDiff && filesToDiff.length === 2) {
-				return this.editorService.createInput({ leftResource: filesToDiff[0].resource, rightResource: filesToDiff[1].resource }).then(input => [{ input }]);
+				return this.editorService.createInput({ leftResource: filesToDiff[0].resource, rightResource: filesToDiff[1].resource }).then(input => [{ input, options: EditorOptions.create({ pinned: true }) }]);
 			}
 
 			// Otherwise: Open/Create files
@@ -367,14 +367,19 @@ export class Workbench implements IPartService {
 
 				// Files to create
 				inputs.push(...filesToCreate.map(resourceInput => this.untitledEditorService.createOrGet(resourceInput.resource)));
-				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
+				options.push(...filesToCreate.map(r => EditorOptions.create({ pinned: true })));
 
 				// Files to open
 				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
 
 				return TPromise.join<EditorInput>(filesToOpenInputPromise).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
-					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
+					options.push(...filesToOpen.map(resourceInput => {
+						const options: EditorOptions = TextEditorOptions.from(resourceInput) || EditorOptions.create({ pinned: true });
+						options.pinned = true;
+
+						return options;
+					}));
 
 					return inputs.map((input, index) => { return { input, options: options[index] }; });
 				});

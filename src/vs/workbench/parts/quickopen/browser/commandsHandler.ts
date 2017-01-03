@@ -251,7 +251,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		// Workbench Actions (if prefix asks for all commands)
 		let workbenchEntries: CommandEntry[] = [];
 		if (this.includeWorkbenchCommands()) {
-			const workbenchActions = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).getWorkbenchActions();
+			const workbenchActions = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchActions();
 			workbenchEntries = this.actionDescriptorsToEntries(workbenchActions, searchValue);
 		}
 

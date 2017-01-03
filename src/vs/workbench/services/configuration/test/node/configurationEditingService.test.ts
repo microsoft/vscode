@@ -25,7 +25,6 @@ import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -56,7 +55,6 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -64,7 +62,7 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService);
 	}
 
 	public isDirty(resource?: URI): boolean {
