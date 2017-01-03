@@ -133,6 +133,7 @@ export class Workbench implements IPartService {
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
 	private static sidebarRestoreSettingKey = 'workbench.sidebar.restore';
 	private static panelHiddenSettingKey = 'workbench.panel.hidden';
+	private static zenModeActiveSettingKey = 'workbench.zenmode.active';
 
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
@@ -320,6 +321,10 @@ export class Workbench implements IPartService {
 					editorRestoreStopWatch.stop();
 				});
 			}));
+
+			if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
+				this.toggleZenMode(true);
+			}
 
 			// Flag workbench as created once done
 			const workbenchDone = (error?: Error) => {
@@ -804,6 +809,8 @@ export class Workbench implements IPartService {
 		if (reason === ShutdownReason.RELOAD) {
 			this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 		}
+		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
+		this.storageService.store(Workbench.zenModeActiveSettingKey, reason === ShutdownReason.RELOAD && this.zenMode.active, StorageScope.WORKSPACE);
 
 		// Pass shutdown on to each participant
 		this.toShutdown.forEach(s => s.shutdown());
@@ -1055,7 +1062,7 @@ export class Workbench implements IPartService {
 		return Identifiers.WORKBENCH_CONTAINER;
 	}
 
-	public toggleZenMode(): void {
+	public toggleZenMode(skipLayout?: boolean): void {
 		this.zenMode.active = !this.zenMode.active;
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
 		let toggleFullScreen = false;
@@ -1093,7 +1100,9 @@ export class Workbench implements IPartService {
 		}
 		this.inZenMode.set(this.zenMode.active);
 
-		this.layout();
+		if (!skipLayout) {
+			this.layout();
+		}
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);
 		}
