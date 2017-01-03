@@ -99,7 +99,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			}
 		}
 
-		return bulkEdit(this._fileService, this._textModelResolverService, codeEditor, edits)
+		return bulkEdit(this._textModelResolverService, codeEditor, edits, this._fileService)
 			.then(() => true);
 	}
 }
