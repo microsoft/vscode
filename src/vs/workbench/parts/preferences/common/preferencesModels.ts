@@ -12,15 +12,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel, IRange } from 'vs/editor/common/editorCommon';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IFilter, or, matchesContiguousSubString, matchesPrefix, /*matchesFuzzy,*/ matchesWords } from 'vs/base/common/filters';
+import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 
 export abstract class AbstractSettingsModel extends Disposable {
-
-	static _descriptionFilter: IFilter = matchesWords;
 
 	public get groupsTerms(): string[] {
 		return this.settingsGroups.map(group => '@' + group.id);
@@ -102,35 +101,97 @@ export abstract class AbstractSettingsModel extends Disposable {
 	}
 
 	private _findMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
-		const result: IRange[] = [...this._findMatchesInDescription(searchString, setting)];
-		result.push(...this._findMatchesInSettingKey(searchString, setting));
-		return result;
+		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const schema: IJSONSchema = registry[setting.key];
+
+		let words = searchString.split(' ');
+		let descriptionMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+		let keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+		let valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+		const settingKeyAsWords: string = setting.key.split('.').join(' ');
+
+		for (const word of words) {
+			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+				const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+				if (descriptionMatches) {
+					descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+				}
+			}
+
+			const keyMatches = or(matchesWords, matchesCamelCase)(word, settingKeyAsWords);
+			if (keyMatches) {
+				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
+			}
+
+			if (schema.type === 'string' || schema.enum) {
+				const valueMatches = matchesContiguousSubString(word, setting.value);
+				if (valueMatches) {
+					valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+				} else if (schema.enum && schema.enum.some(enumValue => !!matchesContiguousSubString(word, enumValue))) {
+					valueMatchingWords.set(word, []);
+				}
+			}
+		}
+
+		const descriptionRanges: IRange[] = [];
+		for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex]) || [];
+			descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+		}
+		if (descriptionRanges.length === 0) {
+			descriptionRanges.push(...this.getRangesForWords(words, descriptionMatchingWords, [keyMatchingWords, valueMatchingWords]));
+		}
+
+		const keyMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.key);
+		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, keyMatchingWords, [descriptionMatchingWords, valueMatchingWords]);
+
+		let valueRanges: IRange[] = [];
+		if (typeof setting.value === 'string') {
+			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
+			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, valueMatchingWords, [keyMatchingWords, descriptionMatchingWords]);
+		}
+
+		return [...descriptionRanges, ...keyRanges, ...valueRanges];
 	}
 
-	private _findMatchesInDescription(searchString: string, setting: ISetting): IRange[] {
+	private getRangesForWords(words: string[], from: Map<string, IRange[]>, others: Map<string, IRange[]>[]): IRange[] {
 		const result: IRange[] = [];
-		for (var i = 0; i < setting.description.length; i++) {
-			var line = setting.description[i];
-			const matches = matchesContiguousSubString(searchString, line) || [];
-			result.push(...matches.map(match => <IRange>{
-				startLineNumber: setting.descriptionRanges[i].startLineNumber + i,
-				startColumn: setting.descriptionRanges[i].startColumn + match.start,
-				endLineNumber: setting.descriptionRanges[i].startLineNumber + i,
-				endColumn: setting.descriptionRanges[i].startColumn + match.end
-			}));
-
+		for (const word of words) {
+			const ranges = from.get(word);
+			if (ranges) {
+				result.push(...ranges);
+			} else if (others.every(o => !o.has(word))) {
+				return [];
+			}
 		}
 		return result;
 	}
 
-	private _findMatchesInSettingKey(searchString: string, setting: ISetting): IRange[] {
-		const matches = or(matchesPrefix, matchesContiguousSubString, matchesWords)(searchString, setting.key) || [];
-		return matches.map(match => <IRange>{
+	private toKeyRange(setting: ISetting, match: IMatch): IRange {
+		return {
 			startLineNumber: setting.keyRange.startLineNumber,
 			startColumn: setting.keyRange.startColumn + match.start,
 			endLineNumber: setting.keyRange.startLineNumber,
 			endColumn: setting.keyRange.startColumn + match.end
-		});
+		};
+	}
+
+	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		return {
+			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
+			endLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
+		};
+	}
+
+	private toValueRange(setting: ISetting, match: IMatch): IRange {
+		return {
+			startLineNumber: setting.valueRange.startLineNumber,
+			startColumn: setting.valueRange.startColumn + match.start + 1,
+			endLineNumber: setting.valueRange.startLineNumber,
+			endColumn: setting.valueRange.startColumn + match.end + 1
+		};
 	}
 
 	public abstract settingsGroups: ISettingsGroup[];

@@ -190,7 +190,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	private filterPreferences(filter: string) {
 		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
-		(<DefaultSettingsRenderer>this.getDefaultPreferencesContribution().getPreferencesRenderer()).filterPreferences(filter);
+		(<DefaultSettingsRenderer>this.getDefaultPreferencesContribution().getPreferencesRenderer()).filterPreferences(filter.trim());
 	}
 
 	private focusNextPreference() {
