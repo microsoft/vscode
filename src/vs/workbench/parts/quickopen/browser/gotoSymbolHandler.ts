@@ -46,7 +46,7 @@ class OutlineModel extends QuickOpenModel {
 		this.outline = outline;
 	}
 
-	public dofilter(searchValue: string): void {
+	public applyFilter(searchValue: string): void {
 
 		// Normalize search
 		let normalizedSearchValue = searchValue;
@@ -389,10 +389,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.getActiveOutline().then((outline) => {
+		return this.getActiveOutline().then(outline => {
 
 			// Filter by search
-			outline.dofilter(searchValue);
+			outline.applyFilter(searchValue);
 
 			return outline;
 		});
@@ -548,7 +548,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
-			this.editorService.getVisibleEditors().forEach((editor) => {
+			this.editorService.getVisibleEditors().forEach(editor => {
 				if (editor.position === this.rangeHighlightDecorationId.position) {
 					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
