@@ -12,8 +12,7 @@ import Event from 'vs/base/common/event';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
-	EVEN,
-	KEEP_RATIO
+	EVEN
 }
 
 export type GroupOrientation = 'vertical' | 'horizontal';

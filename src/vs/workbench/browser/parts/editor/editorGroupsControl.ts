@@ -758,7 +758,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 
 			// Trigger layout
-			this.arrangeGroups(GroupArrangement.KEEP_RATIO);
+			this.arrangeGroups();
 		}
 	}
 
@@ -766,7 +766,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return this.layoutVertically ? 'vertical' : 'horizontal';
 	}
 
-	public arrangeGroups(arrangement: GroupArrangement): void {
+	public arrangeGroups(arrangement?: GroupArrangement): void {
 		if (!this.dimension) {
 			return; // too early
 		}
@@ -800,7 +800,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 					}
 				});
 				break;
-			case GroupArrangement.KEEP_RATIO:
+			default:
 				// Minimized editors should remain minimized, others should keep their relative Sizes
 				let oldNonMinimizedTotal = 0;
 				POSITIONS.forEach(position => {
