@@ -20,9 +20,11 @@ export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T 
 	if (Array.isArray(first)) {
 		first.forEach(d => d && d.dispose());
 		return [];
-	} else if (rest.length === 0 && first) {
-		first.dispose();
-		return first;
+	} else if (rest.length === 0) {
+		if (first) {
+			first.dispose();
+			return first;
+		}
 	} else {
 		dispose(first);
 		dispose(rest);
