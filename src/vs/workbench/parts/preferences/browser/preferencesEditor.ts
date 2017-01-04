@@ -884,7 +884,7 @@ class EditSettingRenderer extends Disposable {
 	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<ISetting>): void {
 		const elementPosition = DOM.getDomNodePagePosition(editPreferenceWidget.getDomNode());
 		const anchor = { x: elementPosition.left + elementPosition.width, y: elementPosition.top + elementPosition.height + 10 };
-		const actions = editPreferenceWidget.preferences.length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
+		const actions = this.getSettingsAtLineNumber(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
