@@ -30,7 +30,7 @@ export interface ISuggestEvent {
 	auto: boolean;
 }
 
-export class Context {
+export class LineContext {
 
 	static shouldAutoTrigger(editor: ICommonCodeEditor): boolean {
 		const model = editor.getModel();
@@ -65,26 +65,17 @@ export class Context {
 
 	readonly lineNumber: number;
 	readonly column: number;
-
 	readonly lineContentBefore: string;
 	readonly wordBefore: string;
 
 	constructor(model: IModel, position: IPosition, private auto: boolean) {
-		const lineContent = model.getLineContent(position.lineNumber);
-		const wordUnderCursor = model.getWordAtPosition(position);
-
-		if (wordUnderCursor) {
-			this.wordBefore = lineContent.substring(wordUnderCursor.startColumn - 1, position.column - 1);
-		} else {
-			this.wordBefore = '';
-		}
-
+		this.lineContentBefore = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+		this.wordBefore = model.getWordUntilPosition(position).word;
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
-		this.lineContentBefore = lineContent.substr(0, position.column - 1);
 	}
 
-	isDifferentContext(context: Context): boolean {
+	isDifferentContext(context: LineContext): boolean {
 		if (this.lineNumber !== context.lineNumber) {
 			// Line number has changed
 			return true;
@@ -108,7 +99,7 @@ export class Context {
 		return false;
 	}
 
-	shouldRetrigger(context: Context): boolean {
+	shouldRetrigger(context: LineContext): boolean {
 		if (!startsWith(this.lineContentBefore, context.lineContentBefore)) {
 			// Doesn't look like the same line
 			return false;
@@ -144,7 +135,7 @@ export class SuggestModel implements IDisposable {
 	private state: State;
 
 	private requestPromise: TPromise<void>;
-	private context: Context;
+	private context: LineContext;
 
 	private completionModel: CompletionModel;
 
@@ -294,7 +285,7 @@ export class SuggestModel implements IDisposable {
 			if (this.editor.getConfiguration().contribInfo.quickSuggestions) {
 				// trigger suggest from idle when configured to do so
 				this.cancel();
-				if (Context.shouldAutoTrigger(this.editor)) {
+				if (LineContext.shouldAutoTrigger(this.editor)) {
 					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
 					this.triggerAutoSuggestPromise.then(() => {
 						this.triggerAutoSuggestPromise = null;
@@ -305,7 +296,7 @@ export class SuggestModel implements IDisposable {
 
 		} else {
 			// refine active suggestion
-			const ctx = new Context(model, this.editor.getPosition(), false);
+			const ctx = new LineContext(model, this.editor.getPosition(), false);
 			this.onNewContext(ctx);
 		}
 	}
@@ -318,9 +309,9 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const ctx = new Context(model, this.editor.getPosition(), auto);
+		const ctx = new LineContext(model, this.editor.getPosition(), auto);
 
-		if (!Context.isInEditableRange(this.editor)) {
+		if (!LineContext.isInEditableRange(this.editor)) {
 			return;
 		}
 
@@ -351,7 +342,7 @@ export class SuggestModel implements IDisposable {
 				items = items.concat(existingItems).sort(cmpFn);
 			}
 
-			const ctx = new Context(model, this.editor.getPosition(), auto);
+			const ctx = new LineContext(model, this.editor.getPosition(), auto);
 			this.completionModel = new CompletionModel(items, this.context.column, {
 				leadingLineContent: ctx.lineContentBefore,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
@@ -361,7 +352,7 @@ export class SuggestModel implements IDisposable {
 		}).then(null, onUnexpectedError);
 	}
 
-	private onNewContext(ctx: Context): void {
+	private onNewContext(ctx: LineContext): void {
 		if (this.context && this.context.isDifferentContext(ctx)) {
 			if (this.context.shouldRetrigger(ctx)) {
 				this.trigger(this.state === State.Auto, true);
