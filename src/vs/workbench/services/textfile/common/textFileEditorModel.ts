@@ -547,27 +547,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return TPromise.as<void>(null);
 		}
 
-		// Return if currently saving by scheduling another auto save if enabled or storing this version id as next save.
+		// Return if currently saving by storing this save request as the next save that should happen.
 		// Never ever must 2 saves execute at the same time because this can lead to dirty writes and race conditions.
 		//
 		// Scenario A: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
-		//             kicks in. since we never want to trigger 2 saves at the same time, we push out this auto save for the
-		//             configured auto save delay assuming that it can proceed next time it triggers.
+		//             kicks in.
 		// Scenario B: save is very slow (e.g. network share) and the user manages to change the buffer and trigger another save
 		//             while the first save has not returned yet.
 		//
 		if (this.saveSequentializer.hasPendingSave()) {
 			diag(`doSave(${versionId}) - exit - because busy saving`, this.resource, new Date());
 
-			// Trigger another auto save if enabled
-			if (this.autoSaveAfterMilliesEnabled) {
-				return this.doAutoSave(versionId);
-			}
-
-			// Otherwise register this as the next upcoming save and return
-			else {
-				return this.saveSequentializer.setNext(() => this.doSave(versionId, reason, overwriteReadonly, overwriteEncoding));
-			}
+			// Register this as the next upcoming save and return
+			return this.saveSequentializer.setNext(() => this.doSave(this.versionId /* make sure to use latest version id here */, reason, overwriteReadonly, overwriteEncoding));
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
