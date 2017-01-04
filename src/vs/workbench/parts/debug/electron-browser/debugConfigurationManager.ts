@@ -22,6 +22,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -111,8 +113,12 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 	}
 });
 
+interface IRawBreakpointContribution {
+	language: string;
+}
+
 // breakpoints extension point #9037
-export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawBreakpointContribution[]>('breakpoints', [], {
+const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawBreakpointContribution[]>('breakpoints', [], {
 	description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '' }] }],
@@ -197,7 +203,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		this.adapters = [];
 		this.registerListeners();
@@ -262,45 +269,63 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return config.compounds.filter(compound => compound.name === name).pop();
 	}
 
+	public getConfigurationNames(): string[] {
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
+		if (!config || !config.configurations) {
+			return [];
+		} else {
+			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
+			if (names.length > 0 && config.compounds) {
+				if (config.compounds) {
+					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
+						.map(compound => compound.name));
+				}
+			}
+
+			return names;
+		}
+	}
+
 	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
 		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
 
-		let result: debug.IConfig = null;
+		let result: debug.IConfig;
 		if (types.isObject(nameOrConfig)) {
 			result = objects.deepClone(nameOrConfig) as debug.IConfig;
 		} else {
-			if (!config || !config.configurations) {
-				return TPromise.as(null);
+			if (!nameOrConfig || !config || !config.configurations || !config.configurations.length) {
+				return TPromise.wrapError(new Error());
 			}
-			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-			const filtered = config.configurations.filter(cfg => cfg.name === nameOrConfig);
 
-			result = filtered.length === 1 ? filtered[0] : config.configurations[0];
-			result = objects.deepClone(result);
+			const filtered = config.configurations.filter(cfg => cfg && cfg.name === nameOrConfig);
+			if (filtered.length !== 1) {
+				const message = filtered.length === 0 ? nls.localize('configurationDoesNotExist', "Configuration '{0}' does not exist.", nameOrConfig)
+					: nls.localize('configuraitonNotUnique', "There are multiple configurations with name '{0}'.", nameOrConfig);
+				return TPromise.wrapError(new Error(message));
+			}
+
+			result = objects.deepClone(filtered[0]);
 		}
 
-		if (result) {
-			// Set operating system specific properties #1873
-			const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
-				if (flag && osConfig) {
-					Object.keys(osConfig).forEach(key => {
-						result[key] = osConfig[key];
-					});
-				}
-			};
-			setOSProperties(isWindows, result.windows);
-			setOSProperties(isMacintosh, result.osx);
-			setOSProperties(isLinux, result.linux);
+		// Set operating system specific properties #1873
+		const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
+			if (flag && osConfig) {
+				Object.keys(osConfig).forEach(key => {
+					result[key] = osConfig[key];
+				});
+			}
+		};
+		setOSProperties(isWindows, result.windows);
+		setOSProperties(isMacintosh, result.osx);
+		setOSProperties(isLinux, result.linux);
 
-			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			Object.keys(result).forEach(key => {
-				result[key] = this.configurationResolverService.resolveAny(result[key]);
-			});
+		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+		Object.keys(result).forEach(key => {
+			result[key] = this.configurationResolverService.resolveAny(result[key]);
+		});
 
-			const adapter = this.getAdapter(result.type);
-			return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
-		}
-		return TPromise.as(null);
+		const adapter = this.getAdapter(result.type);
+		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -308,8 +333,21 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(adapter => adapter ? adapter.getInitialConfigurationContent() : null)
+			this.quickOpenService.pick([...this.adapters, { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+				.then(picked => {
+					if (picked instanceof Adapter) {
+						return picked ? picked.getInitialConfigurationContent() : null;
+					}
+					if (picked) {
+						return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+							.then(viewlet => viewlet as IExtensionsViewlet)
+							.then(viewlet => {
+								viewlet.search('tag:debuggers');
+								viewlet.focus();
+								return null;
+							});
+					}
+				})
 				.then(content => {
 					if (!content) {
 						return false;

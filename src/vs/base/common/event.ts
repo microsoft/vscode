@@ -218,7 +218,7 @@ export function once<T>(event: Event<T>): Event<T> {
 }
 
 export function any<T>(...events: Event<T>[]): Event<T> {
-	let listeners = [];
+	let listeners: IDisposable[] = [];
 
 	const emitter = new Emitter<T>({
 		onFirstListenerAdd() {
@@ -297,7 +297,7 @@ export class EventBufferer {
 	}
 
 	bufferEvents(fn: () => void): void {
-		const buffer = [];
+		const buffer: Function[] = [];
 		this.buffers.push(buffer);
 		fn();
 		this.buffers.pop();
@@ -334,7 +334,7 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 
-	on(listener, thisArgs, disposables) {
+	on(listener, thisArgs, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
 	}
 }

@@ -57,7 +57,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IEventService } from 'vs/platform/event/common/event';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -67,7 +66,7 @@ import { ISearchService } from 'vs/platform/search/common/search';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -99,7 +98,6 @@ import 'vs/platform/opener/browser/opener.contribution';
  */
 export interface ICoreServices {
 	contextService: IWorkspaceContextService;
-	eventService: IEventService;
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	timerService: ITimerService;
@@ -114,7 +112,6 @@ const currentWindow = remote.getCurrentWindow();
 export class WorkbenchShell {
 	private storageService: IStorageService;
 	private messageService: MessageService;
-	private eventService: IEventService;
 	private environmentService: IEnvironmentService;
 	private contextViewService: ContextViewService;
 	private threadService: MainThreadService;
@@ -133,18 +130,15 @@ export class WorkbenchShell {
 	private content: HTMLElement;
 	private contentsContainer: Builder;
 
-	private workspace: IWorkspace;
 	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, options: IOptions) {
+	constructor(container: HTMLElement, services: ICoreServices, options: IOptions) {
 		this.container = container;
 
-		this.workspace = workspace;
 		this.options = options;
 
 		this.contextService = services.contextService;
-		this.eventService = services.eventService;
 		this.configurationService = services.configurationService;
 		this.environmentService = services.environmentService;
 		this.timerService = services.timerService;
@@ -170,7 +164,7 @@ export class WorkbenchShell {
 		}
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
@@ -205,7 +199,7 @@ export class WorkbenchShell {
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: !this.contextService.getWorkspace(),
+			emptyWorkbench: !this.contextService.hasWorkspace(),
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
@@ -239,7 +233,6 @@ export class WorkbenchShell {
 		const disposables = new Disposables();
 
 		const serviceCollection = new ServiceCollection();
-		serviceCollection.set(IEventService, this.eventService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
@@ -274,7 +267,7 @@ export class WorkbenchShell {
 		}, errors.onUnexpectedError);
 
 		// Storage Sevice
-		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.isExtensionDevelopment); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
+		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 

@@ -7,8 +7,8 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { dirname, basename, join } from 'vs/base/common/paths';
-import { readdir, rimraf } from 'vs/base/node/pfs';
+import { join } from 'vs/base/common/paths';
+import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -53,9 +53,9 @@ export class NodeCachedDataManager {
 	}
 
 	private _manageCachedDataSoon(): void {
-		// Cached data is stored as user data in directories like `CachedData/1.8.0`.
-		// This function makes sure to delete cached data from previous versions,
-		// like `CachedData/1.7.2`.
+		// Cached data is stored as user data and we run a cleanup task everytime
+		// the editor starts. The strategy is to delete all files that are older than
+		// 3 months
 
 		const {nodeCachedDataDir} = this._environmentService;
 		if (!nodeCachedDataDir) {
@@ -65,15 +65,19 @@ export class NodeCachedDataManager {
 		let handle = setTimeout(() => {
 			handle = undefined;
 
-			const nodeCachedDataDirname = dirname(nodeCachedDataDir);
-			const nodeCachedDataBasename = basename(nodeCachedDataDir);
+			readdir(nodeCachedDataDir).then(entries => {
 
-			readdir(nodeCachedDataDirname).then(entries => {
+				const now = Date.now();
+				const limit = 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 
 				const deletes = entries.map(entry => {
-					if (entry !== nodeCachedDataBasename) {
-						return rimraf(join(nodeCachedDataDirname, entry));
-					}
+					const path = join(nodeCachedDataDir, entry);
+					return stat(path).then(stats => {
+						const diff = now - stats.mtime.getTime();
+						if (diff > limit) {
+							return rimraf(path);
+						}
+					});
 				});
 
 				return TPromise.join(deletes);

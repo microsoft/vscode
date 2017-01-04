@@ -37,6 +37,7 @@
 	"postUninstallTooltip": "비활성화하려면 다시 로드",
 	"postUpdateMessage": "이 창을 다시 로드하여 업데이트된 확장 '{0}'을(를) 활성화하시겠습니까?",
 	"postUpdateTooltip": "업데이트하려면 다시 로드",
+	"reload": "창 다시 로드(&&R)",
 	"reloadAction": "다시 로드",
 	"showDisabledExtensions": "사용할 수 없는 확장 표시",
 	"showInstalledExtensions": "설치된 확장 표시",

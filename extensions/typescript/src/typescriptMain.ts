@@ -34,10 +34,12 @@ import FormattingProvider from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
+import CodeActionProvider from './features/codeActionProvider';
 
-import * as VersionStatus from './utils/versionStatus';
-import * as ProjectStatus from './utils/projectStatus';
 import * as BuildStatus from './utils/buildStatus';
+import * as ProjectStatus from './utils/projectStatus';
+import TypingsStatus from './utils/typingsStatus';
+import * as VersionStatus from './utils/versionStatus';
 
 interface LanguageDescription {
 	id: string;
@@ -104,6 +106,7 @@ class LanguageProvider {
 	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
 	private formattingProviderRegistration: Disposable | null;
+	private typingsStatus: TypingsStatus;
 
 	private _validate: boolean;
 
@@ -121,6 +124,7 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
+		this.typingsStatus = new TypingsStatus(client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
@@ -136,7 +140,7 @@ class LanguageProvider {
 	private registerProviders(client: TypeScriptServiceClient): void {
 		let config = workspace.getConfiguration(this.id);
 
-		this.completionItemProvider = new CompletionItemProvider(client);
+		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration(config);
 
 		let hoverProvider = new HoverProvider(client);
@@ -164,6 +168,9 @@ class LanguageProvider {
 			languages.registerRenameProvider(selector, renameProvider);
 			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			if (client.apiVersion.has213Features()) {
+				languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, modeId));
+			}
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
@@ -427,6 +434,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
 			let converted = new Diagnostic(range, text);
 			converted.source = source;
+			converted.code = '' + diagnostic.code;
 			result.push(converted);
 		}
 		return result;

@@ -12,6 +12,5 @@
 	"debugServer": "デバッグ拡張機能の開発のみ。ポートが指定の VS Code の場合、サーバー モードで実行中のデバッグ アダプターへの接続が試行されます。",
 	"debugType": "構成の種類。",
 	"debugWindowsConfiguration": "Windows 固有の起動構成の属性。",
-	"internalConsoleOptions": "内部デバッグ コンソールの動作を制御します。",
-	"relativePathsNotConverted": "相対パスが絶対パスに自動的に変換されなくなります。${workspaceRoot} をプレフィックスとして使用することを考慮してください。"
+	"internalConsoleOptions": "内部デバッグ コンソールの動作を制御します。"
 }

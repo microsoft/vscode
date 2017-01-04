@@ -32,15 +32,14 @@ export interface ISuggestEvent {
 
 export class Context {
 
-	lineNumber: number;
-	column: number;
-	isInEditableRange: boolean;
+	readonly lineNumber: number;
+	readonly column: number;
+	readonly isInEditableRange: boolean;
 
-	lineContentBefore: string;
-	lineContentAfter: string;
+	readonly lineContentBefore: string;
 
-	wordBefore: string;
-	wordAfter: string;
+	readonly wordBefore: string;
+	readonly wordAfter: string;
 
 	constructor(model: IModel, position: IPosition, private auto: boolean) {
 		const lineContent = model.getLineContent(position.lineNumber);
@@ -57,10 +56,8 @@ export class Context {
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
 		this.lineContentBefore = lineContent.substr(0, position.column - 1);
-		this.lineContentAfter = lineContent.substr(position.column - 1);
 
 		this.isInEditableRange = true;
-
 		if (model.hasEditableRange()) {
 			const editableRange = model.getEditableRange();
 
@@ -101,7 +98,7 @@ export class Context {
 			return true;
 		}
 
-		if (!startsWith(context.lineContentBefore, this.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
+		if (!startsWith(context.lineContentBefore, this.lineContentBefore)) {
 			// Line has changed before position
 			return true;
 		}
@@ -115,7 +112,7 @@ export class Context {
 	}
 
 	shouldRetrigger(context: Context): boolean {
-		if (!startsWith(this.lineContentBefore, context.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
+		if (!startsWith(this.lineContentBefore, context.lineContentBefore)) {
 			// Doesn't look like the same line
 			return false;
 		}

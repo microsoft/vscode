@@ -6,8 +6,5 @@
 {
 	"markerAction.next.label": "次のエラーまたは警告へ移動",
 	"markerAction.previous.label": "前のエラーまたは警告へ移動",
-	"quickfix.multiple.label": "修正候補: ",
-	"quickfix.single.label": "修正候補: ",
-	"title.w_source": "({0}/{1}) [{2}]",
 	"title.wo_source": "({0}/{1})"
 }

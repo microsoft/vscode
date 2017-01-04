@@ -6,9 +6,7 @@
 {
 	"channelName": "TypeScript",
 	"close": "Schließen",
-	"doNotCheckAgain": "Nicht erneut überprüfen",
 	"localTSFound": "Der Arbeitsbereichsordner enthält die TypeScript-Version {0}. Möchten Sie diese Version anstelle der Paketversion {1} verwenden?",
-	"moreInformation": "Weitere Informationen",
 	"neverCheckLocalVesion": "Arbeitsbereichsversion nie überprüfen",
 	"noServerFound": "Der Pfad \"{0}\" verweist nicht auf eine gültige Tsserver-Installation. TypeScript-Sprachfeatures werden deaktiviert.",
 	"serverCouldNotBeStarted": "Der TypeScript-Sprachserver konnte nicht gestartet werden. Fehlermeldung: {0}",
@@ -16,10 +14,8 @@
 	"serverDiedAfterStart": "Der TypeScript-Sprachdienst wurde 5 Mal direkt nach seinem Start beendet. Der Dienst wird nicht neu gestartet. Bitte öffnen Sie einen Fehlerbericht.",
 	"updateGlobalWorkspaceCheck": "Die Benutzereinstellung \"typescript.check.workspaceVersion\" wurde in FALSE aktualisiert.",
 	"updateLocalWorkspaceCheck": "Die Arbeitsbereicheinstellung \"typescript.check.workspaceVersion\" wurde in FALSE aktualisiert.",
-	"updateTscCheck": "Die Benutzereinstellung \"typescript.check.tscVersion\" wurde in FALSE aktualisiert.",
 	"updatedtsdk": "Die Arbeitsbereicheinstellung \"typescript.tsdk\" wurde in {0} aktualisiert.",
 	"use": "Arbeitsbereich verwenden ({0})",
 	"useBundled": "Paket verwenden ({0})",
-	"versionMismatch": "Versionskonflikt zwischen dem globalen TSC ({0}) und dem Sprachdienst von VS Code ({1}). Dies kann zu Kompilierungsfehlern aufgrund von Inkonsistenzen führen.",
 	"versionNumber.custom": "benutzerdefiniert"
 }

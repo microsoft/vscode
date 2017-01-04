@@ -34,6 +34,10 @@ class MyPart extends Part {
 		assert.strictEqual(parent, this.expectedParent);
 		return super.createStatusArea(parent);
 	}
+
+	public getMemento(storageService: IStorageService): any {
+		return super.getMemento(storageService);
+	}
 }
 
 class MyPart2 extends Part {

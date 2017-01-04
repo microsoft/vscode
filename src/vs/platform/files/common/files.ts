@@ -11,11 +11,23 @@ import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
+	 * (if any) as well as all files that have been watched explicitly using the #watchFileChanges() API.
+	 */
+	onFileChanges: Event<FileChangesEvent>;
+
+	/**
+	 * An event that is fired upon successful completion of a certain file operation.
+	 */
+	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -137,6 +149,31 @@ export interface IFileService {
 	dispose(): void;
 }
 
+export enum FileOperation {
+	CREATE,
+	DELETE,
+	MOVE,
+	COPY,
+	IMPORT
+}
+
+export class FileOperationEvent {
+
+	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
+	}
+
+	public get resource(): URI {
+		return this._resource;
+	}
+
+	public get target(): IFileStat {
+		return this._target;
+	}
+
+	public get operation(): FileOperation {
+		return this._operation;
+	}
+}
 
 /**
  * Possible changes that can occur to a file.
@@ -146,17 +183,6 @@ export enum FileChangeType {
 	ADDED = 1,
 	DELETED = 2
 }
-
-/**
- * Possible events to subscribe to
- */
-export const EventType = {
-
-	/**
-	* Send on file changes.
-	*/
-	FILE_CHANGES: 'files:fileChanges'
-};
 
 /**
  * Identifies a single change in a file.

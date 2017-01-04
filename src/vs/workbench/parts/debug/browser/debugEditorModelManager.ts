@@ -181,26 +181,24 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		const data: IRawBreakpoint[] = [];
 
-		const lineToBreakpointDataMap: { [key: number]: { enabled: boolean, condition: string, hitCondition: string } } = {};
+		const lineToBreakpointDataMap: { [key: number]: IBreakpoint } = {};
 		this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr).forEach(bp => {
-			lineToBreakpointDataMap[bp.lineNumber] = {
-				enabled: bp.enabled,
-				condition: bp.condition,
-				hitCondition: bp.hitCondition
-			};
+			lineToBreakpointDataMap[bp.lineNumber] = bp;
 		});
 
 		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
 			const decorationRange = modelData.model.getDecorationRange(modelData.breakpointDecorationIds[i]);
+			const lineNumber = modelData.breakpointLines[i];
 			// check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
 				// since we know it is collapsed, it cannot grow to multiple lines
 				data.push({
 					lineNumber: decorationRange.startLineNumber,
-					enabled: lineToBreakpointDataMap[modelData.breakpointLines[i]].enabled,
-					condition: lineToBreakpointDataMap[modelData.breakpointLines[i]].condition,
-					hitCondition: lineToBreakpointDataMap[modelData.breakpointLines[i]].hitCondition
+					enabled: lineToBreakpointDataMap[lineNumber].enabled,
+					condition: lineToBreakpointDataMap[lineNumber].condition,
+					hitCondition: lineToBreakpointDataMap[lineNumber].hitCondition,
+					column: lineToBreakpointDataMap[lineNumber].column
 				});
 			}
 		}

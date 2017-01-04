@@ -11,7 +11,6 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { validateFileName } from 'vs/workbench/parts/files/browser/fileActions';
-import { LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {
@@ -235,48 +234,6 @@ suite('Files - View Model', () => {
 		assert(validateFileName(s, '.foo') === null);
 		assert(validateFileName(s, 'foo.bar') === null);
 		assert(validateFileName(s, 'foo') === null);
-	});
-
-	test('File Change Event (with stats)', function () {
-		const d = new Date().toUTCString();
-		const s1 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', Date.now(), d);
-		const s2 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', Date.now(), d);
-		const s3 = new FileStat(toResource('/path/to/sNameMoved'), false, false, 'sNameMoved', Date.now(), d);
-
-		// Got Added
-		let event = new LocalFileChangeEvent(null, s1);
-		assert(event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(!event.gotMoved());
-
-		// Got Removed
-		event = new LocalFileChangeEvent(s1, null);
-		assert(!event.gotAdded());
-		assert(event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(!event.gotMoved());
-
-		// Got Moved
-		event = new LocalFileChangeEvent(s3, s1);
-		assert(!event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(event.gotMoved());
-
-		// Got Updated
-		event = new LocalFileChangeEvent(s2, s1);
-		assert(!event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(event.gotUpdated());
-		assert(!event.gotMoved());
-
-		// No Change
-		event = new LocalFileChangeEvent(s1, s1);
-		assert(!event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(!event.gotMoved());
 	});
 
 	test('Merge Local with Disk', function () {

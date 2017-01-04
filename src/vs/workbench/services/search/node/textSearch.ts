@@ -121,7 +121,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		};
 
 		// Walk over the file system
-		let nextBatch = [];
+		let nextBatch: string[] = [];
 		let nextBatchBytes = 0;
 		const batchFlushBytes = 2 ** 20; // 1MB
 		this.walker.walk(this.config.rootFolders, this.config.extraFiles, result => {

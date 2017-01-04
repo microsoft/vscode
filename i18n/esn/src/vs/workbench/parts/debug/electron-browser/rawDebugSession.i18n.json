@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "No se encuentra el archivo ejecutable del adaptador de depuración '{0}'.",
 	"debugAdapterCrash": "El proceso de adaptación del depurador finalizó inesperadamente",
-	"debuggee": "depurado",
 	"moreInfo": "Más información",
 	"noDebugAdapterExtensionInstalled": "No hay ninguna extensión instalada para la depuración de '{0}'.",
 	"stoppingDebugAdapter": "{0}. Deteniendo el adaptador de depuración.",

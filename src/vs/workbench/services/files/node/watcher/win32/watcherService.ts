@@ -5,17 +5,16 @@
 
 'use strict';
 
-import { EventType } from 'vs/platform/files/common/files';
-import watcher = require('vs/workbench/services/files/node/watcher/common');
+import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
-import { IEventService } from 'vs/platform/event/common/event';
+import { FileChangesEvent } from 'vs/platform/files/common/files';
 
 export class FileWatcher {
 
 	constructor(
 		private basePath: string,
 		private ignored: string[],
-		private eventEmitter: IEventService,
+		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean
 	) {
@@ -33,11 +32,11 @@ export class FileWatcher {
 		return () => watcher.dispose();
 	}
 
-	private onRawFileEvents(events: watcher.IRawFileChange[]): void {
+	private onRawFileEvents(events: IRawFileChange[]): void {
 
 		// Emit through broadcast service
 		if (events.length > 0) {
-			this.eventEmitter.emit(EventType.FILE_CHANGES, watcher.toFileChangesEvent(events));
+			this.onFileChanges(toFileChangesEvent(events));
 		}
 	}
 

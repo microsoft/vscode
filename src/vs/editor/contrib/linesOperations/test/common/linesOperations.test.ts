@@ -6,155 +6,160 @@
 
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Handler } from 'vs/editor/common/editorCommon';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 
 suite('Editor Contrib - Line Operations', () => {
-	test('delete all left', function () {
-		withMockCodeEditor(
-			[
-				'one',
-				'two',
-				'three'
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
-				let deleteAllLeftAction = new DeleteAllLeftAction();
+	suite('DeleteAllLeftAction', () => {
+		test('should delete to the left of the cursor', function () {
+			withMockCodeEditor(
+				[
+					'one',
+					'two',
+					'three'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
 
-				editor.setSelection(new Selection(1, 2, 1, 2));
-				deleteAllLeftAction.run(null, editor);
-				assert.equal(model.getLineContent(1), 'ne', '001');
+					editor.setSelection(new Selection(1, 2, 1, 2));
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'ne', '001');
 
-				editor.setSelections([new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)]);
-				deleteAllLeftAction.run(null, editor);
-				assert.equal(model.getLineContent(2), 'wo', '002');
-				assert.equal(model.getLineContent(3), 'hree', '003');
-			});
+					editor.setSelections([new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(2), 'wo', '002');
+					assert.equal(model.getLineContent(3), 'hree', '003');
+				});
+		});
+
+		test('should work in multi cursor mode', function () {
+			withMockCodeEditor(
+				[
+					'hello',
+					'world',
+					'hello world',
+					'hello',
+					'bonjour',
+					'hola',
+					'world',
+					'hello world',
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelections([new Selection(1, 2, 1, 2), new Selection(1, 4, 1, 4)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'lo', '001');
+
+					editor.setSelections([new Selection(2, 2, 2, 2), new Selection(2, 4, 2, 5)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(2), 'ord', '002');
+
+					editor.setSelections([new Selection(3, 2, 3, 5), new Selection(3, 7, 3, 7)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(3), 'world', '003');
+
+					editor.setSelections([new Selection(4, 3, 4, 3), new Selection(4, 5, 5, 4)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(4), 'lljour', '004');
+
+					editor.setSelections([new Selection(5, 3, 6, 3), new Selection(6, 5, 7, 5), new Selection(7, 7, 7, 7)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(5), 'horlworld', '005');
+				});
+		});
 	});
 
-	test('delete all left in multi cursor mode', function () {
-		withMockCodeEditor(
-			[
-				'hello',
-				'world',
-				'hello world',
-				'hello',
-				'bonjour',
-				'hola',
-				'world',
-				'hello world',
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
-				let deleteAllLeftAction = new DeleteAllLeftAction();
+	suite('JoinLinesAction', () => {
+		test('should join lines and insert space if necessary', function () {
+			withMockCodeEditor(
+				[
+					'hello',
+					'world',
+					'hello ',
+					'world',
+					'hello		',
+					'	world',
+					'hello   ',
+					'	world',
+					'',
+					'',
+					'hello world'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let joinLinesAction = new JoinLinesAction();
 
-				editor.setSelections([new Selection(1, 2, 1, 2), new Selection(1, 4, 1, 4)]);
-				deleteAllLeftAction.run(null, editor);
-				assert.equal(model.getLineContent(1), 'lo', '001');
+					editor.setSelection(new Selection(1, 2, 1, 2));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'hello world', '001');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 6, 1, 6).toString(), '002');
 
-				editor.setSelections([new Selection(2, 2, 2, 2), new Selection(2, 4, 2, 5)]);
-				deleteAllLeftAction.run(null, editor);
-				assert.equal(model.getLineContent(2), 'ord', '002');
+					editor.setSelection(new Selection(2, 2, 2, 2));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(2), 'hello world', '003');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(2, 7, 2, 7).toString(), '004');
 
-				editor.setSelections([new Selection(3, 2, 3, 5), new Selection(3, 7, 3, 7)]);
-				deleteAllLeftAction.run(null, editor);
-				assert.equal(model.getLineContent(3), 'world', '003');
+					editor.setSelection(new Selection(3, 2, 3, 2));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(3), 'hello world', '005');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(3, 7, 3, 7).toString(), '006');
 
-				editor.setSelections([new Selection(4, 3, 4, 3), new Selection(4, 5, 5, 4)]);
-				deleteAllLeftAction.run(null, editor);
-				assert.equal(model.getLineContent(4), 'lljour', '004');
+					editor.setSelection(new Selection(4, 2, 5, 3));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(4), 'hello world', '007');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(4, 2, 4, 8).toString(), '008');
 
-				editor.setSelections([new Selection(5, 3, 6, 3), new Selection(6, 5, 7, 5), new Selection(7, 7, 7, 7)]);
-				deleteAllLeftAction.run(null, editor);
-				assert.equal(model.getLineContent(5), 'horlworld', '005');
-			});
-	});
+					editor.setSelection(new Selection(5, 1, 7, 3));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(5), 'hello world', '009');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(5, 1, 5, 3).toString(), '010');
+				});
+		});
 
-	test('join lines', function () {
-		withMockCodeEditor(
-			[
-				'hello',
-				'world',
-				'hello ',
-				'world',
-				'hello		',
-				'	world',
-				'hello   ',
-				'	world',
-				'',
-				'',
-				'hello world'
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
-				let joinLinesAction = new JoinLinesAction();
+		test('should work in multi cursor mode', function () {
+			withMockCodeEditor(
+				[
+					'hello',
+					'world',
+					'hello ',
+					'world',
+					'hello		',
+					'	world',
+					'hello   ',
+					'	world',
+					'',
+					'',
+					'hello world'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let joinLinesAction = new JoinLinesAction();
 
-				editor.setSelection(new Selection(1, 2, 1, 2));
-				joinLinesAction.run(null, editor);
-				assert.equal(model.getLineContent(1), 'hello world', '001');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 6, 1, 6).toString(), '002');
+					editor.setSelections([
+						/** primary cursor */
+						new Selection(5, 2, 5, 2),
+						new Selection(1, 2, 1, 2),
+						new Selection(3, 2, 4, 2),
+						new Selection(5, 4, 6, 3),
+						new Selection(7, 5, 8, 4),
+						new Selection(10, 1, 10, 1)
+					]);
 
-				editor.setSelection(new Selection(2, 2, 2, 2));
-				joinLinesAction.run(null, editor);
-				assert.equal(model.getLineContent(2), 'hello world', '003');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 7, 2, 7).toString(), '004');
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLinesContent().join('\n'), 'hello world\nhello world\nhello world\nhello world\n\nhello world', '001');
+					assert.deepEqual(editor.getSelections().toString(), [
+						/** primary cursor */
+						new Selection(3, 4, 3, 8),
+						new Selection(1, 6, 1, 6),
+						new Selection(2, 2, 2, 8),
+						new Selection(4, 5, 4, 9),
+						new Selection(6, 1, 6, 1)
+					].toString(), '002');
 
-				editor.setSelection(new Selection(3, 2, 3, 2));
-				joinLinesAction.run(null, editor);
-				assert.equal(model.getLineContent(3), 'hello world', '005');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(3, 7, 3, 7).toString(), '006');
-
-				editor.setSelection(new Selection(4, 2, 5, 3));
-				joinLinesAction.run(null, editor);
-				assert.equal(model.getLineContent(4), 'hello world', '007');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(4, 2, 4, 8).toString(), '008');
-
-				editor.setSelection(new Selection(5, 1, 7, 3));
-				joinLinesAction.run(null, editor);
-				assert.equal(model.getLineContent(5), 'hello world', '009');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(5, 1, 5, 3).toString(), '010');
-			});
-	});
-
-	test('join lines in multi cursor mode', function () {
-		withMockCodeEditor(
-			[
-				'hello',
-				'world',
-				'hello ',
-				'world',
-				'hello		',
-				'	world',
-				'hello   ',
-				'	world',
-				'',
-				'',
-				'hello world'
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
-				let joinLinesAction = new JoinLinesAction();
-
-				editor.setSelections([
 					/** primary cursor */
-					new Selection(5, 2, 5, 2),
-					new Selection(1, 2, 1, 2),
-					new Selection(3, 2, 4, 2),
-					new Selection(5, 4, 6, 3),
-					new Selection(7, 5, 8, 4),
-					new Selection(10, 1, 10, 1)
-				]);
-
-				joinLinesAction.run(null, editor);
-				assert.equal(model.getLinesContent().join('\n'), 'hello world\nhello world\nhello world\nhello world\n\nhello world', '001');
-				assert.deepEqual(editor.getSelections().toString(), [
-					/** primary cursor */
-					new Selection(3, 4, 3, 8),
-					new Selection(1, 6, 1, 6),
-					new Selection(2, 2, 2, 8),
-					new Selection(4, 5, 4, 9),
-					new Selection(6, 1, 6, 1)
-				].toString(), '002');
-
-				/** primary cursor */
-				assert.deepEqual(editor.getSelection().toString(), new Selection(3, 4, 3, 8).toString(), '003');
-			});
+					assert.deepEqual(editor.getSelection().toString(), new Selection(3, 4, 3, 8).toString(), '003');
+				});
+		});
 	});
 
 	test('transpose', function () {
@@ -444,6 +449,41 @@ suite('Editor Contrib - Line Operations', () => {
 				assert.deepEqual(model.getLinesContent(), ['he']);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3)
+				]);
+			});
+		});
+
+		test('should work with undo/redo', () => {
+			withMockCodeEditor([
+				'hello',
+				'there',
+				'world'
+			], {}, (editor, cursor) => {
+				const model = editor.getModel();
+				const action = new DeleteAllRightAction();
+
+				editor.setSelections([
+					new Selection(1, 3, 1, 3),
+					new Selection(1, 6, 1, 6),
+					new Selection(3, 4, 3, 4),
+				]);
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['hethere', 'wor']);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(2, 4, 2, 4)
+				]);
+
+				cursor.trigger('tests', Handler.Undo, {});
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(1, 6, 1, 6),
+					new Selection(3, 4, 3, 4)
+				]);
+				cursor.trigger('tests', Handler.Redo, {});
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(2, 4, 2, 4)
 				]);
 			});
 		});

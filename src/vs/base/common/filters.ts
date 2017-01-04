@@ -209,7 +209,7 @@ function analyzeCamelCaseWord(word: string): ICamelCaseAnalysis {
 }
 
 function isUpperCaseWord(analysis: ICamelCaseAnalysis): boolean {
-	const { upperPercent, lowerPercent, alphaPercent, numericPercent } = analysis;
+	const { upperPercent, lowerPercent } = analysis;
 	return lowerPercent === 0 && upperPercent > 0.6;
 }
 
@@ -298,7 +298,7 @@ function _matchesWords(word: string, target: string, i: number, j: number): IMat
 	} else if (word[i] !== target[j].toLowerCase()) {
 		return null;
 	} else {
-		let result = null;
+		let result: IMatch[] = null;
 		let nextWordIndex = j + 1;
 		result = _matchesWords(word, target, i + 1, j + 1);
 		while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {

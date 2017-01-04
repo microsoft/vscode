@@ -25,8 +25,8 @@ import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
-import { LocalFileChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileOperationResult, FileOperationResult, IFileStat, IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
@@ -37,11 +37,10 @@ import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -52,17 +51,13 @@ import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions'
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class FileDataSource implements IDataSource {
-	private workspace: IWorkspace;
-
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
-	) {
-		this.workspace = contextService.getWorkspace();
-	}
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) { }
 
 	public getId(tree: ITree, stat: FileStat): string {
 		return stat.getId();
@@ -114,7 +109,7 @@ export class FileDataSource implements IDataSource {
 		}
 
 		// Return if root reached
-		if (this.workspace && stat.resource.toString() === this.workspace.resource.toString()) {
+		if (this.contextService.hasWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			return TPromise.as(null);
 		}
 
@@ -380,14 +375,12 @@ export class FileController extends DefaultController {
 
 	private contributedContextMenu: IMenu;
 
-	private workspace: IWorkspace;
-
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
@@ -395,8 +388,6 @@ export class FileController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
-
-		this.workspace = contextService.getWorkspace();
 
 		this.didCatchEnterDown = false;
 
@@ -440,7 +431,7 @@ export class FileController extends DefaultController {
 		}
 
 		// Handle root
-		if (this.workspace && stat.resource.toString() === this.workspace.resource.toString()) {
+		if (this.contextService.getWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 
@@ -728,7 +719,6 @@ export class FileDragAndDrop implements IDragAndDrop {
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEventService private eventService: IEventService,
 		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -917,12 +907,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
 					let didHandleConflict = false;
 
-					const onMove = (result: IFileStat) => {
-						this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(source.clone(), result));
-					};
-
-					// Move File/Folder and emit event
-					return this.fileService.moveFile(source.resource, targetResource).then(onMove, error => {
+					// Move File/Folder
+					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
 						// Conflict
 						if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -935,12 +921,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 							};
 
 							if (this.messageService.confirm(confirm)) {
-								return this.fileService.moveFile(source.resource, targetResource, true).then(result => {
-									const fakeTargetState = new FileStat(targetResource);
-									this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(fakeTargetState, null));
-
-									onMove(result);
-								}, (error) => {
+								return this.fileService.moveFile(source.resource, targetResource, true).then(null, (error) => {
 									this.messageService.show(Severity.Error, error);
 								});
 							}

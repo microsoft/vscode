@@ -31,6 +31,7 @@ export interface IWindowState {
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
+	isExtensionTestHost?: boolean;
 	allowFullscreen?: boolean;
 	titleBarStyle?: 'native' | 'custom';
 }
@@ -139,6 +140,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private _extensionDevelopmentPath: string;
+	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
 	private currentWindowMode: WindowMode;
 
@@ -158,6 +160,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
+		this._isExtensionTestHost = config.isExtensionTestHost;
 		this.whenReadyCallbacks = [];
 
 		// Load window state
@@ -242,8 +245,12 @@ export class VSCodeWindow implements IVSCodeWindow {
 		return this.hiddenTitleBarStyle;
 	}
 
-	public get isPluginDevelopmentHost(): boolean {
+	public get isExtensionDevelopmentHost(): boolean {
 		return !!this._extensionDevelopmentPath;
+	}
+
+	public get isExtensionTestHost(): boolean {
+		return this._isExtensionTestHost;
 	}
 
 	public get extensionDevelopmentPath(): string {
@@ -443,8 +450,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 		delete configuration.filesToDiff;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
-		// in plugin development mode. These options are all development related.
-		if (this.isPluginDevelopmentHost && cli) {
+		// in extension development mode. These options are all development related.
+		if (this.isExtensionDevelopmentHost && cli) {
 			configuration.verbose = cli.verbose;
 			configuration.debugPluginHost = cli.debugPluginHost;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
@@ -471,7 +478,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		windowConfiguration.fullscreen = this._win.isFullScreen();
 
 		// Set Accessibility Config
-		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme();
+		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
 		// Perf Counters

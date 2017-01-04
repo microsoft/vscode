@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -22,8 +22,6 @@ import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController 
 import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
 
 export class TreeExplorerView extends CollapsibleViewletView {
-	private workspace: IWorkspace;
-
 	constructor(
 		private viewletState: TreeExplorerViewletState,
 		private treeNodeProviderId: string,
@@ -37,8 +35,6 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@ITreeExplorerService private treeExplorerService: ITreeExplorerService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
-
-		this.workspace = contextService.getWorkspace();
 
 		this.create();
 	}
@@ -54,19 +50,11 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderId);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
 		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId);
-		const sorter = null;
-		const filter = null;
-		const dnd = null;
-		const accessibilityProvider = null;
 
 		return new Tree(container.getHTMLElement(), {
 			dataSource,
 			renderer,
-			controller,
-			sorter,
-			filter,
-			dnd,
-			accessibilityProvider
+			controller
 		});
 	}
 
