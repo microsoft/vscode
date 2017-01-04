@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
 import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry } from 'vs/editor/common/modes';
-import { SuggestModel, Context } from 'vs/editor/contrib/suggest/common/suggestModel';
+import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/common/suggestModel';
 import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -51,7 +51,7 @@ suite('SuggestModel - Context', function () {
 			const pos = model.getPositionAt(offset);
 			const editor = createMockEditor(model);
 			editor.setPosition(pos);
-			assert.equal(Context.shouldAutoTrigger(editor), expected);
+			assert.equal(LineContext.shouldAutoTrigger(editor), expected);
 			editor.dispose();
 		}
 
@@ -64,13 +64,13 @@ suite('SuggestModel - Context', function () {
 	test('Context - isDifferentContext', function () {
 
 		// different line
-		const ctx = new Context(model, { lineNumber: 1, column: 8 }, true); // Das Pfer|d
-		assert.equal(ctx.isDifferentContext(new Context(model, { lineNumber: 2, column: 1 }, true)), true);
+		const ctx = new LineContext(model, { lineNumber: 1, column: 8 }, true); // Das Pfer|d
+		assert.equal(ctx.isDifferentContext(new LineContext(model, { lineNumber: 2, column: 1 }, true)), true);
 
 
 		function createEndContext(value: string) {
 			const model = Model.createFromString(value);
-			const ctx = new Context(model, model.getPositionAt(value.length), true); // Das Pfer|d
+			const ctx = new LineContext(model, model.getPositionAt(value.length), true); // Das Pfer|d
 			return ctx;
 		}
 
