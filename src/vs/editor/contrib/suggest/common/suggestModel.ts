@@ -9,9 +9,8 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { forEach } from 'vs/base/common/collections';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { startsWith } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition, IWordAtPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
@@ -65,57 +64,16 @@ export class LineContext {
 
 	readonly lineNumber: number;
 	readonly column: number;
-	readonly lineContentBefore: string;
-	readonly wordBefore: string;
+	readonly leadingLineContent: string;
+	readonly leadingWord: IWordAtPosition;
+	readonly auto;
 
-	constructor(model: IModel, position: IPosition, private auto: boolean) {
-		this.lineContentBefore = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
-		this.wordBefore = model.getWordUntilPosition(position).word;
+	constructor(model: IModel, position: IPosition, auto: boolean) {
+		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
-	}
-
-	isDifferentContext(context: LineContext): boolean {
-		if (this.lineNumber !== context.lineNumber) {
-			// Line number has changed
-			return true;
-		}
-
-		if (context.column < this.column - this.wordBefore.length) {
-			// column went before word start
-			return true;
-		}
-
-		if (!startsWith(context.lineContentBefore, this.lineContentBefore)) {
-			// Line has changed before position
-			return true;
-		}
-
-		if (context.wordBefore === '' && context.lineContentBefore !== this.lineContentBefore) {
-			// Most likely a space has been typed
-			return true;
-		}
-
-		return false;
-	}
-
-	shouldRetrigger(context: LineContext): boolean {
-		if (!startsWith(this.lineContentBefore, context.lineContentBefore)) {
-			// Doesn't look like the same line
-			return false;
-		}
-
-		if (this.lineContentBefore.length > context.lineContentBefore.length && this.wordBefore.length === 0) {
-			// Text was deleted and previous current word was empty
-			return false;
-		}
-
-		if (this.auto && context.wordBefore.length === 0) {
-			// Currently in auto mode and new current word is empty
-			return false;
-		}
-
-		return true;
+		this.auto = auto;
 	}
 }
 
@@ -283,7 +241,7 @@ export class SuggestModel implements IDisposable {
 		if (this.state === State.Idle) {
 
 			if (this.editor.getConfiguration().contribInfo.quickSuggestions) {
-				// trigger suggest from idle when configured to do so
+				// trigger 24x7 IntelliSense when idle and enabled
 				this.cancel();
 				if (LineContext.shouldAutoTrigger(this.editor)) {
 					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
@@ -296,7 +254,7 @@ export class SuggestModel implements IDisposable {
 
 		} else {
 			// refine active suggestion
-			const ctx = new LineContext(model, this.editor.getPosition(), false);
+			const ctx = new LineContext(model, this.editor.getPosition(), this.state === State.Auto);
 			this.onNewContext(ctx);
 		}
 	}
@@ -344,7 +302,7 @@ export class SuggestModel implements IDisposable {
 
 			const ctx = new LineContext(model, this.editor.getPosition(), auto);
 			this.completionModel = new CompletionModel(items, this.context.column, {
-				leadingLineContent: ctx.lineContentBefore,
+				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
 			});
 			this.onNewContext(ctx);
@@ -353,41 +311,65 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private onNewContext(ctx: LineContext): void {
-		if (this.context && this.context.isDifferentContext(ctx)) {
-			if (this.context.shouldRetrigger(ctx)) {
-				this.trigger(this.state === State.Auto, true);
-			} else {
-				this.cancel();
+
+		if (!this.context) {
+			// happens when 24x7 IntelliSense is enabled and still in its delay
+			return;
+		}
+
+		if (ctx.lineNumber !== this.context.lineNumber) {
+			// e.g. happens when pressing Enter while IntelliSense is computed
+			this.cancel();
+			return;
+		}
+
+		if (ctx.column < this.context.column) {
+			// typed -> moved cursor LEFT -> retrigger if still on a word
+			if (ctx.leadingWord.word) {
+				this.trigger(this.context.auto, true);
 			}
+			return;
+		}
 
-		} else if (this.completionModel) {
+		if (!this.completionModel) {
+			// happens when IntelliSense is not yet computed
+			return;
+		}
 
-			if (this.completionModel.incomplete && ctx.column > this.context.column) {
-				const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
-				this.trigger(this.state === State.Auto, true, incomplete, complete);
-				return;
-			}
+		if (ctx.column > this.context.column && this.completionModel.incomplete) {
+			// typed -> moved cursor RIGHT & incomple model -> retrigger
+			const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
+			this.trigger(this.state === State.Auto, true, incomplete, complete);
 
-			const auto = this.state === State.Auto;
-			const oldLineContext = this.completionModel.lineContext;
+		} else {
+			// typed -> moved cursor RIGHT -> update UI
+			let oldLineContext = this.completionModel.lineContext;
 			let isFrozen = false;
 
 			this.completionModel.lineContext = {
-				leadingLineContent: ctx.lineContentBefore,
-				characterCountDelta: this.context ? ctx.column - this.context.column : 0
+				leadingLineContent: ctx.leadingLineContent,
+				characterCountDelta: ctx.column - this.context.column
 			};
 
-			// when explicitly request when the next context goes
-			// from 'results' to 'no results' freeze
-			if (!auto && this.completionModel.items.length === 0) {
-				this.completionModel.lineContext = oldLineContext;
-				isFrozen = this.completionModel.items.length > 0;
+			if (this.completionModel.items.length === 0) {
+
+				if (LineContext.shouldAutoTrigger(this.editor) && this.context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
+					// retrigger when heading into a new word
+					this.trigger(this.context.auto, true);
+					return;
+				}
+
+				if (!this.context.auto) {
+					// freeze when IntelliSense was manually requested
+					this.completionModel.lineContext = oldLineContext;
+					isFrozen = this.completionModel.items.length > 0;
+				}
 			}
 
 			this._onDidSuggest.fire({
 				completionModel: this.completionModel,
+				auto: this.context.auto,
 				isFrozen,
-				auto
 			});
 		}
 	}
