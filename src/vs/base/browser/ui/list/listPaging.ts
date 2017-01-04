@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
 import { IDelegate, IRenderer, IFocusChangeEvent, ISelectionChangeEvent } from './list';
-import { List } from './listWidget';
+import { List, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import Event, { mapEvent } from 'vs/base/common/event';
 
@@ -67,10 +67,11 @@ export class PagedList<T> {
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<number>,
-		renderers: IPagedRenderer<T, any>[]
+		renderers: IPagedRenderer<T, any>[],
+		options: IListOptions = {}
 	) {
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
-		this.list = new List(container, delegate, pagedRenderers);
+		this.list = new List(container, delegate, pagedRenderers, options);
 	}
 
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
