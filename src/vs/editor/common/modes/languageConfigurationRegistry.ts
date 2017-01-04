@@ -17,6 +17,7 @@ import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
+import * as strings from 'vs/base/common/strings';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -276,6 +277,69 @@ export class LanguageConfigurationRegistryImpl {
 			onUnexpectedError(e);
 		}
 		return result;
+	}
+
+	public getInheritedIndentActionForCurrentLine(model: ITokenizedModel, lineNumber: number): { indentation: string, action: IndentAction } {
+		/**
+		 * In order to get correct indentation for current line
+		 * we need to loop backwards all the lines from current line until
+		 * 	1. a line is not empty
+		 *  2. and the line doesn't match `unIndentedLinePattern` pattern
+		 */
+
+		// TODO: how about a line filled with only spaces?
+
+		let lastLineNumber = lineNumber - 1;
+
+		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
+			let lineText = model.getLineContent(lastLineNumber);
+			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
+			if (nonWhitespaceIdx >= 0) {
+				// this line is not empty
+				break;
+			}
+		}
+
+		if (lastLineNumber < 1) {
+			// No previous line with content found
+			return null;
+		}
+
+		// TODO
+		let onEnterSupport = this._getOnEnterSupport(model.getLanguageIdentifier().id);
+
+		if (!onEnterSupport) {
+			return null;
+		}
+
+		let lineText = model.getLineContent(lastLineNumber);
+		let lineTextAbove: string;
+		if (lastLineNumber > 1) {
+			lineTextAbove = model.getLineContent(lastLineNumber - 1);
+		}
+
+		let indentation = strings.getLeadingWhitespace(lineText);
+
+		let inheritedIntentationRule = onEnterSupport.getInheritedIndentationRules(lineText, lineTextAbove);
+
+		return {
+			indentation: indentation,
+			action: inheritedIntentationRule
+		};
+	}
+
+	public getIndentationRuleForCurrentLine(model, lineNumber: number, column: number) {
+		let lineTokens = model.getLineTokens(lineNumber, false);
+		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
+		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
+		if (!onEnterSupport) {
+			return null;
+		}
+
+		let scopedLineText = scopedLineTokens.getLineContent();
+		let beforeEnterText = scopedLineText.substr(0, column - 1 - scopedLineTokens.firstCharOffset);
+		let indentAction = onEnterSupport.getIndentActionForContent(beforeEnterText);
+		return indentAction;
 	}
 
 	public getEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {

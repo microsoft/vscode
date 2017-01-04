@@ -181,12 +181,12 @@ class LanguageProvider {
 			}
 
 			languages.setLanguageConfiguration(modeId, {
-				// indentationRules: {
-				// 	// ^(.*\*/)?\s*\}.*$
-				// 	decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
-				// 	// ^.*\{[^}"']*$
-				// 	increaseIndentPattern: /^.*\{[^}"']*$/
-				// },
+				indentationRules: {
+					// ^(.*\*/)?\s*\}.*$
+					decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
+					// ^.*\{[^}"']*$
+					increaseIndentPattern: /^.*\{[^}"']*$/
+				},
 				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
 				onEnterRules: [
 					{

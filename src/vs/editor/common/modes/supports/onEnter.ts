@@ -75,6 +75,7 @@ export class OnEnterSupport {
 		// (3): Indentation Support
 		if (this._indentationRules) {
 			let enterAction: EnterAction = null;
+
 			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(beforeEnterText)) {
 				enterAction = { indentAction: IndentAction.Indent };
 			}
@@ -88,13 +89,6 @@ export class OnEnterSupport {
 				}
 				if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
 					enterAction = { indentAction: IndentAction.Outdent };
-				}
-				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(beforeEnterText)) {
-					if (enterAction === null) {
-						enterAction = { indentAction: IndentAction.None, outdentCurrentLine: true };
-					} else {
-						enterAction = { indentAction: enterAction.indentAction, outdentCurrentLine: true };
-					}
 				}
 			}
 
@@ -110,6 +104,51 @@ export class OnEnterSupport {
 				if (bracket.openRegExp.test(beforeEnterText)) {
 					return { indentAction: IndentAction.Indent };
 				}
+			}
+		}
+
+		return null;
+	}
+
+	public getInheritedIndentationRules(text: string, textOneLineAbove?: string): IndentAction {
+		let offset = 0;
+		if (this._indentationRules) {
+			if (textOneLineAbove && this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(textOneLineAbove)) {
+				offset -= 1;
+			}
+
+			let indentOffset = 0;
+
+			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(text)) {
+				indentOffset = 1;
+			}
+
+			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(text)) {
+				indentOffset = 1;
+			}
+
+			offset += indentOffset;
+		}
+
+		switch (offset) {
+			case 0:
+				return IndentAction.None;
+			case 1:
+				return IndentAction.Indent;
+			case -1:
+				return IndentAction.Outdent;
+			default:
+				break;
+		}
+
+		return null;
+	}
+
+	public getIndentActionForContent(text: string): IndentAction {
+		if (this._indentationRules && /^\s/.test(text)) {
+			// No reason to run regular expressions if there is nothing to outdent from
+			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(text)) {
+				return IndentAction.Outdent;
 			}
 		}
 

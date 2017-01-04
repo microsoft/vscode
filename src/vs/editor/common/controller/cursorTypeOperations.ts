@@ -103,44 +103,29 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {
-		let lastLineNumber = lineNumber - 1;
+		let inheritIndentAction = LanguageConfigurationRegistry.getInheritedIndentActionForCurrentLine(model, lineNumber);
 
-		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
-			let lineText = model.getLineContent(lastLineNumber);
-			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
-			if (nonWhitespaceIdx >= 0) {
-				break;
+		if (inheritIndentAction && inheritIndentAction.action) {
+			let indentation = inheritIndentAction.indentation;
+
+			if (inheritIndentAction.action === IndentAction.Indent) {
+				indentation = TypeOperations.shiftIndent(config, indentation);
+			}
+
+			if (inheritIndentAction.action === IndentAction.Outdent) {
+				indentation = TypeOperations.unshiftIndent(config, indentation);
+			}
+
+			indentation = config.normalizeIndentation(indentation);
+
+			if (indentation.length === 0) {
+				return '\t';
+			} else {
+				return indentation;
 			}
 		}
 
-		if (lastLineNumber < 1) {
-			// No previous line with content found
-			return '\t';
-		}
-
-		let enterAction = LanguageConfigurationRegistry.getEnterActionAtPosition(model, lastLineNumber, model.getLineMaxColumn(lastLineNumber));
-		let indentation = strings.getLeadingWhitespace(model.getLineContent(lastLineNumber));
-
-		// Since it's already a new line, indentation rules of last line are already applied.
-		if (enterAction.indentAction === IndentAction.Outdent) {
-			indentation = TypeOperations.unshiftIndent(config, indentation);
-		} else if (
-			(enterAction.indentAction === IndentAction.Indent) ||
-			(enterAction.indentAction === IndentAction.IndentOutdent)
-		) {
-			indentation = TypeOperations.shiftIndent(config, indentation);
-		}
-
-		if (enterAction.removeText) {
-			indentation = TypeOperations.unshiftIndent(config, indentation, enterAction.removeText);
-		}
-
-		let result = config.normalizeIndentation(indentation) + enterAction.appendText;
-		if (result.length === 0) {
-			// good position is at column 1, but we gotta do something...
-			return '\t';
-		}
-		return result;
+		return '\t';
 	}
 
 	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection): ReplaceCommand {
@@ -221,20 +206,44 @@ export class TypeOperations {
 
 
 	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): EditOperationResult {
-		let enterAction = LanguageConfigurationRegistry.getEnterActionAtPosition(model, range.startLineNumber, range.startColumn);
 		let lineText = model.getLineContent(range.startLineNumber);
 		let indentation = strings.getLeadingWhitespace(lineText);
 		if (indentation.length > range.startColumn - 1) {
 			indentation = indentation.substring(0, range.startColumn - 1);
 		}
 
-		// adjust indentation of current line.
+		let enterAction = LanguageConfigurationRegistry.getEnterActionAtPosition(model, range.startLineNumber, range.startColumn);
 		let beforeText = '';
-		if (enterAction.outdentCurrentLine) {
-			let newIndentation = TypeOperations.unshiftIndent(config, indentation);
-			beforeText = config.normalizeIndentation(newIndentation) + lineText.substring(indentation.length, range.startColumn - 1);
-			indentation = newIndentation;
-			range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
+
+		let inheritedIntentationAction = LanguageConfigurationRegistry.getInheritedIndentActionForCurrentLine(model, range.startLineNumber);
+		let currentLineIndentationRule = LanguageConfigurationRegistry.getIndentationRuleForCurrentLine(model, range.startLineNumber, range.startColumn);
+
+		if (inheritedIntentationAction || currentLineIndentationRule) {
+			// The indentation of current line may be adjusted
+			let expectedIndentation = indentation;
+
+			if (inheritedIntentationAction && inheritedIntentationAction.action) {
+				if (inheritedIntentationAction.action === IndentAction.Indent) {
+					expectedIndentation = TypeOperations.shiftIndent(config, inheritedIntentationAction.indentation);
+				}
+
+				if (inheritedIntentationAction.action === IndentAction.Outdent) {
+					expectedIndentation = TypeOperations.unshiftIndent(config, inheritedIntentationAction.indentation);
+				}
+			}
+
+			if (currentLineIndentationRule && currentLineIndentationRule === IndentAction.Outdent) {
+				expectedIndentation = TypeOperations.unshiftIndent(config, expectedIndentation);
+			}
+
+			expectedIndentation = config.normalizeIndentation(expectedIndentation);
+
+			if (expectedIndentation !== indentation) {
+				// adjust indentation of current line.
+				beforeText = expectedIndentation + lineText.substring(indentation.length, range.startColumn - 1);
+				indentation = expectedIndentation;
+				range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
+			}
 		}
 
 		// compute indentation of following lines
