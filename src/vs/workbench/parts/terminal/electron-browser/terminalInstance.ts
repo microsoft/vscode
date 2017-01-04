@@ -25,9 +25,10 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
+/** The amount of time to consider terminal errors to be related to the launch */
+const LAUNCHING_DURATION = 500;
+
 export class TerminalInstance implements ITerminalInstance {
-	/** The amount of time to consider terminal errors to be related to the launch */
-	private static readonly LAUNCHING_DURATION = 500;
 	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
@@ -371,7 +372,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		setTimeout(() => {
 			this._isLaunching = false;
-		}, TerminalInstance.LAUNCHING_DURATION);
+		}, LAUNCHING_DURATION);
 	}
 
 	// TODO: This should be private/protected
