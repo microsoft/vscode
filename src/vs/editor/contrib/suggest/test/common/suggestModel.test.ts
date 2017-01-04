@@ -61,28 +61,6 @@ suite('SuggestModel - Context', function () {
 		assertAutoTrigger(55, false); // number, 1861|
 	});
 
-	test('Context - isDifferentContext', function () {
-
-		// different line
-		const ctx = new LineContext(model, { lineNumber: 1, column: 8 }, true); // Das Pfer|d
-		assert.equal(ctx.isDifferentContext(new LineContext(model, { lineNumber: 2, column: 1 }, true)), true);
-
-
-		function createEndContext(value: string) {
-			const model = Model.createFromString(value);
-			const ctx = new LineContext(model, model.getPositionAt(value.length), true); // Das Pfer|d
-			return ctx;
-		}
-
-		// got shorter -> redo
-		assert.equal(createEndContext('One Two').isDifferentContext(createEndContext('One Tw')), true);
-
-		// got longer inside word -> keep
-		assert.equal(createEndContext('One Tw').isDifferentContext(createEndContext('One Two')), false);
-
-		// got longer new word -> redo
-		assert.equal(createEndContext('One Two').isDifferentContext(createEndContext('One Two ')), true);
-	});
 });
 
 suite('SuggestModel - TriggerAndCancelOracle', function () {
@@ -238,6 +216,51 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 
 				assert.equal(first.support, alwaysSomethingSupport);
+			});
+		});
+	});
+
+	test('#17400: Keep filtering suggestModel.ts after space', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			triggerCharacters: [],
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'My Table',
+						type: 'property',
+						insertText: 'My Table'
+					}]
+				};
+			}
+		}));
+
+		model.setValue('');
+
+		return withOracle((model, editor) => {
+
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 1 });
+				editor.trigger('keyboard', Handler.Type, { text: 'My' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+				assert.equal(first.suggestion.label, 'My Table');
+
+				return assertEvent(model.onDidSuggest, () => {
+					editor.setPosition({ lineNumber: 1, column: 3 });
+					editor.trigger('keyboard', Handler.Type, { text: ' ' });
+
+				}, event => {
+					assert.equal(event.auto, true);
+					assert.equal(event.completionModel.items.length, 1);
+					const [first] = event.completionModel.items;
+					assert.equal(first.suggestion.label, 'My Table');
+				});
 			});
 		});
 	});
