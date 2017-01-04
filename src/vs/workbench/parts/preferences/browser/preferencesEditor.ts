@@ -367,7 +367,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		setting = this.settingsEditorModel.getSetting(setting.key);
 		// TODO:@sandy Selection range should be template range
 		this.editor.setSelection(setting.valueRange);
-		this.settingHighlighter.highlight(this.settingsEditorModel.getSetting(setting.key), false, true);
+		this.settingHighlighter.highlight(this.settingsEditorModel.getSetting(setting.key), true);
 	}
 }
 
@@ -736,7 +736,7 @@ class FilteredSettingsNavigationRenderer extends Disposable {
 	public next(): ISetting {
 		let setting = this.iterator.next() || this.iterator.first();
 		if (setting) {
-			this.settingHighlighter.highlight(setting, true, true);
+			this.settingHighlighter.highlight(setting, true);
 			return setting;
 		}
 		return null;
@@ -952,15 +952,14 @@ class SettingHighlighter extends Disposable {
 		this.volatileHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
 	}
 
-	highlight(setting: ISetting, isWholeLine: boolean = true, fix: boolean = false) {
+	highlight(setting: ISetting, fix: boolean = false) {
 		this.volatileHighlighter.removeHighlightRange();
 		this.fixedHighlighter.removeHighlightRange();
 
 		const highlighter = fix ? this.fixedHighlighter : this.volatileHighlighter;
 		highlighter.highlightRange({
-			range: isWholeLine ? setting.valueRange : setting.range,
-			resource: this.editor.getModel().uri,
-			isWholeLine
+			range: setting.valueRange,
+			resource: this.editor.getModel().uri
 		}, this.editor);
 
 		this.editor.revealLinesInCenterIfOutsideViewport(setting.valueRange.startLineNumber, setting.valueRange.endLineNumber - 1);
