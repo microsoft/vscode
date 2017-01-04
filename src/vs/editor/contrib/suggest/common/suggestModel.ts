@@ -32,14 +32,31 @@ export interface ISuggestEvent {
 
 export class Context {
 
+	static shouldAutoTrigger(editor: ICommonCodeEditor): boolean {
+		const model = editor.getModel();
+		if (!model) {
+			return false;
+		}
+		const pos = editor.getPosition();
+		const word = model.getWordAtPosition(pos);
+		if (!word) {
+			return false;
+		}
+		if (word.endColumn !== pos.column) {
+			return false;
+		}
+		if (!isNaN(Number(word.word))) {
+			return false;
+		}
+		return true;
+	}
+
 	readonly lineNumber: number;
 	readonly column: number;
 	readonly isInEditableRange: boolean;
 
 	readonly lineContentBefore: string;
-
 	readonly wordBefore: string;
-	readonly wordAfter: string;
 
 	constructor(model: IModel, position: IPosition, private auto: boolean) {
 		const lineContent = model.getLineContent(position.lineNumber);
@@ -47,10 +64,8 @@ export class Context {
 
 		if (wordUnderCursor) {
 			this.wordBefore = lineContent.substring(wordUnderCursor.startColumn - 1, position.column - 1);
-			this.wordAfter = lineContent.substring(position.column - 1, wordUnderCursor.endColumn - 1);
 		} else {
 			this.wordBefore = '';
-			this.wordAfter = '';
 		}
 
 		this.lineNumber = position.lineNumber;
@@ -65,26 +80,6 @@ export class Context {
 				this.isInEditableRange = false;
 			}
 		}
-	}
-
-	shouldAutoTrigger(): boolean {
-
-		if (this.wordBefore.length === 0) {
-			// Word before position is empty
-			return false;
-		}
-
-		if (!isNaN(Number(this.wordBefore))) {
-			// Word before is number only
-			return false;
-		}
-
-		if (this.wordAfter.length > 0) {
-			// Word after position is non empty
-			return false;
-		}
-
-		return true;
 	}
 
 	isDifferentContext(context: Context): boolean {
@@ -292,14 +287,12 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const ctx = new Context(model, this.editor.getPosition(), false);
-
 		if (this.state === State.Idle) {
 
 			if (this.editor.getConfiguration().contribInfo.quickSuggestions) {
 				// trigger suggest from idle when configured to do so
 				this.cancel();
-				if (ctx.shouldAutoTrigger()) {
+				if (Context.shouldAutoTrigger(this.editor)) {
 					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
 					this.triggerAutoSuggestPromise.then(() => {
 						this.triggerAutoSuggestPromise = null;
@@ -310,6 +303,7 @@ export class SuggestModel implements IDisposable {
 
 		} else {
 			// refine active suggestion
+			const ctx = new Context(model, this.editor.getPosition(), false);
 			this.onNewContext(ctx);
 		}
 	}

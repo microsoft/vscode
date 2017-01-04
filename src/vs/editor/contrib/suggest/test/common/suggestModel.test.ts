@@ -49,8 +49,10 @@ suite('SuggestModel - Context', function () {
 
 		function assertAutoTrigger(offset: number, expected: boolean): void {
 			const pos = model.getPositionAt(offset);
-			const ctx = new Context(model, pos, false);
-			assert.equal(ctx.shouldAutoTrigger(), expected);
+			const editor = createMockEditor(model);
+			editor.setPosition(pos);
+			assert.equal(Context.shouldAutoTrigger(editor), expected);
+			editor.dispose();
 		}
 
 		assertAutoTrigger(3, true); // end of word, Das|
