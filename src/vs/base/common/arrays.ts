@@ -18,7 +18,7 @@ export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => bool
 		return false;
 	}
 
-	for (var i = 0, len = one.length; i < len; i++) {
+	for (let i = 0, len = one.length; i < len; i++) {
 		if (!itemEquals(one[i], other[i])) {
 			return false;
 		}
@@ -177,7 +177,7 @@ export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T 
 export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
-	for (var i = 0, len = Math.min(one.length, other.length); i < len && equals(one[i], other[i]); i++) {
+	for (let i = 0, len = Math.min(one.length, other.length); i < len && equals(one[i], other[i]); i++) {
 		result++;
 	}
 
