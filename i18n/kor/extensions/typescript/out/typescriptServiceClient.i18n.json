@@ -6,9 +6,7 @@
 {
 	"channelName": "TypeScript",
 	"close": "닫기",
-	"doNotCheckAgain": "다시 확인 안 함",
 	"localTSFound": "작업 영역 폴더에 TypeScript 버전 {0}이(가) 포함되어 있습니다. 번들 버전 {1} 대신 이 버전을 사용할까요?",
-	"moreInformation": "추가 정보",
 	"neverCheckLocalVesion": "작업 영역 버전 확인 안 함",
 	"noServerFound": "경로 {0}이(가) 올바른 tsserver 설치를 가리키지 않습니다. TypeScript 언어 기능이 사용되지 않도록 설정됩니다.",
 	"serverCouldNotBeStarted": "TypeScript 언어 서버를 시작할 수 없습니다. 오류 메시지: {0}",
@@ -16,10 +14,8 @@
 	"serverDiedAfterStart": "TypeScript 언어 서비스가 시작된 직후 5번 종료되었습니다. 서비스가 다시 시작되지 않습니다. 버그 보고서를 열어 보세요.",
 	"updateGlobalWorkspaceCheck": "사용자 설정 'typescript.check.workspaceVersion'을 false로 업데이트했습니다.",
 	"updateLocalWorkspaceCheck": "작업 영역 설정 'typescript.check.workspaceVersion'을 false로 업데이트했습니다.",
-	"updateTscCheck": "사용자 설정 'typescript.check.tscVersion'을 false을 업데이트했습니다.",
 	"updatedtsdk": "작업 영역 설정 'typescript.tsdk'를 {0}(으)로 업데이트했습니다.",
 	"use": "작업 영역({0}) 사용",
 	"useBundled": "번들({0}) 사용",
-	"versionMismatch": "버전이 일치하지 않습니다. 전역 tsc({0})가 VS 코드의 언어 서비스({1})와 다릅니다. 일관되지 않은 컴파일 오류가 발생할 수 있습니다.",
 	"versionNumber.custom": "사용자 지정"
 }

@@ -34,7 +34,7 @@ suite('Strings', () => {
 
 	test('computeLineStarts', function () {
 		function assertLineStart(text: string, ...offsets: number[]): void {
-			var actual = strings.computeLineStarts(text);
+			const actual = strings.computeLineStarts(text);
 			assert.equal(actual.length, offsets.length);
 			if (actual.length !== offsets.length) {
 				return;

@@ -103,6 +103,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
 	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	private _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
@@ -151,6 +153,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
 		return this._onProjectLanguageServiceStateChanged.event;
+	}
+
+	get onDidBeginInstallTypings(): Event<Proto.BeginInstallTypesEventBody> {
+		return this._onDidBeginInstallTypings.event;
+	}
+
+	get onDidEndInstallTypings(): Event<Proto.EndInstallTypesEventBody> {
+		return this._onDidEndInstallTypings.event;
 	}
 
 	private get output(): OutputChannel {
@@ -670,6 +680,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						case 'typingsInstalled':
 							let typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
 							properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+
 							if (is.defined(typingsInstalledPayload.installSuccess)) {
 								properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
 							}
@@ -694,6 +705,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (data) {
 						this._onProjectLanguageServiceStateChanged.fire(data);
 					}
+				} else if (event.event === 'beginInstallTypes') {
+					const data = (event as Proto.BeginInstallTypesEvent).body;
+					if (data) {
+						this._onDidBeginInstallTypings.fire(data);
+					}
+				} else if (event.event === 'endInstallTypes') {
+					const data = (event as Proto.EndInstallTypesEvent).body;
+					if (data) {
+						this._onDidEndInstallTypings.fire(data);
+					}
 				}
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');
@@ -709,7 +730,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && request.arguments) {
-			data = `Arguments: ${JSON.stringify(request.arguments, [], 4)}`;
+			data = `Arguments: ${JSON.stringify(request.arguments, null, 4)}`;
 		}
 		this.logTrace(`Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${this.requestQueue.length}`, data);
 	}
@@ -720,7 +741,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && response.body) {
-			data = `Result: ${JSON.stringify(response.body, [], 4)}`;
+			data = `Result: ${JSON.stringify(response.body, null, 4)}`;
 		}
 		this.logTrace(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
 	}
@@ -731,7 +752,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && event.body) {
-			data = `Data: ${JSON.stringify(event.body, [], 4)}`;
+			data = `Data: ${JSON.stringify(event.body, null, 4)}`;
 		}
 		this.logTrace(`Event received: ${event.event} (${event.seq}).`, data);
 	}

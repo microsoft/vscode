@@ -15,6 +15,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
 
@@ -129,11 +130,11 @@ suite('Workbench BaseEditor', () => {
 		let options = new EditorOptions();
 
 		assert(!e.isVisible());
-		assert(!e.getInput());
-		assert(!e.getOptions());
+		assert(!e.input);
+		assert(!e.options);
 		e.setInput(input, options).then(() => {
-			assert.strictEqual(input, e.getInput());
-			assert.strictEqual(options, e.getOptions());
+			assert.strictEqual(input, e.input);
+			assert.strictEqual(options, e.options);
 
 			e.setVisible(true);
 			assert(e.isVisible());
@@ -144,8 +145,8 @@ suite('Workbench BaseEditor', () => {
 			e.clearInput();
 			e.setVisible(false);
 			assert(!e.isVisible());
-			assert(!e.getInput());
-			assert(!e.getOptions());
+			assert(!e.input);
+			assert(!e.options);
 			assert(!e.getControl());
 		}).done(() => done());
 	});
@@ -262,7 +263,7 @@ suite('Workbench BaseEditor', () => {
 	});
 
 	test('Editor Input Factory', function () {
-		EditorRegistry.setInstantiationService(new TestInstantiationService());
+		EditorRegistry.setInstantiationService(workbenchInstantiationService());
 		EditorRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
 		let factory = EditorRegistry.getEditorInputFactory('myInputId');

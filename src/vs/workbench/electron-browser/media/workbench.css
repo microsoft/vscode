@@ -109,11 +109,6 @@
 	background-color: #000;
 }
 
-.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled,
-.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled:hover {
-	opacity: 1;
-}
-
 .hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled {
 	opacity: .4;
 }

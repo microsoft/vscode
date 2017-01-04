@@ -68,7 +68,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		// First validate before making any edits
 		return this.validate(target, operation, options).then(validation => {
-			if (typeof validation.error === 'number') {
+			if (!options.writeToBuffer && typeof validation.error === 'number') {
+				// Target cannot contain JSON errors if writing to disk
 				return this.wrapError(validation.error, target);
 			}
 
@@ -205,7 +206,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace if no workspace opened
-		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.getWorkspace()) {
+		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.hasWorkspace()) {
 			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED });
 		}
 
@@ -228,14 +229,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 					return { exists, contents: content };
 				}
 
-				// Target cannot contain JSON errors
+				let error = void 0;
 				const parseErrors: json.ParseError[] = [];
 				json.parse(content, parseErrors);
 				if (parseErrors.length > 0) {
-					return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
+					error = ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION;
 				}
 
-				return { exists, contents: content };
+				return { exists, contents: content, error };
 			});
 		});
 	}

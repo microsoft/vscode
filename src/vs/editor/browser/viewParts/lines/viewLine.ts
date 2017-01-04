@@ -312,7 +312,7 @@ class RenderedViewLine {
 		let partIndex = findIndexInArrayWithMax(this.input.lineParts, column - 1, this._lastRenderedPartIndex);
 		let charOffsetInPart = this._charOffsetInPart[column - 1];
 
-		let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
+		let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, endNode);
 		if (!r || r.length === 0) {
 			return -1;
 		}
@@ -332,11 +332,7 @@ class RenderedViewLine {
 		let endPartIndex = findIndexInArrayWithMax(this.input.lineParts, endColumn - 1, this._lastRenderedPartIndex);
 		let endCharOffsetInPart = this._charOffsetInPart[endColumn - 1];
 
-		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
-	}
-
-	protected _getScaleRatio(): number {
-		return 1;
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, endNode);
 	}
 
 	/**
@@ -361,12 +357,6 @@ class RenderedViewLine {
 			spanNodeTextContentLength,
 			offset
 		);
-	}
-}
-
-class IERenderedViewLine extends RenderedViewLine {
-	protected _getScaleRatio(): number {
-		return screen.logicalXDPI / screen.deviceXDPI;
 	}
 }
 
@@ -407,19 +397,11 @@ function findIndexInArrayWithMax(lineParts: LineParts, desiredIndex: number, max
 }
 
 const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
-	if (window.screen && window.screen.deviceXDPI && (navigator.userAgent.indexOf('Trident/6.0') >= 0 || navigator.userAgent.indexOf('Trident/5.0') >= 0)) {
-		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
-		// for TextRange.getClientRects() anymore
-		return createIERenderedLine;
-	} else if (browser.isWebKit) {
+	if (browser.isWebKit) {
 		return createWebKitRenderedLine;
 	}
 	return createNormalRenderedLine;
 })();
-
-function createIERenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new IERenderedViewLine(domNode, renderLineInput, modelContainsRTL, renderLineOutput);
-}
 
 function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
 	return new WebKitRenderedViewLine(domNode, renderLineInput, modelContainsRTL, renderLineOutput);

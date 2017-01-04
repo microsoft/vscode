@@ -9,8 +9,7 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IEventService } from 'vs/platform/event/common/event';
+import { TextFileEditorModel, SaveSequentializer } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
@@ -19,7 +18,7 @@ import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/com
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
-	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
@@ -95,10 +94,6 @@ suite('Files - TextFileEditorModel', () => {
 	test('Load does not trigger save', function (done) {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
 		assert.equal(model.getState(), ModelState.SAVED);
-
-		accessor.eventService.addListener2('files:internalFileChanged', () => {
-			assert.ok(false);
-		});
 
 		model.onDidStateChange(e => {
 			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
@@ -380,5 +375,96 @@ suite('Files - TextFileEditorModel', () => {
 				assert.ok(false);
 			});
 		}, error => onError(error, done));
+	});
+
+	test('SaveSequentializer - pending basics', function (done) {
+		const sequentializer = new SaveSequentializer();
+
+		assert.ok(!sequentializer.hasPendingSave());
+		assert.ok(!sequentializer.hasPendingSave(2323));
+		assert.ok(!sequentializer.pendingSave);
+
+		// pending removes itself after done
+		sequentializer.setPending(1, TPromise.as(null));
+		assert.ok(!sequentializer.hasPendingSave());
+		assert.ok(!sequentializer.hasPendingSave(1));
+		assert.ok(!sequentializer.pendingSave);
+
+		// pending removes itself after done (use timeout)
+		sequentializer.setPending(2, TPromise.timeout(1));
+		assert.ok(sequentializer.hasPendingSave());
+		assert.ok(sequentializer.hasPendingSave(2));
+		assert.ok(!sequentializer.hasPendingSave(1));
+		assert.ok(sequentializer.pendingSave);
+
+		return TPromise.timeout(2).then(() => {
+			assert.ok(!sequentializer.hasPendingSave());
+			assert.ok(!sequentializer.hasPendingSave(2));
+			assert.ok(!sequentializer.pendingSave);
+
+			done();
+		});
+	});
+
+	test('SaveSequentializer - pending and next (finishes instantly)', function (done) {
+		const sequentializer = new SaveSequentializer();
+
+		let pendingDone = false;
+		sequentializer.setPending(1, TPromise.timeout(1).then(() => { pendingDone = true; return null; }));
+
+		// next finishes instantly
+		let nextDone = false;
+		const res = sequentializer.setNext(() => TPromise.as(null).then(() => { nextDone = true; return null; }));
+
+		return res.done(() => {
+			assert.ok(pendingDone);
+			assert.ok(nextDone);
+
+			done();
+		});
+	});
+
+	test('SaveSequentializer - pending and next (finishes after timeout)', function (done) {
+		const sequentializer = new SaveSequentializer();
+
+		let pendingDone = false;
+		sequentializer.setPending(1, TPromise.timeout(1).then(() => { pendingDone = true; return null; }));
+
+		// next finishes after timeout
+		let nextDone = false;
+		const res = sequentializer.setNext(() => TPromise.timeout(1).then(() => { nextDone = true; return null; }));
+
+		return res.done(() => {
+			assert.ok(pendingDone);
+			assert.ok(nextDone);
+
+			done();
+		});
+	});
+
+	test('SaveSequentializer - pending and multiple next (last one wins)', function (done) {
+		const sequentializer = new SaveSequentializer();
+
+		let pendingDone = false;
+		sequentializer.setPending(1, TPromise.timeout(1).then(() => { pendingDone = true; return null; }));
+
+		// next finishes after timeout
+		let firstDone = false;
+		let firstRes = sequentializer.setNext(() => TPromise.timeout(2).then(() => { firstDone = true; return null; }));
+
+		let secondDone = false;
+		let secondRes = sequentializer.setNext(() => TPromise.timeout(3).then(() => { secondDone = true; return null; }));
+
+		let thirdDone = false;
+		let thirdRes = sequentializer.setNext(() => TPromise.timeout(4).then(() => { thirdDone = true; return null; }));
+
+		return TPromise.join([firstRes, secondRes, thirdRes]).then(() => {
+			assert.ok(pendingDone);
+			assert.ok(!firstDone);
+			assert.ok(!secondDone);
+			assert.ok(thirdDone);
+
+			done();
+		});
 	});
 });

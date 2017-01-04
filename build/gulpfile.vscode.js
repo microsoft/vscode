@@ -39,8 +39,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.8.13' },
-	{ name: 'ms-vscode.node-debug2', version: '1.9.0' }
+	{ name: 'ms-vscode.node-debug', version: '1.9.0' },
+	{ name: 'ms-vscode.node-debug2', version: '1.9.1' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -91,9 +91,17 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	out: 'out-vscode'
 }));
 
+
+gulp.task('optimize-index-js', ['optimize-vscode'], () => {
+	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js')
+	const contents = fs.readFileSync(fullpath).toString();
+	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
+	fs.writeFileSync(fullpath, newContents);
+})
+
 const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', baseUrl));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], common.minifyTask('out-vscode', baseUrl));
 
 // Package
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));

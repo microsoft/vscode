@@ -91,7 +91,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 
 		const renderer = new marked.Renderer();
 		renderer.image = (href: string, title: string, text: string) => {
-			let dimensions = [];
+			let dimensions: string[] = [];
 			if (href) {
 				const splitted = href.split('|').map(s => s.trim());
 				href = splitted[0];

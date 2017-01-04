@@ -291,7 +291,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 			// In IE11, if the focus is in the browser's address bar and
 			// then you click in the editor, calling preventDefault()
 			// will not move focus properly (focus remains the address bar)
-			if (browser.isIE11orEarlier && !this._isFocused) {
+			if (browser.isIE && !this._isFocused) {
 				this._asyncFocus.schedule();
 			} else {
 				e.preventDefault();

@@ -11,7 +11,7 @@ const $ = dom.$;
 suite('dom', () => {
 	test('hasClass', () => {
 
-		var element = document.createElement('div');
+		let element = document.createElement('div');
 		element.className = 'foobar boo far';
 
 		assert(dom.hasClass(element, 'foobar'));
@@ -24,7 +24,7 @@ suite('dom', () => {
 
 	test('removeClass', () => {
 
-		var element = document.createElement('div');
+		let element = document.createElement('div');
 		element.className = 'foobar boo far';
 
 		dom.removeClass(element, 'boo');
@@ -56,7 +56,7 @@ suite('dom', () => {
 	});
 
 	test('removeClass should consider hyphens', function () {
-		var element = document.createElement('div');
+		let element = document.createElement('div');
 
 		dom.addClass(element, 'foo-bar bar');
 		assert(dom.hasClass(element, 'foo-bar'));
@@ -73,8 +73,8 @@ suite('dom', () => {
 
 	//test('[perf] hasClass * 100000', () => {
 	//
-	//	for (var i = 0; i < 100000; i++) {
-	//		var element = document.createElement('div');
+	//	for (let i = 0; i < 100000; i++) {
+	//		let element = document.createElement('div');
 	//		element.className = 'foobar boo far';
 	//
 	//		assert(dom.hasClass(element, 'far'));
@@ -84,21 +84,21 @@ suite('dom', () => {
 	//});
 
 	test('safeStringify', function () {
-		var obj1 = {
+		let obj1 = {
 			friend: null
 		};
 
-		var obj2 = {
+		let obj2 = {
 			friend: null
 		};
 
 		obj1.friend = obj2;
 		obj2.friend = obj1;
 
-		var arr: any = [1];
+		let arr: any = [1];
 		arr.push(arr);
 
-		var circular = {
+		let circular = {
 			a: 42,
 			b: null,
 			c: [
@@ -111,7 +111,7 @@ suite('dom', () => {
 		circular.b = circular;
 		circular.d = arr;
 
-		var result = dom.safeStringifyDOMAware(circular);
+		let result = dom.safeStringifyDOMAware(circular);
 
 		assert.deepEqual(JSON.parse(result), {
 			a: 42,
@@ -129,7 +129,7 @@ suite('dom', () => {
 	});
 
 	test('safeStringify2', function () {
-		var obj: any = {
+		let obj: any = {
 			a: null,
 			b: document.createElement('div'),
 			c: null,
@@ -139,7 +139,7 @@ suite('dom', () => {
 			g: 42
 		};
 
-		var result = dom.safeStringifyDOMAware(obj);
+		let result = dom.safeStringifyDOMAware(obj);
 
 		assert.deepEqual(JSON.parse(result), {
 			a: null,

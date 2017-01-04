@@ -20,7 +20,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShell } from 'vs/workbench/parts/terminal/common/terminal';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -62,13 +62,13 @@ export class TerminalInstance implements ITerminalInstance {
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
-		workspace: IWorkspace,
 		name: string,
 		shell: IShell,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
-		@IPanelService private _panelService: IPanelService
+		@IPanelService private _panelService: IPanelService,
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
 		this._toDispose = [];
 		this._skipTerminalCommands = [];
@@ -83,7 +83,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(workspace, name, shell);
+		this._createProcess(this._contextService.getWorkspace(), name, shell);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -195,12 +195,20 @@ export class TerminalInstance implements ITerminalInstance {
 		this.updateConfig();
 	}
 
+	public hasSelection(): boolean {
+		return !document.getSelection().isCollapsed;
+	}
+
 	public copySelection(): void {
 		if (document.activeElement.classList.contains('xterm')) {
 			document.execCommand('copy');
 		} else {
 			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
 		}
+	}
+
+	public clearSelection(): void {
+		document.getSelection().empty();
 	}
 
 	public dispose(): void {
@@ -298,7 +306,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
-		let cwd;
+		let cwd: string;
 
 		// TODO: Handle non-existent customCwd
 		if (!ignoreCustomCwd) {
@@ -347,7 +355,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this._onProcessIdReady.fire(this);
 			}
 		});
-		this._process.on('exit', (exitCode) => {
+		this._process.on('exit', (exitCode: number) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this._isExiting) {
 				this.dispose();

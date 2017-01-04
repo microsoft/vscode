@@ -16,7 +16,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
@@ -31,6 +31,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -105,18 +106,40 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(
 
 interface ISerializedFileInput {
 	resource: string;
+	encoding?: string;
 }
 
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
+	private configuredEncoding: string;
 
-	constructor() { }
+	constructor(
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+	) {
+		this.onConfiguration(configurationService.getConfiguration<IFilesConfiguration>());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(e.config));
+	}
+
+	private onConfiguration(config: IFilesConfiguration): void {
+		this.configuredEncoding = config.files && config.files.encoding;
+	}
 
 	public serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
+
 		const fileInput: ISerializedFileInput = {
 			resource: fileEditorInput.getResource().toString()
 		};
+
+		const encoding = fileEditorInput.getPreferredEncoding();
+		if (encoding && encoding !== this.configuredEncoding) {
+			fileInput.encoding = encoding;
+		}
 
 		return JSON.stringify(fileInput);
 	}
@@ -124,7 +147,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0);
+		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), fileInput.encoding);
 	}
 }
 

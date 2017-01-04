@@ -11,6 +11,7 @@ import * as paths from 'vs/base/common/paths';
 import { dirname, join } from 'path';
 import { nfcall, Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import { once } from 'vs/base/common/event';
 
@@ -176,4 +177,12 @@ export function dirExists(path: string): TPromise<boolean> {
 */
 export function fileExists(path: string): TPromise<boolean> {
 	return stat(path).then(stat => stat.isFile(), () => false);
+}
+
+/**
+ * Deletes a path from disk.
+ */
+const tmpDir = os.tmpdir();
+export function del(path: string, tmp = tmpDir): TPromise<void> {
+	return nfcall(extfs.del, path, tmp);
 }

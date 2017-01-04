@@ -14,7 +14,7 @@
 	"installExtension": "확장을 설치합니다.",
 	"listExtensions": "설치된 확장을 나열합니다.",
 	"locale": "사용할 로캘(예: en-US 또는 zh-TW)입니다.",
-	"newWindow": "코드의 새 인스턴스를 강제 적용합니다.",
+	"newWindow": "Code의 새 인스턴스를 강제 적용합니다.",
 	"options": "옵션",
 	"optionsUpperCase": "옵션",
 	"paths": "경로",

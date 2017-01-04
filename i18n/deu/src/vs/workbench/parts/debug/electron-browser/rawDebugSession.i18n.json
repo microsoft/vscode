@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "Die ausführbare Datei \"{0}\" des Debugadapters wurde nicht gefunden.",
 	"debugAdapterCrash": "Der Debugadapterprozess wurde unerwartet beendet.",
-	"debuggee": "Zu debuggende Komponente",
 	"moreInfo": "Weitere Informationen",
 	"noDebugAdapterExtensionInstalled": "Es ist keine Extension für {0}-Debuggen installiert.",
 	"stoppingDebugAdapter": "{0}. Der Debugadapter wird beendet.",

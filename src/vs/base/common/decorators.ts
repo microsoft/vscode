@@ -23,7 +23,7 @@ export function memoize(target: any, key: string, descriptor: any) {
 
 	const memoizeKey = `$memoize$${key}`;
 
-	descriptor[fnKey] = function (...args) {
+	descriptor[fnKey] = function (...args: any[]) {
 		if (!this.hasOwnProperty(memoizeKey)) {
 			Object.defineProperty(this, memoizeKey, {
 				configurable: false,

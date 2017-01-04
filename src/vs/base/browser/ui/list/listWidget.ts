@@ -65,7 +65,7 @@ class Trait<T> implements IDisposable {
 	splice(start: number, deleteCount: number, insertCount: number): void {
 		const diff = insertCount - deleteCount;
 		const end = start + deleteCount;
-		const indexes = [];
+		const indexes: number[] = [];
 
 		for (let index of indexes) {
 			if (index >= start && index < end) {
@@ -110,7 +110,7 @@ class Trait<T> implements IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	constructor(private getElementId: (number) => string) {
+	constructor(private getElementId: (number: number) => string) {
 		super('focused');
 	}
 

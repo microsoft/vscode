@@ -152,6 +152,10 @@
 	padding-top: 2px;
 }
 
+.search-viewlet .message p:first-child {
+	margin-top: 0;
+}
+
 .search-viewlet .filematch {
 	position: relative;
 	line-height: 22px;

@@ -10,5 +10,7 @@
 	"html.format.extraLiners.desc": "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to \"head, body, /html\".",
 	"html.suggest.angular1.desc":  "Configures if the built-in HTML language support suggests Angular V1 tags and properties.",
 	"html.suggest.ionic.desc": "Configures if the built-in HTML language support suggests Ionic tags, properties and values.",
-	"html.suggest.html5.desc":"Configures if the built-in HTML language support suggests HTML5 tags, properties and values."
+	"html.suggest.html5.desc":"Configures if the built-in HTML language support suggests HTML5 tags, properties and values.",
+	"html.validate.scripts": "Configures if the built-in HTML language support validates embedded scripts.",
+	"html.validate.styles": "Configures if the built-in HTML language support validates embedded styles."
 }

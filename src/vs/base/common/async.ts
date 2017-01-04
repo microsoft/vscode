@@ -402,7 +402,7 @@ export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[
 export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
 	promiseFactories = [...promiseFactories.reverse()];
 
-	const loop = () => {
+	const loop: () => TPromise<T> = () => {
 		if (promiseFactories.length === 0) {
 			return TPromise.as(null);
 		}

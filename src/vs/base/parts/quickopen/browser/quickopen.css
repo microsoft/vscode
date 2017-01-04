@@ -107,19 +107,9 @@
 	box-shadow: 0 5px 8px #A8A8A8;
 }
 
-.quick-open-widget.no-shadow {
-	box-shadow: none;
-	border: 1px solid #E6E6E6;
-}
-
 .vs-dark .quick-open-widget {
 	background-color: #252526;
 	box-shadow: 0 5px 8px #000;
-}
-
-.vs-dark .quick-open-widget.no-shadow {
-	box-shadow: none;
-	border: 1px solid #000;
 }
 
 .vs-dark .quick-open-widget input {

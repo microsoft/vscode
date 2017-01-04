@@ -11,13 +11,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { Registry } from 'vs/platform/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
-export class WorkbenchContentProvider implements IWorkbenchContribution {
+export class PreferencesContentProvider implements IWorkbenchContribution {
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -59,5 +59,3 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 		});
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkbenchContentProvider);

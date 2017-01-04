@@ -3163,11 +3163,12 @@ declare module monaco.editor {
          */
         pushUndoStop(): boolean;
         /**
-         * Execute a command on the editor.
+         * Execute edits on the editor.
          * @param source The source of the call.
-         * @param command The command to execute
+         * @param edits The edits to execute.
+         * @param endCursoState Cursor state after the edits were applied.
          */
-        executeEdits(source: string, edits: IIdentifiedSingleEditOperation[]): boolean;
+        executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
         /**
          * Execute multiple (concommitent) commands on the editor.
          * @param source The source of the call.
@@ -3954,6 +3955,7 @@ declare module monaco.languages {
         Color = 15,
         File = 16,
         Reference = 17,
+        Folder = 18,
     }
 
     /**
@@ -4258,10 +4260,6 @@ declare module monaco.languages {
          * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
          */
         endState: IState;
-        /**
-         * An optional promise to force the model to retokenize this line (e.g. missing information at the point of tokenization)
-         */
-        retokenize?: Promise<void>;
     }
 
     /**
@@ -4660,6 +4658,7 @@ declare module monaco.languages {
     }
 
     export interface CodeLensProvider {
+        onDidChange?: IEvent<this>;
         provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
         resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
     }

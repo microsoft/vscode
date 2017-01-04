@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Builder } from 'vs/base/browser/builder';
@@ -13,38 +13,28 @@ import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
-import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
-import { OutputEditorInput } from 'vs/workbench/parts/output/browser/outputEditorInput';
+import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { OutputEditors, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
-export class OutputPanel extends StringEditor {
-
-	private toDispose: lifecycle.IDisposable[];
+export class OutputPanel extends TextResourceEditor {
+	private toDispose: IDisposable[];
 	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
@@ -52,8 +42,8 @@ export class OutputPanel extends StringEditor {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, themeService, untitledEditorService, editorGroupService, textFileService);
+		super(telemetryService, instantiationService, storageService, configurationService, themeService, untitledEditorService, editorGroupService, textFileService);
+
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
 	}
@@ -107,6 +97,7 @@ export class OutputPanel extends StringEditor {
 	}
 
 	public createEditor(parent: Builder): void {
+
 		// First create the scoped instantation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());
 		this.toDispose.push(scopedContextKeyService);
@@ -114,7 +105,7 @@ export class OutputPanel extends StringEditor {
 		super.createEditor(parent);
 
 		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
-		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
+		this.setInput(OutputEditors.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
 	}
 
 	public get instantiationService(): IInstantiationService {
@@ -122,7 +113,8 @@ export class OutputPanel extends StringEditor {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
+
 		super.dispose();
 	}
 }

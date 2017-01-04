@@ -10,11 +10,10 @@ import URI from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ModelState, ITextFileEditorModel, LocalFileChangeEvent, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { ModelState, ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, EventType as CommonFileEventType } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
@@ -45,9 +44,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IFileService private fileService: IFileService
 	) {
 		this.toUnbind = [];
 
@@ -83,8 +82,8 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed()));
 
 		// File changes
-		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+		this.toUnbind.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -105,9 +104,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		}
 	}
 
-	private onLocalFileChange(e: LocalFileChangeEvent): void {
-		if (e.gotMoved() || e.gotDeleted()) {
-			this.disposeModelIfPossible(e.getBefore().resource); // dispose models of moved or deleted files
+	private onFileOperation(e: FileOperationEvent): void {
+		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
+			this.disposeModelIfPossible(e.resource); // dispose models of moved or deleted files
 		}
 	}
 

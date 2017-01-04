@@ -43,18 +43,18 @@ export class RangeUtil {
 		}
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList, clientRectDeltaLeft: number, scaleRatio: number): HorizontalRange[] {
+	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList, clientRectDeltaLeft: number): HorizontalRange[] {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
 		}
 
 		let result: HorizontalRange[] = [];
-		let prevLeft = Math.max(0, clientRects[0].left * scaleRatio - clientRectDeltaLeft);
-		let prevWidth = clientRects[0].width * scaleRatio;
+		let prevLeft = Math.max(0, clientRects[0].left - clientRectDeltaLeft);
+		let prevWidth = clientRects[0].width;
 
 		for (let i = 1, len = clientRects.length; i < len; i++) {
-			let myLeft = Math.max(0, clientRects[i].left * scaleRatio - clientRectDeltaLeft);
-			let myWidth = clientRects[i].width * scaleRatio;
+			let myLeft = Math.max(0, clientRects[i].left - clientRectDeltaLeft);
+			let myWidth = clientRects[i].width;
 
 			if (myLeft < prevLeft) {
 				console.error('Unexpected: RangeUtil._createHorizontalRangesFromClientRects: client rects are not sorted');
@@ -74,7 +74,7 @@ export class RangeUtil {
 		return result;
 	}
 
-	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, scaleRatio: number, endNode: HTMLElement): HorizontalRange[] {
+	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 		// Panic check
 		let min = 0;
 		let max = domNode.children.length - 1;
@@ -104,6 +104,6 @@ export class RangeUtil {
 		endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
 
 		let clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
-		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft, scaleRatio);
+		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
 	}
 }
