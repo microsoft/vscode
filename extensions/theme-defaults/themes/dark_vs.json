@@ -297,8 +297,8 @@
 		},
 		{
 			"scope": [
-				"punctuation.section.embedded.metatag.begin.php",
-				"punctuation.section.embedded.metatag.end.php"
+				"punctuation.section.embedded.begin.metatag.php",
+				"punctuation.section.embedded.end.metatag.php"
 			],
 			"settings": {
 				"foreground": "#569cd6"

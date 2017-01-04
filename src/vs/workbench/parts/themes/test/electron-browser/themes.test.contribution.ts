@@ -8,80 +8,270 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-// import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
-// import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, IThemeDocument, IThemeSettingStyle } from 'vs/workbench/services/themes/common/themeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
+import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { IGrammar, StackElement } from 'vscode-textmate';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 
+interface IToken {
+	c: string;
+	t: string;
+	r: { [themeName: string]: string; };
+}
 
-interface Data {
-	c: string; // content
-	t: string; // token
-	r: { [theme: string]: string };
+interface IThemedToken {
+	text: string;
+	color: string;
+}
+
+interface IThemesResult {
+	[themeName: string]: {
+		document: ThemeDocument;
+		tokens: IThemedToken[];
+	};
+}
+
+class ThemeDocument {
+	private readonly _theme: IThemeDocument;
+	private readonly _cache: { [scopes: string]: ThemeRule; };
+	private readonly _defaultColor: string;
+
+	constructor(theme: IThemeDocument) {
+		this._theme = theme;
+		this._cache = Object.create(null);
+		this._defaultColor = '#000000';
+		for (let i = 0, len = this._theme.settings.length; i < len; i++) {
+			let rule = this._theme.settings[i];
+			if (!rule.scope) {
+				this._defaultColor = rule.settings.foreground;
+			}
+		}
+	}
+
+	private _generateExplanation(selector: string, color: string): string {
+		let r = parseInt(color.substr(1, 2), 16);
+		let g = parseInt(color.substr(3, 2), 16);
+		let b = parseInt(color.substr(5, 2), 16);
+		let _color = `rgb(${r}, ${g}, ${b})`;
+		return `${selector}: ${_color}`;
+	}
+
+	public explainTokenColor(scopes: string, color: string): string {
+
+		let matchingRule = this._findMatchingThemeRule(scopes);
+		if (!matchingRule) {
+			let actual = color.toUpperCase();
+			let expected = this._defaultColor.toUpperCase();
+			// No matching rule
+			if (actual !== expected) {
+				throw new Error(`[${this._theme.name}]: Unexpected color ${actual} for ${scopes}. Expected default ${expected}`);
+			}
+			return this._generateExplanation('default', color);
+		}
+
+		let actual = color.toUpperCase();
+		let expected = matchingRule.settings.foreground.toUpperCase();
+		if (actual !== expected) {
+			throw new Error(`[${this._theme.name}]: Unexpected color ${actual} for ${scopes}. Expected ${expected} coming in from ${matchingRule.rawSelector}`);
+		}
+		return this._generateExplanation(matchingRule.rawSelector, color);
+	}
+
+	private _findMatchingThemeRule(scopes: string): ThemeRule {
+		if (!this._cache[scopes]) {
+			this._cache[scopes] = this._doFindMatchingThemeRule(scopes.split(' '));
+		}
+		return this._cache[scopes];
+	}
+
+	private _doFindMatchingThemeRule(scopes: string[]): ThemeRule {
+		for (let i = scopes.length - 1; i >= 0; i--) {
+			let parentScopes = scopes.slice(0, i);
+			let scope = scopes[i];
+			let r = this._findMatchingThemeRule2(scope, parentScopes);
+			if (r) {
+				return r;
+			}
+		}
+		return null;
+	}
+
+	private _findMatchingThemeRule2(scope: string, parentScopes: string[]): ThemeRule {
+		let result: ThemeRule = null;
+
+		// Loop backwards, to ensure the last most specific rule wins
+		for (let i = this._theme.settings.length - 1; i >= 0; i--) {
+			let rule = this._theme.settings[i];
+			if (!rule.settings.foreground) {
+				continue;
+			}
+
+			let selectors: string[];
+			if (typeof rule.scope === 'string') {
+				selectors = rule.scope.split(/,/).map(scope => scope.trim());
+			} else if (Array.isArray(rule.scope)) {
+				selectors = rule.scope;
+			} else {
+				continue;
+			}
+
+			for (let j = 0, lenJ = selectors.length; j < lenJ; j++) {
+				let rawSelector = selectors[j];
+
+				let themeRule = new ThemeRule(rawSelector, rule.settings);
+				if (themeRule.matches(scope, parentScopes)) {
+					if (themeRule.isMoreSpecific(result)) {
+						result = themeRule;
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+}
+
+class ThemeRule {
+	readonly rawSelector: string;
+	readonly settings: IThemeSettingStyle;
+	readonly scope: string;
+	readonly parentScopes: string[];
+
+	constructor(rawSelector: string, settings: IThemeSettingStyle) {
+		this.rawSelector = rawSelector;
+		this.settings = settings;
+		let rawSelectorPieces = this.rawSelector.split(/ /);
+		this.scope = rawSelectorPieces[rawSelectorPieces.length - 1];
+		this.parentScopes = rawSelectorPieces.slice(0, rawSelectorPieces.length - 1);
+	}
+
+	public matches(scope: string, parentScopes: string[]): boolean {
+		return ThemeRule._matches(this.scope, this.parentScopes, scope, parentScopes);
+	}
+
+	public isMoreSpecific(other: ThemeRule): boolean {
+		if (other === null) {
+			return true;
+		}
+		if (other.scope.length === this.scope.length) {
+			return this.parentScopes.length > other.parentScopes.length;
+		}
+		return (this.scope.length > other.scope.length);
+	}
+
+	private static _matchesOne(selectorScope: string, scope: string): boolean {
+		let selectorPrefix = selectorScope + '.';
+		if (selectorScope === scope || scope.substring(0, selectorPrefix.length) === selectorPrefix) {
+			return true;
+		}
+		return false;
+	}
+
+	private static _matches(selectorScope: string, selectorParentScopes: string[], scope: string, parentScopes: string[]): boolean {
+		if (!this._matchesOne(selectorScope, scope)) {
+			return false;
+		}
+
+		let selectorParentIndex = selectorParentScopes.length - 1;
+		let parentIndex = parentScopes.length - 1;
+		while (selectorParentIndex >= 0 && parentIndex >= 0) {
+			if (this._matchesOne(selectorParentScopes[selectorParentIndex], parentScopes[parentIndex])) {
+				selectorParentIndex--;
+			}
+			parentIndex--;
+		}
+
+		if (selectorParentIndex === -1) {
+			return true;
+		}
+		return false;
+	}
 }
 
 class Snapper {
 
 	constructor(
 		@IModeService private modeService: IModeService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@ITextMateService private textMateService: ITextMateService
 	) {
 	}
 
-	private getTestNode(themeId: string): Element {
-		let editorNode = document.createElement('div');
-		editorNode.className = 'monaco-editor ' + themeId;
-		document.body.appendChild(editorNode);
+	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
+		let colorMap = TokenizationRegistry.getColorMap();
+		let state: StackElement = null;
+		let result: IThemedToken[] = [], resultLen = 0;
+		for (let i = 0, len = lines.length; i < len; i++) {
+			let line = lines[i];
 
-		let element = document.createElement('span');
+			let tokenizationResult = grammar.tokenizeLine2(line, state);
 
-		editorNode.appendChild(element);
+			for (let j = 0, lenJ = tokenizationResult.tokens.length >>> 1; j < lenJ; j++) {
+				let startOffset = tokenizationResult.tokens[(j << 1)];
+				let metadata = tokenizationResult.tokens[(j << 1) + 1];
+				let endOffset = j + 1 < lenJ ? tokenizationResult.tokens[((j + 1) << 1)] : line.length;
+				let tokenText = line.substring(startOffset, endOffset);
 
-		return element;
-	}
+				let color = TokenMetadata.getForeground(metadata);
+				let colorStr = colorMap[color];
 
-	// private normalizeType(type: string): string {
-	// 	return type.split('.').sort().join('.');
-	// }
+				result[resultLen++] = {
+					text: tokenText,
+					color: colorStr
+				};
+			}
 
-	private getStyle(testNode: Element, scope: string): string {
-
-		testNode.className = 'token ' + scope.replace(/\./g, ' ');
-
-		let cssStyles = window.getComputedStyle(testNode);
-		if (cssStyles) {
-			return cssStyles.color;
+			state = tokenizationResult.ruleStack;
 		}
-		return '';
+
+		return result;
 	}
 
-	private getMatchedCSSRule(testNode: Element, scope: string): string {
+	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
+		let state: StackElement = null;
+		let result: IToken[] = [], resultLen = 0;
+		for (let i = 0, len = lines.length; i < len; i++) {
+			let line = lines[i];
 
-		testNode.className = 'token ' + scope.replace(/\./g, ' ');
+			let tokenizationResult = grammar.tokenizeLine(line, state);
+			let lastScopes: string = null;
 
-		let rulesList = window.getMatchedCSSRules(testNode);
+			for (let j = 0, lenJ = tokenizationResult.tokens.length; j < lenJ; j++) {
+				let token = tokenizationResult.tokens[j];
+				let tokenText = line.substring(token.startIndex, token.endIndex);
+				let tokenScopes = token.scopes.join(' ');
 
-		if (rulesList) {
-			for (let i = rulesList.length - 1; i >= 0; i--) {
-				let selectorText = <string>rulesList.item(i)['selectorText'];
-				if (selectorText && selectorText.match(/\.monaco-editor\..+token/)) {
-					return selectorText.substr(14);
+				if (lastScopes === tokenScopes) {
+					result[resultLen - 1].c += tokenText;
+				} else {
+					lastScopes = tokenScopes;
+					result[resultLen++] = {
+						c: tokenText,
+						t: tokenScopes,
+						r: {
+							dark_plus: null,
+							light_plus: null,
+							dark_vs: null,
+							light_vs: null,
+							hc_black: null,
+						}
+					};
 				}
 			}
-		} else {
-			console.log('no match ' + scope);
-		}
 
-		return '';
+			state = tokenizationResult.ruleStack;
+		}
+		return result;
 	}
 
-
-	public appendThemeInformation(data: Data[]): TPromise<Data[]> {
+	private _getThemesResult(grammar: IGrammar, lines: string[]): TPromise<IThemesResult> {
 		let currentTheme = this.themeService.getColorTheme();
 
 		let getThemeName = (id: string) => {
@@ -93,50 +283,64 @@ class Snapper {
 			return void 0;
 		};
 
+		let result: IThemesResult = {};
+
 		return this.themeService.getColorThemes().then(themeDatas => {
 			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
 			return TPromise.join(defaultThemes.map(defaultTheme => {
 				let themeId = defaultTheme.id;
 				return this.themeService.setColorTheme(themeId, false).then(success => {
 					if (success) {
-						let testNode = this.getTestNode(themeId);
 						let themeName = getThemeName(themeId);
-						data.forEach(entry => {
-							entry.r[themeName] = this.getMatchedCSSRule(testNode, entry.t) + ' ' + this.getStyle(testNode, entry.t);
-						});
+						result[themeName] = {
+							document: new ThemeDocument(this.themeService.getColorThemeDocument()),
+							tokens: this._themedTokenize(grammar, lines)
+						};
 					}
 				});
 			}));
 		}).then(_ => {
 			return this.themeService.setColorTheme(currentTheme, false).then(_ => {
-				return data;
+				return result;
 			});
 		});
 	}
 
-	public captureSyntaxTokens(fileName: string, content: string): TPromise<Data[]> {
+	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
+		let index: { [themeName: string]: number; } = {};
+		let themeNames = Object.keys(themesResult);
+		for (let t = 0; t < themeNames.length; t++) {
+			let themeName = themeNames[t];
+			index[themeName] = 0;
+		}
+
+		for (let i = 0, len = result.length; i < len; i++) {
+			let token = result[i];
+
+			for (let t = 0; t < themeNames.length; t++) {
+				let themeName = themeNames[t];
+				let themedToken = themesResult[themeName].tokens[index[themeName]];
+
+				themedToken.text = themedToken.text.substr(token.c.length);
+				token.r[themeName] = themesResult[themeName].document.explainTokenColor(token.t, themedToken.color);
+				if (themedToken.text.length === 0) {
+					index[themeName]++;
+				}
+			}
+		}
+	}
+
+	public captureSyntaxTokens(fileName: string, content: string): TPromise<IToken[]> {
 		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
-			// TODO@tokenization
-			throw new Error('TODO@tokenization');
-			// let result: Data[] = [];
-			// let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId());
-			// for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-			// 	let lineTokens = model.getLineTokens(lineNumber, false);
-			// 	let lineContent = model.getLineContent(lineNumber);
+			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
+				let lines = content.split(/\r\n|\r|\n/);
 
-			// 	for (let i = 0, len = lineTokens.getTokenCount(); i < len; i++) {
-			// 		let tokenType = lineTokens.getTokenType(i);
-			// 		let tokenStartOffset = lineTokens.getTokenStartOffset(i);
-			// 		let tokenEndOffset = lineTokens.getTokenEndOffset(i);
-
-			// 		result.push({
-			// 			c: lineContent.substring(tokenStartOffset, tokenEndOffset),
-			// 			t: this.normalizeType(tokenType),
-			// 			r: {}
-			// 		});
-			// 	}
-			// }
-			// return this.appendThemeInformation(result);
+				let result = this._tokenize(grammar, lines);
+				return this._getThemesResult(grammar, lines).then((themesResult) => {
+					this._enrichResult(result, themesResult);
+					return result.filter(t => t.c.length > 0);
+				});
+			});
 		});
 	}
 }
