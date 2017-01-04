@@ -147,19 +147,16 @@
 	background: url(collapsed-dark.svg) 50% 50% no-repeat;
 }
 
-.monaco-editor .view-line:hover .copySetting:after {
-	cursor: pointer;
-	content:" ";
+.monaco-editor .edit-preferences-widget {
 	background: url('edit.svg') center center no-repeat;
-	margin-left: 1em;
-	display:inline-block;
-	position: absolute;
-	height:100%;
+	transform: rotate(-90deg);
 	width:16px;
+	height: 16px;
+	cursor: pointer;
 }
 
-.monaco-editor.hc-black .view-line:hover .copySetting:after,
-.monaco-editor.vs-dark .view-line:hover .copySetting:after {
+.monaco-editor.hc-black .edit-preferences-widget,
+.monaco-editor.vs-dark .edit-preferences-widget {
 	background: url('edit_inverse.svg') center center no-repeat;
 }
 
