@@ -6,7 +6,7 @@
 
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -56,7 +56,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromise: TPromise<void>;
 	private contentChangeEventScheduler: RunOnceScheduler;
-	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
+	private saveSequentializer: SaveSequentializer;
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
@@ -92,7 +92,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.dirty = false;
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
-		this.mapPendingSaveToVersionId = {};
+		this.saveSequentializer = new SaveSequentializer();
 
 		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
 		this.toDispose.push(this.contentChangeEventScheduler);
@@ -490,7 +490,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
-				this.doSave(versionId, SaveReason.AUTO); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+				this.doSave(versionId, SaveReason.AUTO).done(null, onUnexpectedError); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 			}
 		});
 
@@ -528,11 +528,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Scenario: user invoked the save action multiple times quickly for the same contents
 		//           while the save was not yet finished to disk
 		//
-		const pendingSave = this.mapPendingSaveToVersionId[versionId];
-		if (pendingSave) {
+		if (this.saveSequentializer.hasPendingSave(versionId)) {
 			diag(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource, new Date());
 
-			return pendingSave;
+			return this.saveSequentializer.pendingSave;
 		}
 
 		// Return early if not dirty or version changed meanwhile
@@ -548,20 +547,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return TPromise.as<void>(null);
 		}
 
-		// Return if currently saving by scheduling another auto save. Never ever must 2 saves execute at the same time because
-		// this can lead to dirty writes and race conditions
+		// Return if currently saving by storing this save request as the next save that should happen.
+		// Never ever must 2 saves execute at the same time because this can lead to dirty writes and race conditions.
 		//
-		// Scenario: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
-		//           kicks in. since we never want to trigger 2 saves at the same time, we push out this auto save for the
-		//           configured auto save delay assuming that it can proceed next time it triggers.
+		// Scenario A: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
+		//             kicks in.
+		// Scenario B: save is very slow (e.g. network share) and the user manages to change the buffer and trigger another save
+		//             while the first save has not returned yet.
 		//
-		if (this.isBusySaving()) {
+		if (this.saveSequentializer.hasPendingSave()) {
 			diag(`doSave(${versionId}) - exit - because busy saving`, this.resource, new Date());
 
-			// Avoid endless loop here and guard if auto save is disabled
-			if (this.autoSaveAfterMilliesEnabled) {
-				return this.doAutoSave(versionId);
-			}
+			// Register this as the next upcoming save and return
+			return this.saveSequentializer.setNext(() => this.doSave(this.versionId /* make sure to use latest version id here */, reason, overwriteReadonly, overwriteEncoding));
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
@@ -590,11 +588,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}).then(onCompleteOrError, onCompleteOrError);
 		}
 
-		this.mapPendingSaveToVersionId[versionId] = saveParticipantPromise.then(newVersionId => {
+		// mark the save participant as current pending save operation
+		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
-			// remove save participant promise from pending saves and update versionId with
-			// its new value (if pre-save changes happened)
-			delete this.mapPendingSaveToVersionId[versionId];
+			// update versionId with its new value (if pre-save changes happened)
 			versionId = newVersionId;
 
 			// Clear error flag since we are trying to save again
@@ -604,8 +601,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.lastSaveAttemptTime = Date.now();
 
 			// Save to Disk
+			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-			this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
+			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
 				overwriteReadonly,
 				overwriteEncoding,
 				mtime: this.versionOnDiskStat.mtime,
@@ -613,9 +611,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				etag: this.versionOnDiskStat.etag
 			}).then((stat: IFileStat) => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
-
-				// Remove from pending saves
-				delete this.mapPendingSaveToVersionId[versionId];
 
 				// Telemetry
 				this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
@@ -639,9 +634,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}, error => {
 				diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
 
-				// Remove from pending saves
-				delete this.mapPendingSaveToVersionId[versionId];
-
 				// Flag as error state
 				this.inErrorMode = true;
 
@@ -650,12 +642,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Emit as event
 				this._onDidStateChange.fire(StateChange.SAVE_ERROR);
-			});
-
-			return this.mapPendingSaveToVersionId[versionId];
-		});
-
-		return this.mapPendingSaveToVersionId[versionId];
+			}));
+		}));
 	}
 
 	private setDirty(dirty: boolean): () => void {
@@ -753,17 +741,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return ModelState.SAVED;
 		}
 
-		if (this.isBusySaving()) {
+		if (this.saveSequentializer.hasPendingSave()) {
 			return ModelState.PENDING_SAVE;
 		}
 
 		if (this.dirty) {
 			return ModelState.DIRTY;
 		}
-	}
-
-	private isBusySaving(): boolean {
-		return !types.isEmptyObject(this.mapPendingSaveToVersionId);
 	}
 
 	public getEncoding(): string {
@@ -858,6 +842,97 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.contentChangeEventScheduler.cancel();
 
 		super.dispose();
+	}
+}
+
+interface IPendingSave {
+	versionId: number;
+	promise: TPromise<void>;
+}
+
+interface ISaveOperation {
+	promise: TPromise<void>;
+	promiseValue: TValueCallback<void>;
+	promiseError: ErrorCallback;
+	run: () => TPromise<void>;
+}
+
+export class SaveSequentializer {
+	private _pendingSave: IPendingSave;
+	private _nextSave: ISaveOperation;
+
+	public hasPendingSave(versionId?: number): boolean {
+		if (!this._pendingSave) {
+			return false;
+		}
+
+		if (typeof versionId === 'number') {
+			return this._pendingSave.versionId === versionId;
+		}
+
+		return !!this._pendingSave;
+	}
+
+	public get pendingSave(): TPromise<void> {
+		return this._pendingSave ? this._pendingSave.promise : void 0;
+	}
+
+	public setPending(versionId: number, promise: TPromise<void>): TPromise<void> {
+		this._pendingSave = { versionId, promise };
+
+		promise.done(() => this.donePending(versionId), () => this.donePending(versionId));
+
+		return promise;
+	}
+
+	private donePending(versionId: number): void {
+		if (this._pendingSave && versionId === this._pendingSave.versionId) {
+
+			// only set pending to done if the promise finished that is associated with that versionId
+			this._pendingSave = void 0;
+
+			// schedule the next save now that we are free if we have any
+			this.triggerNextSave();
+		}
+	}
+
+	private triggerNextSave(): void {
+		if (this._nextSave) {
+			const saveOperation = this._nextSave;
+			this._nextSave = void 0;
+
+			// Run next save and complete on the associated promise
+			saveOperation.run().done(saveOperation.promiseValue, saveOperation.promiseError);
+		}
+	}
+
+	public setNext(run: () => TPromise<void>): TPromise<void> {
+
+		// this is our first next save, so we create associated promise with it
+		// so that we can return a promise that completes when the save operation
+		// has completed.
+		if (!this._nextSave) {
+			let promiseValue: TValueCallback<void>;
+			let promiseError: ErrorCallback;
+			const promise = new TPromise<void>((c, e) => {
+				promiseValue = c;
+				promiseError = e;
+			});
+
+			this._nextSave = {
+				run,
+				promise,
+				promiseValue,
+				promiseError
+			};
+		}
+
+		// we have a previous next save, just overwrite it
+		else {
+			this._nextSave.run = run;
+		}
+
+		return this._nextSave.promise;
 	}
 }
 
