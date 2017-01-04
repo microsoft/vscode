@@ -96,8 +96,10 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	public dispose() {
-		this.removeHighlightRange();
-		this.disposeEditorListeners();
-		this.editor = null;
+		if (this.editor && this.editor.getModel()) {
+			this.removeHighlightRange();
+			this.disposeEditorListeners();
+			this.editor = null;
+		}
 	}
 }
