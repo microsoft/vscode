@@ -451,52 +451,53 @@ export class SearchViewlet extends Viewlet {
 
 	public selectNextResult(): void {
 		const eventPayload = { focusEditor: true };
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+		let next = navigator.next();
 
-		this.tree.selectNext(undefined, undefined, eventPayload);
-		let [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		if (!selected) {
+		if (!next) {
 			return;
 		}
 
 		// Expand and go past FileMatch nodes
-		if (!(selected instanceof Match)) {
-			if (!this.tree.isExpanded(selected)) {
-				this.tree.expand(selected);
+		if (!(next instanceof Match)) {
+			if (!this.tree.isExpanded(next)) {
+				this.tree.expand(next);
 			}
 
 			// Select the FileMatch's first child
-			this.tree.selectNext(undefined, undefined, eventPayload);
+			next = navigator.next();
 		}
 
 		// Reveal the newly selected element
-		[selected] = this.tree.getSelection();
-		this.tree.reveal(selected);
+		this.tree.setSelection([next], eventPayload);
+		this.tree.reveal(next);
 	}
 
 	public selectPreviousResult(): void {
 		const eventPayload = { focusEditor: true };
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
 
-		this.tree.selectPrevious(undefined, undefined, eventPayload);
-		let [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		if (!selected) {
+		let prev = navigator.previous();
+		if (!prev) {
 			return;
 		}
 
 		// Expand and go past FileMatch nodes
-		if (!(selected instanceof Match)) {
-			this.tree.selectPrevious(undefined, undefined, eventPayload);
-			[selected] = this.tree.getSelection();
-
-			if (!(selected instanceof Match)) {
-				this.tree.selectNext(undefined, undefined, eventPayload);
-				this.tree.expand(selected);
-				this.tree.selectPrevious(undefined, undefined, eventPayload);
+		if (!(prev instanceof Match)) {
+			prev = navigator.previous();
+			if (!(prev instanceof Match)) {
+				// There is a second non-Match result, which must be a collapsed FileMatch.
+				// Expand it then select its last child.
+				navigator.next();
+				this.tree.expand(prev);
+				prev = navigator.previous();
 			}
 		}
 
 		// Reveal the newly selected element
-		[selected] = this.tree.getSelection();
-		this.tree.reveal(selected);
+		this.tree.setSelection([prev], eventPayload);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
