@@ -62,7 +62,8 @@ export class RangeHighlightDecorations implements IDisposable {
 			this.editor = editor;
 			this.editorDisposables.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
 				if (
-					e.reason === editorCommon.CursorChangeReason.Explicit
+					e.reason === editorCommon.CursorChangeReason.NotSet
+					|| e.reason === editorCommon.CursorChangeReason.Explicit
 					|| e.reason === editorCommon.CursorChangeReason.Undo
 					|| e.reason === editorCommon.CursorChangeReason.Redo
 				) {
