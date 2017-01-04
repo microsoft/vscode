@@ -12,7 +12,6 @@ import { Builder } from 'vs/base/browser/builder';
 import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
-import { Position } from 'vs/platform/editor/common/editor';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -31,12 +30,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-
-export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -49,22 +45,17 @@ export class TextDiffEditor extends BaseTextEditor {
 	private nextDiffAction: NavigateAction;
 	private previousDiffAction: NavigateAction;
 
-	private textDiffEditorVisible: IContextKey<boolean>;
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
-
-		this.textDiffEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
 	}
 
 	public getTitle(): string {
@@ -261,12 +252,6 @@ export class TextDiffEditor extends BaseTextEditor {
 
 		// Pass to super
 		super.clearInput();
-	}
-
-	public setEditorVisible(visible: boolean, position: Position): void {
-		this.textDiffEditorVisible.set(visible);
-
-		super.setEditorVisible(visible, position);
 	}
 
 	public getDiffNavigator(): DiffNavigator {
