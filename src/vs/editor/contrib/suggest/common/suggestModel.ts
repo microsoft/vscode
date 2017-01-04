@@ -274,12 +274,11 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
-		if (!e.selection.isEmpty()) {
-			this.cancel();
-			return;
-		}
 
-		if (e.source !== 'keyboard' || e.reason !== CursorChangeReason.NotSet) {
+		if (!e.selection.isEmpty()
+			|| e.source !== 'keyboard'
+			|| e.reason !== CursorChangeReason.NotSet) {
+
 			this.cancel();
 			return;
 		}
@@ -288,32 +287,29 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const isInactive = this.state === State.Idle;
-
-		if (isInactive && !this.editor.getConfiguration().contribInfo.quickSuggestions) {
-			return;
-		}
-
 		const model = this.editor.getModel();
-
 		if (!model) {
 			return;
 		}
 
 		const ctx = new Context(model, this.editor.getPosition(), false);
 
-		if (isInactive) {
-			// trigger was not called or it was canceled
-			this.cancel();
+		if (this.state === State.Idle) {
 
-			if (ctx.shouldAutoTrigger()) {
-				this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
-				this.triggerAutoSuggestPromise.then(() => {
-					this.triggerAutoSuggestPromise = null;
-					this.trigger(true);
-				});
+			if (this.editor.getConfiguration().contribInfo.quickSuggestions) {
+				// trigger suggest from idle when configured to do so
+				this.cancel();
+				if (ctx.shouldAutoTrigger()) {
+					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
+					this.triggerAutoSuggestPromise.then(() => {
+						this.triggerAutoSuggestPromise = null;
+						this.trigger(true);
+					});
+				}
 			}
+
 		} else {
+			// refine active suggestion
 			this.onNewContext(ctx);
 		}
 	}
