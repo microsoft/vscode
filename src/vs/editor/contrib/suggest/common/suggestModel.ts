@@ -51,9 +51,20 @@ export class Context {
 		return true;
 	}
 
+	static isInEditableRange(editor: ICommonCodeEditor): boolean {
+		const model = editor.getModel();
+		const position = editor.getPosition();
+		if (model.hasEditableRange()) {
+			const editableRange = model.getEditableRange();
+			if (!editableRange.containsPosition(position)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	readonly lineNumber: number;
 	readonly column: number;
-	readonly isInEditableRange: boolean;
 
 	readonly lineContentBefore: string;
 	readonly wordBefore: string;
@@ -71,15 +82,6 @@ export class Context {
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
 		this.lineContentBefore = lineContent.substr(0, position.column - 1);
-
-		this.isInEditableRange = true;
-		if (model.hasEditableRange()) {
-			const editableRange = model.getEditableRange();
-
-			if (!editableRange.containsPosition(position)) {
-				this.isInEditableRange = false;
-			}
-		}
 	}
 
 	isDifferentContext(context: Context): boolean {
@@ -318,7 +320,7 @@ export class SuggestModel implements IDisposable {
 
 		const ctx = new Context(model, this.editor.getPosition(), auto);
 
-		if (!ctx.isInEditableRange) {
+		if (!Context.isInEditableRange(this.editor)) {
 			return;
 		}
 
