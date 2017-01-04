@@ -42,9 +42,10 @@ export interface IThemeDocument {
 
 export interface IThemeSetting {
 	name?: string;
-	scope?: string[];
-	settings: IThemeSettingStyle[];
+	scope?: string | string[];
+	settings: IThemeSettingStyle;
 }
 
 export interface IThemeSettingStyle {
+	foreground?: string;
 }

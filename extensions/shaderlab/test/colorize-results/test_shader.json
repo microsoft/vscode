@@ -1,563 +1,563 @@
 [
 	{
 		"c": "Shader",
-		"t": "class.shaderlab.support",
+		"t": "source.shaderlab support.class.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.class rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.class rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.class: rgb(78, 201, 176)",
+			"light_plus": "support.class: rgb(38, 127, 153)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "\"Example/Diffuse Simple\"",
-		"t": "double.quoted.shaderlab.string",
+		"t": "source.shaderlab string.quoted.double.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
+			"dark_plus": "string: rgb(206, 145, 120)",
+			"light_plus": "string: rgb(163, 21, 21)",
+			"dark_vs": "string: rgb(206, 145, 120)",
+			"light_vs": "string: rgb(163, 21, 21)",
+			"hc_black": "string: rgb(206, 145, 120)"
 		}
 	},
 	{
 		"c": " {",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "SubShader",
-		"t": "class.shaderlab.support",
+		"t": "source.shaderlab support.class.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.class rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.class rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.class: rgb(78, 201, 176)",
+			"light_plus": "support.class: rgb(38, 127, 153)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " {",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "Tags",
-		"t": "class.shaderlab.support",
+		"t": "source.shaderlab support.class.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.class rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.class rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.class: rgb(78, 201, 176)",
+			"light_plus": "support.class: rgb(38, 127, 153)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " { ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "\"RenderType\"",
-		"t": "double.quoted.shaderlab.string",
+		"t": "source.shaderlab string.quoted.double.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
+			"dark_plus": "string: rgb(206, 145, 120)",
+			"light_plus": "string: rgb(163, 21, 21)",
+			"dark_vs": "string: rgb(206, 145, 120)",
+			"light_vs": "string: rgb(163, 21, 21)",
+			"hc_black": "string: rgb(206, 145, 120)"
 		}
 	},
 	{
 		"c": " = ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "\"Opaque\"",
-		"t": "double.quoted.shaderlab.string",
+		"t": "source.shaderlab string.quoted.double.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
+			"dark_plus": "string: rgb(206, 145, 120)",
+			"light_plus": "string: rgb(163, 21, 21)",
+			"dark_vs": "string: rgb(206, 145, 120)",
+			"light_vs": "string: rgb(163, 21, 21)",
+			"hc_black": "string: rgb(206, 145, 120)"
 		}
 	},
 	{
 		"c": " }",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "CGPROGRAM",
-		"t": "class.shaderlab.support",
+		"t": "source.shaderlab support.class.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.class rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.class rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.class: rgb(78, 201, 176)",
+			"light_plus": "support.class: rgb(38, 127, 153)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      #pragma",
-		"t": "control.keyword.shaderlab",
+		"t": "source.shaderlab keyword.control.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
+			"dark_plus": "keyword.control: rgb(197, 134, 192)",
+			"light_plus": "keyword.control: rgb(175, 0, 219)",
+			"dark_vs": "keyword.control: rgb(86, 156, 214)",
+			"light_vs": "keyword.control: rgb(0, 0, 255)",
+			"hc_black": "keyword.control: rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": " surface surf Lambert",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "struct",
-		"t": "shaderlab.storage.type",
+		"t": "source.shaderlab storage.type.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
+			"dark_plus": "storage.type: rgb(86, 156, 214)",
+			"light_plus": "storage.type: rgb(0, 0, 255)",
+			"dark_vs": "storage.type: rgb(86, 156, 214)",
+			"light_vs": "storage.type: rgb(0, 0, 255)",
+			"hc_black": "storage.type: rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": " Input {",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "          ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "float4",
-		"t": "shaderlab.storage.type",
+		"t": "source.shaderlab storage.type.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
+			"dark_plus": "storage.type: rgb(86, 156, 214)",
+			"light_plus": "storage.type: rgb(0, 0, 255)",
+			"dark_vs": "storage.type: rgb(86, 156, 214)",
+			"light_vs": "storage.type: rgb(0, 0, 255)",
+			"hc_black": "storage.type: rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": " color : ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "COLOR",
-		"t": "input.shaderlab.support.variable",
+		"t": "source.shaderlab support.variable.input.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.variable: rgb(156, 220, 254)",
+			"light_plus": "support.variable: rgb(0, 16, 128)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": ";",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      };",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "void",
-		"t": "shaderlab.storage.type",
+		"t": "source.shaderlab storage.type.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
+			"dark_plus": "storage.type: rgb(86, 156, 214)",
+			"light_plus": "storage.type: rgb(0, 0, 255)",
+			"dark_vs": "storage.type: rgb(86, 156, 214)",
+			"light_vs": "storage.type: rgb(0, 0, 255)",
+			"hc_black": "storage.type: rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "surf",
-		"t": "any-method.function.function-call.meta.shaderlab.support",
+		"t": "source.shaderlab meta.function-call.shaderlab support.function.any-method.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.function: rgb(220, 220, 170)",
+			"light_plus": "support.function: rgb(121, 94, 38)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " (",
-		"t": "function-call.meta.shaderlab",
+		"t": "source.shaderlab meta.function-call.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "Input IN, ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "inout",
-		"t": "modifier.shaderlab.storage",
+		"t": "source.shaderlab storage.modifier.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": "storage.modifier: rgb(86, 156, 214)",
+			"light_plus": "storage.modifier: rgb(0, 0, 255)",
+			"dark_vs": "storage.modifier: rgb(86, 156, 214)",
+			"light_vs": "storage.modifier: rgb(0, 0, 255)",
+			"hc_black": "storage.modifier: rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "SurfaceOutput",
-		"t": "shaderlab.structure.support.variable",
+		"t": "source.shaderlab support.variable.structure.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.variable: rgb(156, 220, 254)",
+			"light_plus": "support.variable: rgb(0, 16, 128)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " o) {",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "          o.",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "Albedo",
-		"t": "output.shaderlab.support.variable",
+		"t": "source.shaderlab support.variable.output.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.variable: rgb(156, 220, 254)",
+			"light_plus": "support.variable: rgb(0, 16, 128)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " = ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "1",
-		"t": "constant.numeric.shaderlab",
+		"t": "source.shaderlab constant.numeric.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
+			"dark_plus": "constant.numeric: rgb(181, 206, 168)",
+			"light_plus": "constant.numeric: rgb(9, 136, 90)",
+			"dark_vs": "constant.numeric: rgb(181, 206, 168)",
+			"light_vs": "constant.numeric: rgb(9, 136, 90)",
+			"hc_black": "constant.numeric: rgb(181, 206, 168)"
 		}
 	},
 	{
 		"c": ";",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      }",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "      ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "ENDCG",
-		"t": "class.shaderlab.support",
+		"t": "source.shaderlab support.class.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.class rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.class rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.class: rgb(78, 201, 176)",
+			"light_plus": "support.class: rgb(38, 127, 153)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "    }",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "Fallback",
-		"t": "shaderlab.support.variable",
+		"t": "source.shaderlab support.variable.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.variable rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "support.variable: rgb(156, 220, 254)",
+			"light_plus": "support.variable: rgb(0, 16, 128)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "\"Diffuse\"",
-		"t": "double.quoted.shaderlab.string",
+		"t": "source.shaderlab string.quoted.double.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
+			"dark_plus": "string: rgb(206, 145, 120)",
+			"light_plus": "string: rgb(163, 21, 21)",
+			"dark_vs": "string: rgb(206, 145, 120)",
+			"light_vs": "string: rgb(163, 21, 21)",
+			"hc_black": "string: rgb(206, 145, 120)"
 		}
 	},
 	{
 		"c": "  }",
-		"t": "",
+		"t": "source.shaderlab",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: rgb(212, 212, 212)",
+			"light_plus": "default: rgb(0, 0, 0)",
+			"dark_vs": "default: rgb(212, 212, 212)",
+			"light_vs": "default: rgb(0, 0, 0)",
+			"hc_black": "default: rgb(255, 255, 255)"
 		}
 	}
 ]
