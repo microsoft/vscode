@@ -349,7 +349,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public toString(): string {
-		return `${this.name} (${this.source.name}:${this.lineNumber})`;
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
 	}
 }
 
