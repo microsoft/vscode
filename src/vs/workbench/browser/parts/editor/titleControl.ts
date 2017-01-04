@@ -23,7 +23,6 @@ import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/a
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService, ITabOptions } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -94,7 +93,6 @@ export abstract class TitleControl implements ITitleAreaControl {
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
