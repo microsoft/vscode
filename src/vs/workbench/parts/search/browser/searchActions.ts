@@ -267,8 +267,11 @@ export class ClearSearchResultsAction extends Action {
 }
 
 export class FocusNextSearchResultAction extends Action {
+	public static ID = 'search.action.focusNextSearchResult';
+	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus next search result");
+
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super('focusNextSearchResult', nls.localize('FocusNextSearchResult.label', "Focus next search result"));
+		super(id, label);
 	}
 
 	public run(): TPromise<any> {
@@ -279,8 +282,11 @@ export class FocusNextSearchResultAction extends Action {
 }
 
 export class FocusPreviousSearchResultAction extends Action {
+	public static ID = 'search.action.focusPreviousSearchResult';
+	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus previous search result");
+
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super('focusPreviousSearchResult', nls.localize('FocusPreviousSearchResult.label', "Focus previous search result"));
+		super(id, label);
 	}
 
 	public run(): TPromise<any> {

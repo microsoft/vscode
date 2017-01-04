@@ -476,7 +476,6 @@ export class SearchViewlet extends Viewlet {
 	public selectPreviousResult(): void {
 		const eventPayload = { focusEditor: true };
 
-		// previous with no current selection?
 		this.tree.selectPrevious(undefined, undefined, eventPayload);
 		let [selected]: FileMatchOrMatch[] = this.tree.getSelection();
 		if (!selected) {
