@@ -741,7 +741,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this.cursor = null;
 
 		if (this.model) {
-			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
+			this.domElement.setAttribute('data-mode-id', this.model.getModeId());
 			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
 
 			this.model.onBeforeAttached();
@@ -878,7 +878,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							break;
 
 						case editorCommon.EventType.ModelModeChanged:
-							this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
+							this.domElement.setAttribute('data-mode-id', this.model.getModeId());
 							this.emit(editorCommon.EventType.ModelModeChanged, e);
 							break;
 

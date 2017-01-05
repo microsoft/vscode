@@ -2104,12 +2104,6 @@ declare module monaco.editor {
      */
     export interface ITokenizedModel extends ITextModel {
         /**
-         * Get the current language mode associated with the model.
-         * TODO@tokenization
-         * @deprecated
-         */
-        getMode(): languages.IMode;
-        /**
          * Get the language associated with this model.
          * TODO@tokenization
          * @deprecated

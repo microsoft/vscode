@@ -203,12 +203,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.id, this._colorMap);
 	}
 
-	public getMode(): IMode {
-		return new Mode(this._languageIdentifier);
-	}
-
 	public getModeId(): string {
-		return this.getMode().getId();
+		return this._languageIdentifier.language;
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {

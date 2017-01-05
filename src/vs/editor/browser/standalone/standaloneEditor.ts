@@ -217,16 +217,6 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: editorC
 	});
 }
 
-
-/**
- * @internal
- */
-export function getOrCreateMode(modeId: string): TPromise<modes.IMode> {
-	return StaticServices.modeService.get().getOrCreateMode(modeId);
-}
-
-
-
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
