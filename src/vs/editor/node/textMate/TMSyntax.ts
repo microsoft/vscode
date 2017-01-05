@@ -12,9 +12,8 @@ import * as types from 'vs/base/common/types';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IExtensionPoint, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { TMState } from 'vs/editor/node/textMate/TMState';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
+import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
 import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
@@ -301,21 +300,21 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 function createTokenizationSupport(grammar: IGrammar): ITokenizationSupport {
 	return {
-		getInitialState: () => new TMState(null),
+		getInitialState: () => INITIAL,
 		tokenize: undefined,
-		tokenize3: (line: string, state: TMState, offsetDelta: number) => {
+		tokenize3: (line: string, state: StackElement, offsetDelta: number) => {
 			if (offsetDelta !== 0) {
 				throw new Error('Unexpected: offsetDelta should be 0.');
 			}
 
-			let textMateResult = grammar.tokenizeLine2(line, state.ruleStack);
+			let textMateResult = grammar.tokenizeLine2(line, state);
 
-			let endState: TMState;
+			let endState: StackElement;
 			// try to save an object if possible
-			if (state.ruleStack !== null && textMateResult.ruleStack.equals(state.ruleStack)) {
+			if (state.equals(textMateResult.ruleStack)) {
 				endState = state;
 			} else {
-				endState = new TMState(textMateResult.ruleStack);
+				endState = textMateResult.ruleStack;
 			}
 
 			return {
