@@ -12,7 +12,7 @@ import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoi
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IThemeService, IThemeData, IThemeSetting, IThemeDocument, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/themeService';
-import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -689,7 +689,6 @@ function _processThemeObject(themeId: string, themeDocument: IThemeDocument): st
 	let themeSettings: IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
-		new TokenStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new EditorStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new SearchViewStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new TerminalStylesContribution().contributeStyles(themeId, themeDocument, cssRules);

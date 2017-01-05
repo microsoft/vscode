@@ -160,6 +160,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		@IThemeService themeService: IThemeService
 	) {
 		this._styleElement = createStyleSheet();
+		this._styleElement.className = 'vscode-tokens-styles';
 		this._modeService = modeService;
 		this._themeService = themeService;
 		this._scopeRegistry = new TMScopeRegistry();
