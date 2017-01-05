@@ -1869,13 +1869,6 @@ export interface ITokenizedModel extends ITextModel {
 	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
 
 	/**
-	 * Get the current language mode associated with the model.
-	 * TODO@tokenization
-	 * @deprecated
-	 */
-	getMode(): IMode;
-
-	/**
 	 * Get the language associated with this model.
 	 * TODO@tokenization
 	 * @deprecated
