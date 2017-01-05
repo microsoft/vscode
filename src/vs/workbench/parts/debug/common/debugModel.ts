@@ -91,7 +91,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements deb
 
 export class ExpressionContainer implements debug.IExpressionContainer {
 
-	public static allValues: { [id: string]: string } = {};
+	public static allValues: Map<string, string> = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static BASE_CHUNK_SIZE = 100;
 
@@ -174,9 +174,9 @@ export class ExpressionContainer implements debug.IExpressionContainer {
 
 	public set value(value: string) {
 		this._value = value;
-		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
-			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
-		ExpressionContainer.allValues[this.getId()] = value;
+		this.valueChanged = ExpressionContainer.allValues.get(this.getId()) &&
+			ExpressionContainer.allValues.get(this.getId()) !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues.get(this.getId()) !== value;
+		ExpressionContainer.allValues.set(this.getId(), value);
 	}
 }
 
@@ -551,7 +551,7 @@ export class Process implements debug.IProcess {
 
 			if (removeThreads) {
 				this.threads.clear();
-				ExpressionContainer.allValues = {};
+				ExpressionContainer.allValues.clear();
 			}
 		}
 	}
