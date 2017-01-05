@@ -562,7 +562,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
 
 		// create the target file empty if it does not exist already
-		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.createFile(target)).then(stat => {
+		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.updateContent(target, '')).then(stat => {
 
 			// resolve a model for the file (which can be binary if the file is not a text file)
 			return this.models.loadOrCreate(target).then((targetModel: ITextFileEditorModel) => {
