@@ -194,6 +194,7 @@ const configurationValueWhitelist = [
 	'git.confirmSync',
 	'editor.rulers',
 	'workbench.sideBar.location',
+	'workbench.sideBar.openOnSelect',
 	'editor.fontLigatures',
 	'editor.wordWrap',
 	'editor.lineHeight',

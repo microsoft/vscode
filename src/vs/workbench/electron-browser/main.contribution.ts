@@ -155,6 +155,18 @@ configurationRegistry.registerConfiguration({
 			'default': 'left',
 			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
 		},
+		'workbench.sideBar.openOnSelect': {
+			'type': 'boolean',
+			'default': 'true',
+			'description': nls.localize('sideBarOpenOnSelect', `Controls if sidebar should preview file/toggle folder state when an item is selected.
+- true (default):
+	- folders are toggled between opened/closed when they are selected
+	- files are previewed or opened, depending on workbench.editor.enablePreview setting
+- false:
+	- both folders and files are only highlighted when they are single-clicked
+	- folders are toggled between opened/closed when they are double-clicked
+	- files are opened as pinned when they are double-clicked`)
+		},
 		'workbench.statusBar.visible': {
 			'type': 'boolean',
 			'default': true,

@@ -50,6 +50,14 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
+interface IConfiguration {
+	workbench: {
+		sideBar: {
+			openOnSelect: boolean;
+		}
+	};
+}
+
 export class FileDataSource implements IDataSource {
 	constructor(
 		@IProgressService private progressService: IProgressService,
@@ -372,6 +380,7 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 export class FileController extends DefaultController {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
+	private sideBarOpenOnSelect: boolean;
 
 	private contributedContextMenu: IMenu;
 
@@ -383,7 +392,8 @@ export class FileController extends DefaultController {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 
@@ -412,6 +422,15 @@ export class FileController extends DefaultController {
 		}
 
 		this.state = state;
+
+		configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+	}
+
+	private onConfigurationUpdated(config: IConfiguration): void {
+		const newSideBarOpenOnSelectSetting = config && config.workbench && config.workbench.sideBar && config.workbench.sideBar.openOnSelect;
+		if (newSideBarOpenOnSelectSetting !== this.sideBarOpenOnSelect) {
+			this.sideBarOpenOnSelect = newSideBarOpenOnSelectSetting;
+		}
 	}
 
 	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
@@ -449,7 +468,9 @@ export class FileController extends DefaultController {
 		tree.DOMFocus();
 
 		// Expand / Collapse
-		tree.toggleExpansion(stat);
+		if (this.sideBarOpenOnSelect || isDoubleClick) {
+			tree.toggleExpansion(stat);
+		}
 
 		// Allow to unselect
 		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
@@ -471,7 +492,12 @@ export class FileController extends DefaultController {
 			tree.setSelection([stat], payload);
 
 			if (!stat.isDirectory) {
-				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
+				if (isDoubleClick) {
+					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), true);
+				}
+				else if (this.sideBarOpenOnSelect) {
+					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
+				}
 			}
 		}
 
