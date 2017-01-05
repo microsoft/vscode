@@ -279,16 +279,28 @@ export class LanguageConfigurationRegistryImpl {
 		return result;
 	}
 
-	public getInheritedIndentActionForCurrentLine(model: ITokenizedModel, lineNumber: number): { indentation: string, action: IndentAction } {
+
+	public getEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
+		let enterAction = this.getRawEnterActionAtPosition(model, lineNumber, column);
+		if (!enterAction) {
+			enterAction = {
+				indentAction: IndentAction.None,
+				appendText: '',
+			};
+		} else {
+			if (!enterAction.appendText) {
+				enterAction.appendText = '';
+			}
+		}
+
+		return enterAction;
+	}
+
+	public getExpectedIndentActionAtPosition(model: ITokenizedModel, lineNumber: number) {
 		/**
 		 * In order to get correct indentation for current line
-		 * we need to loop backwards all the lines from current line until
-		 * 	1. a line is not empty
-		 *  2. and the line doesn't match `unIndentedLinePattern` pattern
+		 * we need to loop backwards all the lines from current line until a line contains non whitespace characters.
 		 */
-
-		// TODO: how about a line filled with only spaces?
-
 		let lastLineNumber = lineNumber - 1;
 
 		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
@@ -313,18 +325,17 @@ export class LanguageConfigurationRegistryImpl {
 		}
 
 		let lineText = model.getLineContent(lastLineNumber);
-		let lineTextAbove: string;
+		let oneLineAboveText: string;
 		if (lastLineNumber > 1) {
-			lineTextAbove = model.getLineContent(lastLineNumber - 1);
+			oneLineAboveText = model.getLineContent(lastLineNumber - 1);
 		}
 
 		let indentation = strings.getLeadingWhitespace(lineText);
-
-		let inheritedIntentationRule = onEnterSupport.getInheritedIndentationRules(lineText, lineTextAbove);
+		let expectedIntentAction = onEnterSupport.getExpectedIndentActionAtPosition(lineText, oneLineAboveText);
 
 		return {
 			indentation: indentation,
-			action: inheritedIntentationRule
+			action: expectedIntentAction
 		};
 	}
 
@@ -340,22 +351,6 @@ export class LanguageConfigurationRegistryImpl {
 		let beforeEnterText = scopedLineText.substr(0, column - 1 - scopedLineTokens.firstCharOffset);
 		let indentAction = onEnterSupport.getIndentActionForContent(beforeEnterText);
 		return indentAction;
-	}
-
-	public getEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
-		let enterAction = this.getRawEnterActionAtPosition(model, lineNumber, column);
-		if (!enterAction) {
-			enterAction = {
-				indentAction: IndentAction.None,
-				appendText: '',
-			};
-		} else {
-			if (!enterAction.appendText) {
-				enterAction.appendText = '';
-			}
-		}
-
-		return enterAction;
 	}
 
 	// end onEnter
