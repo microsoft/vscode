@@ -477,10 +477,10 @@ export class Thread implements debug.IThread {
 
 export class Process implements debug.IProcess {
 
-	private threads: { [reference: number]: Thread; };
+	private threads: Map<number, Thread>;
 
 	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
-		this.threads = {};
+		this.threads = new Map<number, Thread>();
 	}
 
 	public get session(): debug.ISession {
@@ -488,11 +488,13 @@ export class Process implements debug.IProcess {
 	}
 
 	public getThread(threadId: number): Thread {
-		return this.threads[threadId];
+		return this.threads.get(threadId);
 	}
 
 	public getAllThreads(): debug.IThread[] {
-		return Object.keys(this.threads).map(key => this.threads[key]);
+		const result = [];
+		this.threads.forEach(t => result.push(t));
+		return result;
 	}
 
 	public getId(): string {
@@ -501,66 +503,66 @@ export class Process implements debug.IProcess {
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
 
-		if (data.thread && !this.threads[data.threadId]) {
+		if (data.thread && !this.threads.has(data.threadId)) {
 			// A new thread came in, initialize it.
-			this.threads[data.threadId] = new Thread(this, data.thread.name, data.thread.id);
+			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
 		}
 
 		if (data.stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
 			if (data.allThreadsStopped) {
-				Object.keys(this.threads).forEach(ref => {
+				this.threads.forEach(thread => {
 					// Only update the details if all the threads are stopped
 					// because we don't want to overwrite the details of other
 					// threads that have stopped for a different reason
-					this.threads[ref].stoppedDetails = clone(data.stoppedDetails);
-					this.threads[ref].stopped = true;
-					this.threads[ref].clearCallStack();
+					thread.stoppedDetails = clone(data.stoppedDetails);
+					thread.stopped = true;
+					thread.clearCallStack();
 				});
 			} else {
 				// One thread is stopped, only update that thread.
-				this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
-				this.threads[data.threadId].clearCallStack();
-				this.threads[data.threadId].stopped = true;
+				const thread = this.threads.get(data.threadId);
+				thread.stoppedDetails = data.stoppedDetails;
+				thread.clearCallStack();
+				thread.stopped = true;
 			}
 		}
 	}
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
 		if (reference) {
-			if (this.threads[reference]) {
-				this.threads[reference].clearCallStack();
-				this.threads[reference].stoppedDetails = undefined;
-				this.threads[reference].stopped = false;
+			if (this.threads.has(reference)) {
+				const thread = this.threads.get(reference);
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
 
 				if (removeThreads) {
-					delete this.threads[reference];
+					this.threads.delete(reference);
 				}
 			}
 		} else {
-			Object.keys(this.threads).forEach(ref => {
-				this.threads[ref].clearCallStack();
-				this.threads[ref].stoppedDetails = undefined;
-				this.threads[ref].stopped = false;
+			this.threads.forEach(thread => {
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
 			});
 
 			if (removeThreads) {
-				this.threads = {};
+				this.threads.clear();
 				ExpressionContainer.allValues = {};
 			}
 		}
 	}
 
 	public sourceIsUnavailable(uri: uri): void {
-		Object.keys(this.threads).forEach(key => {
-			if (this.threads[key].getCachedCallStack()) {
-				this.threads[key].getCachedCallStack().forEach(stackFrame => {
-					if (stackFrame.source.uri.toString() === uri.toString()) {
-						stackFrame.source.available = false;
-					}
-				});
-			}
+		this.threads.forEach(thread => {
+			thread.getCallStack().forEach(stackFrame => {
+				if (stackFrame.source.uri.toString() === uri.toString()) {
+					stackFrame.source.available = false;
+				}
+			});
 		});
 	}
 
