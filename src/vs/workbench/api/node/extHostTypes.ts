@@ -465,7 +465,7 @@ export class Uri extends URI { }
 export class WorkspaceEdit {
 
 	private _values: [Uri, TextEdit[]][] = [];
-	private _index: { [uri: string]: number } = Object.create(null);
+	private _index = new Map<string, number>();
 
 	replace(uri: Uri, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -486,21 +486,21 @@ export class WorkspaceEdit {
 	}
 
 	has(uri: Uri): boolean {
-		return typeof this._index[uri.toString()] !== 'undefined';
+		return this._index.has(uri.toString());
 	}
 
 	set(uri: Uri, edits: TextEdit[]): void {
-		let idx = this._index[uri.toString()];
+		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
-			this._index[uri.toString()] = newLen - 1;
+			this._index.set(uri.toString(), newLen - 1);
 		} else {
 			this._values[idx][1] = edits;
 		}
 	}
 
 	get(uri: Uri): TextEdit[] {
-		let idx = this._index[uri.toString()];
+		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 

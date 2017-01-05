@@ -71,7 +71,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements deb
 	}
 
 	public get hasChildren(): boolean {
-		return isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0;
+		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
 	}
 
 	public getChildren(): TPromise<debug.IExpression[]> {
@@ -349,7 +349,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public toString(): string {
-		return `${this.name} (${this.source.name}:${this.lineNumber})`;
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
 	}
 }
 

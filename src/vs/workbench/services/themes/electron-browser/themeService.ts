@@ -442,7 +442,7 @@ export class ThemeService implements IThemeService {
 
 	private _updateIconTheme(onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 		return this.getFileIconThemes().then(allIconSets => {
-			let iconSetData;
+			let iconSetData: IInternalThemeData;
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === this.currentIconTheme) {
 					iconSetData = <IInternalThemeData>iconSet;
@@ -553,7 +553,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let fileExtensions = associations.fileExtensions;
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
-					let selectors = [];
+					let selectors: string[] = [];
 					let segments = fileExtension.toLowerCase().split('.');
 					for (let i = 0; i < segments.length; i++) {
 						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
@@ -564,11 +564,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let fileNames = associations.fileNames;
 			if (fileNames) {
 				for (let fileName in fileNames) {
-					let selectors = [];
-					let segments = fileName.toLowerCase().split('.');
-					if (segments[0]) {
-						selectors.push(`.${escapeCSS(segments[0])}-name-file-icon`);
-					}
+					let selectors: string[] = [];
+					fileName = fileName.toLowerCase();
+					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
+					let segments = fileName.split('.');
 					for (let i = 1; i < segments.length; i++) {
 						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 					}

@@ -49,43 +49,29 @@ export abstract class Part extends WorkbenchComponent {
 	/**
 	 * Subclasses override to provide a title area implementation.
 	 */
-	public createTitleArea(parent: Builder): Builder {
+	protected createTitleArea(parent: Builder): Builder {
 		return null;
-	}
-
-	/**
-	 * Returns the title area container.
-	 */
-	public getTitleArea(): Builder {
-		return this.titleArea;
 	}
 
 	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
-	public createContentArea(parent: Builder): Builder {
+	protected createContentArea(parent: Builder): Builder {
 		return null;
 	}
 
 	/**
 	 * Returns the content area container.
 	 */
-	public getContentArea(): Builder {
+	protected getContentArea(): Builder {
 		return this.contentArea;
 	}
 
 	/**
 	 * Subclasses override to provide a status area implementation.
 	 */
-	public createStatusArea(parent: Builder): Builder {
+	protected createStatusArea(parent: Builder): Builder {
 		return null;
-	}
-
-	/**
-	 * Returns the status area container.
-	 */
-	public getStatusArea(): Builder {
-		return this.statusArea;
 	}
 
 	/**
@@ -138,7 +124,7 @@ export class PartLayout {
 	}
 
 	public computeStyle(): void {
-		let containerStyle = this.container.getComputedStyle();
+		const containerStyle = this.container.getComputedStyle();
 		this.containerStyle = {
 			borderLeftWidth: parseInt(containerStyle.getPropertyValue('border-left-width'), 10),
 			borderRightWidth: parseInt(containerStyle.getPropertyValue('border-right-width'), 10),
@@ -147,7 +133,7 @@ export class PartLayout {
 		};
 
 		if (this.titleArea) {
-			let titleStyle = this.titleArea.getComputedStyle();
+			const titleStyle = this.titleArea.getComputedStyle();
 			this.titleStyle = {
 				display: titleStyle.getPropertyValue('display'),
 				height: this.titleArea.getTotalSize().height
@@ -155,7 +141,7 @@ export class PartLayout {
 		}
 
 		if (this.statusArea) {
-			let statusStyle = this.statusArea.getComputedStyle();
+			const statusStyle = this.statusArea.getComputedStyle();
 			this.statusStyle = {
 				display: statusStyle.getPropertyValue('display'),
 				height: this.statusArea.getTotalSize().height
@@ -168,11 +154,11 @@ export class PartLayout {
 			this.computeStyle();
 		}
 
-		let width = dimension.width - (this.containerStyle.borderLeftWidth + this.containerStyle.borderRightWidth);
-		let height = dimension.height - (this.containerStyle.borderTopWidth + this.containerStyle.borderBottomWidth);
+		const width = dimension.width - (this.containerStyle.borderLeftWidth + this.containerStyle.borderRightWidth);
+		const height = dimension.height - (this.containerStyle.borderTopWidth + this.containerStyle.borderBottomWidth);
 
 		// Return the applied sizes to title, content and status
-		let sizes: Dimension[] = [];
+		const sizes: Dimension[] = [];
 
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
@@ -192,7 +178,7 @@ export class PartLayout {
 		}
 
 		// Content Size: Width (Fill), Height (Variable)
-		let contentSize = new Dimension(width, height - titleSize.height - statusSize.height);
+		const contentSize = new Dimension(width, height - titleSize.height - statusSize.height);
 
 		sizes.push(titleSize);
 		sizes.push(contentSize);

@@ -141,6 +141,16 @@
           "default": true,
           "description": "%html.suggest.html5.desc%"
         },
+        "html.validate.scripts": {
+          "type": "boolean",
+          "default": true,
+          "description": "%html.validate.scripts%"
+        },
+        "html.validate.styles": {
+          "type": "boolean",
+          "default": true,
+          "description": "%html.validate.styles%"
+        },
         "html.trace.server": {
           "type": "string",
           "enum": [

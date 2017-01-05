@@ -42,7 +42,7 @@ export interface JSONScanner {
 	/**
 	 * Sets the scan position to a new offset. A call to 'scan' is needed to get the first token.
 	 */
-	setPosition(pos: number);
+	setPosition(pos: number): void;
 	/**
 	 * Read the next token. Returns the tolen code.
 	 */

@@ -46,7 +46,7 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	public setInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = <SideBySideEditorInput>this.getInput();
+		const oldInput = <SideBySideEditorInput>this.input;
 		return super.setInput(newInput, options)
 			.then(() => this.updateInput(oldInput, newInput, options));
 	}

@@ -328,7 +328,7 @@ export interface ITree extends Events.IEventEmitter {
 	 * Returns a navigator which allows to discover the visible and
 	 * expanded elements in the tree.
 	 */
-	getNavigator(): INavigator<any>;
+	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any>;
 
 	/**
 	 * Disposes the tree
