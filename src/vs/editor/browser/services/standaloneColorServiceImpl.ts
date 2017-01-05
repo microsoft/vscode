@@ -19,6 +19,7 @@ export class StandaloneColorServiceImpl implements IStandaloneColorService {
 
 	constructor() {
 		this._styleElement = dom.createStyleSheet();
+		this._styleElement.className = 'monaco-tokens-styles';
 		this.setTheme('vs');
 	}
 

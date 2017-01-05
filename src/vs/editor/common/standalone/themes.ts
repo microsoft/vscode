@@ -69,9 +69,6 @@ export const vs: IThemeRule[] = [
 
 
 /* -------------------------------- Begin vs-dark tokens -------------------------------- */
-// TODO@Alex
-// .monaco-editor.vs-dark .token.vs-whitespace					{ foreground: rgba(227, 228, 226, 0.16) !important; }
-
 export const vs_dark: IThemeRule[] = [
 	{ token: '', foreground: 'D4D4D4' },
 	{ token: 'invalid', foreground: 'f44747' },
