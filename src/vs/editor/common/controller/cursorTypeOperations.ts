@@ -235,7 +235,7 @@ export class TypeOperations {
 		expectedIndentationBeforeEnter = config.normalizeIndentation(expectedIndentationBeforeEnter);
 
 		let beforeText = '';
-		if (expectedIndentationBeforeEnter !== indentation) {
+		if (expectedIndentationBeforeEnter !== config.normalizeIndentation(indentation)) {
 			beforeText = expectedIndentationBeforeEnter + lineText.substring(indentation.length, range.startColumn - 1);
 			indentation = expectedIndentationBeforeEnter;
 			range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
