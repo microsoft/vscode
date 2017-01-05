@@ -175,6 +175,10 @@ export interface EnterAction {
 	 */
 	indentAction: IndentAction;
 	/**
+	 * Describe whether to outdent current line.
+	 */
+	outdentCurrentLine?: boolean;
+	/**
 	 * Describes text to be appended after the new line and after the indentation.
 	 */
 	appendText?: string;

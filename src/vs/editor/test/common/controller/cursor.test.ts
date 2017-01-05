@@ -1142,7 +1142,8 @@ class OnEnterMode extends MockMode {
 			onEnterRules: [{
 				beforeText: /.*/,
 				action: {
-					indentAction: indentAction
+					indentAction: indentAction,
+					outdentCurrentLine: outdentCurrentLine
 				}
 			}]
 		}));
