@@ -26,8 +26,8 @@ export class Resource {
 	private _path: string = null;
 
 	constructor(public uri: URI, public markers: Marker[],
-								public statistics: MarkerStatistics,
-								public matches: IMatch[] = []) {
+		public statistics: MarkerStatistics,
+		public matches: IMatch[] = []) {
 	}
 
 	public get path(): string {
@@ -47,8 +47,8 @@ export class Resource {
 
 export class Marker {
 	constructor(public id: string, public marker: IMarker,
-								public labelMatches: IMatch[] = [],
-								public sourceMatches: IMatch[] = []) { }
+		public labelMatches: IMatch[] = [],
+		public sourceMatches: IMatch[] = []) { }
 
 	public get resource(): URI {
 		return this.marker.resource;
