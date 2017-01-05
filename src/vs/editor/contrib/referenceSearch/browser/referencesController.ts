@@ -188,7 +188,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
-			mode: this._editor.getModel().getModeId()
+			mode: this._editor.getModel().getLanguageIdentifier().language
 		}));
 	}
 

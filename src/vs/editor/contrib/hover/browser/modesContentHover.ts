@@ -255,7 +255,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							// it is possible no alias is given in which case we fall back to the current editor lang
 							const modeId = languageAlias
 								? this._modeService.getModeIdForLanguageName(languageAlias)
-								: this._editor.getModel().getModeId();
+								: this._editor.getModel().getLanguageIdentifier().language;
 
 							return this._modeService.getOrCreateMode(modeId).then(_ => {
 								return `<div class="code">${tokenizeToString(value, modeId)}</div>`;

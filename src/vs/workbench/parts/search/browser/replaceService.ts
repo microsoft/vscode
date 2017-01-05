@@ -63,7 +63,7 @@ class ReplacePreviewModel extends Disposable {
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
 			ref = this._register(ref);
 			const sourceModel = ref.object.textEditorModel;
-			const sourceModelModeId = sourceModel.getModeId();
+			const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
 			const replacePreviewModel = this.modelService.createModel(sourceModel.getValue(), this.modeService.getOrCreateMode(sourceModelModeId), replacePreviewUri);
 			this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
 			this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
