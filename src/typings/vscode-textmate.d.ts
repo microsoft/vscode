@@ -160,7 +160,8 @@ declare module "vscode-textmate" {
 	export interface StackElement {
 		_stackElementBrand: void;
 		readonly depth: number;
+		clone(): StackElement;
 		equals(other: StackElement): boolean;
 	}
-
+	export const INITIAL: StackElement;
 }
