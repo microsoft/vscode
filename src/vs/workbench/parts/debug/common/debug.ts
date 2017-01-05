@@ -14,6 +14,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
@@ -170,6 +171,7 @@ export interface IStackFrame extends ITreeElement {
 	getScopes(): TPromise<IScope[]>;
 	restart(): TPromise<any>;
 	toString(): string;
+	openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
 }
 
 export interface IEnablement extends ITreeElement {

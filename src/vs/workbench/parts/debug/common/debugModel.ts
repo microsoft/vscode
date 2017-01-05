@@ -19,6 +19,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
@@ -350,6 +351,19 @@ export class StackFrame implements debug.IStackFrame {
 
 	public toString(): string {
 		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
+	}
+
+	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
+		return editorService.openEditor({
+			resource: this.source.uri,
+			description: this.source.origin,
+			options: {
+				preserveFocus,
+				selection: { startLineNumber: this.lineNumber, startColumn: 1 },
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true
+			}
+		}, sideBySide);
 	}
 }
 
