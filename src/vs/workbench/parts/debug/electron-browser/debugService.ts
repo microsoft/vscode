@@ -283,14 +283,7 @@ export class DebugService implements debug.IDebugService {
 							this.windowService.getWindow().focus();
 							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
-							return this.editorService.openEditor({
-								resource: stackFrameToFocus.source.uri,
-								options: {
-									selection: { startLineNumber: stackFrameToFocus.lineNumber, startColumn: 1 },
-									revealIfVisible: true,
-									revealInCenterIfOutsideViewport: true
-								}
-							});
+							return stackFrameToFocus.openInEditor(this.editorService);
 						}
 					});
 				}
