@@ -310,7 +310,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	public enterMode(startOffset: number, modeId: string): void {
-		this._currentLanguageId = this._modeService.getLanguageIdentifier(modeId).iid;
+		this._currentLanguageId = this._modeService.getLanguageIdentifier(modeId).id;
 	}
 
 	public emit(startOffset: number, type: string): void {
@@ -401,9 +401,9 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				return;
 			}
 			let isOneOfMyEmbeddedModes = false;
-			for (let i = 0, len = e.languageIds.length; i < len; i++) {
-				let languageId = e.languageIds[i];
-				if (this._embeddedModes[languageId]) {
+			for (let i = 0, len = e.languages.length; i < len; i++) {
+				let language = e.languages[i];
+				if (this._embeddedModes[language]) {
 					isOneOfMyEmbeddedModes = true;
 					break;
 				}

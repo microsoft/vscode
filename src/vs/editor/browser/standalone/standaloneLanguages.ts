@@ -100,7 +100,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	public tokenize(line: string, state: modes.IState, offsetDelta: number): modes.ILineTokens {
 		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toClassicTokens(actualResult.tokens, this._languageIdentifier.sid, offsetDelta);
+		let tokens = this._toClassicTokens(actualResult.tokens, this._languageIdentifier.language, offsetDelta);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -117,7 +117,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	private _toBinaryTokens(tokens: modes.IToken2[], offsetDelta: number): Uint32Array {
-		let languageId = this._languageIdentifier.iid;
+		let languageId = this._languageIdentifier.id;
 		let theme = this._standaloneColorService.getTheme();
 
 		let result: number[] = [], resultLen = 0;

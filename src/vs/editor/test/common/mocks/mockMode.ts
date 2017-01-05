@@ -16,7 +16,7 @@ export class MockMode extends Disposable implements IMode {
 	}
 
 	public getId(): string {
-		return this._languageIdentifier.sid;
+		return this._languageIdentifier.language;
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {

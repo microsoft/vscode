@@ -46,7 +46,7 @@ export class Colorizer {
 		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
 	}
 
-	private static _tokenizationSupportChangedPromise(languageId: string): TPromise<void> {
+	private static _tokenizationSupportChangedPromise(language: string): TPromise<void> {
 		let listener: IDisposable = null;
 		let stopListening = () => {
 			if (listener) {
@@ -57,7 +57,7 @@ export class Colorizer {
 
 		return new TPromise<void>((c, e, p) => {
 			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.languageIds.indexOf(languageId) >= 0) {
+				if (e.languages.indexOf(language) >= 0) {
 					stopListening();
 					c(void 0);
 				}
@@ -70,7 +70,7 @@ export class Colorizer {
 			text = text.substr(1);
 		}
 		let lines = text.split(/\r\n|\r|\n/);
-		let languageId = modeService.getModeId(mimeType);
+		let language = modeService.getModeId(mimeType);
 
 		options = options || {};
 		if (typeof options.tabSize === 'undefined') {
@@ -78,16 +78,16 @@ export class Colorizer {
 		}
 
 		// Send out the event to create the mode
-		modeService.getOrCreateMode(languageId);
+		modeService.getOrCreateMode(language);
 
-		let tokenizationSupport = TokenizationRegistry.get(languageId);
+		let tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
 			return TPromise.as(_colorize(lines, options.tabSize, tokenizationSupport));
 		}
 
 		// wait 500ms for mode to load, then give up
-		return TPromise.any([this._tokenizationSupportChangedPromise(languageId), TPromise.timeout(500)]).then(_ => {
-			let tokenizationSupport = TokenizationRegistry.get(languageId);
+		return TPromise.any([this._tokenizationSupportChangedPromise(language), TPromise.timeout(500)]).then(_ => {
+			let tokenizationSupport = TokenizationRegistry.get(language);
 			if (tokenizationSupport) {
 				return _colorize(lines, options.tabSize, tokenizationSupport);
 			}

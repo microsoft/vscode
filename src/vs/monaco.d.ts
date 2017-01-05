@@ -4262,10 +4262,10 @@ declare module monaco.languages {
      * An identifier for a registered language.
      */
     export class LanguageIdentifier {
-        public readonly sid: string;
-        public readonly iid: number;
+        public readonly language: string;
+        public readonly id: number;
 
-        constructor(sid: string, iid: number);
+        constructor(language: string, id: number);
     }
 
     /**

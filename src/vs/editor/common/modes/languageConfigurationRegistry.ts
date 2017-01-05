@@ -133,14 +133,14 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration): IDisposable {
-		let previous = this._getRichEditSupport(languageIdentifier.iid);
+		let previous = this._getRichEditSupport(languageIdentifier.id);
 		let current = new RichEditSupport(languageIdentifier, previous, configuration);
-		this._entries[languageIdentifier.iid] = current;
+		this._entries[languageIdentifier.id] = current;
 		this._onDidChange.fire(void 0);
 		return {
 			dispose: () => {
-				if (this._entries[languageIdentifier.iid] === current) {
-					this._entries[languageIdentifier.iid] = previous;
+				if (this._entries[languageIdentifier.id] === current) {
+					this._entries[languageIdentifier.id] = previous;
 					this._onDidChange.fire(void 0);
 				}
 			}

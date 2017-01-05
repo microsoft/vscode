@@ -45,12 +45,12 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _loadConfigurationsForMode(languageIdentifier: LanguageIdentifier): void {
-		if (this._done[languageIdentifier.iid]) {
+		if (this._done[languageIdentifier.id]) {
 			return;
 		}
-		this._done[languageIdentifier.iid] = true;
+		this._done[languageIdentifier.id] = true;
 
-		let configurationFiles = this._modeService.getConfigurationFiles(languageIdentifier.sid);
+		let configurationFiles = this._modeService.getConfigurationFiles(languageIdentifier.language);
 		configurationFiles.forEach((configFilePath) => this._handleConfigFile(languageIdentifier, configFilePath));
 	}
 

@@ -23,7 +23,7 @@ suite('QuickFix', () => {
 	let markerService: MarkerService;
 	let editor: ICommonCodeEditor;
 
-	let reg = CodeActionProviderRegistry.register(languageIdentifier.sid, {
+	let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 		provideCodeActions() {
 			return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
 		}
@@ -94,7 +94,7 @@ suite('QuickFix', () => {
 
 	test('Oracle -> ask once per marker/word', () => {
 		let counter = 0;
-		let reg = CodeActionProviderRegistry.register(languageIdentifier.sid, {
+		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions() {
 				counter += 1;
 				return [];
