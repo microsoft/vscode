@@ -95,7 +95,7 @@ export class EditorModeContext {
 			this.reset();
 			return;
 		}
-		this._langId.set(model.getModeId());
+		this._langId.set(model.getLanguageIdentifier().language);
 		this._hasCompletionItemProvider.set(modes.SuggestRegistry.has(model));
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));

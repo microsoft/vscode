@@ -1818,13 +1818,6 @@ export interface IReadOnlyModel extends ITextModel {
 
 	/**
 	 * Get the language associated with this model.
-	 * TODO@tokenization
-	 * @deprecated
-	 */
-	getModeId(): string;
-
-	/**
-	 * Get the language associated with this model.
 	 */
 	getLanguageIdentifier(): LanguageIdentifier;
 
@@ -1867,13 +1860,6 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
-
-	/**
-	 * Get the language associated with this model.
-	 * TODO@tokenization
-	 * @deprecated
-	 */
-	getModeId(): string;
 
 	/**
 	 * Get the language associated with this model.

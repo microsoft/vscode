@@ -401,7 +401,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		};
 
 		const detectVisible = new RunOnceScheduler(() => {
-			this._onViewportChanged(model.getModeId());
+			this._onViewportChanged(model.getLanguageIdentifier().language);
 		}, 500);
 
 		const scheduler = new RunOnceScheduler(() => {

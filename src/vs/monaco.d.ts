@@ -2075,12 +2075,6 @@ declare module monaco.editor {
         readonly uri: Uri;
         /**
          * Get the language associated with this model.
-         * TODO@tokenization
-         * @deprecated
-         */
-        getModeId(): string;
-        /**
-         * Get the language associated with this model.
          */
         getLanguageIdentifier(): languages.LanguageIdentifier;
         /**
@@ -2103,12 +2097,6 @@ declare module monaco.editor {
      * A model that is tokenized.
      */
     export interface ITokenizedModel extends ITextModel {
-        /**
-         * Get the language associated with this model.
-         * TODO@tokenization
-         * @deprecated
-         */
-        getModeId(): string;
         /**
          * Get the language associated with this model.
          */

@@ -526,7 +526,7 @@ export class EditorStatus implements IStatusbarItem {
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
 				// Compute mode
-				const modeId = textModel.getModeId();
+				const modeId = textModel.getLanguageIdentifier().language;
 				info = { mode: this.modeService.getLanguageName(modeId) };
 			}
 		}
@@ -736,7 +736,7 @@ export class ChangeModeAction extends Action {
 		// Compute mode
 		let currentModeId: string;
 		if (textModel) {
-			const modeId = textModel.getModeId();
+			const modeId = textModel.getLanguageIdentifier().language;
 			currentModeId = this.modeService.getLanguageName(modeId);
 		}
 

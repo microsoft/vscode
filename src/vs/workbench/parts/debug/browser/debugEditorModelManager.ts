@@ -275,7 +275,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 		}
 
-		const modeId = modelData ? modelData.model.getModeId() : '';
+		const modeId = modelData ? modelData.model.getLanguageIdentifier().language : '';
 		let condition: string;
 		if (breakpoint.condition && breakpoint.hitCondition) {
 			condition = `Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`;
