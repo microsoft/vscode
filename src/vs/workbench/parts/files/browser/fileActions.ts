@@ -1119,11 +1119,11 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
-		if (fileResource) {
+		const activeResource = toResource(this.editorService.getActiveEditorInput(), { filter: ['file', 'untitled'] });
+		if (activeResource) {
 
 			// Keep as resource to compare
-			globalResourceToCompare = fileResource;
+			globalResourceToCompare = activeResource;
 
 			// Pick another entry from history
 			interface IHistoryPickEntry extends IFilePickOpenEntry {
@@ -1137,18 +1137,22 @@ export class GlobalCompareResourcesAction extends Action {
 				let description: string;
 
 				if (input instanceof EditorInput) {
-					return void 0; // only files supported
+					resource = toResource(input, { filter: ['file', 'untitled'] });
+				} else {
+					resource = (input as IResourceInput).resource;
 				}
 
-				const resourceInput = input as IResourceInput;
-				resource = resourceInput.resource;
-				label = paths.basename(resourceInput.resource.fsPath);
-				description = labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService);
+				if (!resource) {
+					return void 0; // only support to compare with files and untitled
+				}
+
+				label = paths.basename(resource.fsPath);
+				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService) : void 0;
 
 				return <IHistoryPickEntry>{ input, resource, label, description };
 			}).filter(p => !!p);
 
-			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor history entry to compare with"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
+			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select a previously opened file to compare with"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
 				if (pick) {
 					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, pick.resource, null);
 					if (compareAction._isEnabled()) {
