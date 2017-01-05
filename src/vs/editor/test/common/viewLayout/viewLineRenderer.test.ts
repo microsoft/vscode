@@ -80,7 +80,7 @@ suite('viewLineRenderer.renderLine', () => {
 	test('uses part type', () => {
 		assertParts('x', 4, [createPart(0, 'y')], '<span class="y">x</span>', [0, 1]);
 		assertParts('x', 4, [createPart(0, 'aAbBzZ0123456789-cC')], '<span class="aAbBzZ0123456789-cC">x</span>', [0, 1]);
-		assertParts('x', 4, [createPart(0, '"~!@#$%^&*()\'')], '<span class="             ">x</span>', [0, 1]);
+		assertParts('x', 4, [createPart(0, '             ')], '<span class="             ">x</span>', [0, 1]);
 	});
 
 	test('two parts', () => {
