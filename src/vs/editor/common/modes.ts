@@ -647,6 +647,7 @@ export interface ICodeLensSymbol {
 	command?: Command;
 }
 export interface CodeLensProvider {
+	onDidChange?: Event<this>;
 	provideCodeLenses(model: editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
 	resolveCodeLens?(model: editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }

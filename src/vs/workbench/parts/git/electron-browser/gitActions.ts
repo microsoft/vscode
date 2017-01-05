@@ -70,7 +70,7 @@ export class CloneAction extends Action {
 
 				return clone.then(path => {
 					const forceNewWindow = this.workspaceService.hasWorkspace();
-					return this.windowsService.windowOpen([path], forceNewWindow);
+					return this.windowsService.openWindow([path], { forceNewWindow, forceReuseWindow: !forceNewWindow });
 
 				}).then<void>(null, e => {
 					if (/already exists and is not an empty directory/.test(e.stderr || '')) {

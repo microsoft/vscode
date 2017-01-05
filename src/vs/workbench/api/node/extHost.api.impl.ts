@@ -466,7 +466,7 @@ function createExtensionPathIndex(extensionService: ExtHostExtensionService): TP
 function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
-	const extApiImpl: { [id: string]: typeof vscode } = Object.create(null);
+	const extApiImpl = new Map<string, typeof vscode>();
 	let defaultApiImpl: typeof vscode;
 
 	const node_module = <any>require.__$__nodeRequire('module');
@@ -479,9 +479,10 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExten
 		// get extension id from filename and api for extension
 		const ext = extensionPaths.findSubstr(parent.filename);
 		if (ext) {
-			let apiImpl = extApiImpl[ext.id];
+			let apiImpl = extApiImpl.get(ext.id);
 			if (!apiImpl) {
-				apiImpl = extApiImpl[ext.id] = factory(ext);
+				apiImpl = factory(ext);
+				extApiImpl.set(ext.id, apiImpl);
 			}
 			return apiImpl;
 		}

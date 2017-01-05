@@ -22,6 +22,9 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { toResource } from 'vs/workbench/common/editor';
+import paths = require('vs/base/common/paths');
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class FileViewerActionContributor extends ActionBarContributor {
 
@@ -57,7 +60,7 @@ class FileViewerActionContributor extends ActionBarContributor {
 // Contribute Actions
 const category = nls.localize('filesCategory', "Files");
 
-const workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }), 'Files: Save As...', category);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), 'Files: New Untitled File', category);
 
@@ -73,11 +76,11 @@ if (env.isMacintosh) {
 }
 
 // Contribute to File Viewers
-const actionsRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+const actionsRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContributor);
 
 // Register Dirty Files Tracker
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	DirtyFilesTracker
 );
 
@@ -89,5 +92,14 @@ CommandsRegistry.registerCommand('_files.openFolderPicker', (accessor: ServicesA
 
 CommandsRegistry.registerCommand('_files.windowOpen', (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
-	windowsService.windowOpen(paths, forceNewWindow);
+	windowsService.openWindow(paths, { forceNewWindow });
+});
+
+CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', (accessor: ServicesAccessor) => {
+	const windowService = accessor.get(IWindowService);
+	const editorService = accessor.get(IWorkbenchEditorService);
+
+	const fileResource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+
+	return windowService.openFilePicker(true, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
 });

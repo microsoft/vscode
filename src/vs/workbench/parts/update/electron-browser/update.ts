@@ -119,13 +119,12 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 export abstract class AbstractShowReleaseNotesAction extends Action {
 
 	constructor(
-		id,
-		label,
+		id: string,
+		label: string,
 		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, null, true);
 	}
@@ -153,10 +152,9 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 		returnValue: boolean,
 		version: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService, openerService);
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService);
 	}
 }
 
@@ -169,10 +167,9 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 		id = ShowCurrentReleaseNotesAction.ID,
 		label = ShowCurrentReleaseNotesAction.LABEL,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, true, pkg.version, editorService, instantiationService, openerService);
+		super(id, label, true, pkg.version, editorService, instantiationService);
 	}
 }
 

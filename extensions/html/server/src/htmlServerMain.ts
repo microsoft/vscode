@@ -6,8 +6,10 @@
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
-import { TextDocument, Diagnostic, DocumentLink, Range, TextEdit, SymbolInformation } from 'vscode-languageserver-types';
+import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
+
+import { format } from './modes/formatting';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -69,9 +71,18 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
+let validation = {
+	html: true,
+	css: true,
+	javascript: true
+};
+
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
 	settings = change.settings;
+	let validationSettings = settings && settings.html && settings.html.validate || {};
+	validation.css = validationSettings.styles !== false;
+	validation.javascript = validationSettings.scripts !== false;
 
 	languageModes.getAllModes().forEach(m => {
 		if (m.configure) {
@@ -115,7 +126,7 @@ function triggerValidation(textDocument: TextDocument): void {
 function validateTextDocument(textDocument: TextDocument): void {
 	let diagnostics: Diagnostic[] = [];
 	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
-		if (mode.doValidation) {
+		if (mode.doValidation && validation[mode.getId()]) {
 			pushAll(diagnostics, mode.doValidation(textDocument));
 		}
 	});
@@ -201,18 +212,11 @@ connection.onSignatureHelp(signatureHelpParms => {
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	let ranges = languageModes.getModesInRange(document, formatParams.range);
-	let result: TextEdit[] = [];
+
 	let unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
-	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/), html: true };
-	ranges.forEach(r => {
-		let mode = r.mode;
-		if (mode && mode.format && enabledModes[mode.getId()] && !r.attributeValue) {
-			let edits = mode.format(document, r, formatParams.options);
-			pushAll(result, edits);
-		}
-	});
-	return result;
+	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
+
+	return format(languageModes, document, formatParams.range, formatParams.options, enabledModes);
 });
 
 connection.onDocumentLinks(documentLinkParam => {

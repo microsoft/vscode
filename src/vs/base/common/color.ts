@@ -65,12 +65,12 @@ function hsla2rgba(hsla: HSLA): RGBA {
 	let s = Math.min(hsla.s, 1);
 	let l = Math.min(hsla.l, 1);
 	let a = hsla.a === void 0 ? hsla.a : 1;
-	let r, g, b;
+	let r: number, g: number, b: number;
 
 	if (s === 0) {
 		r = g = b = l; // achromatic
 	} else {
-		let hue2rgb = function hue2rgb(p, q, t) {
+		let hue2rgb = function hue2rgb(p: number, q: number, t: number) {
 			if (t < 0) {
 				t += 1;
 			}
@@ -115,7 +115,7 @@ export class Color {
 	 * Returns the number in the set [0, 1]. O => Darkest Black. 1 => Lightest white.
 	 */
 	public getLuminosity(): number {
-		let luminosityFor = function (color): number {
+		let luminosityFor = function (color: number): number {
 			let c = color / 255;
 			return (c <= 0.03928) ? c / 12.92 : Math.pow(((c + 0.055) / 1.055), 2.4);
 		};

@@ -183,7 +183,6 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		model: ITextFileEditorModel,
 		message: string,
 		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {

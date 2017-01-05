@@ -240,7 +240,7 @@ export class ListView<T> implements IDisposable {
 		return DOM.addDisposableListener(domNode, type, handler, useCapture);
 	}
 
-	private fireScopedEvent(handler: (event: any) => void, index) {
+	private fireScopedEvent(handler: (event: any) => void, index: number) {
 		if (index < 0) {
 			return;
 		}

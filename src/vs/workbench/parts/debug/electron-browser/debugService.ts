@@ -34,7 +34,7 @@ import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDe
 import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
-import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
+import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
@@ -392,7 +392,7 @@ export class DebugService implements debug.IDebugService {
 		let result: Breakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
+				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
 			});
 		} catch (e) { }
 
@@ -732,7 +732,8 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.as(null);
 				}
 
-				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
+				const errorMessage = error instanceof Error ? error.message : error;
+				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
 				this.setStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
@@ -926,7 +927,7 @@ export class DebugService implements debug.IDebugService {
 			return session.setBreakpoints({
 				source: rawSource,
 				lines: breakpointsToSend.map(bp => bp.lineNumber),
-				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition })),
+				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition, column: bp.column })),
 				sourceModified
 			}).then(response => {
 				if (!response || !response.body) {

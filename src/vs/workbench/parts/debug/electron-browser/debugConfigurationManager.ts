@@ -22,6 +22,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -111,8 +113,12 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 	}
 });
 
+interface IRawBreakpointContribution {
+	language: string;
+}
+
 // breakpoints extension point #9037
-export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawBreakpointContribution[]>('breakpoints', [], {
+const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawBreakpointContribution[]>('breakpoints', [], {
 	description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '' }] }],
@@ -197,7 +203,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		this.adapters = [];
 		this.registerListeners();
@@ -326,8 +333,21 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(adapter => adapter ? adapter.getInitialConfigurationContent() : null)
+			this.quickOpenService.pick([...this.adapters, { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+				.then(picked => {
+					if (picked instanceof Adapter) {
+						return picked ? picked.getInitialConfigurationContent() : null;
+					}
+					if (picked) {
+						return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+							.then(viewlet => viewlet as IExtensionsViewlet)
+							.then(viewlet => {
+								viewlet.search('tag:debuggers');
+								viewlet.focus();
+								return null;
+							});
+					}
+				})
 				.then(content => {
 					if (!content) {
 						return false;

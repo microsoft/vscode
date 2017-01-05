@@ -19,7 +19,7 @@ globals.Monaco.Diagnostics = {};
 
 var switches = globals.Monaco.Diagnostics;
 var map = {};
-var data = [];
+var data: any[] = [];
 
 function fifo(array: any[], size: number) {
 	while (array.length > size) {

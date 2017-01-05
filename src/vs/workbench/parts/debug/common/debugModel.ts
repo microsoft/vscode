@@ -71,7 +71,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements deb
 	}
 
 	public get hasChildren(): boolean {
-		return isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0;
+		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
 	}
 
 	public getChildren(): TPromise<debug.IExpression[]> {
@@ -349,7 +349,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public toString(): string {
-		return `${this.name} (${this.source.name}:${this.lineNumber})`;
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
 	}
 }
 
@@ -581,6 +581,7 @@ export class Breakpoint implements debug.IBreakpoint {
 	constructor(
 		public uri: uri,
 		public lineNumber: number,
+		public column: number,
 		public enabled: boolean,
 		public condition: string,
 		public hitCondition: string
@@ -736,7 +737,7 @@ export class Model implements debug.IModel {
 
 	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}

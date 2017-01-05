@@ -579,7 +579,7 @@ export class MainThreadEditorsTracker {
 	}
 
 	private _findVisibleTextEditorIds(): string[] {
-		let result = [];
+		let result: string[] = [];
 		let modelUris = Object.keys(this._model2TextEditors);
 		for (let i = 0, len = modelUris.length; i < len; i++) {
 			let editors = this._model2TextEditors[modelUris[i]];

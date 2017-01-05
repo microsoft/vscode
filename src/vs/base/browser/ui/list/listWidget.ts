@@ -65,7 +65,7 @@ class Trait<T> implements IDisposable {
 	splice(start: number, deleteCount: number, insertCount: number): void {
 		const diff = insertCount - deleteCount;
 		const end = start + deleteCount;
-		const indexes = [];
+		const indexes: number[] = [];
 
 		for (let index of indexes) {
 			if (index >= start && index < end) {
@@ -110,13 +110,13 @@ class Trait<T> implements IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	constructor(private getElementId: (number) => string) {
+	constructor(private getElementId: (number: number) => string) {
 		super('focused');
 	}
 
 	renderElement(element: T, index: number, container: HTMLElement): void {
 		super.renderElement(element, index, container);
-		container.setAttribute('role', 'option');
+		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getElementId(index));
 	}
 }
@@ -201,6 +201,7 @@ class Controller<T> implements IDisposable {
 }
 
 export interface IListOptions extends IListViewOptions {
+	ariaLabel?: string;
 }
 
 const DefaultOptions: IListOptions = {};
@@ -245,13 +246,17 @@ export class List<T> implements IDisposable {
 		});
 
 		this.view = new ListView(container, delegate, renderers, options);
-		this.view.domNode.setAttribute('role', 'listbox');
+		this.view.domNode.setAttribute('role', 'tree');
 		this.view.domNode.tabIndex = 0;
 		this.controller = new Controller(this, this.view);
 		this.disposables = [this.focus, this.selection, this.view, this.controller];
 
 		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
+
+		if (options.ariaLabel) {
+			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
+		}
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
@@ -418,7 +423,16 @@ export class List<T> implements IDisposable {
 	}
 
 	private _onFocusChange(): void {
-		DOM.toggleClass(this.view.domNode, 'element-focused', this.focus.get().length > 0);
+		const focus = this.focus.get();
+
+		if (focus.length > 0) {
+			this.view.domNode.setAttribute('aria-activedescendant', this.getElementId(focus[0]));
+		} else {
+			this.view.domNode.removeAttribute('aria-activedescendant');
+		}
+
+		this.view.domNode.setAttribute('role', 'tree');
+		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
 	}
 
 	dispose(): void {

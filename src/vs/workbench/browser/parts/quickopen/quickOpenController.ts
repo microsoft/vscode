@@ -342,9 +342,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 				// Model
 				const model = new QuickOpenModel();
-				const entries = picks.map(e => this.instantiationService.createInstance(PickOpenEntry, e, () => progress(e)));
+				const entries = picks.map((e, index) => this.instantiationService.createInstance(PickOpenEntry, e, index, () => progress(e)));
 				if (picks.length === 0) {
-					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, null));
+					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, 0, null));
 				}
 
 				model.setEntries(entries);
@@ -413,6 +413,15 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 								}
 							});
 						}
+
+						// Sort by value
+						model.entries.sort((pickA: PickOpenEntry, pickB: PickOpenEntry) => {
+							if (!value) {
+								return pickA.index - pickB.index; // restore natural order
+							}
+
+							return QuickOpenEntry.compare(pickA, pickB, value);
+						});
 
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
 					},
@@ -1001,6 +1010,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	constructor(
 		item: IPickOpenEntry,
+		private _index: number,
 		private onPreview: () => void,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService
@@ -1016,6 +1026,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
 		this.isFolder = fileItem.isFolder;
+	}
+
+	public get index(): number {
+		return this._index;
 	}
 
 	public getLabelOptions(): IIconLabelOptions {

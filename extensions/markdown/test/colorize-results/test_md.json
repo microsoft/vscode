@@ -1584,8 +1584,8 @@
 		}
 	},
 	{
-		"c": "````application/json",
-		"t": "markdown.meta.paragraph",
+		"c": "````",
+		"t": "block.definition.fenced_code.markdown.markup.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1595,8 +1595,19 @@
 		}
 	},
 	{
+		"c": "application/json",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"light_vs": ".vs .token rgb(0, 0, 0)"
+		},
+		"t": "block.fenced_code.language.markdown.markup"
+	},
+	{
 		"c": "  { value: [\"or with a mime type\"] }",
-		"t": "markdown.meta.paragraph",
+		"t": "block.fenced_code.markdown.markup",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1607,7 +1618,7 @@
 	},
 	{
 		"c": "````",
-		"t": "markdown.meta.paragraph",
+		"t": "block.definition.fenced_code.markdown.markup.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1827,7 +1838,7 @@
 	},
 	{
 		"c": "~~~",
-		"t": "markdown.meta.paragraph",
+		"t": "block.definition.fenced_code.markdown.markup.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1838,7 +1849,7 @@
 	},
 	{
 		"c": "// Markdown extra adds un-indented code blocks too",
-		"t": "markdown.meta.paragraph",
+		"t": "block.fenced_code.markdown.markup",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1848,74 +1859,8 @@
 		}
 	},
 	{
-		"c": "if (this",
-		"t": "markdown.meta.paragraph",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "_",
-		"t": "definition.italic.markdown.markup.meta.paragraph.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.italic rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.italic rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.italic rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.italic rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.italic rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "is",
-		"t": "italic.markdown.markup.meta.paragraph",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.italic rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.italic rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.italic rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.italic rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.italic rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "_",
-		"t": "definition.italic.markdown.markup.meta.paragraph.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.italic rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.italic rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.italic rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.italic rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.italic rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "more_code == true ",
-		"t": "markdown.meta.paragraph",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "&&",
-		"t": "markdown.meta.other.paragraph.valid-ampersand",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " !indented) {",
-		"t": "markdown.meta.paragraph",
+		"c": "if (this_is_more_code == true && !indented) {",
+		"t": "block.fenced_code.markdown.markup",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1926,7 +1871,7 @@
 	},
 	{
 		"c": "    // tild wrapped code blocks, also not indented",
-		"t": "markdown.meta.paragraph",
+		"t": "block.fenced_code.markdown.markup",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1937,7 +1882,7 @@
 	},
 	{
 		"c": "}",
-		"t": "markdown.meta.paragraph",
+		"t": "block.fenced_code.markdown.markup",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1948,7 +1893,7 @@
 	},
 	{
 		"c": "~~~",
-		"t": "markdown.meta.paragraph",
+		"t": "block.definition.fenced_code.markdown.markup.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",

@@ -12,6 +12,5 @@
 	"debugServer": "仅用于调试扩展开发: 如果已指定端口，VS 代码会尝试连接到在服务器模式中运行的调试适配器",
 	"debugType": "配置类型。",
 	"debugWindowsConfiguration": "特定于 Windows 的启动配置属性。",
-	"internalConsoleOptions": "内部调试控制台的控制行为。",
-	"relativePathsNotConverted": "相对路径不再自动转换为绝对路径。请考虑使用 ${workspaceRoot} 作为前缀。"
+	"internalConsoleOptions": "内部调试控制台的控制行为。"
 }

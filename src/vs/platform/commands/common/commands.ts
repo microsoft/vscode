@@ -51,7 +51,7 @@ function isCommand(thing: any): thing is ICommand {
 
 export const CommandsRegistry: ICommandRegistry = new class implements ICommandRegistry {
 
-	private _commands: { [id: string]: ICommand | ICommand[] } = Object.create(null);
+	private _commands = new Map<string, ICommand | ICommand[]>();
 
 	registerCommand(id: string, commandOrDesc: ICommandHandler | ICommand): IDisposable {
 
@@ -86,18 +86,18 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		}
 
 		// find a place to store the command
-		const commandOrArray = this._commands[id];
+		const commandOrArray = this._commands.get(id);
 		if (commandOrArray === void 0) {
-			this._commands[id] = command;
+			this._commands.set(id, command);
 		} else if (Array.isArray(commandOrArray)) {
 			commandOrArray.unshift(command);
 		} else {
-			this._commands[id] = [command, commandOrArray];
+			this._commands.set(id, [command, commandOrArray]);
 		}
 
 		return {
 			dispose: () => {
-				const commandOrArray = this._commands[id];
+				const commandOrArray = this._commands.get(id);
 				if (Array.isArray(commandOrArray)) {
 					// remove from array, remove array
 					// if last element removed
@@ -105,19 +105,19 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 					if (idx >= 0) {
 						commandOrArray.splice(idx, 1);
 						if (commandOrArray.length === 0) {
-							delete this._commands[id];
+							this._commands.delete(id);
 						}
 					}
 				} else if (isCommand(commandOrArray)) {
 					// remove from map
-					delete this._commands[id];
+					this._commands.delete(id);
 				}
 			}
 		};
 	}
 
 	getCommand(id: string): ICommand {
-		const commandOrArray = this._commands[id];
+		const commandOrArray = this._commands.get(id);
 		if (Array.isArray(commandOrArray)) {
 			return commandOrArray[0];
 		} else {
@@ -127,9 +127,9 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 	getCommands(): ICommandsMap {
 		const result: ICommandsMap = Object.create(null);
-		for (let id in this._commands) {
-			result[id] = this.getCommand(id);
-		}
+		this._commands.forEach((value, key) => {
+			result[key] = this.getCommand(key);
+		});
 		return result;
 	}
 };
