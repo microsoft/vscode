@@ -88,7 +88,7 @@ class InsertSnippetAction extends EditorAction {
 
 			let languageId: LanguageId;
 			if (langId) {
-				languageId = modeService.getLanguageIdentifier(langId).iid;
+				languageId = modeService.getLanguageIdentifier(langId).id;
 			} else {
 				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
 			}

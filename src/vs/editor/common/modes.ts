@@ -17,6 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import Event, { Emitter } from 'vs/base/common/event';
 
 /**
+ * Open ended enum at runtime
  * @internal
  */
 export const enum LanguageId {
@@ -28,12 +29,12 @@ export const enum LanguageId {
  * @internal
  */
 export class LanguageIdentifier {
-	public readonly sid: string;
-	public readonly iid: LanguageId;
+	public readonly language: string;
+	public readonly id: LanguageId;
 
 	constructor(sid: string, iid: LanguageId) {
-		this.sid = sid;
-		this.iid = iid;
+		this.language = sid;
+		this.id = iid;
 	}
 }
 
@@ -69,6 +70,7 @@ export const enum FontStyle {
 }
 
 /**
+ * Open ended enum at runtime
  * @internal
  */
 export const enum ColorId {
@@ -824,7 +826,7 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export interface ITokenizationSupportChangedEvent {
-	languageIds: string[];
+	languages: string[];
 }
 
 /**
@@ -832,7 +834,7 @@ export interface ITokenizationSupportChangedEvent {
  */
 export class TokenizationRegistryImpl {
 
-	private _map: { [languageId: string]: ITokenizationSupport };
+	private _map: { [language: string]: ITokenizationSupport };
 
 	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
 	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
@@ -848,26 +850,26 @@ export class TokenizationRegistryImpl {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	public fire(languageIds: string[]): void {
-		this._onDidChange.fire({ languageIds: languageIds });
+	public fire(languages: string[]): void {
+		this._onDidChange.fire({ languages: languages });
 	}
 
-	public register(languageId: string, support: ITokenizationSupport): IDisposable {
-		this._map[languageId] = support;
-		this.fire([languageId]);
+	public register(language: string, support: ITokenizationSupport): IDisposable {
+		this._map[language] = support;
+		this.fire([language]);
 		return {
 			dispose: () => {
-				if (this._map[languageId] !== support) {
+				if (this._map[language] !== support) {
 					return;
 				}
-				delete this._map[languageId];
-				this.fire([languageId]);
+				delete this._map[language];
+				this.fire([language]);
 			}
 		};
 	}
 
-	public get(languageId: string): ITokenizationSupport {
-		return (this._map[languageId] || null);
+	public get(language: string): ITokenizationSupport {
+		return (this._map[language] || null);
 	}
 
 	public setColorMap(colorMap: string[]): void {

@@ -269,7 +269,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 			let language = embeddedLanguages[scope];
 			let languageIdentifier = this._modeService.getLanguageIdentifier(language);
 			if (languageIdentifier) {
-				result[scope] = languageIdentifier.iid;
+				result[scope] = languageIdentifier.id;
 			}
 		}
 		return result;
@@ -279,7 +279,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		let scopeName = this._languageToScope[modeId];
 		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
-		let languageId = this._modeService.getLanguageIdentifier(modeId).iid;
+		let languageId = this._modeService.getLanguageIdentifier(modeId).id;
 
 		return new TPromise<IGrammar>((c, e, p) => {
 			this._grammarRegistry.loadGrammarWithEmbeddedLanguages(scopeName, languageId, embeddedLanguages, (err, grammar) => {

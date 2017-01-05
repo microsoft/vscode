@@ -31,7 +31,7 @@ class Mode implements IMode {
 	}
 
 	getId(): string {
-		return this._languageIdentifier.sid;
+		return this._languageIdentifier.language;
 	}
 
 	getLanguageIdentifier(): LanguageIdentifier {
@@ -95,7 +95,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 		this._tokenizationListener = TokenizationRegistry.onDidChange((e) => {
-			if (e.languageIds.indexOf(this._languageIdentifier.sid) === -1) {
+			if (e.languages.indexOf(this._languageIdentifier.language) === -1) {
 				return;
 			}
 
@@ -139,7 +139,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._tokenizationSupport = null;
 		if (!this.isTooLargeForHavingAMode()) {
-			this._tokenizationSupport = TokenizationRegistry.get(this._languageIdentifier.sid);
+			this._tokenizationSupport = TokenizationRegistry.get(this._languageIdentifier.language);
 		}
 
 		if (this._tokenizationSupport) {
@@ -200,7 +200,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _getLineTokens(lineNumber: number): LineTokens {
-		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.iid, this._colorMap);
+		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.id, this._colorMap);
 	}
 
 	public getMode(): IMode {
@@ -216,7 +216,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public setMode(languageIdentifier: LanguageIdentifier): void {
-		if (this._languageIdentifier.iid === languageIdentifier.iid) {
+		if (this._languageIdentifier.id === languageIdentifier.id) {
 			// There's nothing to do
 			return;
 		}
@@ -242,7 +242,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	public getLanguageIdAtPosition(_lineNumber: number, _column: number): LanguageId {
 		if (!this._tokenizationSupport) {
-			return this._languageIdentifier.iid;
+			return this._languageIdentifier.id;
 		}
 		let { lineNumber, column } = this.validatePosition({ lineNumber: _lineNumber, column: _column });
 
@@ -376,9 +376,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			if (!r) {
-				r = nullTokenize3(this._languageIdentifier.iid, text, this._lines[lineIndex].getState(), 0);
+				r = nullTokenize3(this._languageIdentifier.id, text, this._lines[lineIndex].getState(), 0);
 			}
-			this._lines[lineIndex].setTokens(this._languageIdentifier.iid, r.tokens);
+			this._lines[lineIndex].setTokens(this._languageIdentifier.id, r.tokens);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
 			this._lines[lineIndex].isInvalid = false;
 
@@ -436,7 +436,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			// this line is not tokenized
 			return getWordAtText(
 				position.column,
-				LanguageConfigurationRegistry.getWordDefinition(this._languageIdentifier.iid),
+				LanguageConfigurationRegistry.getWordDefinition(this._languageIdentifier.id),
 				lineContent,
 				0
 			);
@@ -622,7 +622,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _findMatchingBracketUp(bracket: RichEditBracket, position: Position): Range {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-		const languageId = bracket.languageIdentifier.iid;
+		const languageId = bracket.languageIdentifier.id;
 		const reversedBracketRegex = bracket.reversedRegex;
 		let count = -1;
 
@@ -681,7 +681,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _findMatchingBracketDown(bracket: RichEditBracket, position: Position): Range {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-		const languageId = bracket.languageIdentifier.iid;
+		const languageId = bracket.languageIdentifier.id;
 		const bracketRegex = bracket.forwardRegex;
 		let count = 1;
 

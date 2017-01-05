@@ -50,9 +50,9 @@ class SnippetsRegistry implements ISnippetsRegistry {
 	private _snippets: { [owner: string]: ISnippet[] }[] = [];
 
 	public registerSnippets(languageIdentifier: LanguageIdentifier, snippets: ISnippet[], owner = ''): void {
-		let snippetsByMode = this._snippets[languageIdentifier.iid];
+		let snippetsByMode = this._snippets[languageIdentifier.id];
 		if (!snippetsByMode) {
-			this._snippets[languageIdentifier.iid] = snippetsByMode = {};
+			this._snippets[languageIdentifier.id] = snippetsByMode = {};
 		}
 		snippetsByMode[owner] = snippets;
 	}

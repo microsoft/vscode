@@ -15,7 +15,7 @@ export class FrankensteinMode implements IMode {
 	}
 
 	public getId(): string {
-		return this._languageIdentifier.sid;
+		return this._languageIdentifier.language;
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {

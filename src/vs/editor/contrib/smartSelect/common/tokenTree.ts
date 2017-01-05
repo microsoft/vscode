@@ -253,7 +253,7 @@ class TokenScanner {
 				this._nextBuff.push(new Token(
 					new Range(lineNumber, foundBracketStartOffset + 1, lineNumber, foundBracketEndOffset + 1),
 					bracketIsOpen ? TokenTreeBracket.Open : TokenTreeBracket.Close,
-					`${bracketData.languageIdentifier.sid};${bracketData.open};${bracketData.close}`
+					`${bracketData.languageIdentifier.language};${bracketData.open};${bracketData.close}`
 				));
 
 				startOffset = foundBracketEndOffset;
