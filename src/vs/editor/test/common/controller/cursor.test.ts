@@ -17,7 +17,7 @@ import {
 	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -1146,6 +1146,16 @@ class OnEnterMode extends MockMode {
 					outdentCurrentLine: outdentCurrentLine
 				}
 			}]
+		}));
+	}
+}
+
+class OnTabMode extends MockMode {
+	private static _id = new LanguageIdentifier('onTabMode', 4);
+	constructor(indentationRules: IndentationRule) {
+		super(OnTabMode._id);
+		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+			indentationRules: indentationRules
 		}));
 	}
 }
