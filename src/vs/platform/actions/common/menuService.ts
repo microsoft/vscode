@@ -50,7 +50,7 @@ class Menu implements IMenu {
 		this._extensionService.onReady().then(_ => {
 
 			const menuItems = MenuRegistry.getMenuItems(id);
-			const keysFilter: { [key: string]: boolean } = Object.create(null);
+			const keysFilter = new Set<string>();
 
 			let group: MenuItemGroup;
 			menuItems.sort(Menu._compareMenuItems);
@@ -71,7 +71,7 @@ class Menu implements IMenu {
 			// subscribe to context changes
 			this._disposables.push(this._contextKeyService.onDidChangeContext(keys => {
 				for (let k of keys) {
-					if (keysFilter[k]) {
+					if (keysFilter.has(k)) {
 						this._onDidChange.fire();
 						return;
 					}
@@ -110,10 +110,10 @@ class Menu implements IMenu {
 		return result;
 	}
 
-	private static _fillInKbExprKeys(exp: ContextKeyExpr, set: { [k: string]: boolean }): void {
+	private static _fillInKbExprKeys(exp: ContextKeyExpr, set: Set<string>): void {
 		if (exp) {
 			for (let key of exp.keys()) {
-				set[key] = true;
+				set.add(key);
 			}
 		}
 	}

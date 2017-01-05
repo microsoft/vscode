@@ -20,6 +20,8 @@ import { IPreferencesService, CONTEXT_DEFAULT_SETTINGS_EDITOR, DEFAULT_EDITOR_CO
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { PreferencesContentProvider } from 'vs/workbench/parts/preferences/common/preferencesContentProvider';
 
 registerSingleton(IPreferencesService, PreferencesService);
 
@@ -78,3 +80,5 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR),
 	group: 'navigation'
 });
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContentProvider);

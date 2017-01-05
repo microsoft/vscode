@@ -410,7 +410,7 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
+				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick || event.payload.focusEditor;
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
@@ -447,6 +447,57 @@ export class SearchViewlet extends Viewlet {
 				}
 			}
 		}
+	}
+
+	public selectNextResult(): void {
+		const eventPayload = { focusEditor: true };
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+		let next = navigator.next();
+
+		if (!next) {
+			return;
+		}
+
+		// Expand and go past FileMatch nodes
+		if (!(next instanceof Match)) {
+			if (!this.tree.isExpanded(next)) {
+				this.tree.expand(next);
+			}
+
+			// Select the FileMatch's first child
+			next = navigator.next();
+		}
+
+		// Reveal the newly selected element
+		this.tree.setSelection([next], eventPayload);
+		this.tree.reveal(next);
+	}
+
+	public selectPreviousResult(): void {
+		const eventPayload = { focusEditor: true };
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+
+		let prev = navigator.previous();
+		if (!prev) {
+			return;
+		}
+
+		// Expand and go past FileMatch nodes
+		if (!(prev instanceof Match)) {
+			prev = navigator.previous();
+			if (!(prev instanceof Match)) {
+				// There is a second non-Match result, which must be a collapsed FileMatch.
+				// Expand it then select its last child.
+				navigator.next();
+				this.tree.expand(prev);
+				prev = navigator.previous();
+			}
+		}
+
+		// Reveal the newly selected element
+		this.tree.setSelection([prev], eventPayload);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {

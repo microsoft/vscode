@@ -89,5 +89,5 @@ const schema: IJSONSchema =
 		}
 	};
 
-const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

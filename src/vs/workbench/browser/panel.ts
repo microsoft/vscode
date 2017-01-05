@@ -44,7 +44,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 * Returns an array of registered panels known to the platform.
 	 */
 	public getPanels(): PanelDescriptor[] {
-		return this.getComposits();
+		return this.getComposites();
 	}
 
 	/**
@@ -92,13 +92,14 @@ export abstract class TogglePanelAction extends Action {
 	}
 
 	private isPanelShowing(): boolean {
-		let panel = this.panelService.getActivePanel();
+		const panel = this.panelService.getActivePanel();
+
 		return panel && panel.getId() === this.panelId;
 	}
 
 	protected isPanelFocussed(): boolean {
-		let activePanel = this.panelService.getActivePanel();
-		let activeElement = document.activeElement;
+		const activePanel = this.panelService.getActivePanel();
+		const activeElement = document.activeElement;
 
 		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer().getHTMLElement());
 	}

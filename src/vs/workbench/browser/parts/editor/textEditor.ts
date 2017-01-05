@@ -15,15 +15,12 @@ import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
@@ -51,11 +48,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IStorageService private _storageService: IStorageService,
-		@IMessageService private _messageService: IMessageService,
+		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IThemeService private themeService: IThemeService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
@@ -65,28 +59,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.toUnbind.push(themeService.onDidColorThemeChange(_ => this.handleConfigurationChangeEvent()));
 	}
 
-	public get instantiationService(): IInstantiationService {
+	protected get instantiationService(): IInstantiationService {
 		return this._instantiationService;
-	}
-
-	public get contextService(): IWorkspaceContextService {
-		return this._contextService;
-	}
-
-	public get storageService(): IStorageService {
-		return this._storageService;
-	}
-
-	public get messageService() {
-		return this._messageService;
-	}
-
-	public get editorService() {
-		return this._editorService;
-	}
-
-	public get editorContainer(): Builder {
-		return this._editorContainer;
 	}
 
 	private handleConfigurationChangeEvent(configuration?: any): void {

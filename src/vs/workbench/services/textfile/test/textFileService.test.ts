@@ -163,7 +163,7 @@ suite('Files - TextFileService', () => {
 			return untitled.resolve().then((model: UntitledEditorModel) => {
 				assert.ok(!service.isDirty(untitled.getResource()));
 				assert.equal(service.getDirty().length, 1);
-				model.setValue('changed');
+				model.textEditorModel.setValue('changed');
 
 				assert.ok(service.isDirty(untitled.getResource()));
 				assert.equal(service.getDirty().length, 2);

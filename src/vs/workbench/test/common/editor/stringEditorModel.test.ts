@@ -16,7 +16,6 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 
 suite('Workbench - StringEditorModel', () => {
-
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
@@ -26,11 +25,11 @@ suite('Workbench - StringEditorModel', () => {
 
 	test('StringEditorModel', function (done) {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
-		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
+		const m: StringEditorModel = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
 
-			let textEditorModel = m.textEditorModel;
+			const textEditorModel = m.textEditorModel;
 			assert.strictEqual(textEditorModel.getValue(), 'value');
 
 			assert.strictEqual(m.isResolved(), true);
@@ -46,36 +45,22 @@ suite('Workbench - StringEditorModel', () => {
 		});
 	});
 
-	test('StringEditorModel - setValue, clearValue, append, trim', function (done) {
+	test('StringEditorModel - setValue', function (done) {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
-		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
+		const m: StringEditorModel = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
 
-			let textEditorModel = m.textEditorModel;
+			const textEditorModel = m.textEditorModel;
 			assert.strictEqual(textEditorModel.getValue(), 'value');
 
 			m.setValue('foobar');
 			assert.strictEqual(m.getValue(), 'foobar');
 			assert.strictEqual(textEditorModel.getValue(), 'foobar');
 
-			m.clearValue();
+			m.setValue('');
 			assert(!m.getValue());
 			assert(!textEditorModel.getValue());
-
-			m.append('1');
-			assert.strictEqual(m.getValue(), '1');
-			assert.strictEqual(textEditorModel.getValue(), '1');
-
-			m.append('1');
-			assert.strictEqual(m.getValue(), '11');
-			assert.strictEqual(textEditorModel.getValue(), '11');
-
-			m.setValue('line\nline\nline');
-			m.trim(2);
-
-			assert.strictEqual(m.getValue(), 'line\nline');
-			assert.strictEqual(textEditorModel.getValue(), 'line\nline');
 		}).done(() => {
 			m.dispose();
 			done();
@@ -84,6 +69,7 @@ suite('Workbench - StringEditorModel', () => {
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

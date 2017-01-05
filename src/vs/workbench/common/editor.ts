@@ -16,6 +16,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
 export enum ConfirmResult {
 	SAVE,
