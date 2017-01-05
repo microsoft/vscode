@@ -56,11 +56,7 @@ class ThemeDocument {
 	}
 
 	private _generateExplanation(selector: string, color: string): string {
-		let r = parseInt(color.substr(1, 2), 16);
-		let g = parseInt(color.substr(3, 2), 16);
-		let b = parseInt(color.substr(5, 2), 16);
-		let _color = `rgb(${r}, ${g}, ${b})`;
-		return `${selector}: ${_color}`;
+		return `${selector}: ${color}`;
 	}
 
 	public explainTokenColor(scopes: string, color: string): string {

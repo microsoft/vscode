@@ -3,22 +3,22 @@
 		"c": ".ssdsd",
 		"t": "text.jade constant.language.js",
 		"r": {
-			"dark_plus": "constant.language: rgb(86, 156, 214)",
-			"light_plus": "constant.language: rgb(0, 0, 255)",
-			"dark_vs": "constant.language: rgb(86, 156, 214)",
-			"light_vs": "constant.language: rgb(0, 0, 255)",
-			"hc_black": "constant.language: rgb(86, 156, 214)"
+			"dark_plus": "constant.language: #569CD6",
+			"light_plus": "constant.language: #0000FF",
+			"dark_vs": "constant.language: #569CD6",
+			"light_vs": "constant.language: #0000FF",
+			"hc_black": "constant.language: #569CD6"
 		}
 	},
 	{
 		"c": "    // asdsdas",
 		"t": "text.jade string.comment.buffered.block.jade",
 		"r": {
-			"dark_plus": "string: rgb(206, 145, 120)",
-			"light_plus": "string.comment.buffered.block.jade: rgb(0, 0, 255)",
-			"dark_vs": "string: rgb(206, 145, 120)",
-			"light_vs": "string.comment.buffered.block.jade: rgb(0, 0, 255)",
-			"hc_black": "string: rgb(206, 145, 120)"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string.comment.buffered.block.jade: #0000FF",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string.comment.buffered.block.jade: #0000FF",
+			"hc_black": "string: #CE9178"
 		}
 	}
 ]

@@ -3,451 +3,451 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: rgb(215, 186, 125)",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: rgb(128, 0, 0)",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: rgb(215, 186, 125)",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: rgb(128, 0, 0)",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: rgb(215, 186, 125)"
+			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D"
 		}
 	},
 	{
 		"c": "root",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: rgb(215, 186, 125)",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: rgb(128, 0, 0)",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: rgb(215, 186, 125)",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: rgb(128, 0, 0)",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: rgb(215, 186, 125)"
+			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D"
 		}
 	},
 	{
 		"c": " ",
 		"t": "source.css meta.selector.css",
 		"r": {
-			"dark_plus": "meta.selector: rgb(215, 186, 125)",
-			"light_plus": "meta.selector: rgb(128, 0, 0)",
-			"dark_vs": "meta.selector: rgb(215, 186, 125)",
-			"light_vs": "meta.selector: rgb(128, 0, 0)",
-			"hc_black": "meta.selector: rgb(215, 186, 125)"
+			"dark_plus": "meta.selector: #D7BA7D",
+			"light_plus": "meta.selector: #800000",
+			"dark_vs": "meta.selector: #D7BA7D",
+			"light_vs": "meta.selector: #800000",
+			"hc_black": "meta.selector: #D7BA7D"
 		}
 	},
 	{
 		"c": "{",
 		"t": "source.css meta.property-list.css punctuation.section.property-list.begin.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "--spacing-unit",
 		"t": "source.css meta.property-list.css meta.property-name.css support.type.property-name.variable.css",
 		"r": {
-			"dark_plus": "support.type.property-name: rgb(156, 220, 254)",
-			"light_plus": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"dark_vs": "support.type.property-name: rgb(156, 220, 254)",
-			"light_vs": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"hc_black": "support.type.property-name: rgb(212, 212, 212)"
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.variable.css: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.variable.css: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ":",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.separator.key-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "6",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.numeric.css",
 		"r": {
-			"dark_plus": "constant.numeric: rgb(181, 206, 168)",
-			"light_plus": "constant.numeric: rgb(9, 136, 90)",
-			"dark_vs": "constant.numeric: rgb(181, 206, 168)",
-			"light_vs": "constant.numeric: rgb(9, 136, 90)",
-			"hc_black": "constant.numeric: rgb(181, 206, 168)"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
 		"c": "px",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.css",
 		"r": {
-			"dark_plus": "keyword.other.unit: rgb(181, 206, 168)",
-			"light_plus": "keyword.other.unit: rgb(9, 136, 90)",
-			"dark_vs": "keyword.other.unit: rgb(181, 206, 168)",
-			"light_vs": "keyword.other.unit: rgb(9, 136, 90)",
-			"hc_black": "keyword.other.unit: rgb(181, 206, 168)"
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #09885A",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #09885A",
+			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
 	{
 		"c": ";",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.terminator.rule.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "--cell-padding",
 		"t": "source.css meta.property-list.css meta.property-name.css support.type.property-name.variable.css",
 		"r": {
-			"dark_plus": "support.type.property-name: rgb(156, 220, 254)",
-			"light_plus": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"dark_vs": "support.type.property-name: rgb(156, 220, 254)",
-			"light_vs": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"hc_black": "support.type.property-name: rgb(212, 212, 212)"
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.variable.css: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.variable.css: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ":",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.separator.key-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " (",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "4",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.numeric.css",
 		"r": {
-			"dark_plus": "constant.numeric: rgb(181, 206, 168)",
-			"light_plus": "constant.numeric: rgb(9, 136, 90)",
-			"dark_vs": "constant.numeric: rgb(181, 206, 168)",
-			"light_vs": "constant.numeric: rgb(9, 136, 90)",
-			"hc_black": "constant.numeric: rgb(181, 206, 168)"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
 		"c": " * ",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "var",
 		"t": "source.css meta.property-list.css meta.property-value.css support.function.misc.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: rgb(206, 145, 120)",
-			"light_plus": "meta.property-value.css support.function: rgb(4, 81, 165)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "meta.property-value.css support: rgb(4, 81, 165)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "meta.property-value.css support.function: #CE9178",
+			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "meta.property-value.css support: #0451A5",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.section.function.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "--spacing-unit",
 		"t": "source.css meta.property-list.css meta.property-value.css support.type.property-name.variable.css",
 		"r": {
-			"dark_plus": "support.type.property-name: rgb(156, 220, 254)",
-			"light_plus": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"dark_vs": "support.type.property-name: rgb(156, 220, 254)",
-			"light_vs": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"hc_black": "support.type.property-name: rgb(212, 212, 212)"
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.variable.css: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.variable.css: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ")",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.section.function.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.terminator.rule.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "source.css meta.property-list.css punctuation.section.property-list.end.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "body",
 		"t": "source.css meta.selector.css entity.name.tag.css",
 		"r": {
-			"dark_plus": "entity.name.tag.css: rgb(215, 186, 125)",
-			"light_plus": "entity.name.tag: rgb(128, 0, 0)",
-			"dark_vs": "entity.name.tag.css: rgb(215, 186, 125)",
-			"light_vs": "entity.name.tag: rgb(128, 0, 0)",
-			"hc_black": "entity.name.tag.css: rgb(215, 186, 125)"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
 		"c": " ",
 		"t": "source.css meta.selector.css",
 		"r": {
-			"dark_plus": "meta.selector: rgb(215, 186, 125)",
-			"light_plus": "meta.selector: rgb(128, 0, 0)",
-			"dark_vs": "meta.selector: rgb(215, 186, 125)",
-			"light_vs": "meta.selector: rgb(128, 0, 0)",
-			"hc_black": "meta.selector: rgb(215, 186, 125)"
+			"dark_plus": "meta.selector: #D7BA7D",
+			"light_plus": "meta.selector: #800000",
+			"dark_vs": "meta.selector: #D7BA7D",
+			"light_vs": "meta.selector: #800000",
+			"hc_black": "meta.selector: #D7BA7D"
 		}
 	},
 	{
 		"c": "{",
 		"t": "source.css meta.property-list.css punctuation.section.property-list.begin.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "padding-left",
 		"t": "source.css meta.property-list.css meta.property-name.css support.type.property-name.css",
 		"r": {
-			"dark_plus": "support.type.property-name: rgb(156, 220, 254)",
-			"light_plus": "support.type.property-name.css: rgb(255, 0, 0)",
-			"dark_vs": "support.type.property-name: rgb(156, 220, 254)",
-			"light_vs": "support.type.property-name.css: rgb(255, 0, 0)",
-			"hc_black": "support.type.property-name: rgb(212, 212, 212)"
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.css: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.css: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ":",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.separator.key-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " calc(",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "4",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.numeric.css",
 		"r": {
-			"dark_plus": "constant.numeric: rgb(181, 206, 168)",
-			"light_plus": "constant.numeric: rgb(9, 136, 90)",
-			"dark_vs": "constant.numeric: rgb(181, 206, 168)",
-			"light_vs": "constant.numeric: rgb(9, 136, 90)",
-			"hc_black": "constant.numeric: rgb(181, 206, 168)"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
 		"c": " * ",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "var",
 		"t": "source.css meta.property-list.css meta.property-value.css support.function.misc.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: rgb(206, 145, 120)",
-			"light_plus": "meta.property-value.css support.function: rgb(4, 81, 165)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "meta.property-value.css support: rgb(4, 81, 165)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "meta.property-value.css support.function: #CE9178",
+			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "meta.property-value.css support: #0451A5",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.section.function.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "--spacing-unit",
 		"t": "source.css meta.property-list.css meta.property-value.css support.type.property-name.variable.css",
 		"r": {
-			"dark_plus": "support.type.property-name: rgb(156, 220, 254)",
-			"light_plus": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"dark_vs": "support.type.property-name: rgb(156, 220, 254)",
-			"light_vs": "support.type.property-name.variable.css: rgb(255, 0, 0)",
-			"hc_black": "support.type.property-name: rgb(212, 212, 212)"
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.variable.css: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.variable.css: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ", 5px",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.section.function.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "source.css meta.property-list.css meta.property-value.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "source.css meta.property-list.css meta.property-value.css punctuation.terminator.rule.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "source.css meta.property-list.css punctuation.section.property-list.end.css",
 		"r": {
-			"dark_plus": "default: rgb(212, 212, 212)",
-			"light_plus": "default: rgb(0, 0, 0)",
-			"dark_vs": "default: rgb(212, 212, 212)",
-			"light_vs": "default: rgb(0, 0, 0)",
-			"hc_black": "default: rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	}
 ]
