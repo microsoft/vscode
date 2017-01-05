@@ -217,22 +217,22 @@ function format(text:string): string {
 
 	function getDefaultOptions(): ts.FormatCodeOptions {
 		return {
-			IndentSize: 4,
-			TabSize: 4,
-			NewLineCharacter: '\r\n',
-			ConvertTabsToSpaces: true,
-			IndentStyle: ts.IndentStyle.Block,
+			indentSize: 4,
+			tabSize: 4,
+			newLineCharacter: '\r\n',
+			convertTabsToSpaces: true,
+			indentStyle: ts.IndentStyle.Block,
 
-			InsertSpaceAfterCommaDelimiter: true,
-			InsertSpaceAfterSemicolonInForStatements: true,
-			InsertSpaceBeforeAndAfterBinaryOperators: true,
-			InsertSpaceAfterKeywordsInControlFlowStatements: true,
-			InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
-			InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
-			InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
-			InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
-			PlaceOpenBraceOnNewLineForFunctions: false,
-			PlaceOpenBraceOnNewLineForControlBlocks: false,
+			insertSpaceAfterCommaDelimiter: true,
+			insertSpaceAfterSemicolonInForStatements: true,
+			insertSpaceBeforeAndAfterBinaryOperators: true,
+			insertSpaceAfterKeywordsInControlFlowStatements: true,
+			insertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
+			placeOpenBraceOnNewLineForFunctions: false,
+			placeOpenBraceOnNewLineForControlBlocks: false,
 		};
 	}
 }

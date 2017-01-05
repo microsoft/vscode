@@ -119,7 +119,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
 		if (this.typingsStatus.isAcquiringTypings) {
-			return Promise.reject({
+			return Promise.reject<CompletionItem[]>({
 				label: localize('acquiringTypingsLabel', 'Acquiring typings...'),
 				detail: localize('acquiringTypingsDetail', 'Acquiring typings definitions for IntelliSense.')
 			});

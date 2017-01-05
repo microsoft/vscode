@@ -46,7 +46,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Thenable<Command[]> {
 		const file = this.client.asAbsolutePath(document.uri);
 		if (!file) {
-			return Promise.resolve(null);
+			return Promise.resolve<Command[]>([]);
 		}
 
 		const source: Source = {
@@ -99,7 +99,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	private onCodeAction(source: Source, workspaceEdit: WorkspaceEdit) {
 		workspace.applyEdit(workspaceEdit).then(success => {
 			if (!success) {
-				return Promise.reject(null);
+				return Promise.reject<boolean>(false);
 			}
 			// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
 			// apply formatting to the source range until TS returns formatted results
