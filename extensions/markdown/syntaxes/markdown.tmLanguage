@@ -355,7 +355,7 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(^|\G)\s*(?=(&lt;[a-zA-Z0-9\-].*&gt;|&lt;/[a-zA-Z0-9\-]&gt;)\s*$)</string>
+							<string>(^|\G)\s*(?=(&lt;[a-zA-Z0-9\-](/?&gt;|\s.*?&gt;)|&lt;/[a-zA-Z0-9\-]&gt;)\s*$)</string>
 							<key>patterns</key>
 							<array>
 								<dict>
