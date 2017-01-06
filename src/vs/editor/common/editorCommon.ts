@@ -10,7 +10,7 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { IMode, LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
+import { LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -2168,7 +2168,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * An event emitted when the language associated with the model has changed.
 	 * @event
 	 */
-	onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event
@@ -2218,17 +2218,15 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 /**
  * An event describing that the current mode associated with a model has changed.
  */
-export interface IModelModeChangedEvent {
+export interface IModelLanguageChangedEvent {
 	/**
-	 * Previous mode
-	 * TODO@tokenization
+	 * Previous language
 	 */
-	readonly oldMode: IMode;
+	readonly oldLanguageIdentifier: LanguageIdentifier;
 	/**
-	 * New mode
-	 * TODO@tokenization
+	 * New language
 	 */
-	readonly newMode: IMode;
+	readonly newLanguageIdentifier: LanguageIdentifier;
 }
 
 /**
@@ -3423,7 +3421,7 @@ export interface IEditor {
 	 * An event emitted when the language of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the options of the current model has changed.
 	 * @event
@@ -4102,7 +4100,7 @@ export var EventType = {
 	ModelChanged: 'modelChanged',
 
 	ModelTokensChanged: 'modelTokensChanged',
-	ModelModeChanged: 'modelsModeChanged',
+	ModelLanguageChanged: 'modelLanguageChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelRawContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',

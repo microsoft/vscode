@@ -50,7 +50,7 @@ export class EditorModeContext {
 
 		// update when model/mode changes
 		this._disposables.push(editor.onDidChangeModel(() => this._update()));
-		this._disposables.push(editor.onDidChangeModelMode(() => this._update()));
+		this._disposables.push(editor.onDidChangeModelLanguage(() => this._update()));
 
 		// update when registries change
 		modes.SuggestRegistry.onDidChange(this._update, this, this._disposables);

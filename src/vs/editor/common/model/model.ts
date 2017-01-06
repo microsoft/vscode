@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import {
 	EventType, IModel, ITextModelCreationOptions, IModelDecorationsChangedEvent,
-	IModelOptionsChangedEvent, IModelModeChangedEvent, IRawText
+	IModelOptionsChangedEvent, IModelLanguageChangedEvent, IRawText
 } from 'vs/editor/common/editorCommon';
 import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -44,8 +44,8 @@ export class Model extends EditableTextModel implements IModel {
 	public onWillDispose(listener: () => void): IDisposable {
 		return this.addListener2(EventType.ModelDispose, listener);
 	}
-	public onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable {
-		return this.addListener2(EventType.ModelModeChanged, listener);
+	public onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable {
+		return this.addListener2(EventType.ModelLanguageChanged, listener);
 	}
 
 	public addBulkListener(listener: BulkListenerCallback): IDisposable {

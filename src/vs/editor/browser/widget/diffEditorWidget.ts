@@ -132,8 +132,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
 	}
-	public onDidChangeModelMode(listener: (e: editorCommon.IModelModeChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
+	public onDidChangeModelLanguage(listener: (e: editorCommon.IModelLanguageChangedEvent) => void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelLanguageChanged, listener);
 	}
 	public onDidChangeModelOptions(listener: (e: editorCommon.IModelOptionsChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
@@ -734,7 +734,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		let changed = false;
 		for (let i = 0; !changed && i < events.length; i++) {
 			let type = events[i].getType();
-			changed = changed || type === editorCommon.EventType.ModelRawContentChanged || type === editorCommon.EventType.ModelModeChanged;
+			changed = changed || type === editorCommon.EventType.ModelRawContentChanged;
 		}
 		if (changed && this._isVisible) {
 			// Clear previous timeout if necessary

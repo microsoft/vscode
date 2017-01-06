@@ -40,6 +40,7 @@ export class LanguageIdentifier {
 
 /**
  * A mode. Will soon be obsolete.
+ * @internal
  */
 export interface IMode {
 
