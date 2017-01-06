@@ -81,7 +81,7 @@ export class LanguageIdentifier {
 
 	constructor(language: string, id: number);
 }
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens):
+#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
 #includeAll(vs/editor/common/modes/monarch/monarchTypes):
 

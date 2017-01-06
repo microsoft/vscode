@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Token } from 'vs/editor/common/core/token';
+import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
@@ -47,14 +47,6 @@ export interface IMode {
 
 	getLanguageIdentifier(): LanguageIdentifier;
 
-}
-
-/**
- * @internal
- */
-export interface ILineTokens {
-	tokens: Token[];
-	endState: IState;
 }
 
 /**
@@ -129,51 +121,16 @@ export const enum MetadataConsts {
 /**
  * @internal
  */
-export interface ILineTokens3 {
-	/**
-	 * The tokens in binary format. Each token occupies two array indices. For token i:
-	 *  - at offset 2*i => startIndex
-	 *  - at offset 2*i + 1 => metadata
-	 *
-	 */
-	readonly tokens: Uint32Array;
-	readonly endState: IState;
-}
-
-/**
- * @internal
- */
 export interface ITokenizationSupport {
 
 	getInitialState(): IState;
 
 	// add offsetDelta to each of the returned indices
-	tokenize(line: string, state: IState, offsetDelta: number): ILineTokens;
+	tokenize(line: string, state: IState, offsetDelta: number): TokenizationResult;
 
-	tokenize3(line: string, state: IState, offsetDelta: number): ILineTokens3;
+	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
 }
 
-/**
- * A token.
- */
-export interface IToken2 {
-	startIndex: number;
-	scopes: string;
-}
-/**
- * The result of a line tokenization.
- */
-export interface ILineTokens2 {
-	/**
-	 * The list of tokens on the line.
-	 */
-	tokens: IToken2[];
-	/**
-	 * The tokenization end state.
-	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
-	 */
-	endState: IState;
-}
 /**
  * The state of the tokenizer between two lines.
  * It is useful to store flags such as in multiline comment, etc.
@@ -182,19 +139,6 @@ export interface ILineTokens2 {
 export interface IState {
 	clone(): IState;
 	equals(other: IState): boolean;
-}
-/**
- * A "manual" provider of tokens.
- */
-export interface TokensProvider {
-	/**
-	 * The initial state of a language. Will be the state passed in to tokenize the first line.
-	 */
-	getInitialState(): IState;
-	/**
-	 * Tokenize a line given the state at the beginning of the line.
-	 */
-	tokenize(line: string, state: IState): ILineTokens2;
 }
 
 /**

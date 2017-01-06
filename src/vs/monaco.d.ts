@@ -751,6 +751,7 @@ declare module monaco {
          */
         RTL = 1,
     }
+
     export class Token {
         _tokenBrand: void;
         readonly offset: number;
@@ -2284,10 +2285,12 @@ declare module monaco.editor {
     export interface IModelModeChangedEvent {
         /**
          * Previous mode
+         * TODO@tokenization
          */
         readonly oldMode: languages.IMode;
         /**
          * New mode
+         * TODO@tokenization
          */
         readonly newMode: languages.IMode;
     }
@@ -3839,6 +3842,43 @@ declare module monaco.languages {
     export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable;
 
     /**
+     * A token.
+     */
+    export interface IToken {
+        startIndex: number;
+        scopes: string;
+    }
+
+    /**
+     * The result of a line tokenization.
+     */
+    export interface ILineTokens {
+        /**
+         * The list of tokens on the line.
+         */
+        tokens: IToken[];
+        /**
+         * The tokenization end state.
+         * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+         */
+        endState: IState;
+    }
+
+    /**
+     * A "manual" provider of tokens.
+     */
+    export interface TokensProvider {
+        /**
+         * The initial state of a language. Will be the state passed in to tokenize the first line.
+         */
+        getInitialState(): IState;
+        /**
+         * Tokenize a line given the state at the beginning of the line.
+         */
+        tokenize(line: string, state: IState): ILineTokens;
+    }
+
+    /**
      * Set the tokens provider for a language (manual implementation).
      */
     export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable;
@@ -4259,29 +4299,6 @@ declare module monaco.languages {
     }
 
     /**
-     * A token.
-     */
-    export interface IToken {
-        startIndex: number;
-        scopes: string;
-    }
-
-    /**
-     * The result of a line tokenization.
-     */
-    export interface ILineTokens {
-        /**
-         * The list of tokens on the line.
-         */
-        tokens: IToken[];
-        /**
-         * The tokenization end state.
-         * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
-         */
-        endState: IState;
-    }
-
-    /**
      * The state of the tokenizer between two lines.
      * It is useful to store flags such as in multiline comment, etc.
      * The model will clone the previous line's state and pass it in to tokenize the next line.
@@ -4289,20 +4306,6 @@ declare module monaco.languages {
     export interface IState {
         clone(): IState;
         equals(other: IState): boolean;
-    }
-
-    /**
-     * A "manual" provider of tokens.
-     */
-    export interface TokensProvider {
-        /**
-         * The initial state of a language. Will be the state passed in to tokenize the first line.
-         */
-        getInitialState(): IState;
-        /**
-         * Tokenize a line given the state at the beginning of the line.
-         */
-        tokenize(line: string, state: IState): ILineTokens;
     }
 
     /**

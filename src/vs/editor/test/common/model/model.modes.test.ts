@@ -12,6 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Model } from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 // --------- utils
 
@@ -27,12 +28,9 @@ suite('Editor Model - Model Modes 1', () => {
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => NULL_STATE,
 		tokenize: undefined,
-		tokenize3: (line: string, state: modes.IState): modes.ILineTokens3 => {
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line.charAt(0));
-			return {
-				tokens: null,
-				endState: state
-			};
+			return new TokenizationResult2(null, state);
 		}
 	};
 
@@ -178,12 +176,9 @@ suite('Editor Model - Model Modes 2', () => {
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
 		tokenize: undefined,
-		tokenize3: (line: string, state: modes.IState): modes.ILineTokens3 => {
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			(<ModelState2>state).prevLineContent = line;
-			return {
-				tokens: null,
-				endState: state
-			};
+			return new TokenizationResult2(null, state);
 		}
 	};
 
@@ -300,7 +295,7 @@ suite('Editor Model - Token Iterator', () => {
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: (): modes.IState => NULL_STATE,
 		tokenize: undefined,
-		tokenize3: (line: string, state: modes.IState): modes.ILineTokens3 => {
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			if (line.length % 3 !== 0) {
 				throw new Error('Unexpected line length in ' + line);
 			}
@@ -312,10 +307,7 @@ suite('Editor Model - Token Iterator', () => {
 					i << modes.MetadataConsts.FOREGROUND_OFFSET
 				) >>> 0;
 			}
-			return {
-				tokens: tokens,
-				endState: state
-			};
+			return new TokenizationResult2(tokens, state);
 		}
 	};
 

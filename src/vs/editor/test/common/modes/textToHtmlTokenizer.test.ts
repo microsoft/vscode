@@ -5,9 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TokenizationRegistry, IState, ILineTokens3, LanguageIdentifier, ColorId, MetadataConsts } from 'vs/editor/common/modes';
+import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, MetadataConsts } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	function toStr(pieces: { className: string; text: string }[]): string {
@@ -74,7 +75,7 @@ class Mode extends MockMode {
 		this._register(TokenizationRegistry.register(this.getId(), {
 			getInitialState: (): IState => null,
 			tokenize: undefined,
-			tokenize3: (line: string, state: IState): ILineTokens3 => {
+			tokenize2: (line: string, state: IState): TokenizationResult2 => {
 				let tokensArr: number[] = [];
 				let prevColor: ColorId = -1;
 				for (let i = 0; i < line.length; i++) {
@@ -92,10 +93,7 @@ class Mode extends MockMode {
 				for (let i = 0; i < tokens.length; i++) {
 					tokens[i] = tokensArr[i];
 				}
-				return {
-					tokens: tokens,
-					endState: null
-				};
+				return new TokenizationResult2(tokens, null);
 			}
 		}));
 	}

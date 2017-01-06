@@ -21,7 +21,7 @@ function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
 	return {
 		getInitialState: () => NULL_STATE,
 		tokenize: undefined,
-		tokenize3: (buffer: string, state: IState, deltaOffset: number) => nullTokenize3(LanguageId.Null, buffer, state, deltaOffset)
+		tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize3(LanguageId.Null, buffer, state, deltaOffset)
 	};
 }
 
@@ -36,7 +36,7 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 			result += `<br/>`;
 		}
 
-		let tokenizationResult = tokenizationSupport.tokenize3(line, currentState, 0);
+		let tokenizationResult = tokenizationSupport.tokenize2(line, currentState, 0);
 		let lineTokens = new LineTokens(null, tokenizationResult.tokens, line);
 		let viewLineTokens = lineTokens.inflate();
 
