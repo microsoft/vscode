@@ -46,10 +46,6 @@
 	line-height: 22px;
 }
 
-.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry > * {
-	display: inline-block;
-}
-
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-stats {
 	display: inline-block;
 	margin-left: 10px;
