@@ -278,7 +278,8 @@ class EditorReferenceSearchStyleRules extends EditorStyleRules {
 class EditorLineHighlightStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme, cssRules: string[]): void {
 		if (theme.getGlobalSettings().lineHighlight) {
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .current-line { background-color: ${new Color(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .view-overlays .current-line { background-color: ${new Color(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .margin-view-overlays .current-line-margin { background-color: ${new Color(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
 		}
 		this.addBackgroundColorRule(theme, '.rangeHighlight', theme.getGlobalSettings().rangeHighlight, cssRules);
 	}
