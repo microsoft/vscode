@@ -119,7 +119,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = (<ITerminalConfiguration>config).terminal.integrated;
 
-		let fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
+		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
 		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
@@ -133,23 +133,28 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public getFontLigaturesEnabled(): boolean {
-		let terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
-		return terminalConfig.fontLigatures;
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.fontLigatures;
 	}
 
 	public getCursorBlink(): boolean {
-		let terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
-		return terminalConfig.cursorBlinking;
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.cursorBlinking;
 	}
 
 	public getRightClickCopyPaste(): boolean {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return config.terminal.integrated.rightClickCopyPaste;
 	}
 
+	public getCommandsToSkipShell(): string[] {
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.commandsToSkipShell;
+	}
+
 	public getShell(): IShell {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		let shell: IShell = {
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const shell: IShell = {
 			executable: '',
 			args: []
 		};
@@ -193,10 +198,5 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			r = Math.max(minimum, r);
 		}
 		return r;
-	}
-
-	public getCommandsToSkipShell(): string[] {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.commandsToSkipShell;
 	}
 }
