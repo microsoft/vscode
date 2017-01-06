@@ -598,50 +598,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected abstract readConfiguration(styling: editorCommon.BareFontInfo): editorCommon.FontInfo;
 }
 
-/**
- * Helper to update Monaco Editor Settings from configurations service.
- */
-export class EditorConfiguration {
-	public static EDITOR_SECTION = 'editor';
-	public static DIFF_EDITOR_SECTION = 'diffEditor';
-
-	/**
-	 * Ask the provided configuration service to apply its configuration to the provided editor.
-	 */
-	public static apply(config: any, editor: editorCommon.IEditor): void {
-		if (!config) {
-			return;
-		}
-
-		// Editor Settings (Code Editor, Diff, Terminal)
-		if (editor && typeof editor.updateOptions === 'function') {
-			let type = editor.getEditorType();
-			if (type !== editorCommon.EditorType.ICodeEditor && type !== editorCommon.EditorType.IDiffEditor) {
-				return;
-			}
-
-			let editorConfig = config[EditorConfiguration.EDITOR_SECTION];
-			if (type === editorCommon.EditorType.IDiffEditor) {
-				let diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
-				if (diffEditorConfig) {
-					if (!editorConfig) {
-						editorConfig = diffEditorConfig;
-					} else {
-						editorConfig = objects.mixin(editorConfig, diffEditorConfig);
-					}
-				}
-			}
-
-			if (editorConfig) {
-				delete editorConfig.readOnly; // Prevent someone from making editor readonly
-				editor.updateOptions(editorConfig);
-			}
-		}
-	}
-}
-
-let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
-let editorConfiguration: IConfigurationNode = {
+const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const editorConfiguration: IConfigurationNode = {
 	'id': 'editor',
 	'order': 5,
 	'type': 'object',
