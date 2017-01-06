@@ -44,8 +44,8 @@ import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/insta
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Selection } from 'vs/editor/common/core/selection';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export interface IEditableData {
 	action: IAction;
@@ -1119,11 +1119,11 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
-		if (fileResource) {
+		const activeResource = toResource(this.editorService.getActiveEditorInput(), { filter: ['file', 'untitled'] });
+		if (activeResource) {
 
 			// Keep as resource to compare
-			globalResourceToCompare = fileResource;
+			globalResourceToCompare = activeResource;
 
 			// Pick another entry from history
 			interface IHistoryPickEntry extends IFilePickOpenEntry {
@@ -1137,18 +1137,22 @@ export class GlobalCompareResourcesAction extends Action {
 				let description: string;
 
 				if (input instanceof EditorInput) {
-					return void 0; // only files supported
+					resource = toResource(input, { filter: ['file', 'untitled'] });
+				} else {
+					resource = (input as IResourceInput).resource;
 				}
 
-				const resourceInput = input as IResourceInput;
-				resource = resourceInput.resource;
-				label = paths.basename(resourceInput.resource.fsPath);
-				description = labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService);
+				if (!resource) {
+					return void 0; // only support to compare with files and untitled
+				}
+
+				label = paths.basename(resource.fsPath);
+				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService) : void 0;
 
 				return <IHistoryPickEntry>{ input, resource, label, description };
 			}).filter(p => !!p);
 
-			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor history entry to compare with"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
+			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select a previously opened file to compare with"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
 				if (pick) {
 					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, pick.resource, null);
 					if (compareAction._isEnabled()) {
@@ -1303,13 +1307,13 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
-				let selectionOfSource: Selection;
+				let viewStateOfSource: IEditorViewState;
 				const activeEditor = this.editorService.getActiveEditor();
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
 					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
 					if (activeResource && activeResource.toString() === source.toString()) {
-						selectionOfSource = <Selection>editor.getSelection();
+						viewStateOfSource = editor.saveViewState();
 					}
 				}
 
@@ -1340,13 +1344,13 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 						encoding: encodingOfSource,
 						options: {
 							pinned: true,
-							selection: selectionOfSource
+							viewState: viewStateOfSource
 						}
 					};
 
 					return this.editorService.replaceEditors([{
 						toReplace: { resource: source },
-						replaceWith: replaceWith
+						replaceWith
 					}]).then(() => true);
 				});
 			}

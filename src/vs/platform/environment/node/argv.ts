@@ -30,6 +30,7 @@ const options: minimist.Opts = {
 		'diff',
 		'goto',
 		'new-window',
+		'new-window-if-not-first',
 		'reuse-window',
 		'performance',
 		'verbose',

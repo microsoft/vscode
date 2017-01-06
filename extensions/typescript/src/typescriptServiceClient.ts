@@ -346,17 +346,20 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								switch (selected.id) {
 									case MessageAction.useLocal:
 										let pathValue = './node_modules/typescript/lib';
-										tsConfig.update('tsdk', pathValue, false);
-										window.showInformationMessage(localize('updatedtsdk', 'Updated workspace setting \'typescript.tsdk\' to {0}', pathValue));
+										tsConfig.update('tsdk', pathValue, false).then(
+											() => window.showInformationMessage(localize('updatedtsdk', 'Updated workspace setting \'typescript.tsdk\' to {0}', pathValue)),
+											() => window.showErrorMessage(localize('updateTsdkFailed', 'Could not update the \'typescript.tsdk\' workspace setting. Please check that the workspace settings file is valid')));
 										showVersionStatusItem = true;
 										return localModulePath;
 									case MessageAction.useBundled:
-										tsConfig.update(checkWorkspaceVersionKey, false, false);
-										window.showInformationMessage(localize('updateLocalWorkspaceCheck', 'Updated workspace setting \'typescript.check.workspaceVersion\' to false'));
+										tsConfig.update(checkWorkspaceVersionKey, false, false).then(
+											() => window.showInformationMessage(localize('updateLocalWorkspaceCheck', 'Updated workspace setting \'typescript.check.workspaceVersion\' to false')),
+											() => window.showErrorMessage(localize('updateLocalWorkspaceCheckFailed', 'Could not update the \'typescript.check.workspaceVersion\' workspace setting. Please check that the workspace settings file is valid')));
 										return modulePath;
 									case MessageAction.neverCheckLocalVersion:
-										window.showInformationMessage(localize('updateGlobalWorkspaceCheck', 'Updated user setting \'typescript.check.workspaceVersion\' to false'));
-										tsConfig.update(checkWorkspaceVersionKey, false, true);
+										tsConfig.update(checkWorkspaceVersionKey, false, true).then(
+											() => window.showInformationMessage(localize('updateGlobalWorkspaceCheck', 'Updated user setting \'typescript.check.workspaceVersion\' to false')),
+											() => window.showErrorMessage(localize('updateGlobalWorkspaceCheckFailed', 'Could not update  \'typescript.check.workspaceVersion\' user setting. Please check that your user settings file is valid')));
 										return modulePath;
 									default:
 										return modulePath;
