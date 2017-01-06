@@ -119,7 +119,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
 		if (this.typingsStatus.isAcquiringTypings) {
-			return Promise.reject({
+			return Promise.reject<CompletionItem[]>({
 				label: localize('acquiringTypingsLabel', 'Acquiring typings...'),
 				detail: localize('acquiringTypingsDetail', 'Acquiring typings definitions for IntelliSense.')
 			});
@@ -220,7 +220,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		// Don't complete function calls inside of destructive assigments or imports
 		return this.client.execute('quickinfo', args).then(infoResponse => {
 			const info = infoResponse.body;
-			console.log(info && info.kind);
 			switch (info && info.kind) {
 				case 'var':
 				case 'let':

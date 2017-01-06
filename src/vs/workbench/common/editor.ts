@@ -583,7 +583,7 @@ export class TextEditorOptions extends EditorOptions {
 	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -614,6 +614,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.revealInCenterIfOutsideViewport) {
 				options.revealInCenterIfOutsideViewport = true;
+			}
+
+			if (input.options.viewState) {
+				options.editorViewState = input.options.viewState;
 			}
 
 			if (typeof input.options.index === 'number') {

@@ -39,7 +39,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.9.0' },
+	{ name: 'ms-vscode.node-debug', version: '1.9.1' },
 	{ name: 'ms-vscode.node-debug2', version: '1.9.1' }
 ];
 
@@ -110,7 +110,7 @@ const config = {
 	version: packageJson.electronVersion,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2016 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
