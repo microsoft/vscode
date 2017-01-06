@@ -185,6 +185,7 @@ function main() {
 			isInitialStartup: !!configuration.isInitialStartup,
 			hasAccessibilitySupport: !!configuration.accessibilitySupport,
 			start: new Date(configuration.perfStartTime),
+			appReady: new Date(configuration.perfAppReady),
 			windowLoad: new Date(configuration.perfWindowLoadTime),
 			beforeLoadWorkbenchMain: new Date()
 		};
