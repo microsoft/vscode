@@ -40,7 +40,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
 		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModelMode(() => this.update()));
+		this.callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
 		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
 	}
 

@@ -2262,7 +2262,7 @@ declare module monaco.editor {
          * An event emitted when the language associated with the model has changed.
          * @event
          */
-        onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+        onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
         /**
          * An event emitted right before disposing the model.
          * @event
@@ -2282,17 +2282,15 @@ declare module monaco.editor {
     /**
      * An event describing that the current mode associated with a model has changed.
      */
-    export interface IModelModeChangedEvent {
+    export interface IModelLanguageChangedEvent {
         /**
-         * Previous mode
-         * TODO@tokenization
+         * Previous language
          */
-        readonly oldMode: languages.IMode;
+        readonly oldLanguageIdentifier: languages.LanguageIdentifier;
         /**
-         * New mode
-         * TODO@tokenization
+         * New language
          */
-        readonly newMode: languages.IMode;
+        readonly newLanguageIdentifier: languages.LanguageIdentifier;
     }
 
     /**
@@ -2854,7 +2852,7 @@ declare module monaco.editor {
          * An event emitted when the language of the current model has changed.
          * @event
          */
-        onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+        onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the options of the current model has changed.
          * @event
@@ -4288,14 +4286,6 @@ declare module monaco.languages {
         public readonly id: number;
 
         constructor(language: string, id: number);
-    }
-
-    /**
-     * A mode. Will soon be obsolete.
-     */
-    export interface IMode {
-        getId(): string;
-        getLanguageIdentifier(): LanguageIdentifier;
     }
 
     /**

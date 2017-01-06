@@ -476,10 +476,10 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelModeChanged) {
+			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
 				this._onModelModeChanged.fire({
 					model: modelData.model,
-					oldModeId: (<editorCommon.IModelModeChangedEvent>e.getData()).oldMode.getId()
+					oldModeId: (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguageIdentifier.language
 				});
 			}
 		}

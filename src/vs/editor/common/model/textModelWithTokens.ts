@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
-import { ITokenizationSupport, IMode, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITokenizationSupport, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_LANGUAGE_IDENTIFIER, nullTokenize3 } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -22,23 +22,6 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-
-class Mode implements IMode {
-
-	private _languageIdentifier: LanguageIdentifier;
-
-	constructor(languageId: LanguageIdentifier) {
-		this._languageIdentifier = languageId;
-	}
-
-	getId(): string {
-		return this._languageIdentifier.language;
-	}
-
-	getLanguageIdentifier(): LanguageIdentifier {
-		return this._languageIdentifier;
-	}
-}
 
 class ModelTokensChangedEventBuilder {
 
@@ -91,7 +74,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageIdentifier: LanguageIdentifier) {
 		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
-		allowedEventTypes.push(editorCommon.EventType.ModelModeChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelLanguageChanged);
 		super(allowedEventTypes, rawText);
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
@@ -214,9 +197,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			return;
 		}
 
-		let e: editorCommon.IModelModeChangedEvent = {
-			oldMode: new Mode(this._languageIdentifier),
-			newMode: new Mode(languageIdentifier)
+		let e: editorCommon.IModelLanguageChangedEvent = {
+			oldLanguageIdentifier: this._languageIdentifier,
+			newLanguageIdentifier: languageIdentifier
 		};
 
 		this._languageIdentifier = languageIdentifier;
@@ -412,9 +395,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	private _emitModelModeChangedEvent(e: editorCommon.IModelModeChangedEvent): void {
+	private _emitModelModeChangedEvent(e: editorCommon.IModelLanguageChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelModeChanged, e);
+			this.emit(editorCommon.EventType.ModelLanguageChanged, e);
 		}
 	}
 
