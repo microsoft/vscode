@@ -102,10 +102,6 @@
 	color: white;
 }
 
-.monaco-editor .settings-group-title-widget .title-container > * {
-	vertical-align: middle;
-	display: inline-block;
-}
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
 .monaco-editor.vs .settings-group-title-widget .title-container.focused {
@@ -131,6 +127,11 @@
 	background: url(expanded.svg) 50% 50% no-repeat;
 	width: 16px;
 	height: 16px;
+}
+
+.monaco-editor .settings-group-title-widget .title-container > div {
+	vertical-align: middle;
+	display: inline-block;
 }
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container .expand-collapse-icon,
