@@ -652,9 +652,14 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 		this.win.setFullScreen(willBeFullScreen);
 
-		// respect configured menu bar visibility
+		// respect configured menu bar visibility or default to toggle if not set
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-		this.setMenuBarVisibility(windowConfig && windowConfig.menuBarVisibility, false);
+		let menuBarVisibility = windowConfig && windowConfig.menuBarVisibility;
+		if (typeof menuBarVisibility !== 'string') {
+			menuBarVisibility = 'toggle';
+		};
+
+		this.setMenuBarVisibility(menuBarVisibility, false);
 	}
 
 	public setMenuBarVisibility(visibility: '' | 'visible' | 'toggle' | 'hidden', notify: boolean = true): void {
