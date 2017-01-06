@@ -133,7 +133,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	}
 
 	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
-		return this.model.collapse(element);
+		return this.model.collapse(element, recursive);
 	}
 
 	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
