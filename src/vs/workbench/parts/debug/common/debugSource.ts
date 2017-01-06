@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 
 export class Source {
@@ -15,7 +14,8 @@ export class Source {
 	private static INTERNAL_URI_PREFIX = `${DEBUG_SCHEME}://internal/`;
 
 	constructor(public raw: DebugProtocol.Source, available = true) {
-		this.uri = raw.path ? uri.file(paths.normalize(raw.path)) : uri.parse(Source.INTERNAL_URI_PREFIX + raw.sourceReference + '/' + raw.name);
+		const path = raw.path || raw.name;
+		this.uri = raw.sourceReference > 0 ? uri.parse(Source.INTERNAL_URI_PREFIX + raw.sourceReference + '/' + path) : uri.file(path);
 		this.available = available;
 	}
 
