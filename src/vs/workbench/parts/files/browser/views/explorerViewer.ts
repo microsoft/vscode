@@ -52,9 +52,7 @@ import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 interface IConfiguration {
 	workbench: {
-		sideBar: {
-			openOnSelect: boolean;
-		}
+		openMode: string;
 	};
 }
 
@@ -380,7 +378,7 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 export class FileController extends DefaultController {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
-	private sideBarOpenOnSelect: boolean;
+	private openMode: string;
 
 	private contributedContextMenu: IMenu;
 
@@ -393,7 +391,7 @@ export class FileController extends DefaultController {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 
@@ -427,9 +425,9 @@ export class FileController extends DefaultController {
 	}
 
 	private onConfigurationUpdated(config: IConfiguration): void {
-		const newSideBarOpenOnSelectSetting = config && config.workbench && config.workbench.sideBar && config.workbench.sideBar.openOnSelect;
-		if (newSideBarOpenOnSelectSetting !== this.sideBarOpenOnSelect) {
-			this.sideBarOpenOnSelect = newSideBarOpenOnSelectSetting;
+		const newOpenModeSetting = config && config.workbench && config.workbench.openMode;
+		if (newOpenModeSetting !== this.openMode) {
+			this.openMode = newOpenModeSetting;
 		}
 	}
 
@@ -468,7 +466,7 @@ export class FileController extends DefaultController {
 		tree.DOMFocus();
 
 		// Expand / Collapse
-		if (this.sideBarOpenOnSelect || isDoubleClick) {
+		if (this.isInSingleClickOpenMode() || isDoubleClick) {
 			tree.toggleExpansion(stat);
 		}
 
@@ -495,13 +493,17 @@ export class FileController extends DefaultController {
 				if (isDoubleClick) {
 					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), true);
 				}
-				else if (this.sideBarOpenOnSelect) {
+				else if (this.isInSingleClickOpenMode()) {
 					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
 				}
 			}
 		}
 
 		return true;
+	}
+
+	private isInSingleClickOpenMode() {
+		return this.openMode === 'singleClick';
 	}
 
 	public onContextMenu(tree: ITree, stat: FileStat, event: ContextMenuEvent): boolean {
