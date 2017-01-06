@@ -19,7 +19,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -59,7 +58,6 @@ export class TabsTitleControl extends TitleControl {
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -71,7 +69,7 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
@@ -218,6 +216,11 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
+				if (this.tabOptions.showTabCloseButton) {
+					DOM.removeClass(tabContainer, 'no-close-button');
+				} else {
+					DOM.addClass(tabContainer, 'no-close-button');
+				}
 
 				// Label
 				const tabLabel = this.editorLabels[index];
@@ -361,12 +364,6 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.tabIndex = 0;
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
 		DOM.addClass(tabContainer, 'tab monaco-editor-background');
-
-		if (!this.tabOptions.showTabCloseButton) {
-			DOM.addClass(tabContainer, 'no-close-button');
-		} else {
-			DOM.removeClass(tabContainer, 'no-close-button');
-		}
 
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);

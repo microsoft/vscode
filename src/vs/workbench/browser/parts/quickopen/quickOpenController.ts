@@ -358,9 +358,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 						let index = -1;
 						let context: IEntryRunContext;
-						entries.forEach((entry, i) => {
+						entries.forEach(entry => {
 							if (entry.shouldRunWithContext) {
-								index = i;
+								index = entry.index;
 								context = entry.shouldRunWithContext;
 							}
 						});

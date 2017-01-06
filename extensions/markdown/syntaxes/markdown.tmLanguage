@@ -320,7 +320,29 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(^|\G)\s*(?=&lt;/?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|pre|p|param|script|section|source|style|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\s|$|/?&gt;))</string>
+							<string>(^|\G)\s*(?=&lt;(script|style|pre)(\s|$|&gt;))</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>begin</key>
+									<string>(\s*|$)</string>
+									<key>patterns</key>
+									<array>
+										<dict>
+											<key>include</key>
+											<string>text.html.basic</string>
+										</dict>
+									</array>
+									<key>while</key>
+									<string>^\s*(?!&lt;/(script|style|pre)&gt;)</string>
+								</dict>
+							</array>
+							<key>end</key>
+							<string>(?=&lt;/(script|style|pre)&gt;)</string>
+						</dict>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)\s*(?=&lt;/?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\s|$|/?&gt;))</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -333,7 +355,7 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(^|\G)\s*(?=(&lt;[a-zA-Z0-9\-].*&gt;|&lt;/[a-zA-Z0-9\-]&gt;)\s*$)</string>
+							<string>(^|\G)\s*(?=(&lt;[a-zA-Z0-9\-](/?&gt;|\s.*?&gt;)|&lt;/[a-zA-Z0-9\-]&gt;)\s*$)</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -546,15 +568,6 @@
 					<!-- both are folded together in the expression below -->
 					<string>(^|\G)(?!\s*$|#|[ ]{0,3}((([*_][ ]{0,2}\2){2,}[ \t]*$\n?)|([*+-]([ ]{1,3}|\t)))|\s*\[.+?\]:|&gt;)</string>
 				</dict>
-
-
-
-
-
-
-
-
-
 				<key>fenced_code_block_css</key>
 				<dict>
 					<key>begin</key>
@@ -589,7 +602,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -641,7 +653,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>

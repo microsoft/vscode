@@ -22,7 +22,6 @@ import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestEditorService, TestEditorGroupService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import * as Timer from 'vs/base/common/timer';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -30,6 +29,23 @@ import { SimpleConfigurationService } from 'vs/editor/browser/standalone/simpleS
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
+
+
+namespace Timer {
+	export interface ITimerEvent {
+		id: number;
+		topic: string;
+		name: string;
+		description: string;
+		data: any;
+
+		startTime: Date;
+		stopTime: Date;
+
+		stop(stopTime?: Date): void;
+		timeTaken(): number;
+	}
+}
 
 declare var __dirname: string;
 

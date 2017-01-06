@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as timer from 'vs/base/common/timer';
 import paths = require('vs/base/common/paths');
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
@@ -544,14 +543,12 @@ export class SearchModel extends Disposable {
 		this._searchResult.query = this._searchQuery.contentPattern;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-		const timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
 		this.currentRequest = this.searchService.search(this._searchQuery);
 
 		const onDone = fromPromise(this.currentRequest);
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
-		onDone(() => timerEvent.stop());
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
 		const progressEmitter = new Emitter<void>();
