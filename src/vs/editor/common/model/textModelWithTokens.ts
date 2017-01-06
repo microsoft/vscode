@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import * as timer from 'vs/base/common/timer';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -274,7 +273,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._withModelTokensChangedEventBuilder((eventBuilder) => {
 
-			var t1 = timer.start(timer.Topic.EDITOR, 'backgroundTokenization');
 			toLineNumber = Math.min(this._lines.length, toLineNumber);
 
 			var MAX_ALLOWED_TIME = 20,
@@ -322,8 +320,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			if (this._invalidLineStartIndex < this._lines.length) {
 				this._beginBackgroundTokenization();
 			}
-
-			t1.stop();
 		});
 	}
 

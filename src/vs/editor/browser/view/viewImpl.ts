@@ -7,7 +7,6 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EmitterEvent, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as timer from 'vs/base/common/timer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
@@ -900,14 +899,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (!dom.isInDOM(this.domNode)) {
 			return;
 		}
-		let t = timer.start(timer.Topic.EDITOR, 'View.render');
 
 		let viewPartsToRender = this._getViewPartsToRender();
 
 		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
 			// Nothing to render
 			this.keyboardHandler.writeToTextArea();
-			t.stop();
 			return;
 		}
 
@@ -941,8 +938,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		// Render the scrollbar
 		this.layoutProvider.renderScrollbar();
-
-		t.stop();
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
