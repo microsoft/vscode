@@ -47,11 +47,6 @@
 	width: 100%;
 }
 
-.monaco-editor .lines-content {
-	position: absolute;
-	top: 0;
-}
-
 /* TODO@tokenization bootstrap fix */
 /*.monaco-editor .view-line > span > span {
 	float: none;
