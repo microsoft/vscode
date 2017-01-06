@@ -92,7 +92,7 @@ import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extens
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
-import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
+import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
