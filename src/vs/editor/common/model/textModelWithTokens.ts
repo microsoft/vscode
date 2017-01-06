@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
-import { ITokenizationSupport, ILineTokens3, IMode, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITokenizationSupport, IMode, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_LANGUAGE_IDENTIFIER, nullTokenize3 } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -21,6 +21,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 class Mode implements IMode {
 
@@ -355,13 +356,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		// Validate all states up to and including endLineIndex
 		for (let lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
 			const endStateIndex = lineIndex + 1;
-			let r: ILineTokens3 = null;
+			let r: TokenizationResult2 = null;
 			const text = this._lines[lineIndex].text;
 
 			try {
 				// Tokenize only the first X characters
 				let freshState = this._lines[lineIndex].getState().clone();
-				r = this._tokenizationSupport.tokenize3(this._lines[lineIndex].text, freshState, 0);
+				r = this._tokenizationSupport.tokenize2(this._lines[lineIndex].text, freshState, 0);
 			} catch (e) {
 				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
 				onUnexpectedError(e);

@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Token } from 'vs/editor/common/core/token';
+import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 import { Theme } from 'vs/editor/common/modes/supports/tokenization';
@@ -283,11 +283,8 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 		return nestedResult.endState;
 	}
 
-	public finalize(endState: MonarchLineState): modes.ILineTokens {
-		return {
-			tokens: this._tokens,
-			endState: endState
-		};
+	public finalize(endState: MonarchLineState): TokenizationResult {
+		return new TokenizationResult(this._tokens, endState);
 	}
 }
 
@@ -362,7 +359,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 			return embeddedModeState;
 		}
 
-		let nestedResult = nestedModeTokenizationSupport.tokenize3(embeddedModeLine, embeddedModeState, offsetDelta);
+		let nestedResult = nestedModeTokenizationSupport.tokenize2(embeddedModeLine, embeddedModeState, offsetDelta);
 		this._prependTokens = MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, nestedResult.tokens);
 		this._tokens = [];
 		this._currentLanguageId = 0;
@@ -370,11 +367,11 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 		return nestedResult.endState;
 	}
 
-	public finalize(endState: MonarchLineState): modes.ILineTokens3 {
-		return {
-			tokens: MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, null),
-			endState: endState
-		};
+	public finalize(endState: MonarchLineState): TokenizationResult2 {
+		return new TokenizationResult2(
+			MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, null),
+			endState
+		);
 	}
 }
 
@@ -425,13 +422,13 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		return MonarchLineStateFactory.create(rootState, null);
 	}
 
-	public tokenize(line: string, lineState: modes.IState, offsetDelta: number): modes.ILineTokens {
+	public tokenize(line: string, lineState: modes.IState, offsetDelta: number): TokenizationResult {
 		let tokensCollector = new MonarchClassicTokensCollector();
 		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
 
-	public tokenize3(line: string, lineState: modes.IState, offsetDelta: number): modes.ILineTokens3 {
+	public tokenize2(line: string, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
 		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneColorService.getTheme());
 		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);

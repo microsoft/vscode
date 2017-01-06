@@ -17,6 +17,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 suite('TextModelWithTokens', () => {
 
@@ -276,17 +277,14 @@ suite('TextModelWithTokens regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined,
-			tokenize3: (line, state) => {
+			tokenize2: (line, state) => {
 				let myId = ++_tokenId;
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (
 					myId << MetadataConsts.FOREGROUND_OFFSET
 				) >>> 0;
-				return {
-					tokens: tokens,
-					endState: state
-				};
+				return new TokenizationResult2(tokens, state);
 			}
 		};
 

@@ -257,7 +257,7 @@ function getSafeTokenizationSupport(languageId: string): modes.ITokenizationSupp
 	return {
 		getInitialState: () => NULL_STATE,
 		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(languageId, line, state, deltaOffset),
-		tokenize3: undefined,
+		tokenize2: undefined,
 	};
 }
 

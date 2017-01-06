@@ -2221,10 +2221,12 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 export interface IModelModeChangedEvent {
 	/**
 	 * Previous mode
+	 * TODO@tokenization
 	 */
 	readonly oldMode: IMode;
 	/**
 	 * New mode
+	 * TODO@tokenization
 	 */
 	readonly newMode: IMode;
 }

@@ -18,6 +18,7 @@ import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEm
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 export class TMScopeRegistry {
 
@@ -247,7 +248,7 @@ function createTokenizationSupport(grammar: IGrammar): ITokenizationSupport {
 	return {
 		getInitialState: () => INITIAL,
 		tokenize: undefined,
-		tokenize3: (line: string, state: StackElement, offsetDelta: number) => {
+		tokenize2: (line: string, state: StackElement, offsetDelta: number) => {
 			if (offsetDelta !== 0) {
 				throw new Error('Unexpected: offsetDelta should be 0.');
 			}
@@ -262,10 +263,7 @@ function createTokenizationSupport(grammar: IGrammar): ITokenizationSupport {
 				endState = textMateResult.ruleStack;
 			}
 
-			return {
-				tokens: textMateResult.tokens,
-				endState: endState
-			};
+			return new TokenizationResult2(textMateResult.tokens, endState);
 		}
 	};
 }
