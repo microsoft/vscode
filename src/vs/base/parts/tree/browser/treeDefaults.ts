@@ -91,8 +91,11 @@ export enum ClickBehavior {
 	ON_MOUSE_UP
 }
 
+export type WorkbenchOpenMode = 'singleClick' | 'doubleClick';
+
 export interface IControllerOptions {
 	clickBehavior?: ClickBehavior;
+	openMode?: WorkbenchOpenMode;
 }
 
 interface IKeybindingDispatcherItem {
@@ -134,7 +137,7 @@ export class DefaultController implements _.IController {
 
 	private options: IControllerOptions;
 
-	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP }) {
+	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP, openMode: 'singleClick' }) {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
@@ -388,6 +391,16 @@ export class DefaultController implements _.IController {
 		}
 
 		return false;
+	}
+
+	protected setOpenMode(openMode: WorkbenchOpenMode) {
+		if (this.options.openMode !== openMode) {
+			this.options.openMode = openMode;
+		}
+	}
+
+	protected isInSingleClickOpenMode() {
+		return this.options.openMode === 'singleClick';
 	}
 }
 

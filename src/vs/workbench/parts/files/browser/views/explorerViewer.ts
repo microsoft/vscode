@@ -30,7 +30,7 @@ import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/plat
 import { DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior, DefaultController, WorkbenchOpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -378,7 +378,6 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 export class FileController extends DefaultController {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
-	private openMode: string;
 
 	private contributedContextMenu: IMenu;
 
@@ -421,14 +420,17 @@ export class FileController extends DefaultController {
 
 		this.state = state;
 
+		this.onConfigurationUpdated(configurationService.getConfiguration<IConfiguration>());
 		configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
 
 	private onConfigurationUpdated(config: IConfiguration): void {
-		const newOpenModeSetting = config && config.workbench && config.workbench.openMode;
-		if (newOpenModeSetting !== this.openMode) {
-			this.openMode = newOpenModeSetting;
-		}
+		super.setOpenMode(this.getOpenModeSetting(config));
+	}
+
+	private getOpenModeSetting(config: IConfiguration): WorkbenchOpenMode {
+		const openModeSetting = config && config.workbench && config.workbench.openMode;
+		return openModeSetting === 'doubleClick' ? 'doubleClick' : 'singleClick';
 	}
 
 	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
@@ -500,10 +502,6 @@ export class FileController extends DefaultController {
 		}
 
 		return true;
-	}
-
-	private isInSingleClickOpenMode() {
-		return this.openMode === 'singleClick';
 	}
 
 	public onContextMenu(tree: ITree, stat: FileStat, event: ContextMenuEvent): boolean {
