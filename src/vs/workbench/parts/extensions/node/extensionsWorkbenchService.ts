@@ -580,11 +580,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 						.then(null, onUnexpectedError);
 				}
 			}
-		}
-
-		if (extension.gallery) {
-			// Report telemetry only for gallery extensions
-			this.reportTelemetry(installing, !error);
+			if (extension.gallery) {
+				// Report telemetry only for gallery extensions
+				this.reportTelemetry(installing, !error);
+			}
 		}
 		this._onChange.fire();
 	}
