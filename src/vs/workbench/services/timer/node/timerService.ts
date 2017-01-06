@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as timer from 'vs/base/common/timer';
 import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
 
 import * as os from 'os';
@@ -54,9 +53,6 @@ export class TimerService implements ITimerService {
 
 		this.isInitialStartup = initData.isInitialStartup;
 		this.hasAccessibilitySupport = initData.hasAccessibilitySupport;
-
-		// forward start time to time keeper
-		timer.TimeKeeper.PARSE_TIME = initData.isInitialStartup ? initData.start : initData.windowLoad;
 	}
 
 	public computeStartupMetrics(): void {

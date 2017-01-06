@@ -14,7 +14,6 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
-import timer = require('vs/base/common/timer');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -61,10 +60,6 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 		filesToCreate,
 		filesToDiff
 	};
-
-	if (configuration.performance) {
-		timer.ENABLE_TIMER = true;
-	}
 
 	// Resolve workspace
 	return getWorkspace(configuration.workspacePath).then(workspace => {

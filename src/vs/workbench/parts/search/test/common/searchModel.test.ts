@@ -9,7 +9,6 @@ import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DeferredPPromise } from 'vs/base/test/common/utils';
 import { PPromise } from 'vs/base/common/winjs.base';
-import { nullEvent } from 'vs/base/common/timer';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
 import { IFileMatch, ILineMatch, ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats } from 'vs/platform/search/common/search';
@@ -19,6 +18,27 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+
+const nullEvent = new class {
+
+	public id: number;
+	public topic: string;
+	public name: string;
+	public description: string;
+	public data: any;
+
+	public startTime: Date;
+	public stopTime: Date;
+
+	public stop(): void {
+		return;
+	}
+
+	public timeTaken(): number {
+		return -1;
+	}
+};
+
 
 suite('SearchModel', () => {
 
