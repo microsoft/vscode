@@ -82,6 +82,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	isInitialStartup?: boolean;
 
 	perfStartTime?: number;
+	perfAppReady?: number;
 	perfWindowLoadTime?: number;
 
 	workspacePath?: string;
@@ -487,6 +488,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
+		windowConfiguration.perfAppReady = global.perfAppReady;
 		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
