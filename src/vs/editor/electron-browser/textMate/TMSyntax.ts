@@ -5,66 +5,19 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IExtensionPoint, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
-import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
-
-export interface IEmbeddedLanguagesMap {
-	[scopeName: string]: string;
-}
-
-export interface ITMSyntaxExtensionPoint {
-	language: string;
-	scopeName: string;
-	path: string;
-	embeddedLanguages: IEmbeddedLanguagesMap;
-	injectTo: string[];
-}
-
-export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', [languagesExtPoint], {
-	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
-	type: 'array',
-	defaultSnippets: [{ body: [{ language: '${1:id}', scopeName: 'source.${2:id}', path: './syntaxes/${3:id}.tmLanguage.' }] }],
-	items: {
-		type: 'object',
-		defaultSnippets: [{ body: { language: '${1:id}', scopeName: 'source.${2:id}', path: './syntaxes/${3:id}.tmLanguage.' } }],
-		properties: {
-			language: {
-				description: nls.localize('vscode.extension.contributes.grammars.language', 'Language identifier for which this syntax is contributed to.'),
-				type: 'string'
-			},
-			scopeName: {
-				description: nls.localize('vscode.extension.contributes.grammars.scopeName', 'Textmate scope name used by the tmLanguage file.'),
-				type: 'string'
-			},
-			path: {
-				description: nls.localize('vscode.extension.contributes.grammars.path', 'Path of the tmLanguage file. The path is relative to the extension folder and typically starts with \'./syntaxes/\'.'),
-				type: 'string'
-			},
-			embeddedLanguages: {
-				description: nls.localize('vscode.extension.contributes.grammars.embeddedLanguages', 'A map of scope name to language id if this grammar contains embedded languages.'),
-				type: 'object'
-			},
-			injectTo: {
-				description: nls.localize('vscode.extension.contributes.grammars.injectTo', 'List of language scope names to which this grammar is injected to.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			}
-		},
-		required: ['scopeName', 'path']
-	}
-});
+import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 
 export class TMScopeRegistry {
 
@@ -133,14 +86,6 @@ export class TMLanguageRegistration {
 	}
 }
 
-function createStyleSheet(): HTMLStyleElement {
-	let style = document.createElement('style');
-	style.type = 'text/css';
-	style.media = 'screen';
-	document.getElementsByTagName('head')[0].appendChild(style);
-	return style;
-}
-
 export class MainProcessTextMateSyntax implements ITextMateService {
 	public _serviceBrand: any;
 
@@ -158,7 +103,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		@IModeService modeService: IModeService,
 		@IThemeService themeService: IThemeService
 	) {
-		this._styleElement = createStyleSheet();
+		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
 		this._modeService = modeService;
 		this._themeService = themeService;
