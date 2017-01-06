@@ -99,8 +99,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
-		const charWidth = Math.ceil(rect.width);
-		const charHeight = Math.ceil(rect.height);
+		const charWidth = rect.width;
+		const charHeight = rect.height;
 		return {
 			fontFamily,
 			fontSize: fontSize + 'px',

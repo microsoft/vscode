@@ -455,8 +455,8 @@ export class TerminalInstance implements ITerminalInstance {
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			this._xterm.emit('scroll', this._xterm.ydisp);
 		}
-		const leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
-		const innerWidth = dimension.width - leftPadding;
+		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		const innerWidth = dimension.width - padding * 2; // Use left padding as right padding
 		const cols = Math.floor(innerWidth / font.charWidth);
 		const rows = Math.floor(dimension.height / font.charHeight);
 		if (this._xterm) {
