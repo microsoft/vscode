@@ -520,7 +520,7 @@ export class Process implements debug.IProcess {
 					thread.stopped = true;
 					thread.clearCallStack();
 				});
-			} else {
+			} else if (this.threads.has(data.threadId)) {
 				// One thread is stopped, only update that thread.
 				const thread = this.threads.get(data.threadId);
 				thread.stoppedDetails = data.stoppedDetails;
