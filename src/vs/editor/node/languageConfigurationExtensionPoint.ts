@@ -37,10 +37,8 @@ export class LanguageConfigurationFileHandler {
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
 		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
-		textMateService.onDidEncounterLanguage((language) => {
-			// TODO@tokenization
-			throw new Error('TODO@tokenization');
-			// this._loadConfigurationsForMode(language);
+		textMateService.onDidEncounterLanguage((languageId) => {
+			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId));
 		});
 	}
 
