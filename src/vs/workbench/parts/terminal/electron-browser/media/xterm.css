@@ -181,17 +181,17 @@
 
 /* Base selection colors */
 
-.monaco-workbench .panel.integrated-terminal .xterm *::selection {
+.monaco-workbench .panel.integrated-terminal .xterm ::selection {
 	color: #FFF;
 	background-color: rgba(51, 51, 51, 0.996);
 }
 
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm *::selection {
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm ::selection {
 	color: #1e1e1e;
 	background-color: rgba(204, 204, 204, 0.996);
 }
 
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm *::selection {
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm ::selection {
 	color: #000;
 	background-color: rgba(255, 255, 255, 0.996);
 }

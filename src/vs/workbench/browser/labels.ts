@@ -110,7 +110,7 @@ export class ResourceLabel extends IconLabel {
 		const resource = this.label.resource;
 
 		let title = '';
-		if (this.options && this.options.title) {
+		if (this.options && typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (resource) {
 			title = getPathLabel(resource.fsPath);

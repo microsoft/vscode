@@ -193,7 +193,7 @@ jsonRegistry.registerSchema(schemaId, schema);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
 	private adapters: Adapter[];
-	private allModeIdsForBreakpoints: { [key: string]: boolean };
+	private breakpointModeIdsSet: Set<string>;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -208,7 +208,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	) {
 		this.adapters = [];
 		this.registerListeners();
-		this.allModeIdsForBreakpoints = {};
+		this.breakpointModeIdsSet = new Set<string>();
 	}
 
 	private registerListeners(): void {
@@ -220,7 +220,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					}
 					if (rawAdapter.enableBreakpointsFor) {
 						rawAdapter.enableBreakpointsFor.languageIds.forEach(modeId => {
-							this.allModeIdsForBreakpoints[modeId] = true;
+							this.breakpointModeIdsSet.add(modeId);
 						});
 					}
 
@@ -250,7 +250,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		breakpointsExtPoint.setHandler(extensions => {
 			extensions.forEach(ext => {
 				ext.value.forEach(breakpoints => {
-					this.allModeIdsForBreakpoints[breakpoints.language] = true;
+					this.breakpointModeIdsSet.add(breakpoints.language);
 				});
 			});
 		});
@@ -385,6 +385,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		const modeId = model ? model.getLanguageIdentifier().language : null;
 
-		return !!this.allModeIdsForBreakpoints[modeId];
+		return this.breakpointModeIdsSet.has(modeId);
 	}
 }

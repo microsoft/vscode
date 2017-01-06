@@ -44,8 +44,8 @@ import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/insta
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Selection } from 'vs/editor/common/core/selection';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export interface IEditableData {
 	action: IAction;
@@ -1307,13 +1307,13 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
-				let selectionOfSource: Selection;
+				let viewStateOfSource: IEditorViewState;
 				const activeEditor = this.editorService.getActiveEditor();
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
 					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
 					if (activeResource && activeResource.toString() === source.toString()) {
-						selectionOfSource = <Selection>editor.getSelection();
+						viewStateOfSource = editor.saveViewState();
 					}
 				}
 
@@ -1344,13 +1344,13 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 						encoding: encodingOfSource,
 						options: {
 							pinned: true,
-							selection: selectionOfSource
+							viewState: viewStateOfSource
 						}
 					};
 
 					return this.editorService.replaceEditors([{
 						toReplace: { resource: source },
-						replaceWith: replaceWith
+						replaceWith
 					}]).then(() => true);
 				});
 			}
