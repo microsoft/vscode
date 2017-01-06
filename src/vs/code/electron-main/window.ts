@@ -663,14 +663,14 @@ export class VSCodeWindow implements IVSCodeWindow {
 	}
 
 	public setMenuBarVisibility(visibility: '' | 'visible' | 'toggle' | 'hidden', notify: boolean = true): void {
-
 		switch (visibility) {
-			case ('visible'): {
+			case (''):
+			case ('visible'):
 				this.win.setMenuBarVisibility(true);
 				this.win.setAutoHideMenuBar(false);
 				break;
-			}
-			case ('toggle'): {
+
+			case ('toggle'):
 				this.win.setMenuBarVisibility(false);
 				this.win.setAutoHideMenuBar(true);
 
@@ -678,18 +678,11 @@ export class VSCodeWindow implements IVSCodeWindow {
 					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
 				};
 				break;
-			}
-			case ('hidden'): {
+
+			case ('hidden'):
 				this.win.setMenuBarVisibility(false);
 				this.win.setAutoHideMenuBar(false);
 				break;
-			}
-			default: {
-				// default to visible
-				this.win.setMenuBarVisibility(true);
-				this.win.setAutoHideMenuBar(false);
-				break;
-			}
 		};
 	}
 
