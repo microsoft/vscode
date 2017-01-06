@@ -90,12 +90,6 @@ interface INativeOpenDialogOptions {
 	window?: VSCodeWindow;
 }
 
-interface IConfiguration {
-	window: {
-		menuBarVisibility: 'visible' | 'toggle' | 'hidden';
-	};
-}
-
 const ReopenFoldersSetting = {
 	ALL: 'all',
 	ONE: 'one',
@@ -154,7 +148,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
-	private currentMenuBarVisibility: '' | 'visible' | 'toggle' | 'hidden';
 
 	private _onRecentPathsChange = new Emitter<void>();
 	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
@@ -282,19 +275,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Update jump list when recent paths change
 		this.onRecentPathsChange(() => this.updateWindowsJumpList());
-
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
-
-	private onConfigurationUpdated(config: IConfiguration): void {
-
-		let newMenuBarVisibility = config && config.window && config.window.menuBarVisibility;
-
-		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
-			this.currentMenuBarVisibility = newMenuBarVisibility;
-			this.getWindows().forEach(w => w.setMenuBarVisibility(newMenuBarVisibility));
-		}
-	};
 
 	private onBroadcast(event: string, payload: any): void {
 

@@ -117,6 +117,12 @@ export enum ReadyState {
 	READY
 }
 
+interface IConfiguration {
+	window: {
+		menuBarVisibility: 'visible' | 'toggle' | 'hidden';
+	};
+}
+
 export interface IVSCodeWindow {
 	id: number;
 	readyState: ReadyState;
@@ -142,6 +148,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private _extensionDevelopmentPath: string;
 	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
+	private currentMenuBarVisibility: '' | 'visible' | 'toggle' | 'hidden';
 	private currentWindowMode: WindowMode;
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
@@ -239,7 +246,19 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.setMenuBarVisibility(windowConfig && windowConfig.menuBarVisibility);
 
 		this.registerListeners();
+
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
+
+	private onConfigurationUpdated(config: IConfiguration): void {
+
+		let newMenuBarVisibility = config && config.window && config.window.menuBarVisibility;
+
+		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+			this.currentMenuBarVisibility = newMenuBarVisibility;
+			this.setMenuBarVisibility(newMenuBarVisibility);
+		}
+	};
 
 	public hasHiddenTitleBarStyle(): boolean {
 		return this.hiddenTitleBarStyle;
@@ -656,7 +675,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 		let menuBarVisibility = windowConfig && windowConfig.menuBarVisibility;
 		if (typeof menuBarVisibility !== 'string') {
-			menuBarVisibility = 'toggle';
+			menuBarVisibility = willBeFullScreen ? 'toggle' : 'visible';
 		};
 
 		this.setMenuBarVisibility(menuBarVisibility, false);
