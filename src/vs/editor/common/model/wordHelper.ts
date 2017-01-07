@@ -63,6 +63,12 @@ function reverse(str: string): string {
 }
 
 function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+	// matches at the desired column, once to right
+	// and once to the left. The latter is achived
+	// by reversing the string. Falls back to getWordAtPosSlow
+	// when a word is longer than 100 characters. Will
+	// not work with regular expressions that check the
+	// shape of a word, like /aabb/
 
 	let pos = column - 1 - textOffset;
 	wordDefinition.lastIndex = pos;
@@ -83,12 +89,9 @@ function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, 
 
 		} else if (wordDefinition.lastIndex === 100) {
 			// |W*100 -> very long word
-			wordDefinition.lastIndex = 0; // reset!
-			return getWordAtTextSlow(column, wordDefinition, text, textOffset);
+			return getWordAtPosSlow(column, wordDefinition, text, textOffset);
 		}
 	}
-
-	wordDefinition.lastIndex = 0; //reset!
 
 	if (!rightMatch && !leftMatch) {
 		// nothing matched
@@ -118,34 +121,28 @@ function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, 
 	};
 }
 
-export function getWordAtTextSlow(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+	// matches all words starting at the beginning
+	// of the input until it finds a match that encloses
+	// the desired column. slow but correct
 
-	var words = text.match(wordDefinition),
-		k: number,
-		startWord: number,
-		endWord: number,
-		startColumn: number,
-		endColumn: number,
-		word: string;
+	let pos = column - 1 - textOffset;
+	wordDefinition.lastIndex = 0;
 
-	if (words) {
-		for (k = 0; k < words.length; k++) {
-			word = words[k].trim();
-			if (word.length > 0) {
-				startWord = text.indexOf(word, endWord);
-				endWord = startWord + word.length;
+	let match: RegExpMatchArray;
+	while (match = wordDefinition.exec(text)) {
 
-				startColumn = textOffset + startWord + 1;
-				endColumn = textOffset + endWord + 1;
+		if (match.index > pos) {
+			// |nW -> matched only after the pos
+			return null;
 
-				if (startColumn <= column && column <= endColumn) {
-					return {
-						word: word,
-						startColumn: startColumn,
-						endColumn: endColumn
-					};
-				}
-			}
+		} else if (wordDefinition.lastIndex >= pos) {
+			// W|W -> match encloses pos
+			return {
+				word: match[0],
+				startColumn: textOffset + 1 + match.index,
+				endColumn: textOffset + 1 + wordDefinition.lastIndex
+			};
 		}
 	}
 
@@ -153,5 +150,10 @@ export function getWordAtTextSlow(column: number, wordDefinition: RegExp, text: 
 }
 
 export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
-	return getWordAtPosFast(column, wordDefinition, text, textOffset);
+	const result = getWordAtPosFast(column, wordDefinition, text, textOffset);
+	// both (getWordAtPosFast and getWordAtPosSlow) leave the wordDefinition-RegExp
+	// in an undefined state and to not confuse other users of the wordDefinition
+	// we reset the lastIndex
+	wordDefinition.lastIndex = 0;
+	return result;
 }
