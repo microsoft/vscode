@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'pty.js' {
+declare module 'node-pty' {
 	export function fork(file: string, args: string[], options: any): Terminal;
 	export function spawn(file: string, args: string[], options: any): Terminal;
 	export function createTerminal(file: string, args: string[], options: any): Terminal;
