@@ -32,6 +32,13 @@ import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/edito
 import { keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+interface IConfiguration {
+	workbench: {
+		openMode: string;
+	};
+}
 
 const $ = dom.$;
 
@@ -207,9 +214,22 @@ export class Controller extends treedefaults.DefaultController {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IConfiguration>());
+		configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+	}
+
+	private onConfigurationUpdated(config: IConfiguration): void {
+		super.setOpenMode(this.getOpenModeSetting(config));
+	}
+
+	private getOpenModeSetting(config: IConfiguration): treedefaults.WorkbenchOpenMode {
+		const openModeSetting = config && config.workbench && config.workbench.openMode;
+		return openModeSetting === 'doubleClick' ? 'doubleClick' : 'singleClick';
 	}
 
 	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
@@ -262,7 +282,13 @@ export class Controller extends treedefaults.DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
+
+			if (isDoubleClick) {
+				this.openEditor(element, true, event.ctrlKey || event.metaKey);
+			}
+			else if (this.isInSingleClickOpenMode()) {
+				this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
+			}
 		}
 
 		return true;
