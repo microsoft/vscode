@@ -309,15 +309,7 @@ export class CallStackController extends BaseDebugController {
 	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			return this.editorService.openEditor({
-				resource: stackFrame.source.uri,
-				options: {
-					preserveFocus,
-					selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
-					revealIfVisible: true,
-					revealInCenterIfOutsideViewport: true
-				},
-			}, sideBySide);
+			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
 		}, errors.onUnexpectedError);
 	}
 }
@@ -563,7 +555,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
 		stackFrame.source.available ? dom.removeClass(data.stackFrame, 'disabled') : dom.addClass(data.stackFrame, 'disabled');
-		data.file.title = stackFrame.source.uri.fsPath;
+		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);

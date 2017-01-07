@@ -6,21 +6,21 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import Event, { Emitter } from 'vs/base/common/event';
+import Severity from 'vs/base/common/severity';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { ICommonCodeEditor, IPosition, IRange } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from '../common/quickFix';
 
 
-class QuickFixOracle {
+export class QuickFixOracle {
 
 	private _disposables: IDisposable[] = [];
+	private _currentRange: IRange;
 
 	constructor(private _editor: ICommonCodeEditor, private _markerService: IMarkerService, private _signalChange: (e: QuickFixComputeEvent) => any) {
 
@@ -34,29 +34,57 @@ class QuickFixOracle {
 		this._disposables = dispose(this._disposables);
 	}
 
-	private _onMarkerChanges(resources: URI[]): void {
-		const {uri} = this._editor.getModel();
-		let affectedBy = false;
-		for (const resource of resources) {
-			if (resource.toString() === uri.toString()) {
-				affectedBy = true;
-				break;
-			}
+	trigger(): void {
+		let {range, severity} = this._rangeAtPosition();
+		if (!range) {
+			range = this._editor.getSelection();
 		}
-		if (affectedBy) {
-			this._onCursorChange();
-		}
-	}
-
-	private _onCursorChange(): void {
-		const range = this._markerAtPosition() || this._wordAtPosition();
-
 		this._signalChange({
-			type: 'auto',
+			type: 'manual',
+			severity,
 			range,
 			position: this._editor.getPosition(),
 			fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
 		});
+
+	}
+
+	private _onMarkerChanges(resources: URI[]): void {
+		const {uri} = this._editor.getModel();
+		for (const resource of resources) {
+			if (resource.toString() === uri.toString()) {
+				this._onCursorChange();
+				return;
+			}
+		}
+	}
+
+	private _onCursorChange(): void {
+		const {range, severity} = this._rangeAtPosition();
+		if (!Range.equalsRange(this._currentRange, range)) {
+			this._currentRange = range;
+			this._signalChange({
+				type: 'auto',
+				severity,
+				range,
+				position: this._editor.getPosition(),
+				fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
+			});
+		}
+	}
+
+	private _rangeAtPosition(): { range: IRange, severity: Severity; } {
+		let range: IRange;
+		let severity: Severity;
+		const marker = this._markerAtPosition();
+		if (marker) {
+			range = Range.lift(marker);
+			severity = marker.severity;
+		} else {
+			range = this._wordAtPosition();
+			severity = Severity.Info;
+		}
+		return { range, severity };
 	}
 
 	private _markerAtPosition(): IMarker {
@@ -76,26 +104,23 @@ class QuickFixOracle {
 	}
 
 	private _wordAtPosition(): IRange {
-		return;
-		// todo@joh - enable once we decide to eagerly show the
-		// light bulb as the cursor moves
-		// const {positionLineNumber, positionColumn} = this._editor.getSelection();
-		// const model = this._editor.getModel();
-
-		// const info = model.getWordAtPosition({ lineNumber: positionLineNumber, column: positionColumn });
-		// if (info) {
-		// 	return {
-		// 		startLineNumber: positionLineNumber,
-		// 		startColumn: info.startColumn,
-		// 		endLineNumber: positionLineNumber,
-		// 		endColumn: info.endColumn
-		// 	};
-		// }
+		const {positionLineNumber, positionColumn} = this._editor.getSelection();
+		const model = this._editor.getModel();
+		const info = model.getWordAtPosition({ lineNumber: positionLineNumber, column: positionColumn });
+		if (info) {
+			return {
+				startLineNumber: positionLineNumber,
+				startColumn: info.startColumn,
+				endLineNumber: positionLineNumber,
+				endColumn: info.endColumn
+			};
+		}
 	}
 }
 
 export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
+	severity: Severity;
 	range: IRange;
 	position: IPosition;
 	fixes: TPromise<CodeAction[]>;
@@ -109,7 +134,7 @@ export class QuickFixModel {
 	private _onDidChangeFixes = new Emitter<QuickFixComputeEvent>();
 	private _disposables: IDisposable[] = [];
 
-	constructor(editor: ICodeEditor, markerService: IMarkerService) {
+	constructor(editor: ICommonCodeEditor, markerService: IMarkerService) {
 		this._editor = editor;
 		this._markerService = markerService;
 
@@ -132,7 +157,8 @@ export class QuickFixModel {
 	private _update(): void {
 
 		if (this._quickFixOracle) {
-			dispose(this._quickFixOracle);
+			this._quickFixOracle.dispose();
+			this._quickFixOracle = undefined;
 			this._onDidChangeFixes.fire(undefined);
 		}
 
@@ -144,16 +170,9 @@ export class QuickFixModel {
 		}
 	}
 
-	triggerManual(selection: Selection): void {
-		const model = this._editor.getModel();
-		if (model) {
-			const fixes = getCodeActions(model, selection);
-			this._onDidChangeFixes.fire({
-				type: 'manual',
-				range: selection,
-				position: { lineNumber: selection.positionLineNumber, column: selection.positionColumn },
-				fixes
-			});
+	triggerManual(): void {
+		if (this._quickFixOracle) {
+			this._quickFixOracle.trigger();
 		}
 	}
 }

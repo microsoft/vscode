@@ -27,7 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, CancelAction } from 'vs/platform/message/common/message';
+import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -44,17 +44,16 @@ export class TextFileEditor extends BaseTextEditor {
 		@IFileService private fileService: IFileService,
 		@IViewletService private viewletService: IViewletService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@IHistoryService private historyService: IHistoryService,
-		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, editorService, themeService, textFileService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
@@ -68,15 +67,15 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	public getTitle(): string {
-		return this.getInput() ? this.getInput().getName() : nls.localize('textFileEditor', "Text File Editor");
+		return this.input ? this.input.getName() : nls.localize('textFileEditor', "Text File Editor");
 	}
 
-	public getInput(): FileEditorInput {
-		return <FileEditorInput>super.getInput();
+	public get input(): FileEditorInput {
+		return this._input as FileEditorInput;
 	}
 
 	public setInput(input: FileEditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.getInput();
+		const oldInput = this.input;
 		super.setInput(input, options);
 
 		// Detect options
@@ -121,9 +120,9 @@ export class TextFileEditor extends BaseTextEditor {
 			// Check Model state
 			const textFileModel = <ITextFileEditorModel>resolvedModel;
 
-			const hasInput = !!this.getInput();
+			const hasInput = !!this.input;
 			const modelDisposed = textFileModel.isDisposed();
-			const inputChanged = hasInput && this.getInput().getResource().toString() !== textFileModel.getResource().toString();
+			const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
 			if (
 				!hasInput ||		// editor got hidden meanwhile
 				modelDisposed || 	// input got disposed meanwhile
@@ -137,7 +136,7 @@ export class TextFileEditor extends BaseTextEditor {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
-			const editorViewState = this.loadTextEditorViewState(this.getInput().getResource().toString());
+			const editorViewState = this.loadTextEditorViewState(this.input.getResource().toString());
 			if (editorViewState) {
 				textEditor.restoreViewState(editorViewState);
 			}
@@ -210,7 +209,7 @@ export class TextFileEditor extends BaseTextEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		const options = super.getCodeEditorOptions();
 
-		const input = this.getInput();
+		const input = this.input;
 		const inputName = input && input.getName();
 
 		let ariaLabel: string;
@@ -237,7 +236,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Keep editor view state in settings to restore when coming back
 		if (this.input) {
-			this.saveTextEditorViewState(this.getInput().getResource().toString());
+			this.saveTextEditorViewState(this.input.getResource().toString());
 		}
 
 		// Clear Model
@@ -251,7 +250,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Save View State
 		if (this.input) {
-			this.saveTextEditorViewState(this.getInput().getResource().toString());
+			this.saveTextEditorViewState(this.input.getResource().toString());
 		}
 
 		// Call Super

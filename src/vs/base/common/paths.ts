@@ -11,12 +11,12 @@ import { CharCode } from 'vs/base/common/charCode';
 /**
  * The forward slash path separator.
  */
-export var sep = '/';
+export const sep = '/';
 
 /**
  * The native path separator depending on the OS.
  */
-export var nativeSep = isWindows ? '\\' : '/';
+export const nativeSep = isWindows ? '\\' : '/';
 
 export function relative(from: string, to: string): string {
 	const originalNormalizedFrom = normalize(from);
@@ -50,7 +50,7 @@ export function relative(from: string, to: string): string {
  * @returns the directory name of a path.
  */
 export function dirname(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return '.';
 	} else if (~idx === 0) {
@@ -64,7 +64,7 @@ export function dirname(path: string): string {
  * @returns the base name of a path.
  */
 export function basename(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return path;
 	} else if (~idx === path.length - 1) {
@@ -79,7 +79,7 @@ export function basename(path: string): string {
  */
 export function extname(path: string): string {
 	path = basename(path);
-	var idx = ~path.lastIndexOf('.');
+	const idx = ~path.lastIndexOf('.');
 	return idx ? path.substring(~idx) : '';
 }
 

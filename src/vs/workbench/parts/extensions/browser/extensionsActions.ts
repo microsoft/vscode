@@ -313,7 +313,7 @@ export class DropDownMenuActionItem extends ActionItem {
 	}
 
 	private getActions(): IAction[] {
-		let actions = [];
+		let actions: IAction[] = [];
 		const menuActionGroups = this.menuActionGroups.filter(group => group.some(action => action.enabled));
 		for (const menuActions of menuActionGroups) {
 			actions = [...actions, ...menuActions, new Separator()];

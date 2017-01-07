@@ -125,7 +125,7 @@ const enum CharacterClass {
 }
 
 const classifier = (function () {
-	let result = new CharacterClassifier(CharacterClass.None);
+	let result = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
 	const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
 	for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {

@@ -99,6 +99,11 @@
 					"default": true,
 					"description": "%typescript.check.tscVersion%"
 				},
+				"typescript.referencesCodeLens.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "%typescript.referencesCodeLens.enabled%"
+				},
 				"typescript.tsserver.trace": {
 					"type": "string",
 					"enum": [
