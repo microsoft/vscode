@@ -54,9 +54,71 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp): RegExp {
 	return result;
 }
 
-export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+function reverse(str: string): string {
+	let reversedStr = '';
+	for (let i = str.length - 1; i >= 0; i--) {
+		reversedStr += str.charAt(i);
+	}
+	return reversedStr;
+}
 
-	// console.log('_getWordAtText: ', column, text, textOffset);
+function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+
+	let pos = column - 1 - textOffset;
+	wordDefinition.lastIndex = pos;
+	let rightMatch = wordDefinition.exec(text);
+	if (rightMatch && rightMatch.index > pos) {
+		// |nW
+		rightMatch = null;
+	}
+
+	let leftTextReverse = reverse(text.substring(pos - 100, pos));
+	wordDefinition.lastIndex = 0;
+	let leftMatch = wordDefinition.exec(leftTextReverse);
+	if (leftMatch) {
+
+		if (leftMatch.index > 0) {
+			// |nW
+			leftMatch = null;
+
+		} else if (wordDefinition.lastIndex === 100) {
+			// |W*100 -> very long word
+			wordDefinition.lastIndex = 0; // reset!
+			return getWordAtTextSlow(column, wordDefinition, text, textOffset);
+		}
+	}
+
+	wordDefinition.lastIndex = 0; //reset!
+
+	if (!rightMatch && !leftMatch) {
+		// nothing matched
+		return null;
+	}
+
+	let word = '';
+	let start = pos;
+	let end = pos;
+
+	if (leftMatch) {
+		let leftWord = reverse(leftMatch[0]);
+		start -= leftWord.length;
+		word = leftWord;
+	}
+
+	if (rightMatch) {
+		let rightWord = rightMatch[0];
+		end += rightWord.length;
+		word += rightWord;
+	}
+
+	return {
+		word,
+		startColumn: textOffset + 1 + start,
+		endColumn: textOffset + 1 + end
+	};
+}
+
+export function getWordAtTextSlow(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
 
 	var words = text.match(wordDefinition),
 		k: number,
@@ -88,4 +150,8 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	}
 
 	return null;
+}
+
+export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+	return getWordAtPosFast(column, wordDefinition, text, textOffset);
 }
