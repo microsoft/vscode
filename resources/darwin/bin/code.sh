@@ -7,5 +7,9 @@ function realpath() { /usr/bin/python -c "import os,sys; print os.path.realpath(
 CONTENTS="$(dirname "$(dirname "$(dirname "$(dirname "$(realpath "$0")")")")")"
 ELECTRON="$CONTENTS/MacOS/Electron"
 CLI="$CONTENTS/Resources/app/out/cli.js"
-ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
+# Allow users to override command-line options
+if [[ -f $HOME/.vscode/code-flags.conf ]]; then
+   CODE_USER_FLAGS="$(cat $HOME/.vscode/code-flags.conf)"
+fi
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$CODE_USER_FLAGS" "$@"
 exit $?
