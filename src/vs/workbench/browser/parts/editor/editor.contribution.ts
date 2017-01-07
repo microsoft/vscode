@@ -14,7 +14,7 @@ import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extens
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
-import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
+import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -44,10 +44,10 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		StringEditor.ID,
+		TextResourceEditor.ID,
 		nls.localize('textEditor', "Text Editor"),
-		'vs/workbench/browser/parts/editor/stringEditor',
-		'StringEditor'
+		'vs/workbench/browser/parts/editor/textResourceEditor',
+		'TextResourceEditor'
 	),
 	[
 		new SyncDescriptor(StringEditorInput),

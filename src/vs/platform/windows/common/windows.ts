@@ -25,6 +25,7 @@ export interface IWindowsService {
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	// TODO@joao: rename, shouldn't this be closeWindow?
+	// @ben: no, this actually leaves the window open but changes it to have no workspace opened
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
@@ -40,8 +41,7 @@ export interface IWindowsService {
 	quit(): TPromise<void>;
 
 	// Global methods
-	// TODO@joao: rename, shouldn't this be openWindow?
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
@@ -87,7 +87,8 @@ export interface IWindowService {
 }
 
 export interface IWindowSettings {
-	openFilesInNewWindow: boolean;
+	openFilesInNewWindow: 'on' | 'off' | 'default';
+	openFoldersInNewWindow: 'on' | 'off' | 'default';
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;

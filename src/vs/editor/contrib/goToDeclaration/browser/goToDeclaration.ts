@@ -76,7 +76,7 @@ export class DefinitionAction extends EditorAction {
 			let result: Location[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
-				if (!reference) {
+				if (!reference || !reference.range) {
 					continue;
 				}
 				let {uri, range} = reference;
@@ -110,7 +110,7 @@ export class DefinitionAction extends EditorAction {
 		} else {
 			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
 			this._openReference(editorService, next, this._configuration.openToSide).then(editor => {
-				if (model.references.length > 1) {
+				if (editor && model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
 				} else {
 					model.dispose();
@@ -128,7 +128,7 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
-			return <editorCommon.IEditor>editor.getControl();
+			return editor && <editorCommon.IEditor>editor.getControl();
 		});
 	}
 

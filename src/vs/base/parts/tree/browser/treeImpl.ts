@@ -133,7 +133,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	}
 
 	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
-		return this.model.collapse(element);
+		return this.model.collapse(element, recursive);
 	}
 
 	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
@@ -318,8 +318,8 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.hasTrait(trait, element);
 	}
 
-	getNavigator(): INavigator<any> {
-		return new MappedNavigator(this.model.getNavigator(), i => i && i.getElement());
+	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any> {
+		return new MappedNavigator(this.model.getNavigator(fromElement, subTreeOnly), i => i && i.getElement());
 	}
 
 	public dispose(): void {

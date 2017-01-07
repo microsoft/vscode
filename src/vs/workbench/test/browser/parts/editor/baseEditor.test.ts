@@ -130,11 +130,11 @@ suite('Workbench BaseEditor', () => {
 		let options = new EditorOptions();
 
 		assert(!e.isVisible());
-		assert(!e.getInput());
-		assert(!e.getOptions());
+		assert(!e.input);
+		assert(!e.options);
 		e.setInput(input, options).then(() => {
-			assert.strictEqual(input, e.getInput());
-			assert.strictEqual(options, e.getOptions());
+			assert.strictEqual(input, e.input);
+			assert.strictEqual(options, e.options);
 
 			e.setVisible(true);
 			assert(e.isVisible());
@@ -145,8 +145,8 @@ suite('Workbench BaseEditor', () => {
 			e.clearInput();
 			e.setVisible(false);
 			assert(!e.isVisible());
-			assert(!e.getInput());
-			assert(!e.getOptions());
+			assert(!e.input);
+			assert(!e.options);
 			assert(!e.getControl());
 		}).done(() => done());
 	});
