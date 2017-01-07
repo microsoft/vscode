@@ -1043,9 +1043,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseString(isValue: boolean): boolean {
-		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
-			return false;
-		}
 		let value = _scanner.getTokenValue();
 		if (isValue) {
 			onLiteralValue(value);
@@ -1088,10 +1085,11 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseProperty(): boolean {
-		if (!parseString(false)) {
+		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
 			handleError(ParseErrorCode.PropertyNameExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken]);
 			return false;
 		}
+		parseString(false);
 		if (_scanner.getToken() === SyntaxKind.ColonToken) {
 			onSeparator(':');
 			scanNext(); // consume colon
@@ -1106,9 +1104,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseObject(): boolean {
-		if (_scanner.getToken() !== SyntaxKind.OpenBraceToken) {
-			return false;
-		}
 		onObjectBegin();
 		scanNext(); // consume open brace
 
@@ -1138,9 +1133,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseArray(): boolean {
-		if (_scanner.getToken() !== SyntaxKind.OpenBracketToken) {
-			return false;
-		}
 		onArrayBegin();
 		scanNext(); // consume open bracket
 
@@ -1170,7 +1162,16 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseValue(): boolean {
-		return parseArray() || parseObject() || parseString(true) || parseLiteral();
+		switch (_scanner.getToken()) {
+			case SyntaxKind.OpenBracketToken:
+				return parseArray();
+			case SyntaxKind.OpenBraceToken:
+				return parseObject();
+			case SyntaxKind.StringLiteral:
+				return parseString(true);
+			default:
+				return parseLiteral();
+		}
 	}
 
 	scanNext();
