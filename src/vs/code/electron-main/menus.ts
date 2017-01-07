@@ -21,6 +21,10 @@ import { Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import Event, { Emitter, once } from 'vs/base/common/event';
+import { ConfigWatcher } from 'vs/base/node/config';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 
 interface IResolvedKeybinding {
 	id: string;
@@ -46,9 +50,96 @@ interface IConfiguration extends IFilesConfiguration {
 	};
 }
 
-export class VSCodeMenu {
+class KeybindingsResolver {
 
 	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
+
+	private commandIds: Set<string>;
+	private keybindings: { [commandId: string]: string };
+	private keybindingsWatcher: ConfigWatcher<IUserFriendlyKeybinding[]>;
+
+	private _onKeybindingsChanged = new Emitter<void>();
+	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
+
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWindowsMainService private windowsService: IWindowsMainService
+	) {
+		this.commandIds = new Set<string>();
+		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 1000 /* update after 1s */ });
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Resolve keybindings when any first window is loaded
+		const onceOnWindowReady = once(this.windowsService.onWindowReady);
+		onceOnWindowReady(win => this.resolveKeybindings(win));
+
+		// Listen to resolved keybindings from window
+		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
+			let keybindings: IResolvedKeybinding[] = [];
+			try {
+				keybindings = JSON.parse(rawKeybindings);
+			} catch (error) {
+				// Should not happen
+			}
+
+			// Fill hash map of resolved keybindings and check for changes
+			let keybindingsChanged = false;
+			let keybindingsCount = 0;
+			keybindings.forEach(keybinding => {
+				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
+				if (accelerator) {
+					keybindingsCount++;
+
+					if (accelerator !== this.keybindings[keybinding.id]) {
+						this.keybindings[keybinding.id] = accelerator;
+						keybindingsChanged = true;
+					}
+				}
+			});
+
+			// A keybinding might have been unassigned, so we have to account for that too
+			if (Object.keys(this.keybindings).length !== keybindingsCount) {
+				keybindingsChanged = true;
+			}
+
+			if (keybindingsChanged) {
+				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
+
+				this._onKeybindingsChanged.fire();
+			}
+		});
+
+		// Resolve keybindings again when keybindings.json changes
+		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
+
+		// Resolve keybindings when window reloads because an installed extension could have an impact
+		this.windowsService.onWindowReload(() => this.resolveKeybindings());
+	}
+
+	private resolveKeybindings(win: VSCodeWindow = this.windowsService.getLastActiveWindow()): void {
+		if (this.commandIds.size && win) {
+			const commandIds = [];
+			this.commandIds.forEach(id => commandIds.push(id));
+			win.sendWhenReady('vscode:resolveKeybindings', JSON.stringify(commandIds));
+		}
+	}
+
+	public getKeybinding(commandId: string): string {
+		if (!this.commandIds.has(commandId)) {
+			this.commandIds.add(commandId);
+		}
+
+		return this.keybindings[commandId];
+	}
+}
+
+export class VSCodeMenu {
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
@@ -62,35 +153,28 @@ export class VSCodeMenu {
 
 	private menuUpdater: RunOnceScheduler;
 
-	private actionIdKeybindingRequests: string[];
-	private mapLastKnownKeybindingToActionId: { [id: string]: string; };
-	private mapResolvedKeybindingToActionId: { [id: string]: string; };
-	private keybindingsResolved: boolean;
+	private keybindingsResolver: KeybindingsResolver;
 
 	private extensionViewlets: IExtensionViewlet[];
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
 		@IUpdateService private updateService: IUpdateService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsMainService private windowsService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		this.actionIdKeybindingRequests = [];
 		this.extensionViewlets = [];
 
-		this.mapResolvedKeybindingToActionId = Object.create(null);
-		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
+		this.keybindingsResolver = instantiationService.createInstance(KeybindingsResolver);
 
 		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
-	}
 
-	public ready(): void {
-		this.registerListeners();
 		this.install();
+
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
@@ -104,43 +188,6 @@ export class VSCodeMenu {
 		this.windowsService.onPathsOpen(paths => this.updateMenu());
 		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
-
-		// Resolve keybindings when any first workbench is loaded
-		this.windowsService.onWindowReady(win => this.resolveKeybindings(win));
-
-		// Listen to resolved keybindings
-		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings) => {
-			let keybindings: IResolvedKeybinding[] = [];
-			try {
-				keybindings = JSON.parse(rawKeybindings);
-			} catch (error) {
-				// Should not happen
-			}
-
-			// Fill hash map of resolved keybindings
-			let needsMenuUpdate = false;
-			keybindings.forEach(keybinding => {
-				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
-				if (accelerator) {
-					this.mapResolvedKeybindingToActionId[keybinding.id] = accelerator;
-					if (this.mapLastKnownKeybindingToActionId[keybinding.id] !== accelerator) {
-						needsMenuUpdate = true; // we only need to update when something changed!
-					}
-				}
-			});
-
-			// A keybinding might have been unassigned, so we have to account for that too
-			if (Object.keys(this.mapLastKnownKeybindingToActionId).length !== Object.keys(this.mapResolvedKeybindingToActionId).length) {
-				needsMenuUpdate = true;
-			}
-
-			if (needsMenuUpdate) {
-				this.storageService.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
-				this.mapLastKnownKeybindingToActionId = this.mapResolvedKeybindingToActionId; // update our last known map
-
-				this.updateMenu();
-			}
-		});
 
 		// Listen to extension viewlets
 		ipc.on('vscode:extensionViewlets', (event, rawExtensionViewlets) => {
@@ -162,6 +209,9 @@ export class VSCodeMenu {
 
 		// Listen to update service
 		this.updateService.onStateChange(() => this.updateMenu());
+
+		// Listen to keybindings change
+		this.keybindingsResolver.onKeybindingsChanged(() => this.updateMenu());
 	}
 
 	private onConfigurationUpdated(config: IConfiguration, handleMenu?: boolean): void {
@@ -198,19 +248,6 @@ export class VSCodeMenu {
 
 		if (handleMenu && updateMenu) {
 			this.updateMenu();
-		}
-	}
-
-	private resolveKeybindings(win: VSCodeWindow): void {
-		if (this.keybindingsResolved) {
-			return; // only resolve once
-		}
-
-		this.keybindingsResolved = true;
-
-		// Resolve keybindings when workbench window is up
-		if (this.actionIdKeybindingRequests.length) {
-			win.send('vscode:resolveKeybindings', JSON.stringify(this.actionIdKeybindingRequests));
 		}
 	}
 
@@ -970,19 +1007,7 @@ export class VSCodeMenu {
 
 	private getAccelerator(actionId: string, fallback?: string): string {
 		if (actionId) {
-			const resolvedKeybinding = this.mapResolvedKeybindingToActionId[actionId];
-			if (resolvedKeybinding) {
-				return resolvedKeybinding; // keybinding is fully resolved
-			}
-
-			if (!this.keybindingsResolved) {
-				this.actionIdKeybindingRequests.push(actionId); // keybinding needs to be resolved
-			}
-
-			const lastKnownKeybinding = this.mapLastKnownKeybindingToActionId[actionId];
-			if (lastKnownKeybinding) {
-				return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
-			}
+			return this.keybindingsResolver.getKeybinding(actionId);
 		}
 
 		return fallback;
