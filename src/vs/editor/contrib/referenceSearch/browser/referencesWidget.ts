@@ -23,7 +23,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { DefaultController, LegacyRenderer, WorkbenchOpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { LegacyRenderer, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -38,12 +38,7 @@ import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/b
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-interface IConfiguration {
-	workbench: {
-		openMode: string;
-	};
-}
+import { TreeControllerBase } from 'vs/workbench/browser/treeController';
 
 class DecorationsManager implements IDisposable {
 
@@ -217,22 +212,10 @@ class DataSource implements tree.IDataSource {
 	}
 }
 
-class Controller extends DefaultController {
+class Controller extends TreeControllerBase {
 
 	constructor( @IConfigurationService private configurationService: IConfigurationService) {
-		super();
-
-		this.onConfigurationUpdated(configurationService.getConfiguration<IConfiguration>());
-		configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
-	}
-
-	private onConfigurationUpdated(config: IConfiguration): void {
-		super.setOpenMode(this.getOpenModeSetting(config));
-	}
-
-	private getOpenModeSetting(config: IConfiguration): WorkbenchOpenMode {
-		const openModeSetting = config && config.workbench && config.workbench.openMode;
-		return openModeSetting === 'doubleClick' ? 'doubleClick' : 'singleClick';
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP }, configurationService);
 	}
 
 	static Events = {

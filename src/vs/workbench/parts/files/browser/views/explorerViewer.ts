@@ -30,7 +30,7 @@ import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/plat
 import { DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
-import { ClickBehavior, DefaultController, WorkbenchOpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -49,12 +49,7 @@ import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
-
-interface IConfiguration {
-	workbench: {
-		openMode: string;
-	};
-}
+import { TreeControllerBase } from 'vs/workbench/browser/treeController';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -375,7 +370,7 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 }
 
 // Explorer Controller
-export class FileController extends DefaultController {
+export class FileController extends TreeControllerBase {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
 
@@ -392,7 +387,7 @@ export class FileController extends DefaultController {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
@@ -419,18 +414,6 @@ export class FileController extends DefaultController {
 		}
 
 		this.state = state;
-
-		this.onConfigurationUpdated(configurationService.getConfiguration<IConfiguration>());
-		configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
-	}
-
-	private onConfigurationUpdated(config: IConfiguration): void {
-		super.setOpenMode(this.getOpenModeSetting(config));
-	}
-
-	private getOpenModeSetting(config: IConfiguration): WorkbenchOpenMode {
-		const openModeSetting = config && config.workbench && config.workbench.openMode;
-		return openModeSetting === 'doubleClick' ? 'doubleClick' : 'singleClick';
 	}
 
 	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {

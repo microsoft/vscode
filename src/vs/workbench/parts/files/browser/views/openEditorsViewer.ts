@@ -33,12 +33,7 @@ import { keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-interface IConfiguration {
-	workbench: {
-		openMode: string;
-	};
-}
+import { TreeControllerBase } from 'vs/workbench/browser/treeController';
 
 const $ = dom.$;
 
@@ -207,7 +202,7 @@ export class Renderer implements IRenderer {
 	}
 }
 
-export class Controller extends treedefaults.DefaultController {
+export class Controller extends TreeControllerBase {
 
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -217,19 +212,7 @@ export class Controller extends treedefaults.DefaultController {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
-
-		this.onConfigurationUpdated(configurationService.getConfiguration<IConfiguration>());
-		configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
-	}
-
-	private onConfigurationUpdated(config: IConfiguration): void {
-		super.setOpenMode(this.getOpenModeSetting(config));
-	}
-
-	private getOpenModeSetting(config: IConfiguration): treedefaults.WorkbenchOpenMode {
-		const openModeSetting = config && config.workbench && config.workbench.openMode;
-		return openModeSetting === 'doubleClick' ? 'doubleClick' : 'singleClick';
+		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN }, configurationService);
 	}
 
 	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
