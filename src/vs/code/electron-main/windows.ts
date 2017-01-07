@@ -104,6 +104,7 @@ export interface IWindowsMainService {
 	// events
 	onWindowReady: CommonEvent<VSCodeWindow>;
 	onWindowClose: CommonEvent<number>;
+	onWindowReload: CommonEvent<number>;
 	onPathsOpen: CommonEvent<IPath[]>;
 	onRecentPathsChange: CommonEvent<void>;
 
@@ -158,6 +159,9 @@ export class WindowsManager implements IWindowsMainService {
 
 	private _onWindowClose = new Emitter<number>();
 	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+
+	private _onWindowReload = new Emitter<number>();
+	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
 
 	private _onPathsOpen = new Emitter<IPath[]>();
 	onPathsOpen: CommonEvent<IPath> = this._onPathsOpen.event;
@@ -292,6 +296,9 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
 			if (!veto) {
 				win.reload(cli);
+
+				// Emit
+				this._onWindowReload.fire(win.id);
 			}
 		});
 	}
