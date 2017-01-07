@@ -332,10 +332,10 @@
       "from": "process-nextick-args@>=1.0.6 <1.1.0",
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
-    "pty.js": {
-      "version": "0.3.0",
-      "from": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
-      "resolved": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
+    "node-pty": {
+      "version": "0.4.1",
+      "from": "node-pty@0.4.1",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.4.1.tgz",
       "dependencies": {
         "extend": {
           "version": "1.2.1",
