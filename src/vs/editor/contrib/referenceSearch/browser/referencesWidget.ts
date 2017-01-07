@@ -23,7 +23,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, LegacyRenderer, WorkbenchOpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -37,6 +37,13 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+interface IConfiguration {
+	workbench: {
+		openMode: string;
+	};
+}
 
 class DecorationsManager implements IDisposable {
 
@@ -212,6 +219,22 @@ class DataSource implements tree.IDataSource {
 
 class Controller extends DefaultController {
 
+	constructor( @IConfigurationService private configurationService: IConfigurationService) {
+		super();
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IConfiguration>());
+		configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+	}
+
+	private onConfigurationUpdated(config: IConfiguration): void {
+		super.setOpenMode(this.getOpenModeSetting(config));
+	}
+
+	private getOpenModeSetting(config: IConfiguration): WorkbenchOpenMode {
+		const openModeSetting = config && config.workbench && config.workbench.openMode;
+		return openModeSetting === 'doubleClick' ? 'doubleClick' : 'singleClick';
+	}
+
 	static Events = {
 		FOCUSED: 'events/custom/focused',
 		SELECTED: 'events/custom/selected',
@@ -232,16 +255,22 @@ class Controller extends DefaultController {
 
 	public onMouseDown(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		if (event.leftButton) {
+			const isDoubleClick = event.detail === 2;
+
 			if (element instanceof FileReferences) {
 				event.preventDefault();
 				event.stopPropagation();
-				return this._expandCollapse(tree, element);
+				if (this.isInSingleClickOpenMode() || isDoubleClick) {
+					return this._expandCollapse(tree, element);
+				}
+
+				return true;
 			}
 
 			var result = super.onClick(tree, element, event);
 			if (event.ctrlKey || event.metaKey) {
 				tree.emit(Controller.Events.OPEN_TO_SIDE, element);
-			} else if (event.detail === 2) {
+			} else if (isDoubleClick) {
 				tree.emit(Controller.Events.SELECTED, element);
 			} else {
 				tree.emit(Controller.Events.FOCUSED, element);
@@ -576,7 +605,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
 				//sorter: new Sorter(),
-				controller: new Controller()
+				controller: this._instantiationService.createInstance(Controller)
 			};
 
 			var options = {
