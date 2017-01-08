@@ -126,6 +126,13 @@
           "default": "head, body, /html",
           "description": "%html.format.extraLiners.desc%"
         },
+        "html.format.wrapAttributes": {
+          "type": "string",
+          "default": "auto",
+          "enum": [ "auto", "force" ],
+          "enumDescriptions": ["%html.format.wrapAttributes.auto%", "%html.format.wrapAttributes.force%"],
+          "description": "%html.format.wrapAttributes.desc%"
+        },
         "html.suggest.angular1": {
           "type": "boolean",
           "default": true,
