@@ -224,4 +224,42 @@ suite('Paths', () => {
 		assert.equal(paths.isAbsolute('F\\a\\b\\c'), false);
 		assert.equal(paths.isAbsolute('F:\\a'), true);
 	});
+
+	test('shorten', () => {
+		// nothing to shorten
+		assert.deepEqual(paths.shorten(['a']), ['a']);
+		assert.deepEqual(paths.shorten(['a', 'b']), ['a', 'b']);
+		assert.deepEqual(paths.shorten(['a', 'b', 'c']), ['a', 'b', 'c']);
+
+		// completely different paths
+		assert.deepEqual(paths.shorten(['a\\b', 'c\\d', 'e\\f']), ['...\\b', '...\\d', '...\\f']);
+
+		// same beginning
+		assert.deepEqual(paths.shorten(['a', 'a\\b']), ['a', '...\\b']);
+		assert.deepEqual(paths.shorten(['a\\b', 'a\\b\\c']), ['...\\b', '...\\c']);
+		assert.deepEqual(paths.shorten(['a', 'a\\b', 'a\\b\\c']), ['a', '...\\b', '...\\c']);
+		assert.deepEqual(paths.shorten(['x:\\a\\b', 'x:\\a\\c']), ['...\\b', '...\\c'], 'TODO: drive letter (or schema) should be preserved');
+		assert.deepEqual(paths.shorten(['\\\\a\\b', '\\\\a\\c']), ['...\\b', '...\\c'], 'TODO: root uri should be preserved');
+
+		// same ending
+		assert.deepEqual(paths.shorten(['a', 'b\\a']), ['a', 'b\\...']);
+		assert.deepEqual(paths.shorten(['a\\b\\c', 'd\\b\\c']), ['a\\...', 'd\\...']);
+		assert.deepEqual(paths.shorten(['a\\b\\c\\d', 'f\\b\\c\\d']), ['a\\...', 'f\\...']);
+		assert.deepEqual(paths.shorten(['d\\e\\a\\b\\c', 'd\\b\\c']), ['...\\a\\...', 'd\\b\\...']);
+		assert.deepEqual(paths.shorten(['a\\b\\c\\d', 'a\\f\\b\\c\\d']), ['a\\b\\...', '...\\f\\...']);
+		assert.deepEqual(paths.shorten(['a\\b\\a', 'b\\b\\a']), ['a\\...', 'b\\b\\...']);
+		assert.deepEqual(paths.shorten(['d\\f\\a\\b\\c', 'h\\d\\b\\c']), ['...\\a\\...', 'h\\...']);
+		assert.deepEqual(paths.shorten(['a\\b\\c', 'x:\\0\\a\\b\\c']), ['a\\b\\c', '...\\0\\...'], 'TODO: drive letter (or schema) should be always preserved');
+		assert.deepEqual(paths.shorten(['x:\\a\\b', 'y:\\a\\b']), ['x:\\...', 'y:\\...']);
+		assert.deepEqual(paths.shorten(['\\\\x\\b', '\\\\y\\b']), ['...\\x\\...', '...\\y\\...'], 'TODO: \\\\x instead of ...\\x');
+
+		// same in the middle
+		assert.deepEqual(paths.shorten(['a\\b\\c', 'd\\b\\e']), ['...\\c', '...\\e']);
+
+		// case-sensetive
+		assert.deepEqual(paths.shorten(['a\\b\\c', 'd\\b\\C']), ['...\\c', '...\\C']);
+
+		assert.deepEqual(paths.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\...', 'd\\b\\...', 'd\\b']);
+		assert.deepEqual(paths.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['...\\execution\\electron-browser', '...\\something', '...\\terminal\\...']);
+	});
 });

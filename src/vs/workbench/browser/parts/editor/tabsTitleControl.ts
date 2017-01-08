@@ -256,15 +256,10 @@ export class TabsTitleControl extends TitleControl {
 		const labels: IEditorInputLabel[] = [];
 
 		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
 			let description = editor.getDescription();
-			if (description && description.indexOf(paths.nativeSep) >= 0) {
-				description = paths.basename(description); // optimize for editors that show paths and build a shorter description to keep tab width small
-			}
-
 			const item: IEditorInputLabel = {
 				editor,
 				name: editor.getName(),
@@ -274,27 +269,16 @@ export class TabsTitleControl extends TitleControl {
 			labels.push(item);
 
 			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
-			if (item.description) {
-				mapLabelAndDescriptionToDuplicates.getOrSet(item.name + item.description, []).push(item);
-			}
 		});
 
-		// Mark label duplicates
+		// Mark duplicates and shorten their descriptions
 		const labelDuplicates = mapLabelToDuplicates.values();
 		labelDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
-				duplicates.forEach(duplicate => {
+				var shortenedDescriptions = paths.shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+				duplicates.forEach((duplicate, i) => {
+					duplicate.description = shortenedDescriptions[i];
 					duplicate.hasAmbiguousName = true;
-				});
-			}
-		});
-
-		// React to duplicates for combination of label and description
-		const descriptionDuplicates = mapLabelAndDescriptionToDuplicates.values();
-		descriptionDuplicates.forEach(duplicates => {
-			if (duplicates.length > 1) {
-				duplicates.forEach(duplicate => {
-					duplicate.description = duplicate.editor.getDescription(); // fallback to full description if the short description still has duplicates
 				});
 			}
 		});
