@@ -2,15 +2,20 @@
   "name": "vscode-html-languageserver",
   "version": "1.0.0",
   "dependencies": {
+    "@types/node": {
+      "version": "6.0.58",
+      "from": "@types/node@>=6.0.51 <7.0.0",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-6.0.58.tgz"
+    },
     "vscode-css-languageservice": {
       "version": "2.0.0-next.6",
       "from": "vscode-css-languageservice@next",
       "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.0.0-next.6.tgz"
     },
     "vscode-html-languageservice": {
-      "version": "2.0.0-next.4",
+      "version": "2.0.0-next.5",
       "from": "vscode-html-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-2.0.0-next.4.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-2.0.0-next.5.tgz"
     },
     "vscode-jsonrpc": {
       "version": "3.0.1-alpha.2",
