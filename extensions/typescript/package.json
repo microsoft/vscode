@@ -30,7 +30,8 @@
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
 		"onCommand:typescript.reloadProjects",
-		"onCommand:javascript.reloadProjects"
+		"onCommand:javascript.reloadProjects",
+		"onCommand:typescript.goToImplementation"
 	],
 	"main": "./out/typescriptMain",
 	"contributes": {
@@ -268,6 +269,10 @@
 			{
 				"command": "javascript.reloadProjects",
 				"title": "%javascript.reloadProjects.title%"
+			},
+			{
+				"command": "typescript.goToImplementation",
+				"title": "%javascript.goToImplementation.title%"
 			}
 		],
 		"breakpoints": [
