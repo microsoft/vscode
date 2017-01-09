@@ -868,6 +868,26 @@ declare module monaco.editor {
     export function tokenize(text: string, languageId: string): Token[][];
 
     /**
+     * Define a new theme.
+     */
+    export function defineTheme(themeName: string, themeData: ITheme): void;
+
+    export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+
+    export interface ITheme {
+        base: BuiltinTheme;
+        inherit: boolean;
+        rules: IThemeRule[];
+    }
+
+    export interface IThemeRule {
+        token: string;
+        foreground?: string;
+        background?: string;
+        fontStyle?: string;
+    }
+
+    /**
      * A web worker that can provide a proxy to an arbitrary file.
      */
     export interface MonacoWebWorker<T> {

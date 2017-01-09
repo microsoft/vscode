@@ -31,7 +31,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { ITheme, IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 import { Token } from 'vs/editor/common/core/token';
 
 /**
@@ -284,6 +284,13 @@ export function tokenize(text: string, languageId: string): Token[][] {
 }
 
 /**
+ * Define a new theme.
+ */
+export function defineTheme(themeName: string, themeData: ITheme): void {
+	StaticServices.standaloneColorService.get().defineTheme(themeName, themeData);
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -308,6 +315,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		colorize: colorize,
 		colorizeModelLine: colorizeModelLine,
 		tokenize: tokenize,
+		defineTheme: defineTheme,
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
