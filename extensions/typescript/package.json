@@ -271,7 +271,7 @@
 			},
 			{
 				"command": "typescript.tryAcceptSelectedSuggestionOnDot",
-				"title": "%typescript.tryAcceptSelectedSuggestionOnDot.title%"
+				"title": "%typescript.tryAcceptSelectedSuggestionOnDot%"
 			}
 		],
 		"breakpoints": [
