@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./inspectTMScopes';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { escape } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
 import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
@@ -18,6 +20,7 @@ import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType } from 'vs/editor/common/modes';
+import { CharCode } from 'vs/base/common/charCode';
 
 @editorContribution
 class InspectTMScopesController extends Disposable implements IEditorContribution {
@@ -73,7 +76,6 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 			this._widget = null;
 		}
 	}
-
 }
 
 @editorAction
@@ -111,6 +113,38 @@ interface IDecodedMetadata {
 	background: string;
 }
 
+function renderTokenText(tokenText: string): string {
+	let result: string = '';
+	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
+		let charCode = tokenText.charCodeAt(charIndex);
+		switch (charCode) {
+			case CharCode.Tab:
+				result += '&rarr;';
+				break;
+
+			case CharCode.Space:
+				result += '&middot;';
+				break;
+
+			case CharCode.LessThan:
+				result += '&lt;';
+				break;
+
+			case CharCode.GreaterThan:
+				result += '&gt;';
+				break;
+
+			case CharCode.Ampersand:
+				result += '&amp;';
+				break;
+
+			default:
+				result += String.fromCharCode(charCode);
+		}
+	}
+	return result;
+}
+
 class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 	private static _ID = 'editor.contrib.inspectTMScopesWidget';
@@ -133,6 +167,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		this._modeService = modeService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
+		this._domNode.className = 'tm-inspect-widget';
 		this._grammar = textMateService.createGrammar(this._model.getLanguageIdentifier().language);
 		this._beginCompute(this._editor.getPosition());
 		this._register(this._editor.onDidChangeCursorPosition((e) => this._beginCompute(this._editor.getPosition())));
@@ -156,14 +191,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 	private _compute(grammar: IGrammar, position: Position): void {
 		let data = this._getTokensAtLine(grammar, position.lineNumber);
-		console.log(data);
-		// let state: StackElement = null;
-		// for (let i = 0; i < position.lineNumber - 1; i++) {
-		// 	let lineContent
-		// }
-		// this._model.getValueInRange
-		// grammar.tokenizeLine
-		// console.log('I HAVE THE GRAMMAR!');
+
 		let token1Index = 0;
 		for (let i = data.tokens1.length - 1; i >= 0; i--) {
 			let t = data.tokens1[i];
@@ -181,54 +209,33 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 			}
 		}
 
-		let result = '';
-
-		result += `<table><tbody>`;
-		result += `<tr><td style="vertical-align:top">`;
-		// result += `${token1Index}`;
-		// result += `${token2Index}`;
-
 		let tokenStartIndex = data.tokens1[token1Index].startIndex;
 		let tokenEndIndex = data.tokens1[token1Index].endIndex;
 		let tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
-
-		result += `<h2>&lt;&lt;&lt;${tokenText}&gt;&gt;&gt;</h2>`;
-
 		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
 
-		result += `Metadata:`;
-		result += `<ul>`;
-		result += `<li>language: ${metadata.languageIdentifier.language}</li>`;
-		result += `<li>token type: ${this._tokenTypeToString(metadata.tokenType)}</li>`;
-		result += `<li>font style: ${this._fontStyleToString(metadata.fontStyle)}</li>`;
-		result += `<li>foreground: ${metadata.foreground}</li>`;
-		result += `<li>background: ${metadata.background}</li>`;
-		result += `</ul>`;
+		let result = '';
+		result += `<h2 class="tm-token">${renderTokenText(tokenText)}<span class="tm-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
 
-		result += `Scopes:`;
+		result += `<hr style="clear:both"/>`;
+
+		result += `<table class="tm-metadata-table"><tbody>`;
+		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
+		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
+		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background}</td>`;
+		result += `</tbody></table>`;
+
+		result += `<hr/>`;
+
 		result += `<ul>`;
 		for (let i = data.tokens1[token1Index].scopes.length - 1; i >= 0; i--) {
-			result += `<li>${data.tokens1[token1Index].scopes[i]}</li>`;
+			result += `<li>${escape(data.tokens1[token1Index].scopes[i])}</li>`;
 		}
 		result += `</ul>`;
 
-		result += `</td><td>`;
-		result += `<h2>State before line:</h2><br/>`;
-		result += this._renderState(data.startState);
-		result += `<h2>State after line:</h2><br/>`;
-		result += this._renderState(data.endState);
-		result += `</td></tr>`;
-		result += `</tbody></table>`;
-
-		// result += `<table><tbody>`;
-		// result += `<tr><td>`;
-		// result += this._renderState(data.startState)
-		// result += `</td><td>`;
-		// result += this._renderState(data.endState)
-		// result += `</td></tr>`;
-		// result += `</tbody></table>`;
-
-		this._domNode.innerHTML = result;//this._renderState(data.startState);
+		this._domNode.innerHTML = result;
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
@@ -268,74 +275,10 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		if (fontStyle & FontStyle.Underline) {
 			r += 'underline ';
 		}
+		if (r.length === 0) {
+			r = '---';
+		}
 		return r;
-	}
-
-	private _renderState(_state: StackElement): string {
-		let state = <StackElementImpl><any>_state;
-		interface ScopeListElement {
-			metadata: number;
-			scope: string;
-			parent: ScopeListElement;
-			equals(other: ScopeListElement): boolean;
-		}
-		interface StackElementImpl {
-			contentNameScopesList: ScopeListElement;
-			nameScopesList: ScopeListElement;
-			parent: StackElementImpl;
-			ruleId: number;
-		}
-		let result = '';
-		result += `<table><tbody>`;
-
-		let renderScopeListElement = (el: ScopeListElement): string => {
-			let result = '';
-			result += `<td class="tm-scopeName">${el.scope}</td>`;
-			let metadata = this._decodeMetadata(el.metadata);
-
-			result += `<td>${metadata.languageIdentifier.language}</td>`;
-			result += `<td>${this._tokenTypeToString(metadata.tokenType)}</td>`;
-			result += `<td>${this._fontStyleToString(metadata.fontStyle)}</td>`;
-			result += `<td>${metadata.foreground}</td>`;
-			result += `<td>${metadata.background}</td>`;
-			return result;
-		};
-
-		result += `<tr>`;
-		result += `<th>Rule Id</th>`;
-		result += `<th>Scope(s)</th>`;
-		result += `<th>Language</th>`;
-		result += `<th>TokenType</th>`;
-		result += `<th>FontStyle</th>`;
-		result += `<th>Foreground</th>`;
-		result += `<th>Background</th>`;
-		result += `</tr>`;
-		while (state) {
-			let hasContentName = !state.contentNameScopesList.equals(state.nameScopesList);
-			let hasName = !state.parent ? true : !state.parent.contentNameScopesList.equals(state.nameScopesList);
-
-			result += `<tr>`;
-			result += `<td class="tm-ruleId" rowspan="${hasContentName && hasName ? 2 : 1}">${state.ruleId}</td>`;
-			if (hasContentName) {
-				result += renderScopeListElement(state.contentNameScopesList);
-			}
-			if (hasName) {
-				if (hasContentName) {
-					result += `</tr><tr>`;
-				}
-				result += renderScopeListElement(state.nameScopesList);
-			}
-			if (!hasName && !hasContentName) {
-				result += `<td></td><td></td><td></td><td></td><td></td>`;
-			}
-			result += `</tr>`;
-
-			state = state.parent;
-		}
-
-		result += `</tbody></table>`;
-
-		return result;
 	}
 
 	private _getTokensAtLine(grammar: IGrammar, lineNumber: number): ICompleteLineTokenization {
