@@ -9,6 +9,7 @@ import 'vs/editor/browser/editor.all';
 import 'vs/editor/contrib/quickOpen/browser/quickOutline';
 import 'vs/editor/contrib/quickOpen/browser/gotoLine';
 import 'vs/editor/contrib/quickOpen/browser/quickCommand';
+import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';

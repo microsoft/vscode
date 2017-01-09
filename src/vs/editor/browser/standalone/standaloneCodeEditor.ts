@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
+import { IEditorOptions, IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
@@ -19,6 +19,7 @@ import { IEditorContextViewService } from 'vs/editor/browser/standalone/standalo
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 
 /**
  * The options to create an editor.
@@ -57,6 +58,7 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
+	private _standaloneColorService: IStandaloneColorService;
 	private _contextViewService: IEditorContextViewService;
 	private _ownsModel: boolean;
 	private _toDispose2: IDisposable[];
@@ -70,10 +72,15 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
+		@IStandaloneColorService standaloneColorService: IStandaloneColorService
 	) {
 		options = options || {};
+		if (typeof options.theme === 'string') {
+			options.theme = standaloneColorService.setTheme(options.theme);
+		}
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+		this._standaloneColorService = standaloneColorService;
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -109,6 +116,13 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 
 	public destroy(): void {
 		this.dispose();
+	}
+
+	public updateOptions(newOptions: IEditorOptions): void {
+		if (typeof newOptions.theme === 'string') {
+			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+		}
+		super.updateOptions(newOptions);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {

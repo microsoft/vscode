@@ -34,7 +34,6 @@ import { MainProcessExtensionService } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
 
 // --- other interested parties
-import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
 import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
@@ -87,10 +86,9 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.finish(true, this.threadService);
 
 		// Other interested parties
-		let tmSyntax = create(MainProcessTextMateSyntax);
 		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
-		this.instantiationService.createInstance(LanguageConfigurationFileHandler, tmSyntax);
+		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 		create(MainThreadFileSystemEventService);
 		create(SaveParticipant);
 	}

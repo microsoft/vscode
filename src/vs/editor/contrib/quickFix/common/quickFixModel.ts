@@ -139,7 +139,7 @@ export class QuickFixModel {
 		this._markerService = markerService;
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
-		this._disposables.push(this._editor.onDidChangeModelMode(() => this._update()));
+		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.push(CodeActionProviderRegistry.onDidChange(this._update, this));
 
 		this._update();

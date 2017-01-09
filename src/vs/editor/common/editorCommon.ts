@@ -10,8 +10,8 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { IMode } from 'vs/editor/common/modes';
-import { LineTokens, StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -1294,7 +1294,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	readonly standardType: StandardTokenType;
+	readonly type: StandardTokenType;
 	readonly lineNumber: number;
 	readonly startColumn: number;
 	readonly endColumn: number;
@@ -1818,6 +1818,12 @@ export interface IReadOnlyModel extends ITextModel {
 
 	/**
 	 * Get the language associated with this model.
+	 * @internal
+	 */
+	getLanguageIdentifier(): LanguageIdentifier;
+
+	/**
+	 * Get the language associated with this model.
 	 */
 	getModeId(): string;
 
@@ -1862,9 +1868,10 @@ export interface ITokenizedModel extends ITextModel {
 	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
 
 	/**
-	 * Get the current language mode associated with the model.
+	 * Get the language associated with this model.
+	 * @internal
 	 */
-	getMode(): IMode;
+	getLanguageIdentifier(): LanguageIdentifier;
 
 	/**
 	 * Get the language associated with this model.
@@ -1875,13 +1882,13 @@ export interface ITokenizedModel extends ITextModel {
 	 * Set the current language mode associated with the model.
 	 * @internal
 	 */
-	setMode(languageId: string): void;
+	setMode(languageIdentifier: LanguageIdentifier): void;
 
 	/**
 	 * Returns the true (inner-most) language mode at a given position.
 	 * @internal
 	 */
-	getModeIdAtPosition(lineNumber: number, column: number): string;
+	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -2173,7 +2180,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * An event emitted when the language associated with the model has changed.
 	 * @event
 	 */
-	onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event
@@ -2223,15 +2230,15 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 /**
  * An event describing that the current mode associated with a model has changed.
  */
-export interface IModelModeChangedEvent {
+export interface IModelLanguageChangedEvent {
 	/**
-	 * Previous mode
+	 * Previous language
 	 */
-	readonly oldMode: IMode;
+	readonly oldLanguage: string;
 	/**
-	 * New mode
+	 * New language
 	 */
-	readonly newMode: IMode;
+	readonly newLanguage: string;
 }
 
 /**
@@ -3426,7 +3433,7 @@ export interface IEditor {
 	 * An event emitted when the language of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the options of the current model has changed.
 	 * @event
@@ -4105,7 +4112,7 @@ export var EventType = {
 	ModelChanged: 'modelChanged',
 
 	ModelTokensChanged: 'modelTokensChanged',
-	ModelModeChanged: 'modelsModeChanged',
+	ModelLanguageChanged: 'modelLanguageChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelRawContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',

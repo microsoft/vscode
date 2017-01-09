@@ -91,6 +91,8 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
+import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
@@ -352,6 +354,8 @@ export class WorkbenchShell {
 
 		this.themeService = instantiationService.createInstance(ThemeService);
 		serviceCollection.set(IThemeService, this.themeService);
+
+		serviceCollection.set(ITextMateService, new SyncDescriptor(MainProcessTextMateSyntax));
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 

@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./contentWidgets';
 import * as dom from 'vs/base/browser/dom';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -68,6 +67,8 @@ export class ViewContentWidgets extends ViewPart {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = ClassNames.CONTENT_WIDGETS;
+		this.domNode.style.position = 'absolute';
+		this.domNode.style.top = '0';
 
 		this.overflowingContentWidgetsDomNode = document.createElement('div');
 		this.overflowingContentWidgetsDomNode.className = ClassNames.OVERFLOWING_CONTENT_WIDGETS;

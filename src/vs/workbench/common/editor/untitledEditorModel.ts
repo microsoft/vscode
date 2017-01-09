@@ -111,7 +111,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 	public getModeId(): string {
 		if (this.textEditorModel) {
-			return this.textEditorModel.getModeId();
+			return this.textEditorModel.getLanguageIdentifier().language;
 		}
 
 		return null;

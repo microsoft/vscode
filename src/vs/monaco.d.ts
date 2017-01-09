@@ -751,6 +751,15 @@ declare module monaco {
          */
         RTL = 1,
     }
+
+    export class Token {
+        _tokenBrand: void;
+        readonly offset: number;
+        readonly type: string;
+        readonly language: string;
+        constructor(offset: number, type: string, language: string);
+        toString(): string;
+    }
 }
 
 declare module monaco.editor {
@@ -852,6 +861,31 @@ declare module monaco.editor {
      * Colorize a line in a model.
      */
     export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+
+    /**
+     * Tokenize `text` using language `languageId`
+     */
+    export function tokenize(text: string, languageId: string): Token[][];
+
+    /**
+     * Define a new theme.
+     */
+    export function defineTheme(themeName: string, themeData: ITheme): void;
+
+    export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+
+    export interface ITheme {
+        base: BuiltinTheme;
+        inherit: boolean;
+        rules: IThemeRule[];
+    }
+
+    export interface IThemeRule {
+        token: string;
+        foreground?: string;
+        background?: string;
+        fontStyle?: string;
+    }
 
     /**
      * A web worker that can provide a proxy to an arbitrary file.
@@ -2085,10 +2119,6 @@ declare module monaco.editor {
      */
     export interface ITokenizedModel extends ITextModel {
         /**
-         * Get the current language mode associated with the model.
-         */
-        getMode(): languages.IMode;
-        /**
          * Get the language associated with this model.
          */
         getModeId(): string;
@@ -2252,7 +2282,7 @@ declare module monaco.editor {
          * An event emitted when the language associated with the model has changed.
          * @event
          */
-        onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+        onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
         /**
          * An event emitted right before disposing the model.
          * @event
@@ -2272,15 +2302,15 @@ declare module monaco.editor {
     /**
      * An event describing that the current mode associated with a model has changed.
      */
-    export interface IModelModeChangedEvent {
+    export interface IModelLanguageChangedEvent {
         /**
-         * Previous mode
+         * Previous language
          */
-        readonly oldMode: languages.IMode;
+        readonly oldLanguage: string;
         /**
-         * New mode
+         * New language
          */
-        readonly newMode: languages.IMode;
+        readonly newLanguage: string;
     }
 
     /**
@@ -2842,7 +2872,7 @@ declare module monaco.editor {
          * An event emitted when the language of the current model has changed.
          * @event
          */
-        onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+        onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the options of the current model has changed.
          * @event
@@ -3830,6 +3860,43 @@ declare module monaco.languages {
     export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable;
 
     /**
+     * A token.
+     */
+    export interface IToken {
+        startIndex: number;
+        scopes: string;
+    }
+
+    /**
+     * The result of a line tokenization.
+     */
+    export interface ILineTokens {
+        /**
+         * The list of tokens on the line.
+         */
+        tokens: IToken[];
+        /**
+         * The tokenization end state.
+         * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+         */
+        endState: IState;
+    }
+
+    /**
+     * A "manual" provider of tokens.
+     */
+    export interface TokensProvider {
+        /**
+         * The initial state of a language. Will be the state passed in to tokenize the first line.
+         */
+        getInitialState(): IState;
+        /**
+         * Tokenize a line given the state at the beginning of the line.
+         */
+        tokenize(line: string, state: IState): ILineTokens;
+    }
+
+    /**
      * Set the tokens provider for a language (manual implementation).
      */
     export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable;
@@ -4233,36 +4300,6 @@ declare module monaco.languages {
     }
 
     /**
-     * A mode. Will soon be obsolete.
-     */
-    export interface IMode {
-        getId(): string;
-    }
-
-    /**
-     * A token. Only supports a single scope, but will soon support a scope array.
-     */
-    export interface IToken {
-        startIndex: number;
-        scopes: string | string[];
-    }
-
-    /**
-     * The result of a line tokenization.
-     */
-    export interface ILineTokens {
-        /**
-         * The list of tokens on the line.
-         */
-        tokens: IToken[];
-        /**
-         * The tokenization end state.
-         * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
-         */
-        endState: IState;
-    }
-
-    /**
      * The state of the tokenizer between two lines.
      * It is useful to store flags such as in multiline comment, etc.
      * The model will clone the previous line's state and pass it in to tokenize the next line.
@@ -4270,20 +4307,6 @@ declare module monaco.languages {
     export interface IState {
         clone(): IState;
         equals(other: IState): boolean;
-    }
-
-    /**
-     * A "manual" provider of tokens.
-     */
-    export interface TokensProvider {
-        /**
-         * The initial state of a language. Will be the state passed in to tokenize the first line.
-         */
-        getInitialState(): IState;
-        /**
-         * Tokenize a line given the state at the beginning of the line.
-         */
-        tokenize(line: string, state: IState): ILineTokens;
     }
 
     /**
