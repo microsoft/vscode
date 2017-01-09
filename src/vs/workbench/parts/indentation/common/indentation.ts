@@ -160,24 +160,3 @@ export class DetectIndentation extends EditorAction {
 		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize);
 	}
 }
-
-
-
-@editorAction
-export class ToggleRenderControlCharacterAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.toggleRenderControlCharacter',
-			label: nls.localize('toggleRenderControlCharacters', "Toggle Control Characters"),
-			alias: 'Toggle Render Control Characters',
-			precondition: null
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		editor.updateOptions({
-			renderControlCharacters: !editor.getConfiguration().viewInfo.renderControlCharacters
-		});
-	}
-}
