@@ -230,8 +230,8 @@ class PatternBuilder {
 		return this;
 	}
 
-	public mostSignifikant(value: boolean): PatternBuilder {
-		this.result.mostSignifikant = value;
+	public mostSignificant(value: boolean): PatternBuilder {
+		this.result.mostSignificant = value;
 		return this;
 	}
 }
@@ -1007,6 +1007,6 @@ suite('Tasks Configuration parsing tests', () => {
 		assert.strictEqual(actual.code, expected.code);
 		assert.strictEqual(actual.severity, expected.severity);
 		assert.strictEqual(actual.loop, expected.loop);
-		assert.strictEqual(actual.mostSignifikant, expected.mostSignifikant);
+		assert.strictEqual(actual.mostSignificant, expected.mostSignificant);
 	}
 });
