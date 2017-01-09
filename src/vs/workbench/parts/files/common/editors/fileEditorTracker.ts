@@ -8,7 +8,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
 import { toResource, EditorInput, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
@@ -182,7 +182,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			if (editor && editor.position === stacks.positionOfGroup(group)) {
 				const resource = toResource(editor.input, { filter: 'file' });
 				if (resource && resource.fsPath === resource.fsPath) {
-					return (editor.getControl() as IEditor).saveViewState();
+					const control = editor.getControl();
+					if (isCommonCodeEditor(control)) {
+						return control.saveViewState();
+					}
 				}
 			}
 		}
