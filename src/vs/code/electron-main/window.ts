@@ -8,6 +8,7 @@
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
+import nls = require('vs/nls');
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -117,6 +118,12 @@ export enum ReadyState {
 	READY
 }
 
+interface IConfiguration {
+	window: {
+		menuBarVisibility: 'visible' | 'toggle' | 'hidden';
+	};
+}
+
 export interface IVSCodeWindow {
 	id: number;
 	readyState: ReadyState;
@@ -127,7 +134,6 @@ export interface IVSCodeWindow {
 
 export class VSCodeWindow implements IVSCodeWindow {
 
-	public static menuBarHiddenKey = 'menuBarHidden';
 	public static colorThemeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;
@@ -143,6 +149,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private _extensionDevelopmentPath: string;
 	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
+	private currentMenuBarVisibility: '' | 'visible' | 'toggle' | 'hidden';
 	private currentWindowMode: WindowMode;
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
@@ -220,9 +227,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 
-		if (this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
-			this.setMenuBarVisibility(false); // respect configured menu bar visibility
-		}
+		// respect configured menu bar visibility
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		this.setMenuBarVisibility(windowConfig && windowConfig.menuBarVisibility);
 
 		// TODO@joao: hook this up to some initialization routine
 		// this causes a race between setting the headers and doing
@@ -230,7 +237,19 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.setCommonHTTPHeaders();
 
 		this.registerListeners();
+
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
+
+	private onConfigurationUpdated(config: IConfiguration): void {
+
+		let newMenuBarVisibility = config && config.window && config.window.menuBarVisibility;
+
+		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+			this.currentMenuBarVisibility = newMenuBarVisibility;
+			this.setMenuBarVisibility(newMenuBarVisibility);
+		}
+	};
 
 	private setCommonHTTPHeaders(): void {
 		getCommonHTTPHeaders().done(headers => {
@@ -658,19 +677,38 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 		this.win.setFullScreen(willBeFullScreen);
 
-		// Windows & Linux: Hide the menu bar but still allow to bring it up by pressing the Alt key
-		if (platform.isWindows || platform.isLinux) {
-			if (willBeFullScreen) {
-				this.setMenuBarVisibility(false);
-			} else {
-				this.setMenuBarVisibility(!this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
-			}
-		}
+		// respect configured menu bar visibility or default to toggle if not set
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		let menuBarVisibility = windowConfig && windowConfig.menuBarVisibility;
+		if (typeof menuBarVisibility !== 'string') {
+			menuBarVisibility = willBeFullScreen ? 'toggle' : 'visible';
+		};
+
+		this.setMenuBarVisibility(menuBarVisibility, false);
 	}
 
-	public setMenuBarVisibility(visible: boolean): void {
-		this.win.setMenuBarVisibility(visible);
-		this.win.setAutoHideMenuBar(!visible);
+	public setMenuBarVisibility(visibility: '' | 'visible' | 'toggle' | 'hidden', notify: boolean = true): void {
+		switch (visibility) {
+			case (''):
+			case ('visible'):
+				this.win.setMenuBarVisibility(true);
+				this.win.setAutoHideMenuBar(false);
+				break;
+
+			case ('toggle'):
+				this.win.setMenuBarVisibility(false);
+				this.win.setAutoHideMenuBar(true);
+
+				if (notify) {
+					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
+				};
+				break;
+
+			case ('hidden'):
+				this.win.setMenuBarVisibility(false);
+				this.win.setAutoHideMenuBar(false);
+				break;
+		};
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {
