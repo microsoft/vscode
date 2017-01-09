@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./inspectTMScopes';
+import 'vs/css!./inspectTokens';
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
@@ -14,50 +13,46 @@ import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common
 import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IGrammar, StackElement, IToken } from 'vscode-textmate';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType } from 'vs/editor/common/modes';
+import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
-import { findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { Token } from 'vs/editor/common/core/token';
 
 @editorContribution
-class InspectTMScopesController extends Disposable implements IEditorContribution {
+class InspectTokensController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inspectTMScopes';
+	private static ID = 'editor.contrib.inspectTokens';
 
-	public static get(editor: ICommonCodeEditor): InspectTMScopesController {
-		return editor.getContribution<InspectTMScopesController>(InspectTMScopesController.ID);
+	public static get(editor: ICommonCodeEditor): InspectTokensController {
+		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
 	}
 
 	private _editor: ICodeEditor;
-	private _textMateService: ITextMateService;
-	private _themeService: IThemeService;
+	private _standaloneColorService: IStandaloneColorService;
 	private _modeService: IModeService;
-	private _widget: InspectTMScopesWidget;
+	private _widget: InspectTokensWidget;
 
 	constructor(
 		editor: ICodeEditor,
-		@ITextMateService textMateService: ITextMateService,
-		@IModeService modeService: IModeService,
-		@IThemeService themeService: IThemeService
+		@IStandaloneColorService standaloneColorService: IStandaloneColorService,
+		@IModeService modeService: IModeService
 	) {
 		super();
 		this._editor = editor;
-		this._textMateService = textMateService;
-		this._themeService = themeService;
+		this._standaloneColorService = standaloneColorService;
 		this._modeService = modeService;
 		this._widget = null;
 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
 		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
+		this._register(TokenizationRegistry.onDidChange((e) => this.stop()));
 	}
 
 	public getId(): string {
-		return InspectTMScopesController.ID;
+		return InspectTokensController.ID;
 	}
 
 	public dispose(): void {
@@ -72,7 +67,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (!this._editor.getModel()) {
 			return;
 		}
-		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService);
+		this._widget = new InspectTokensWidget(this._editor, this._standaloneColorService, this._modeService);
 	}
 
 	public stop(): void {
@@ -84,19 +79,19 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 }
 
 @editorAction
-class InspectTMScopes extends EditorAction {
+class InspectTokens extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.inspectTMScopes',
-			label: nls.localize('inspectTMScopes', "Developer: Inspect TM Scopes"),
-			alias: 'Developer: Inspect TM Scopes',
+			id: 'editor.action.inspectTokens',
+			label: nls.localize('inspectTokens', "Developer: Inspect Tokens"),
+			alias: 'Developer: Inspect Tokens',
 			precondition: null
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let controller = InspectTMScopesController.get(editor);
+		let controller = InspectTokensController.get(editor);
 		if (controller) {
 			controller.launch();
 		}
@@ -104,10 +99,10 @@ class InspectTMScopes extends EditorAction {
 }
 
 interface ICompleteLineTokenization {
-	startState: StackElement;
-	tokens1: IToken[];
+	startState: IState;
+	tokens1: Token[];
 	tokens2: Uint32Array;
-	endState: StackElement;
+	endState: IState;
 }
 
 interface IDecodedMetadata {
@@ -150,66 +145,65 @@ function renderTokenText(tokenText: string): string {
 	return result;
 }
 
-class InspectTMScopesWidget extends Disposable implements IContentWidget {
+function getSafeTokenizationSupport(languageIdentifier: LanguageIdentifier): ITokenizationSupport {
+	let tokenizationSupport = TokenizationRegistry.get(languageIdentifier.language);
+	if (tokenizationSupport) {
+		return tokenizationSupport;
+	}
+	return {
+		getInitialState: () => NULL_STATE,
+		tokenize: (line: string, state: IState, deltaOffset: number) => nullTokenize(languageIdentifier.language, line, state, deltaOffset),
+		tokenize2: (line: string, state: IState, deltaOffset: number) => nullTokenize2(languageIdentifier.id, line, state, deltaOffset)
+	};
+}
 
-	private static _ID = 'editor.contrib.inspectTMScopesWidget';
+class InspectTokensWidget extends Disposable implements IContentWidget {
+
+	private static _ID = 'editor.contrib.inspectTokensWidget';
 
 	public allowEditorOverflow = true;
 
-	private _isDisposed: boolean;
 	private _editor: ICodeEditor;
+	private _standaloneColorService: IStandaloneColorService;
 	private _modeService: IModeService;
-	private _themeService: IThemeService;
+	private _tokenizationSupport: ITokenizationSupport;
 	private _model: IModel;
 	private _domNode: HTMLElement;
-	private _grammar: TPromise<IGrammar>;
 
 	constructor(
 		editor: ICodeEditor,
-		textMateService: ITextMateService,
-		modeService: IModeService,
-		themeService: IThemeService
+		standaloneColorService: IStandaloneColorService,
+		modeService: IModeService
 	) {
 		super();
-		this._isDisposed = false;
 		this._editor = editor;
+		this._standaloneColorService = standaloneColorService;
 		this._modeService = modeService;
-		this._themeService = themeService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'tm-inspect-widget';
-		this._grammar = textMateService.createGrammar(this._model.getLanguageIdentifier().language);
-		this._beginCompute(this._editor.getPosition());
-		this._register(this._editor.onDidChangeCursorPosition((e) => this._beginCompute(this._editor.getPosition())));
+		this._domNode.className = 'tokens-inspect-widget';
+		this._tokenizationSupport = getSafeTokenizationSupport(this._model.getLanguageIdentifier());
+		this._compute(this._editor.getPosition());
+		this._register(this._editor.onDidChangeCursorPosition((e) => this._compute(this._editor.getPosition())));
 		this._editor.addContentWidget(this);
 	}
 
 	public dispose(): void {
-		this._isDisposed = true;
 		this._editor.removeContentWidget(this);
 		super.dispose();
 	}
 
 	public getId(): string {
-		return InspectTMScopesWidget._ID;
+		return InspectTokensWidget._ID;
 	}
 
-	private _beginCompute(position: Position): void {
-		dom.clearNode(this._domNode);
-		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
-		this._grammar.then((grammar) => this._compute(grammar, position));
-	}
-
-	private _compute(grammar: IGrammar, position: Position): void {
-		if (this._isDisposed) {
-			return;
-		}
-		let data = this._getTokensAtLine(grammar, position.lineNumber);
+	private _compute(position: Position): void {
+		let data = this._getTokensAtLine(position.lineNumber);
 
 		let token1Index = 0;
 		for (let i = data.tokens1.length - 1; i >= 0; i--) {
 			let t = data.tokens1[i];
-			if (position.column - 1 >= t.startIndex) {
+			if (position.column - 1 >= t.offset) {
 				token1Index = i;
 				break;
 			}
@@ -225,9 +219,13 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 		let result = '';
 
-		let tokenStartIndex = data.tokens1[token1Index].startIndex;
-		let tokenEndIndex = data.tokens1[token1Index].endIndex;
-		let tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
+		let lineContent = this._model.getLineContent(position.lineNumber);
+		let tokenText = '';
+		if (token1Index < data.tokens1.length) {
+			let tokenStartIndex = data.tokens1[token1Index].offset;
+			let tokenEndIndex = token1Index + 1 < data.tokens1.length ? data.tokens1[token1Index + 1].offset : lineContent.length;
+			tokenText = lineContent.substring(tokenStartIndex, tokenEndIndex);
+		}
 		result += `<h2 class="tm-token">${renderTokenText(tokenText)}<span class="tm-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
 
 		result += `<hr style="clear:both"/>`;
@@ -241,25 +239,11 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background}</td>`;
 		result += `</tbody></table>`;
 
-		let theme = this._themeService.getColorThemeDocument();
-		if (theme) {
-			result += `<hr/>`;
-			let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes);
-			if (matchingRule) {
-				result += `<code class="tm-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
-			} else {
-				result += `<span class="tm-theme-selector">No theme selector.</span>`;
-			}
-		}
-
 		result += `<hr/>`;
 
-		result += `<ul>`;
-		for (let i = data.tokens1[token1Index].scopes.length - 1; i >= 0; i--) {
-			result += `<li>${escape(data.tokens1[token1Index].scopes[i])}</li>`;
+		if (token1Index < data.tokens1.length) {
+			result += `<span class="tm-token-type">${escape(data.tokens1[token1Index].type)}</span>`;
 		}
-		result += `</ul>`;
-
 
 		this._domNode.innerHTML = result;
 		this._editor.layoutContentWidget(this);
@@ -308,26 +292,26 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		return r;
 	}
 
-	private _getTokensAtLine(grammar: IGrammar, lineNumber: number): ICompleteLineTokenization {
-		let stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
+	private _getTokensAtLine(lineNumber: number): ICompleteLineTokenization {
+		let stateBeforeLine = this._getStateBeforeLine(lineNumber);
 
-		let tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
-		let tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
+		let tokenizationResult1 = this._tokenizationSupport.tokenize(this._model.getLineContent(lineNumber), stateBeforeLine, 0);
+		let tokenizationResult2 = this._tokenizationSupport.tokenize2(this._model.getLineContent(lineNumber), stateBeforeLine, 0);
 
 		return {
 			startState: stateBeforeLine,
 			tokens1: tokenizationResult1.tokens,
 			tokens2: tokenizationResult2.tokens,
-			endState: tokenizationResult1.ruleStack
+			endState: tokenizationResult1.endState
 		};
 	}
 
-	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement {
-		let state: StackElement = null;
+	private _getStateBeforeLine(lineNumber: number): IState {
+		let state: IState = this._tokenizationSupport.getInitialState();
 
 		for (let i = 1; i < lineNumber; i++) {
-			let tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
-			state = tokenizationResult.ruleStack;
+			let tokenizationResult = this._tokenizationSupport.tokenize(this._model.getLineContent(i), state, 0);
+			state = tokenizationResult.endState;
 		}
 
 		return state;

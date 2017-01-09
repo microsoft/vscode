@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
 import { ITokenizationSupport, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { NULL_LANGUAGE_IDENTIFIER, nullTokenize3 } from 'vs/editor/common/modes/nullMode';
+import { NULL_LANGUAGE_IDENTIFIER, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { Position } from 'vs/editor/common/core/position';
@@ -352,7 +352,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			if (!r) {
-				r = nullTokenize3(this._languageIdentifier.id, text, this._lines[lineIndex].getState(), 0);
+				r = nullTokenize2(this._languageIdentifier.id, text, this._lines[lineIndex].getState(), 0);
 			}
 			this._lines[lineIndex].setTokens(this._languageIdentifier.id, r.tokens);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
