@@ -20,6 +20,7 @@ import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
 export class TMScopeRegistry {
 
@@ -86,6 +87,12 @@ export class TMLanguageRegistration {
 			}
 		}
 	}
+}
+
+interface ICreateGrammarResult {
+	languageId: LanguageId;
+	grammar: IGrammar;
+	containsEmbeddedLanguages: boolean;
 }
 
 export class MainProcessTextMateSyntax implements ITextMateService {
@@ -226,18 +233,19 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		return this._createGrammar(modeId).then(r => r.grammar);
 	}
 
-	private _createGrammar(modeId: string): TPromise<{ grammar: IGrammar; containsEmbeddedLanguages: boolean; }> {
+	private _createGrammar(modeId: string): TPromise<ICreateGrammarResult> {
 		let scopeName = this._languageToScope[modeId];
 		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
 		let languageId = this._modeService.getLanguageIdentifier(modeId).id;
 		let containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
-		return new TPromise<{ grammar: IGrammar; containsEmbeddedLanguages: boolean; }>((c, e, p) => {
+		return new TPromise<ICreateGrammarResult>((c, e, p) => {
 			this._grammarRegistry.loadGrammarWithEmbeddedLanguages(scopeName, languageId, embeddedLanguages, (err, grammar) => {
 				if (err) {
 					return e(err);
 				}
 				c({
+					languageId: languageId,
 					grammar: grammar,
 					containsEmbeddedLanguages: containsEmbeddedLanguages
 				});
@@ -247,7 +255,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 	private registerDefinition(modeId: string): void {
 		this._createGrammar(modeId).then((r) => {
-			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.grammar, r.containsEmbeddedLanguages));
+			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.containsEmbeddedLanguages));
 		}, onUnexpectedError);
 	}
 }
@@ -255,12 +263,14 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 class TMTokenization implements ITokenizationSupport {
 
 	private readonly _scopeRegistry: TMScopeRegistry;
+	private readonly _languageId: LanguageId;
 	private readonly _grammar: IGrammar;
 	private readonly _containsEmbeddedLanguages: boolean;
 	private readonly _seenLanguages: boolean[];
 
-	constructor(scopeRegistry: TMScopeRegistry, grammar: IGrammar, containsEmbeddedLanguages: boolean) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, containsEmbeddedLanguages: boolean) {
 		this._scopeRegistry = scopeRegistry;
+		this._languageId = languageId;
 		this._grammar = grammar;
 		this._containsEmbeddedLanguages = containsEmbeddedLanguages;
 		this._seenLanguages = [];
@@ -277,6 +287,12 @@ class TMTokenization implements ITokenizationSupport {
 	public tokenize2(line: string, state: StackElement, offsetDelta: number): TokenizationResult2 {
 		if (offsetDelta !== 0) {
 			throw new Error('Unexpected: offsetDelta should be 0.');
+		}
+
+		// Do not attempt to tokenize if a line has over 20k
+		if (line.length >= 20000) {
+			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
+			return nullTokenize2(this._languageId, line, state, offsetDelta);
 		}
 
 		let textMateResult = this._grammar.tokenizeLine2(line, state);
