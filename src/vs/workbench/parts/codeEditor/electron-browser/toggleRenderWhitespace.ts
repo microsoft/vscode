@@ -5,25 +5,20 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 @editorAction
-class ToggleWordWrapAction extends EditorAction {
+export class ToggleRenderWhitespaceAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.toggleWordWrap',
-			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
-			alias: 'View: Toggle Word Wrap',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.Alt | KeyCode.KEY_Z
-			}
+			id: 'editor.action.toggleRenderWhitespace',
+			label: nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"),
+			alias: 'Toggle Render Whitespace',
+			precondition: null
 		});
 	}
 
@@ -31,15 +26,15 @@ class ToggleWordWrapAction extends EditorAction {
 		const configurationEditingService = accessor.get(IConfigurationEditingService);
 		const messageService = accessor.get(IMessageService);
 
-		let wrappingInfo = editor.getConfiguration().wrappingInfo;
-		let newWordWrap: boolean;
-		if (!wrappingInfo.isViewportWrapping) {
-			newWordWrap = true;
+		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
+		let newRenderWhitespace: string;
+		if (renderWhitespace === 'none') {
+			newRenderWhitespace = 'all';
 		} else {
-			newWordWrap = false;
+			newRenderWhitespace = 'none';
 		}
 
-		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.wordWrap', value: newWordWrap }).then(null, error => {
+		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.renderWhitespace', value: newRenderWhitespace }).then(null, error => {
 			messageService.show(Severity.Error, error);
 		});
 	}
