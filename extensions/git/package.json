@@ -31,8 +31,13 @@
         }
       },
       {
-        "command": "git.open",
+        "command": "git.openChange",
         "title": "Open Change",
+        "category": "Git"
+      },
+      {
+        "command": "git.openFile",
+        "title": "Open File",
         "category": "Git"
       },
       {
@@ -70,6 +75,15 @@
           "light": "resources/icons/light/unstage.svg",
           "dark": "resources/icons/dark/unstage.svg"
         }
+      },
+      {
+        "command": "git.clean",
+        "title": "Clean",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
       }
     ],
     "menus": {
@@ -102,22 +116,52 @@
       ],
       "scm/resource/context": [
         {
-          "command": "git.unstage",
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == index"
+        },
+        {
+          "command": "git.openFile",
           "when": "scmProvider == git && scmResourceGroup == index"
         },
         {
           "command": "git.unstage",
-          "group": "inline",
-          "when": "scmProvider == git && scmResourceGroup == index"
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.unstage",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "inline"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "navigation"
         },
         {
           "command": "git.stage",
-          "when": "scmProvider == git && scmResourceGroup == workingTree"
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
         },
         {
           "command": "git.stage",
-          "group": "inline",
-          "when": "scmProvider == git && scmResourceGroup == workingTree"
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
         }
       ]
     },

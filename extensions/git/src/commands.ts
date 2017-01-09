@@ -16,7 +16,11 @@ function refresh(model: Model): () => void {
 	};
 }
 
-function open(...args: any[]): void {
+function openChange(...args: any[]): void {
+	console.log('open', args);
+}
+
+function openFile(...args: any[]): void {
 	console.log('open', args);
 }
 
@@ -36,14 +40,21 @@ function unstageAll(resourceGroup: SCMResourceGroup): void {
 	log('unstage-all', resourceGroup);
 }
 
+function clean(resource: SCMResource): void {
+	log('clean', resource);
+}
+
+
 export function registerCommands(model: Model): Disposable {
 	const disposables = [
 		commands.registerCommand('git.refresh', refresh(model)),
+		commands.registerCommand('git.openChange', openChange),
+		commands.registerCommand('git.openFile', openFile),
 		commands.registerCommand('git.stage', stage),
 		commands.registerCommand('git.stage-all', stageAll),
 		commands.registerCommand('git.unstage', unstage),
 		commands.registerCommand('git.unstage-all', unstageAll),
-		commands.registerCommand('git.open', open)
+		commands.registerCommand('git.clean', clean),
 	];
 
 	return Disposable.from(...disposables);
