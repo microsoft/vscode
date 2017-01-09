@@ -6,12 +6,17 @@
 'use strict';
 
 import DOM = require('vs/base/browser/dom');
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IHTMLContentElement, MarkedString, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
 
@@ -20,9 +25,33 @@ export interface RenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => string | TPromise<string>;
 }
 
-export function renderMarkedString(markedString: MarkedString, options: RenderOptions = {}): Node {
+export function renderMarkedString(modeService: IModeService, openerService: IOpenerService, markedString: MarkedString): Node {
 	const htmlContentElement = typeof markedString === 'string' ? { markdown: markedString } : { code: markedString };
-	return renderHtml(htmlContentElement, options);
+
+	return renderHtml(htmlContentElement, {
+		actionCallback: (content) => {
+			openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+		},
+		codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+			// According to the language server spec (https://github.com/Microsoft/language-server-protocol)
+			// A MarkedString is rendered as:
+			// - CASE 1: markdown if it is represented as a string
+			// - CASE 2: markdown code block of the given langauge if it is represented as a pair of a language and a value
+			//
+			// Because this function is only responsible for rendering code blocks, we only need to worry about handling
+			// CASE 2 here. We follow the spec exactly because in some cases (e.g. PHP), we want the content to be
+			// rendered using less strict rules than the official grammar (as we sometimes do in markdown.)
+			//
+			// Also note that we render the codeblock using TextMate grammar rather than using highlight.js as we do in the
+			// markdown preview. This is because we want renderings to be as consistent with the editor as possible.
+			value = '```' + languageAlias + '\n' + value + '\n ```';
+			const modeId = 'markdown';
+
+			return modeService.getOrCreateMode(modeId).then(_ => {
+				return `<div class="code">${tokenizeToString(value, modeId, true)}</div>`;
+			});
+		}
+	});
 }
 
 /**

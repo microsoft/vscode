@@ -11,11 +11,7 @@ import { GlyphHoverWidget } from './hoverWidgets';
 import { $ } from 'vs/base/browser/dom';
 import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 export interface IHoverMessage {
 	value?: string;
@@ -154,17 +150,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
-			const renderedContents = renderMarkedString(msg.value, {
-				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
-				codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
-					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
-					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
-					return this.modeService.getOrCreateMode(modeId).then(_ => {
-						return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
-					});
-				}
-			});
-
+			const renderedContents = renderMarkedString(this.modeService, this.openerService, msg.value);
 			fragment.appendChild($('div.hover-row', null, renderedContents));
 		});
 
