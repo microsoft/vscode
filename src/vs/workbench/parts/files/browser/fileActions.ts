@@ -46,6 +46,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export interface IEditableData {
 	action: IAction;
@@ -271,7 +273,9 @@ class RenameFileAction extends BaseRenameAction {
 		element: FileStat,
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, messageService, textFileService);
 
@@ -280,40 +284,44 @@ class RenameFileAction extends BaseRenameAction {
 
 	public runAction(newName: string): TPromise<any> {
 
-		// Handle dirty
-		let revertPromise: TPromise<any> = TPromise.as(null);
+		// 1. check for dirty files that are being moved and backup to new target
 		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath));
-		if (dirty.length) {
-			let message: string;
-			if (this.element.isDirectory) {
-				if (dirty.length === 1) {
-					message = nls.localize('dirtyMessageFolderOne', "You are renaming a folder with unsaved changes in 1 file. Do you want to continue?");
-				} else {
-					message = nls.localize('dirtyMessageFolder', "You are renaming a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
-				}
-			} else {
-				message = nls.localize('dirtyMessageFile', "You are renaming a file with unsaved changes. Do you want to continue?");
+		const dirtyRenamed: URI[] = [];
+		return TPromise.join(dirty.map(d => {
+			const targetPath = paths.join(this.element.parent.resource.fsPath, newName);
+			let renamed: URI;
+
+			// If the dirty file itself got moved, just reparent it to the target folder
+			if (this.element.resource.fsPath === d.fsPath) {
+				renamed = URI.file(targetPath);
 			}
 
-			const res = this.messageService.confirm({
-				message,
-				type: 'warning',
-				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
-				primaryButton: nls.localize({ key: 'renameLabel', comment: ['&& denotes a mnemonic'] }, "&&Rename")
-			});
-
-			if (!res) {
-				return TPromise.as(null);
+			// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
+			else {
+				renamed = URI.file(paths.join(targetPath, d.fsPath.substr(this.element.resource.fsPath.length + 1)));
 			}
 
-			revertPromise = this.textFileService.revertAll(dirty);
-		}
+			dirtyRenamed.push(renamed);
 
-		return revertPromise.then(() => {
-			return this.fileService.rename(this.element.resource, newName).then(null, (error: Error) => {
-				this.onErrorWithRetry(error, () => this.runAction(newName));
+			const model = this.textFileService.models.get(d);
+
+			return this.backupFileService.backupResource(renamed, model.getValue(), model.getVersionId());
+		}))
+
+			// 2. soft revert all dirty since we have backed up their contents
+			.then(() => this.textFileService.revertAll(dirty, { soft: true /* do not attempt to load content from disk */ }))
+
+			// 3.) run the rename operation
+			.then(() => this.fileService.rename(this.element.resource, newName).then(null, (error: Error) => {
+				return TPromise.join(dirtyRenamed.map(d => this.backupFileService.discardResourceBackup(d))).then(() => {
+					this.onErrorWithRetry(error, () => this.runAction(newName));
+				});
+			}))
+
+			// 4.) resolve those that were dirty to load their previous dirty contents from disk
+			.then(() => {
+				return TPromise.join(dirtyRenamed.map(t => this.textModelResolverService.createModelReference(t)));
 			});
-		});
 	}
 }
 
