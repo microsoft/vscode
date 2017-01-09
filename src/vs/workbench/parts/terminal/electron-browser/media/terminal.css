@@ -37,6 +37,11 @@
 	height: 100%;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm-viewport {
+	/* Subtract right margin so that the scroll bar aligns with size of panel */
+	margin-right: -20px;
+}
+
 /* Terminal actions */
 
 /* Light theme */
