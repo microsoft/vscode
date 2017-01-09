@@ -10,9 +10,9 @@ import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
+import URI from 'vs/base/common/uri';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { ISCMService, ISCMProvider } from 'vs/workbench/services/scm/common/scm';
-
+import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
 
 export class SCMMenus implements IDisposable {
 
@@ -67,25 +67,41 @@ export class SCMMenus implements IDisposable {
 		return this.titleSecondaryActions;
 	}
 
-	getResourceGroupActions(resourceGroupId: string): IAction[] {
-		return this.getActions(MenuId.SCMResourceGroupContext, resourceGroupId).primary;
+	getResourceGroupActions(group: ISCMResourceGroup): IAction[] {
+		return this.getActions(MenuId.SCMResourceGroupContext, this.getSCMResourceGroupURI(group), group.id).primary;
 	}
 
-	getResourceGroupContextActions(resourceGroupId: string): IAction[] {
-		return this.getActions(MenuId.SCMResourceGroupContext, resourceGroupId).secondary;
+	getResourceGroupContextActions(group: ISCMResourceGroup): IAction[] {
+		return this.getActions(MenuId.SCMResourceGroupContext, this.getSCMResourceGroupURI(group), group.id).secondary;
 	}
 
-	getResourceActions(resourceGroupId: string): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resourceGroupId).primary;
+	getResourceActions(resource: ISCMResource): IAction[] {
+		return this.getActions(MenuId.SCMResourceContext, this.getSCMResourceURI(resource), resource.resourceGroupId).primary;
 	}
 
-	getResourceContextActions(resourceGroupId: string): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resourceGroupId).secondary;
+	getResourceContextActions(resource: ISCMResource): IAction[] {
+		return this.getActions(MenuId.SCMResourceContext, this.getSCMResourceURI(resource), resource.resourceGroupId).secondary;
+	}
+
+	private getSCMResourceGroupURI(resourceGroup: ISCMResourceGroup): URI {
+		return URI.from({
+			scheme: 'scm',
+			authority: this.activeProviderContextKey.get(),
+			path: `/${resourceGroup.id}`
+		});
+	}
+
+	private getSCMResourceURI(resource: ISCMResource): URI {
+		return URI.from({
+			scheme: 'scm',
+			authority: this.activeProviderContextKey.get(),
+			path: `/${resource.resourceGroupId}/${JSON.stringify(resource.uri)}`
+		});
 	}
 
 	private static readonly NoActions = { primary: [], secondary: [] };
 
-	private getActions(menuId: MenuId, resourceGroupId: string): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, context: URI, resourceGroupId: string): { primary: IAction[]; secondary: IAction[]; } {
 		if (!this.scmService.activeProvider) {
 			return SCMMenus.NoActions;
 		}
@@ -97,7 +113,7 @@ export class SCMMenus implements IDisposable {
 		const primary = [];
 		const secondary = [];
 		const result = { primary, secondary };
-		fillInActions(menu, null, result, g => g === 'inline');
+		fillInActions(menu, context, result, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
