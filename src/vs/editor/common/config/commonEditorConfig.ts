@@ -17,34 +17,7 @@ import { EditorLayoutProvider } from 'vs/editor/common/viewLayout/editorLayoutPr
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
-
-export interface IEditorZoom {
-	onDidChangeZoomLevel: Event<number>;
-	getZoomLevel(): number;
-	setZoomLevel(zoomLevel: number): void;
-}
-
-export const EditorZoom: IEditorZoom = new class {
-
-	private _zoomLevel: number = 0;
-
-	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
-	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
-
-	public getZoomLevel(): number {
-		return this._zoomLevel;
-	}
-
-	public setZoomLevel(zoomLevel: number): void {
-		zoomLevel = Math.min(Math.max(-9, zoomLevel), 9);
-		if (this._zoomLevel === zoomLevel) {
-			return;
-		}
-
-		this._zoomLevel = zoomLevel;
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
-	}
-};
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
  * Control what pressing Tab does.
