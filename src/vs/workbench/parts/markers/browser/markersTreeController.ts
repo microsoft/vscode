@@ -23,8 +23,10 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TreeControllerBase } from 'vs/workbench/browser/treeController';
 
-export class Controller extends treedefaults.DefaultController {
+export class Controller extends TreeControllerBase {
 
 	private contextMenu: IMenu;
 
@@ -33,8 +35,10 @@ export class Controller extends treedefaults.DefaultController {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@ITelemetryService private telemetryService: ITelemetryService) {
-		super();
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_UP }, configurationService);
 
 		this.contextMenu = menuService.createMenu(MenuId.ProblemsPanelContext, contextKeyService);
 	}
@@ -42,9 +46,15 @@ export class Controller extends treedefaults.DefaultController {
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		let currentFoucssed = tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
-			if (this.openFileAtElement(element, event.detail !== 2, event.ctrlKey || event.metaKey, event.detail === 2)) {
+			const isDoubleClick = event.detail === 2;
+			const sideBySide = event.ctrlKey || event.metaKey;
+			if (isDoubleClick && this.openFileAtElement(element, false, sideBySide, true)) {
 				return true;
 			}
+			else if (this.isInSingleClickOpenMode() && this.openFileAtElement(element, !isDoubleClick, sideBySide, isDoubleClick)) {
+				return true;
+			}
+
 			if (element instanceof MarkersModel) {
 				if (currentFoucssed) {
 					tree.setFocus(currentFoucssed);
