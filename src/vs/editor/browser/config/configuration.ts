@@ -42,6 +42,10 @@ class CSSBasedConfigurationCache {
 	}
 }
 
+export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
+	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
+}
+
 class CSSBasedConfiguration extends Disposable {
 
 	public static INSTANCE = new CSSBasedConfiguration();
