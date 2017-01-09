@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Position } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -81,6 +81,18 @@ export function activate(context: ExtensionContext): void {
 
 	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
 		clientHost.reloadProjects();
+	}));
+
+	context.subscriptions.push(commands.registerCommand('typescript.tryAcceptSelectedSuggestionOnDot', () => {
+		// When typing a dot, make sure the character before the dot is a valid indentifier character.
+		const editor = window.activeTextEditor;
+		if (editor && editor.selection && editor.selection.start.character >= 1) {
+			const preText = editor.document.getText(new Range(new Position(editor.selection.start.line, 0), new Position(editor.selection.start.line, editor.selection.start.character - 1)));
+			if (preText.match(/[a-z_$]\s*$/ig)) {
+				return commands.executeCommand('acceptSelectedSuggestion');
+			}
+		}
+		return commands.executeCommand('type', { text: '.' });
 	}));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
