@@ -6,6 +6,7 @@
 
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { fill } from 'vs/base/common/arrays';
+import { rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -19,8 +20,9 @@ export const sep = '/';
 export const nativeSep = isWindows ? '\\' : '/';
 
 export function relative(from: string, to: string): string {
-	const originalNormalizedFrom = normalize(from);
-	const originalNormalizedTo = normalize(to);
+	// ignore trailing slashes
+	const originalNormalizedFrom = rtrim(normalize(from), sep);
+	const originalNormalizedTo = rtrim(normalize(to), sep);
 
 	// we're assuming here that any non=linux OS is case insensitive
 	// so we must compare each part in its lowercase form
