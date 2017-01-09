@@ -68,6 +68,7 @@ export interface ICommandHandler {
 #include(vs/base/common/scrollable): ScrollbarVisibility
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
+#include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
 }
 
 declare module monaco.languages {

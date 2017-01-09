@@ -15,6 +15,7 @@ import { DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE, GOLDE
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorLayoutProvider } from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 // TODO@Alex: investigate if it is better to stick to 31 bits (see smi = SMall Integer)
 // See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
@@ -141,7 +142,7 @@ class InternalEditorOptionsHelper {
 	public static createInternalEditorOptions(
 		outerWidth: number, outerHeight: number,
 		opts: editorCommon.IEditorOptions,
-		fontInfo: editorCommon.FontInfo,
+		fontInfo: FontInfo,
 		editorClassName: string,
 		isDominatedByLongLines: boolean,
 		maxLineNumber: number,
@@ -559,7 +560,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			this.getOuterWidth(),
 			this.getOuterHeight(),
 			opts,
-			this.readConfiguration(new editorCommon.BareFontInfo({
+			this.readConfiguration(new BareFontInfo({
 				fontFamily: fontFamily,
 				fontWeight: fontWeight,
 				fontSize: fontSize,
@@ -595,7 +596,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	protected abstract _getCanUseTranslate3d(): boolean;
 
-	protected abstract readConfiguration(styling: editorCommon.BareFontInfo): editorCommon.FontInfo;
+	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 }
 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);

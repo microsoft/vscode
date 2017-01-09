@@ -2789,22 +2789,6 @@ declare module monaco.editor {
         readonly charChanges: ICharChange[];
     }
 
-    export class BareFontInfo {
-        readonly _bareFontInfoBrand: void;
-        readonly fontFamily: string;
-        readonly fontWeight: string;
-        readonly fontSize: number;
-        readonly lineHeight: number;
-    }
-
-    export class FontInfo extends BareFontInfo {
-        readonly _editorStylingBrand: void;
-        readonly typicalHalfwidthCharacterWidth: number;
-        readonly typicalFullwidthCharacterWidth: number;
-        readonly spaceWidth: number;
-        readonly maxDigitWidth: number;
-    }
-
     export interface INewScrollPosition {
         scrollLeft?: number;
         scrollTop?: number;
@@ -3832,6 +3816,21 @@ declare module monaco.editor {
          * @see ICodeEditor.getDomNode
          */
         getDomNode(): HTMLElement;
+    }
+
+    export class FontInfo extends BareFontInfo {
+        readonly _editorStylingBrand: void;
+        readonly typicalHalfwidthCharacterWidth: number;
+        readonly typicalFullwidthCharacterWidth: number;
+        readonly spaceWidth: number;
+        readonly maxDigitWidth: number;
+    }
+    export class BareFontInfo {
+        readonly _bareFontInfoBrand: void;
+        readonly fontFamily: string;
+        readonly fontWeight: string;
+        readonly fontSize: number;
+        readonly lineHeight: number;
     }
 }
 
