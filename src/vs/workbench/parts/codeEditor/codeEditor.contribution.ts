@@ -4,3 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './electron-browser/toggleWordWrap';
+import './electron-browser/toggleRenderWhitespace';
