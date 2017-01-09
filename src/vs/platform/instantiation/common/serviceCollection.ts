@@ -7,8 +7,6 @@
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from './descriptors';
 
-type Entry = [ServiceIdentifier<any>, any];
-
 export class ServiceCollection {
 
 	private _entries = new Map<ServiceIdentifier<any>, any>();
