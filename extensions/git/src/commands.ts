@@ -16,12 +16,12 @@ function refresh(model: Model): () => void {
 	};
 }
 
-function openChange(...args: any[]): void {
-	console.log('open', args);
+function openChange(resource: SCMResource): void {
+	log('open change', resource);
 }
 
-function openFile(...args: any[]): void {
-	console.log('open', args);
+function openFile(resource: SCMResource): void {
+	log('open file', resource);
 }
 
 function stage(resource: SCMResource): void {
@@ -29,7 +29,7 @@ function stage(resource: SCMResource): void {
 }
 
 function stageAll(resourceGroup: SCMResourceGroup): void {
-	log('stage-all', resourceGroup);
+	log('stageAll', resourceGroup);
 }
 
 function unstage(resource: SCMResource): void {
@@ -37,7 +37,7 @@ function unstage(resource: SCMResource): void {
 }
 
 function unstageAll(resourceGroup: SCMResourceGroup): void {
-	log('unstage-all', resourceGroup);
+	log('unstageAll', resourceGroup);
 }
 
 function clean(resource: SCMResource): void {
@@ -54,9 +54,9 @@ export function registerCommands(model: Model): Disposable {
 		commands.registerCommand('git.openChange', openChange),
 		commands.registerCommand('git.openFile', openFile),
 		commands.registerCommand('git.stage', stage),
-		commands.registerCommand('git.stage-all', stageAll),
+		commands.registerCommand('git.stageAll', stageAll),
 		commands.registerCommand('git.unstage', unstage),
-		commands.registerCommand('git.unstage-all', unstageAll),
+		commands.registerCommand('git.unstageAll', unstageAll),
 		commands.registerCommand('git.clean', clean),
 		commands.registerCommand('git.cleanAll', cleanAll),
 	];
