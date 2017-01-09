@@ -149,7 +149,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private _extensionDevelopmentPath: string;
 	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
-	private currentMenuBarVisibility: '' | 'visible' | 'toggle' | 'hidden';
+	private currentMenuBarVisibility: 'visible' | 'toggle' | 'hidden';
 	private currentWindowMode: WindowMode;
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
@@ -228,28 +228,15 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 
 		// respect configured menu bar visibility
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-		this.setMenuBarVisibility(windowConfig && windowConfig.menuBarVisibility);
+		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
 
-		// TODO@joao: hook this up to some initialization routine
-		// this causes a race between setting the headers and doing
+		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
 		// a request that needs them. chances are low
 		this.setCommonHTTPHeaders();
 
+		// Eventing
 		this.registerListeners();
-
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
-
-	private onConfigurationUpdated(config: IConfiguration): void {
-
-		let newMenuBarVisibility = config && config.window && config.window.menuBarVisibility;
-
-		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
-			this.currentMenuBarVisibility = newMenuBarVisibility;
-			this.setMenuBarVisibility(newMenuBarVisibility);
-		}
-	};
 
 	private setCommonHTTPHeaders(): void {
 		getCommonHTTPHeaders().done(headers => {
@@ -426,7 +413,18 @@ export class VSCodeWindow implements IVSCodeWindow {
 				}
 			});
 		}
+
+		// Handle configuration changes
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
+
+	private onConfigurationUpdated(config: IConfiguration): void {
+		const newMenuBarVisibility = this.getMenuBarVisibility(config);
+		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+			this.currentMenuBarVisibility = newMenuBarVisibility;
+			this.setMenuBarVisibility(newMenuBarVisibility);
+		}
+	};
 
 	public load(config: IWindowConfiguration): void {
 
@@ -675,21 +673,34 @@ export class VSCodeWindow implements IVSCodeWindow {
 	public toggleFullScreen(): void {
 		const willBeFullScreen = !this.win.isFullScreen();
 
+		// set fullscreen flag on window
 		this.win.setFullScreen(willBeFullScreen);
 
 		// respect configured menu bar visibility or default to toggle if not set
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-		let menuBarVisibility = windowConfig && windowConfig.menuBarVisibility;
-		if (typeof menuBarVisibility !== 'string') {
-			menuBarVisibility = willBeFullScreen ? 'toggle' : 'visible';
-		};
-
-		this.setMenuBarVisibility(menuBarVisibility, false);
+		this.setMenuBarVisibility(this.getMenuBarVisibility(this.configurationService.getConfiguration<IConfiguration>(), willBeFullScreen ? 'toggle' : 'visible'), false);
 	}
 
-	public setMenuBarVisibility(visibility: '' | 'visible' | 'toggle' | 'hidden', notify: boolean = true): void {
+	private getMenuBarVisibility(configuration: IConfiguration, fallback: 'visible' | 'toggle' | 'hidden' = 'visible'): 'visible' | 'toggle' | 'hidden' {
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
+		if (!windowConfig || !windowConfig.menuBarVisibility) {
+			return fallback;
+		}
+
+		let menuBarVisibility = windowConfig.menuBarVisibility;
+		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
+			menuBarVisibility = fallback;
+		}
+
+		return menuBarVisibility;
+	}
+
+	public setMenuBarVisibility(visibility: 'visible' | 'toggle' | 'hidden', notify: boolean = true): void {
+		if (platform.isMacintosh) {
+			return; // ignore for macOS platform
+		}
+
 		switch (visibility) {
-			case (''):
 			case ('visible'):
 				this.win.setMenuBarVisibility(true);
 				this.win.setAutoHideMenuBar(false);
