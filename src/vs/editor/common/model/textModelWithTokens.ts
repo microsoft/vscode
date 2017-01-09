@@ -190,6 +190,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._languageIdentifier;
 	}
 
+	public getModeId(): string {
+		return this._languageIdentifier.language;
+	}
+
 	public setMode(languageIdentifier: LanguageIdentifier): void {
 		if (this._languageIdentifier.id === languageIdentifier.id) {
 			// There's nothing to do
@@ -197,8 +201,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 
 		let e: editorCommon.IModelLanguageChangedEvent = {
-			oldLanguageIdentifier: this._languageIdentifier,
-			newLanguageIdentifier: languageIdentifier
+			oldLanguage: this._languageIdentifier.language,
+			newLanguage: languageIdentifier.language
 		};
 
 		this._languageIdentifier = languageIdentifier;

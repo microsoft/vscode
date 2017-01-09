@@ -2077,7 +2077,7 @@ declare module monaco.editor {
         /**
          * Get the language associated with this model.
          */
-        getLanguageIdentifier(): languages.LanguageIdentifier;
+        getModeId(): string;
         /**
          * Get the word under or besides `position`.
          * @param position The position to look for a word.
@@ -2101,7 +2101,7 @@ declare module monaco.editor {
         /**
          * Get the language associated with this model.
          */
-        getLanguageIdentifier(): languages.LanguageIdentifier;
+        getModeId(): string;
         /**
          * Get the word under or besides `position`.
          * @param position The position to look for a word.
@@ -2286,11 +2286,11 @@ declare module monaco.editor {
         /**
          * Previous language
          */
-        readonly oldLanguageIdentifier: languages.LanguageIdentifier;
+        readonly oldLanguage: string;
         /**
          * New language
          */
-        readonly newLanguageIdentifier: languages.LanguageIdentifier;
+        readonly newLanguage: string;
     }
 
     /**
@@ -4277,15 +4277,6 @@ declare module monaco.languages {
          * Describes the number of characters to remove from the new line's indentation.
          */
         removeText?: number;
-    }
-    /**
-     * An identifier for a registered language.
-     */
-    export class LanguageIdentifier {
-        public readonly language: string;
-        public readonly id: number;
-
-        constructor(language: string, id: number);
     }
 
     /**
