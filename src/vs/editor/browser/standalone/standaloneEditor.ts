@@ -33,6 +33,7 @@ import { ITextModelResolverService } from 'vs/editor/common/services/resolverSer
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { ITheme, IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 import { Token } from 'vs/editor/common/core/token';
+import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 /**
  * @internal
@@ -340,8 +341,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		InternalEditorOptions: <any>editorCommon.InternalEditorOptions,
 		OverviewRulerPosition: <any>editorCommon.OverviewRulerPosition,
 		EditorLayoutInfo: <any>editorCommon.EditorLayoutInfo,
-		BareFontInfo: <any>editorCommon.BareFontInfo,
-		FontInfo: <any>editorCommon.FontInfo,
+		BareFontInfo: <any>BareFontInfo,
+		FontInfo: <any>FontInfo,
 		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
 
 		// vars
