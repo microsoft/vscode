@@ -21,10 +21,9 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -267,6 +266,36 @@ export class ClearSearchResultsAction extends Action {
 	}
 }
 
+export class FocusNextSearchResultAction extends Action {
+	public static ID = 'search.action.focusNextSearchResult';
+	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus next search result");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
+			searchViewlet.selectNextResult();
+		});
+	}
+}
+
+export class FocusPreviousSearchResultAction extends Action {
+	public static ID = 'search.action.focusPreviousSearchResult';
+	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus previous search result");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
+			searchViewlet.selectPreviousResult();
+		});
+	}
+}
+
 export abstract class AbstractSearchAndReplaceAction extends Action {
 
 	/**
@@ -392,7 +421,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
 			} else {
-				this.replaceService.openReplacePreviewEditor(elementToShowReplacePreview, true);
+				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
 			}
 		});
 	}
@@ -440,9 +469,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		if (editorInput) {
-			return editorInput.getResource().fsPath === this.element.parent().resource().fsPath;
+		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		if (file) {
+			return file.fsPath === this.element.parent().resource().fsPath;
 		}
 		return false;
 	}

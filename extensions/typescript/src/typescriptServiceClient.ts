@@ -80,7 +80,7 @@ interface MyMessageItem extends MessageItem {
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
 	private host: ITypescriptServiceClientHost;
-	private storagePath: string;
+	private storagePath: string | undefined;
 	private globalState: Memento;
 	private pathSeparator: string;
 
@@ -103,19 +103,21 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
 	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	private _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
-	constructor(host: ITypescriptServiceClientHost, storagePath: string, globalState: Memento) {
+	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento) {
 		this.host = host;
 		this.storagePath = storagePath;
 		this.globalState = globalState;
 		this.pathSeparator = path.sep;
 
-		let p = new Promise<void>((resolve, reject) => {
-			this._onReady = { promise: Promise.reject<void>(null), resolve, reject };
+		var p = new Promise<void>((resolve, reject) => {
+			this._onReady = { promise: p, resolve, reject };
 		});
 		this._onReady.promise = p;
 
@@ -151,6 +153,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
 		return this._onProjectLanguageServiceStateChanged.event;
+	}
+
+	get onDidBeginInstallTypings(): Event<Proto.BeginInstallTypesEventBody> {
+		return this._onDidBeginInstallTypings.event;
+	}
+
+	get onDidEndInstallTypings(): Event<Proto.EndInstallTypesEventBody> {
+		return this._onDidEndInstallTypings.event;
 	}
 
 	private get output(): OutputChannel {
@@ -336,17 +346,20 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								switch (selected.id) {
 									case MessageAction.useLocal:
 										let pathValue = './node_modules/typescript/lib';
-										tsConfig.update('tsdk', pathValue, false);
-										window.showInformationMessage(localize('updatedtsdk', 'Updated workspace setting \'typescript.tsdk\' to {0}', pathValue));
+										tsConfig.update('tsdk', pathValue, false).then(
+											() => window.showInformationMessage(localize('updatedtsdk', 'Updated workspace setting \'typescript.tsdk\' to {0}', pathValue)),
+											() => window.showErrorMessage(localize('updateTsdkFailed', 'Could not update the \'typescript.tsdk\' workspace setting. Please check that the workspace settings file is valid')));
 										showVersionStatusItem = true;
 										return localModulePath;
 									case MessageAction.useBundled:
-										tsConfig.update(checkWorkspaceVersionKey, false, false);
-										window.showInformationMessage(localize('updateLocalWorkspaceCheck', 'Updated workspace setting \'typescript.check.workspaceVersion\' to false'));
+										tsConfig.update(checkWorkspaceVersionKey, false, false).then(
+											() => window.showInformationMessage(localize('updateLocalWorkspaceCheck', 'Updated workspace setting \'typescript.check.workspaceVersion\' to false')),
+											() => window.showErrorMessage(localize('updateLocalWorkspaceCheckFailed', 'Could not update the \'typescript.check.workspaceVersion\' workspace setting. Please check that the workspace settings file is valid')));
 										return modulePath;
 									case MessageAction.neverCheckLocalVersion:
-										window.showInformationMessage(localize('updateGlobalWorkspaceCheck', 'Updated user setting \'typescript.check.workspaceVersion\' to false'));
-										tsConfig.update(checkWorkspaceVersionKey, false, true);
+										tsConfig.update(checkWorkspaceVersionKey, false, true).then(
+											() => window.showInformationMessage(localize('updateGlobalWorkspaceCheck', 'Updated user setting \'typescript.check.workspaceVersion\' to false')),
+											() => window.showErrorMessage(localize('updateGlobalWorkspaceCheckFailed', 'Could not update  \'typescript.check.workspaceVersion\' user setting. Please check that your user settings file is valid')));
 										return modulePath;
 									default:
 										return modulePath;
@@ -665,11 +678,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
 				} else if (event.event === 'telemetry') {
 					let telemetryData = (event as Proto.TelemetryEvent).body;
-					let properties: Map<string> = Object.create(null);
+					let properties: ObjectMap<string> = Object.create(null);
 					switch (telemetryData.telemetryEventName) {
 						case 'typingsInstalled':
 							let typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
 							properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+
 							if (is.defined(typingsInstalledPayload.installSuccess)) {
 								properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
 							}
@@ -694,6 +708,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (data) {
 						this._onProjectLanguageServiceStateChanged.fire(data);
 					}
+				} else if (event.event === 'beginInstallTypes') {
+					const data = (event as Proto.BeginInstallTypesEvent).body;
+					if (data) {
+						this._onDidBeginInstallTypings.fire(data);
+					}
+				} else if (event.event === 'endInstallTypes') {
+					const data = (event as Proto.EndInstallTypesEvent).body;
+					if (data) {
+						this._onDidEndInstallTypings.fire(data);
+					}
 				}
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');
@@ -709,7 +733,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && request.arguments) {
-			data = `Arguments: ${JSON.stringify(request.arguments, [], 4)}`;
+			data = `Arguments: ${JSON.stringify(request.arguments, null, 4)}`;
 		}
 		this.logTrace(`Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${this.requestQueue.length}`, data);
 	}
@@ -720,7 +744,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && response.body) {
-			data = `Result: ${JSON.stringify(response.body, [], 4)}`;
+			data = `Result: ${JSON.stringify(response.body, null, 4)}`;
 		}
 		this.logTrace(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
 	}
@@ -731,7 +755,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && event.body) {
-			data = `Data: ${JSON.stringify(event.body, [], 4)}`;
+			data = `Data: ${JSON.stringify(event.body, null, 4)}`;
 		}
 		this.logTrace(`Event received: ${event.event} (${event.seq}).`, data);
 	}

@@ -17,17 +17,18 @@ import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, IShell } from 'vs/workbench/parts/terminal/common/terminal';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
+/** The amount of time to consider terminal errors to be related to the launch */
+const LAUNCHING_DURATION = 500;
+
 export class TerminalInstance implements ITerminalInstance {
-	/** The amount of time to consider terminal errors to be related to the launch */
-	private static readonly LAUNCHING_DURATION = 500;
 	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
@@ -62,12 +63,13 @@ export class TerminalInstance implements ITerminalInstance {
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
-		workspace: IWorkspace,
 		name: string,
 		shell: IShell,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService
+		@IMessageService private _messageService: IMessageService,
+		@IPanelService private _panelService: IPanelService,
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
 		this._toDispose = [];
 		this._skipTerminalCommands = [];
@@ -82,7 +84,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(workspace, name, shell);
+		this._createProcess(this._contextService.getWorkspace(), name, shell);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -125,7 +127,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Skip processing by xterm.js of keyboard events that resolve to commands described
 			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const keybinding = new Keybinding(standardKeyboardEvent.asKeybinding());
+			const keybinding = standardKeyboardEvent.toKeybinding();
 			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
 			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();
@@ -154,8 +156,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}, 0);
 		});
 
-		let xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
-		let focusTrap: HTMLElement = document.createElement('div');
+		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
+		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		DOM.addClass(focusTrap, 'focus-trap');
 		focusTrap.addEventListener('focus', function (event: FocusEvent) {
@@ -163,7 +165,7 @@ export class TerminalInstance implements ITerminalInstance {
 			while (!DOM.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement;
 			}
-			let hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
+			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
 			hidePanelElement.focus();
 		});
 		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
@@ -173,12 +175,14 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
 		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
 		}));
 
 		this._wrapperElement.appendChild(this._xtermElement);
@@ -189,9 +193,11 @@ export class TerminalInstance implements ITerminalInstance {
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
-		this.setCursorBlink(this._configHelper.getCursorBlink());
-		this.setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
-		this.setScrollback(this._configHelper.getScrollback());
+		this.updateConfig();
+	}
+
+	public hasSelection(): boolean {
+		return !document.getSelection().isCollapsed;
 	}
 
 	public copySelection(): void {
@@ -200,6 +206,10 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
 		}
+	}
+
+	public clearSelection(): void {
+		document.getSelection().empty();
 	}
 
 	public dispose(): void {
@@ -230,7 +240,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		let text = window.getSelection().toString();
+		const text = window.getSelection().toString();
 		if (!text || force) {
 			this._xterm.focus();
 		}
@@ -287,19 +297,45 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _refreshSelectionContextKey() {
-		this._terminalHasTextContextKey.set(!window.getSelection().isCollapsed);
+		const activePanel = this._panelService.getActivePanel();
+		const isFocused = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		this._terminalHasTextContextKey.set(isFocused && !window.getSelection().isCollapsed);
 	}
 
 	private _sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
-		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
+		let cwd: string;
+
+		// TODO: Handle non-existent customCwd
+		if (!ignoreCustomCwd) {
+			// Evaluate custom cwd first
+			const customCwd = this._configHelper.getCwd();
+			if (customCwd) {
+				if (path.isAbsolute(customCwd)) {
+					cwd = customCwd;
+				} else if (workspace) {
+					cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+				}
+			}
+		}
+
+		// If there was no custom cwd or it was relative with no workspace
+		if (!cwd) {
+			cwd = workspace ? workspace.resource.fsPath : os.homedir();
+		}
+
+		return TerminalInstance._sanitizeCwd(cwd);
+	}
+
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
+		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -320,7 +356,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this._onProcessIdReady.fire(this);
 			}
 		});
-		this._process.on('exit', (exitCode) => {
+		this._process.on('exit', (exitCode: number) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this._isExiting) {
 				this.dispose();
@@ -336,11 +372,13 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		setTimeout(() => {
 			this._isLaunching = false;
-		}, TerminalInstance.LAUNCHING_DURATION);
+		}, LAUNCHING_DURATION);
 	}
 
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
-		let env = TerminalInstance._cloneEnv(parentEnv);
+	// TODO: This should be private/protected
+	// TODO: locale should not be optional
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, cwd: string, locale?: string): IStringDictionary<string> {
+		const env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {
@@ -348,7 +386,7 @@ export class TerminalInstance implements ITerminalInstance {
 				env[`PTYSHELLARG${i}`] = arg;
 			});
 		}
-		env['PTYCWD'] = TerminalInstance._sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
+		env['PTYCWD'] = cwd;
 		if (locale) {
 			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		}
@@ -364,7 +402,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private static _cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
-		let newEnv: IStringDictionary<string> = Object.create(null);
+		const newEnv: IStringDictionary<string> = Object.create(null);
 		Object.keys(env).forEach((key) => {
 			newEnv[key] = env[key];
 		});
@@ -380,25 +418,31 @@ export class TerminalInstance implements ITerminalInstance {
 		return parts.join('_') + '.UTF-8';
 	}
 
-	public setCursorBlink(blink: boolean): void {
+	public updateConfig(): void {
+		this._setCursorBlink(this._configHelper.getCursorBlink());
+		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
+		this._setScrollback(this._configHelper.getScrollback());
+	}
+
+	private _setCursorBlink(blink: boolean): void {
 		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
 		}
 	}
 
-	public setCommandsToSkipShell(commands: string[]): void {
+	private _setCommandsToSkipShell(commands: string[]): void {
 		this._skipTerminalCommands = commands;
 	}
 
-	public setScrollback(lineCount: number): void {
+	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
 			this._xterm.setOption('scrollback', lineCount);
 		}
 	}
 
 	public layout(dimension: { width: number, height: number }): void {
-		let font = this._configHelper.getFont();
+		const font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;
 		}
@@ -411,10 +455,12 @@ export class TerminalInstance implements ITerminalInstance {
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			this._xterm.emit('scroll', this._xterm.ydisp);
 		}
-		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
-		let innerWidth = dimension.width - leftPadding;
-		let cols = Math.floor(innerWidth / font.charWidth);
-		let rows = Math.floor(dimension.height / font.charHeight);
+		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		// Use left padding as right padding, right padding is not defined in CSS just in case
+		// xterm.js causes an unexpected overflow.
+		const innerWidth = dimension.width - padding * 2;
+		const cols = Math.floor(innerWidth / font.charWidth);
+		const rows = Math.floor(dimension.height / font.charHeight);
 		if (this._xterm) {
 			this._xterm.resize(cols, rows);
 			this._xterm.element.style.width = innerWidth + 'px';

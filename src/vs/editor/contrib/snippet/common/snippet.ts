@@ -122,15 +122,15 @@ export class CodeSnippet implements ICodeSnippet {
 
 			for (let {startLineNumber, startColumn, endLineNumber, endColumn} of originalPlaceHolder.occurences) {
 
-				if (startColumn > 1) {
-					// placeholders that aren't at the beginning of the snippet line
+				if (startColumn > 1 || startLineNumber === 1) {
+					// placeholders that aren't at the beginning of new snippet lines
 					// will be moved by how many characters the indentation has been
 					// adjusted
 					startColumn = startColumn + deltaColumns[startLineNumber];
 					endColumn = endColumn + deltaColumns[endLineNumber];
 
 				} else {
-					// placeholders at the beginning of the snippet line
+					// placeholders at the beginning of new snippet lines
 					// will be indented by the reference indentation
 					startColumn += referenceIndentation.length;
 					endColumn += referenceIndentation.length;
@@ -140,7 +140,7 @@ export class CodeSnippet implements ICodeSnippet {
 					startLineNumber: startLineNumber + deltaLine,
 					startColumn,
 					endLineNumber: endLineNumber + deltaLine,
-					endColumn
+					endColumn,
 				});
 			}
 
@@ -198,7 +198,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 
 		for (i = 0, len = templateLines.length; i < len; i++) {
 			var parsedLine = this.parseLine(templateLines[i], (id: string) => {
-				if (collections.contains(placeHoldersMap, id)) {
+				if (placeHoldersMap[id]) {
 					return placeHoldersMap[id].value;
 				}
 				return '';
@@ -208,7 +208,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 				var occurence = new Range(i + 1, linePlaceHolder.startColumn, i + 1, linePlaceHolder.endColumn);
 				var placeHolder: IPlaceHolder;
 
-				if (collections.contains(placeHoldersMap, linePlaceHolder.id)) {
+				if (placeHoldersMap[linePlaceHolder.id]) {
 					placeHolder = placeHoldersMap[linePlaceHolder.id];
 				} else {
 					placeHolder = {
@@ -543,13 +543,15 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 		} else if (marker instanceof Variable) {
 
-			if (!marker.isDefined && marker.defaultValue.length === 0) {
+			if (!marker.isDefined) {
 				// contine as placeholder
 				// THIS is because of us having falsy
 				// advertised ${foo} as placeholder syntax
-				stack.unshift(new Placeholder(marker.name, [new Text(marker.name)]));
+				stack.unshift(new Placeholder(marker.name, marker.defaultValue.length === 0
+					? [new Text(marker.name)]
+					: marker.defaultValue));
 
-			} else if (marker.isDefined && marker.resolvedValue) {
+			} else if (marker.resolvedValue) {
 				// contine with the value
 				stack.unshift(new Text(marker.resolvedValue));
 

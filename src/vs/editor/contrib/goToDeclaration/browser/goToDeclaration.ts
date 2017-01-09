@@ -76,7 +76,7 @@ export class DefinitionAction extends EditorAction {
 			let result: Location[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
-				if (!reference) {
+				if (!reference || !reference.range) {
 					continue;
 				}
 				let {uri, range} = reference;
@@ -110,7 +110,7 @@ export class DefinitionAction extends EditorAction {
 		} else {
 			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
 			this._openReference(editorService, next, this._configuration.openToSide).then(editor => {
-				if (model.references.length > 1) {
+				if (editor && model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
 				} else {
 					model.dispose();
@@ -128,7 +128,7 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
-			return <editorCommon.IEditor>editor.getControl();
+			return editor && <editorCommon.IEditor>editor.getControl();
 		});
 	}
 
@@ -454,7 +454,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): boolean {
 		return this.editor.getModel() &&
-			(browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
+			(browser.isIE || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
 			mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());

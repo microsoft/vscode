@@ -76,7 +76,7 @@ class ModelMarkerHandler {
 		modelData.acceptMarkerDecorations(newModelDecorations);
 	}
 
-	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): editorCommon.IRange {
+	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): Range {
 		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
 		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {

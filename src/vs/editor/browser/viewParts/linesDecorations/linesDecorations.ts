@@ -82,8 +82,9 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		let r: DecorationToRender[] = [];
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let d = decorations[i];
-			if (d.options.linesDecorationsClassName) {
-				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, d.options.linesDecorationsClassName));
+			let linesDecorationsClassName = d.source.options.linesDecorationsClassName;
+			if (linesDecorationsClassName) {
+				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName));
 			}
 		}
 		return r;

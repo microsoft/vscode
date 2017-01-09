@@ -7,7 +7,6 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import types = require('vs/base/common/types');
-import collections = require('vs/base/common/collections');
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -93,7 +92,7 @@ export class ContributableActionProvider implements IActionProvider {
 	private registry: IActionBarRegistry;
 
 	constructor() {
-		this.registry = (<IActionBarRegistry>Registry.as(Extensions.Actionbar));
+		this.registry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 	}
 
 	private toContext(tree: ITree, element: any): any {
@@ -290,7 +289,7 @@ export interface IActionBarRegistry {
 
 class ActionBarRegistry implements IActionBarRegistry {
 	private actionBarContributorConstructors: { scope: string; ctor: IConstructorSignature0<ActionBarContributor>; }[] = [];
-	private actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = {};
+	private actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = Object.create(null);
 	private instantiationService: IInstantiationService;
 
 	public setInstantiationService(service: IInstantiationService): void {
@@ -303,13 +302,16 @@ class ActionBarRegistry implements IActionBarRegistry {
 	}
 
 	private createActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
-		let instance = this.instantiationService.createInstance(ctor);
-		let target = <ActionBarContributor[]>collections.lookupOrInsert(this.actionBarContributorInstances, scope, []);
+		const instance = this.instantiationService.createInstance(ctor);
+		let target = this.actionBarContributorInstances[scope];
+		if (!target) {
+			target = this.actionBarContributorInstances[scope] = [];
+		}
 		target.push(instance);
 	}
 
 	private getContributors(scope: string): ActionBarContributor[] {
-		return collections.lookup(this.actionBarContributorInstances, scope, []);
+		return this.actionBarContributorInstances[scope] || [];
 	}
 
 	public getActionBarActionsForContext(scope: string, context: any): IAction[] {

@@ -10,8 +10,8 @@ import * as os from 'os';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
-import pkg from 'vs/platform/package';
-import product from 'vs/platform/product';
+import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/node/product';
 
 function getUniqueUserId(): string {
 	let username: string;
@@ -70,6 +70,10 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get userDataPath(): string { return parseUserDataDir(this._args, process); }
 
+	get appNameLong(): string { return product.nameLong; }
+
+	get appQuality(): string { return product.quality; }
+
 	@memoize
 	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
 
@@ -115,7 +119,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get sharedIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
 
 	@memoize
-	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData', pkg.version); }
+	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData'); }
 
 	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }

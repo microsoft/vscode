@@ -7,7 +7,7 @@
 
 import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
@@ -171,9 +171,36 @@ configurationRegistry.registerConfiguration({
 // Configuration: Window
 let properties: { [path: string]: IJSONSchema; } = {
 	'window.openFilesInNewWindow': {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
+		'type': 'string',
+		'enum': ['on', 'off', 'default'],
+		'default': 'default',
+		'description': platform.isMacintosh ?
+			nls.localize('openFilesInNewWindowMac',
+				`Controls if files should open in a new window or the last active window.
+- default: files will open in the last active window unless opened via the dock or from finder
+- on: files will open in a new window
+- off: files will open in the last active window
+Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
+			) :
+			nls.localize('openFilesInNewWindow',
+				`Controls if files should open in a new window or the last active window.
+- default: files will open in the last active window
+- on: files will open in a new window
+- off: files will open in the last active window
+Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
+			)
+	},
+	'window.openFoldersInNewWindow': {
+		'type': 'string',
+		'enum': ['on', 'off', 'default'],
+		'default': 'default',
+		'description': nls.localize('openFoldersInNewWindow',
+			`Controls if folders should open in a new window or the last active window.
+- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)
+- on: folders will open in a new window
+- off: folders will open in the last active window
+Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
+		)
 	},
 	'window.reopenFolders': {
 		'type': 'string',
@@ -186,11 +213,6 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'default': false,
 		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
 	},
-	'window.fullScreenZenMode': {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('fullScreenZenMode', "Controls if zen mode should transition the workbench to full screen mode automatically.")
-	},
 	'window.zoomLevel': {
 		'type': 'number',
 		'default': 0,
@@ -202,6 +224,23 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
 	}
 };
+
+if (platform.isWindows || platform.isLinux) {
+	properties['window.menuBarVisibility'] = {
+		'type': 'string',
+		'enum': ['visible', 'toggle', 'hidden'],
+		'default': 'visible',
+		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that a single press of the alt key will show and hide the menu bar.")
+	};
+}
+
+if (platform.isWindows) {
+	properties['window.autoDetectHighContrast'] = {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
+	};
+}
 
 if (platform.isMacintosh) {
 	properties['window.titleBarStyle'] = {
@@ -218,4 +257,29 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('windowConfigurationTitle', "Window"),
 	'type': 'object',
 	'properties': properties
+});
+
+// Configuration: Zen Mode
+configurationRegistry.registerConfiguration({
+	'id': 'zenMode',
+	'order': 9,
+	'title': nls.localize('zenModeConfigurationTitle', "Zen Mode"),
+	'type': 'object',
+	'properties': {
+		'zenMode.fullScreen': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.fullScreen', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
+		},
+		'zenMode.hideTabs': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideTabs', "Controls if turning on Zen Mode also hides workbench tabs.")
+		},
+		'zenMode.hideStatusBar': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+		}
+	}
 });

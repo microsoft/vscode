@@ -13,6 +13,7 @@
 	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "文件",
 	"folders": "文件夹",
+	"keybindingsReference": "键盘快捷方式引用",
 	"newWindow": "新建窗口",
 	"noFolderOpened": "此实例中没有要关闭的已打开文件夹。",
 	"openRecent": "打开最近的文件",

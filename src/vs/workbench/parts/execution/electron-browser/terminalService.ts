@@ -10,6 +10,7 @@ import path = require('path');
 import processes = require('vs/base/node/processes');
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -57,7 +58,7 @@ export class WinTerminalService implements ITerminalService {
 			];
 
 			// merge environment variables into a copy of the process.env
-			const env = extendObject(extendObject({}, process.env), envVars);
+			const env = assign({}, process.env, envVars);
 
 			const options: any = {
 				cwd: dir,
@@ -236,7 +237,7 @@ export class LinuxTerminalService implements ITerminalService {
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 				// merge environment variables into a copy of the process.env
-				const env = extendObject(extendObject({}, process.env), envVars);
+				const env = assign({}, process.env, envVars);
 
 				const options: any = {
 					cwd: dir,
@@ -278,17 +279,6 @@ export class LinuxTerminalService implements ITerminalService {
 			});
 		});
 	}
-}
-
-function extendObject<T>(objectCopy: T, object: T): T {
-
-	for (let key in object) {
-		if (object.hasOwnProperty(key)) {
-			objectCopy[key] = object[key];
-		}
-	}
-
-	return objectCopy;
 }
 
 /**

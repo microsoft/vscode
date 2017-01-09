@@ -18,14 +18,16 @@ import {
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/parts/extensions/browser/extensionTipsService';
+import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -48,6 +50,8 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
+
+		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
@@ -219,12 +223,12 @@ suite('ExtensionsWorkbenchService Test', () => {
 				readmeUrl: 'localReadmeUrl2',
 				changelogUrl: 'localChangelogUrl2',
 			});
-		const gallery1 = aGalleryExtension('expectedName', {
+		const gallery1 = aGalleryExtension(local1.manifest.name, {
 			id: local1.id,
 			displayName: 'expectedDisplayName',
 			version: '1.5.0',
 			publisherId: 'expectedPublisherId',
-			publisher: 'expectedPublisher',
+			publisher: local1.manifest.publisher,
 			publisherDisplayName: 'expectedPublisherDisplayName',
 			description: 'expectedDescription',
 			installCount: 1000,
@@ -251,14 +255,14 @@ suite('ExtensionsWorkbenchService Test', () => {
 			let actual = actuals[0];
 			assert.equal(LocalExtensionType.User, actual.type);
 			assert.equal('local1', actual.name);
-			assert.equal('localDisplayName1', actual.displayName);
+			assert.equal('expectedDisplayName', actual.displayName);
 			assert.equal('localPublisher1.local1', actual.identifier);
 			assert.equal('localPublisher1', actual.publisher);
 			assert.equal('1.1.0', actual.version);
 			assert.equal('1.5.0', actual.latestVersion);
-			assert.equal('localDescription1', actual.description);
-			assert.equal('file:///localPath1/localIcon1', actual.iconUrl);
-			assert.equal('file:///localPath1/localIcon1', actual.iconUrlFallback);
+			assert.equal('expectedDescription', actual.description);
+			assert.equal('uri:icon', actual.iconUrl);
+			assert.equal('fallback:icon', actual.iconUrlFallback);
 			assert.equal(ExtensionState.Installed, actual.state);
 			assert.equal('uri:license', actual.licenseUrl);
 			assert.equal(1000, actual.installCount);

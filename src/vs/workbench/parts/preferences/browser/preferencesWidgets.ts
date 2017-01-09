@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -30,11 +31,14 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private _onToggled = this._register(new Emitter<boolean>());
 	public onToggled: Event<boolean> = this._onToggled.event;
 
+	private previousPosition: editorCommon.IPosition;
+
 	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
 		super();
 		this.create();
 		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
 		this._register(this.editor.onDidLayoutChange(() => this.layout()));
+		this._register(this.editor.onDidChangeCursorPosition((e) => this.onCursorChange(e)));
 	}
 
 	get domNode(): HTMLElement {
@@ -51,10 +55,14 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 	private create() {
 		this._domNode = DOM.$('.settings-group-title-widget');
-		this._domNode.style.paddingLeft = '10px';
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		this.onclick(this.titleContainer, () => this.onTitleClicked());
+		this.titleContainer.tabIndex = 1;
+		this.onclick(this.titleContainer, () => this.toggle());
+		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
+		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
+		focusTracker.addFocusListener(() => this.toggleFocus(true));
+		focusTracker.addBlurListener(() => this.toggleFocus(false));
 
 		this.icon = DOM.append(this.titleContainer, DOM.$('.expand-collapse-icon'));
 		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
@@ -70,13 +78,24 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		});
 	}
 
-	public collapse() {
-		DOM.addClass(this.titleContainer, 'collapsed');
+	public toggleCollapse(collapse: boolean) {
+		DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
+	}
+
+	public toggleFocus(focus: boolean): void {
+		DOM.toggleClass(this.titleContainer, 'focused', focus);
+	}
+
+	public isCollapsed(): boolean {
+		return DOM.hasClass(this.titleContainer, 'collapsed');
 	}
 
 	private layout(): void {
-		this.titleContainer.style.lineHeight = this.editor.getConfiguration().lineHeight + 3 + 'px';
-		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 3 + 'px';
+		const configuration = this.editor.getConfiguration();
+		const layoutInfo = this.editor.getLayoutInfo();
+		this.titleContainer.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
+		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
+		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
 		const iconSize = this.getIconSize();
 		this.icon.style.height = `${iconSize}px`;
 		this.icon.style.width = `${iconSize}px`;
@@ -87,10 +106,66 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		return fontSize > 8 ? Math.max(fontSize, 16) : 12;
 	}
 
-	private onTitleClicked() {
-		const isCollapsed = DOM.hasClass(this.titleContainer, 'collapsed');
-		DOM.toggleClass(this.titleContainer, 'collapsed', !isCollapsed);
-		this._onToggled.fire(!isCollapsed);
+	private onKeyDown(keyboardEvent: IKeyboardEvent): void {
+		switch (keyboardEvent.keyCode) {
+			case KeyCode.Enter:
+			case KeyCode.Space:
+				this.toggle();
+				break;
+			case KeyCode.LeftArrow:
+				this.collapse(true);
+				break;
+			case KeyCode.RightArrow:
+				this.collapse(false);
+				break;
+			case KeyCode.UpArrow:
+				if (this.settingsGroup.range.startLineNumber - 3 !== 1) {
+					this.editor.focus();
+					const lineNumber = this.settingsGroup.range.startLineNumber - 2;
+					this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+				}
+				break;
+			case KeyCode.DownArrow:
+				const lineNumber = this.isCollapsed() ? this.settingsGroup.range.startLineNumber : this.settingsGroup.range.startLineNumber - 1;
+				this.editor.focus();
+				this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+				break;
+		}
+	}
+
+	private toggle() {
+		this.collapse(!this.isCollapsed());
+	}
+
+	private collapse(collapse: boolean) {
+		if (collapse !== this.isCollapsed()) {
+			DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
+			this._onToggled.fire(collapse);
+		}
+	}
+
+	private onCursorChange(e: editorCommon.ICursorPositionChangedEvent): void {
+		if (e.source !== 'mouse' && this.focusTitle(e.position)) {
+			this.titleContainer.focus();
+		}
+	}
+
+	private focusTitle(currentPosition: editorCommon.IPosition): boolean {
+		const previousPosition = this.previousPosition;
+		this.previousPosition = currentPosition;
+		if (!previousPosition) {
+			return false;
+		}
+		if (previousPosition.lineNumber === currentPosition.lineNumber) {
+			return false;
+		}
+		if (currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 1 || currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 2) {
+			return true;
+		}
+		if (this.isCollapsed() && currentPosition.lineNumber === this.settingsGroup.range.endLineNumber) {
+			return true;
+		}
+		return false;
 	}
 
 	public dispose() {
@@ -129,11 +204,12 @@ export class DefaultSettingsHeaderWidget extends Widget {
 		this.headerContainer = DOM.append(this.domNode, DOM.$('div.settings-header-container'));
 		const titleContainer = DOM.append(this.headerContainer, DOM.$('div.settings-title-container'));
 		this.createInfoContainer(DOM.append(titleContainer, DOM.$('div.settings-info-container')));
-		this.createSearchContainer(DOM.append(this.headerContainer, DOM.$('div.settings-search-container')));
+		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 	}
 
 	private createInfoContainer(infoContainer: HTMLElement) {
-		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', "Overwrite settings by placing them into your settings file.");
+		DOM.append(infoContainer, DOM.$('span.title-label')).textContent = localize('defaultSettingsTitle', "Default Settings");
+		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', " - Overwrite these by placing them into your settings file to the right");
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
@@ -143,41 +219,37 @@ export class DefaultSettingsHeaderWidget extends Widget {
 			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search default settings"),
 			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Default Settings")
 		}));
-		this.inputBox.width = 280;
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
-	}
-
-	public show() {
-		DOM.addClass(this.domNode, 'show');
-	}
-
-	public hide() {
-		DOM.removeClass(this.domNode, 'show');
-	}
-
-	public focusTracker(): DOM.IFocusTracker {
-		return DOM.trackFocus(this.inputBox.inputElement);
 	}
 
 	public focus() {
 		this.inputBox.focus();
 	}
 
-	public layout(editorLayoutInfo: editorCommon.EditorLayoutInfo): void {
-		this.headerContainer.style.width = editorLayoutInfo.width - editorLayoutInfo.verticalScrollbarWidth + 'px';
-		this.headerContainer.style.paddingLeft = editorLayoutInfo.contentLeft + 'px';
-		this.searchContainer.style.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth + 'px';
-		this.inputBox.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth;
+	public layout(dimension: Dimension): void {
+		this.inputBox.width = dimension.width - 62;
+	}
+
+	public clear() {
+		this.inputBox.value = '';
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
+		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
 				this._onEnter.fire();
-				keyboardEvent.preventDefault();
-				keyboardEvent.stopPropagation();
-				return;
+				handled = true;
+				break;
+			case KeyCode.Escape:
+				this.clear();
+				handled = true;
+				break;
+		}
+		if (handled) {
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
 		}
 	}
 }
@@ -274,5 +346,93 @@ export class SettingsCountWidget extends Widget implements IOverlayWidget {
 		return {
 			preference: null
 		};
+	}
+}
+
+export class EditPreferenceWidget<T> extends Widget implements IOverlayWidget {
+
+	private static counter: number = 1;
+
+	private _domNode: HTMLElement;
+	private _visible: boolean;
+	private _line: number;
+	private _id: string;
+	private _preferences: T[];
+
+	private _onClick: Emitter<void> = new Emitter<void>();
+	public get onClick(): Event<void> { return this._onClick.event; }
+
+	private _onMouseOver: Emitter<void> = new Emitter<void>();
+	public get onMouseOver(): Event<void> { return this._onMouseOver.event; }
+
+	constructor(private editor: ICodeEditor,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super();
+		this._id = 'preferences.editPreferenceWidget' + EditPreferenceWidget.counter++;
+		this.editor.addOverlayWidget(this);
+		this._register(this.editor.onDidScrollChange(() => {
+			if (this._visible) {
+				this._layout();
+			}
+		}));
+	}
+
+	public dispose(): void {
+		this.editor.removeOverlayWidget(this);
+		super.dispose();
+	}
+
+	getId(): string {
+		return this._id;
+	}
+
+	getDomNode(): HTMLElement {
+		if (!this._domNode) {
+			this._domNode = document.createElement('div');
+			this._domNode.style.width = '20px';
+			this._domNode.style.height = '20px';
+			this._domNode.className = 'edit-preferences-widget hidden';
+			this.onclick(this._domNode, e => this._onClick.fire());
+			this.onmouseover(this._domNode, e => this._onMouseOver.fire());
+		}
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition {
+		return null;
+	}
+
+	getLine(): number {
+		return this._line;
+	}
+
+	show(line: number, preferences: T[]): void {
+		this._preferences = preferences;
+		if (!this._visible || this._line !== line) {
+			this._line = line;
+			this._visible = true;
+			this._layout();
+		}
+	}
+
+	get preferences(): T[] {
+		return this._preferences;
+	}
+
+	hide(): void {
+		if (this._visible) {
+			this._visible = false;
+			this._domNode.classList.add('hidden');
+		}
+	}
+
+	private _layout(): void {
+		const topForLineNumber = this.editor.getTopForLineNumber(this._line);
+		const editorScrollTop = this.editor.getScrollTop();
+
+		this._domNode.style.top = `${topForLineNumber - editorScrollTop - 2}px`;
+		this._domNode.style.left = '0px';
+		this._domNode.classList.remove('hidden');
 	}
 }

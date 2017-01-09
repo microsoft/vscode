@@ -207,6 +207,7 @@ export interface IExtensionGalleryService {
 	download(extension: IGalleryExtension): TPromise<string>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
+	getChangelog(extension: IGalleryMetadata): TPromise<string>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]>;
 }

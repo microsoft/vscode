@@ -22,7 +22,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { UntitledEditorInput, IEditorGroup, IEditorStacksModel, getUntitledOrFileResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, IEditorStacksModel, toResource } from 'vs/workbench/common/editor';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { asFileResource } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -65,7 +66,7 @@ export class OpenEditor {
 	}
 
 	public getResource(): uri {
-		return getUntitledOrFileResource(this.editor, true);
+		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
 	}
 }
 
@@ -412,6 +413,7 @@ export class ActionProvider extends ContributableActionProvider {
 					result.unshift(this.instantiationService.createInstance(OpenToSideAction, tree, resource, false));
 
 					if (!openEditor.isUntitled()) {
+
 						// Files: Save / Revert
 						if (!autoSaveEnabled) {
 							result.push(new Separator());
@@ -426,18 +428,10 @@ export class ActionProvider extends ContributableActionProvider {
 							revertAction.enabled = openEditor.isDirty();
 							result.push(revertAction);
 						}
-
-						result.push(new Separator());
-
-						// Compare Actions
-						const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
-						if (runCompareAction._isEnabled()) {
-							result.push(runCompareAction);
-						}
-						result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
 					}
+
 					// Untitled: Save / Save As
-					else {
+					if (openEditor.isUntitled()) {
 						result.push(new Separator());
 
 						if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
@@ -450,6 +444,14 @@ export class ActionProvider extends ContributableActionProvider {
 						saveAsAction.setResource(resource);
 						result.push(saveAsAction);
 					}
+
+					// Compare Actions
+					result.push(new Separator());
+					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
+					if (runCompareAction._isEnabled()) {
+						result.push(runCompareAction);
+					}
+					result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
 
 					result.push(new Separator());
 				}

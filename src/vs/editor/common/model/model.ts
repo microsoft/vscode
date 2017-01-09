@@ -89,7 +89,7 @@ export class Model extends EditableTextModel implements IModel {
 
 
 		if (aliveModels[String(this._associatedResource)]) {
-			throw new Error('Cannot instantiate a second Model with the same URI: ' + String(this._associatedResource));
+			throw new Error('Cannot instantiate a second Model with the same URI');
 		}
 
 		this._attachedEditorCount = 0;

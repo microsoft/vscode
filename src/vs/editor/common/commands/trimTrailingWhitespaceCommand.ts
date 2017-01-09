@@ -7,6 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 
@@ -38,7 +39,7 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: editorCommon.IPosition[]): editorCommon.IIdentifiedSingleEditOperation[] {
+export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: Position[]): editorCommon.IIdentifiedSingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {

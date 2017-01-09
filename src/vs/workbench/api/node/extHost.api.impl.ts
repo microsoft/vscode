@@ -10,8 +10,8 @@ import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/node/extHostFileSystemEventService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
@@ -114,7 +114,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 	const extHostMessageService = new ExtHostMessageService(threadService);
 	const extHostStatusBar = new ExtHostStatusBar(threadService);
 	const extHostOutputService = new ExtHostOutputService(threadService);
-	const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
+	const workspacePath = contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 	const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 	const extHostLanguages = new ExtHostLanguages(threadService);
 
@@ -517,7 +517,7 @@ function createExtensionPathIndex(extensionService: ExtHostExtensionService): TP
 function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
-	const extApiImpl: { [id: string]: typeof vscode } = Object.create(null);
+	const extApiImpl = new Map<string, typeof vscode>();
 	let defaultApiImpl: typeof vscode;
 
 	const node_module = <any>require.__$__nodeRequire('module');
@@ -530,9 +530,10 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExten
 		// get extension id from filename and api for extension
 		const ext = extensionPaths.findSubstr(parent.filename);
 		if (ext) {
-			let apiImpl = extApiImpl[ext.id];
+			let apiImpl = extApiImpl.get(ext.id);
 			if (!apiImpl) {
-				apiImpl = extApiImpl[ext.id] = factory(ext);
+				apiImpl = factory(ext);
+				extApiImpl.set(ext.id, apiImpl);
 			}
 			return apiImpl;
 		}

@@ -102,7 +102,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
-		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
+		this.list = new PagedList(this.extensionsBox, delegate, [renderer], {
+			ariaLabel: localize('extensions', "Extensions")
+		});
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
@@ -434,7 +436,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	private onServiceChange(): void {
 		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
-			this.activityBarService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			this.activityBarService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', "Extensions")), 'extensions-badge progress-badge');
 			return;
 		}
 

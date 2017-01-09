@@ -171,29 +171,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			]
 		);
 	});
-	test('createLineParts render whitespace - mixed leading spaces and tabs', () => {
-		testCreateLineParts(
-			'  \t\t  Hello world! \t  \t   \t    ',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b')
-			],
-			0,
-			'boundary',
-			[
-				new ViewLineToken(0, ' vs-whitespace'),
-				new ViewLineToken(3, ' vs-whitespace'),
-				new ViewLineToken(4, ' vs-whitespace'),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b'),
-				new ViewLineToken(18, 'b vs-whitespace'),
-				new ViewLineToken(20, 'b vs-whitespace'),
-				new ViewLineToken(23, 'b vs-whitespace'),
-				new ViewLineToken(27, 'b vs-whitespace'),
-			]
-		);
-	});
 
 	test('createLineParts render whitespace skips faux indent', () => {
 		testCreateLineParts(
@@ -259,6 +236,37 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(13, 'b vs-whitespace'),
 			]
 		);
+	});
+
+	test('createLineParts can handle unsorted inline decorations', () => {
+		let lineParts = createLineParts(
+			1,
+			1,
+			'Hello world',
+			4,
+			new ViewLineTokens([new ViewLineToken(0, '')], 0, 'Hello world'.length),
+			[
+				new InlineDecoration(new Range(1, 5, 1, 7), 'a'),
+				new InlineDecoration(new Range(1, 1, 1, 3), 'b'),
+				new InlineDecoration(new Range(1, 2, 1, 8), 'c'),
+			],
+			'none'
+		);
+
+		// 01234567890
+		// Hello world
+		// ----aa-----
+		// bb---------
+		// -cccccc----
+
+		assert.deepEqual(lineParts.parts, [
+			new ViewLineToken(0, ' b'),
+			new ViewLineToken(1, ' b c'),
+			new ViewLineToken(2, ' c'),
+			new ViewLineToken(4, ' a c'),
+			new ViewLineToken(6, ' c'),
+			new ViewLineToken(7, ''),
+		]);
 	});
 
 	test('ViewLineParts', () => {

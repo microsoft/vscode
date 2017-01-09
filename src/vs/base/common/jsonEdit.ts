@@ -59,7 +59,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 				return withFormatting(text, { offset: removeBegin, length: removeEnd - removeBegin, content: '' }, formattingOptions);
 			} else {
 				// set value of existing property
-				return [{ offset: existing.offset, length: existing.length, content: JSON.stringify(value) }];
+				return withFormatting(text, { offset: existing.offset, length: existing.length, content: JSON.stringify(value) }, formattingOptions);
 			}
 		} else {
 			if (value === void 0) { // delete

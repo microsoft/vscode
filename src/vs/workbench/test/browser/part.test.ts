@@ -9,10 +9,10 @@ import * as assert from 'assert';
 import { Build, Builder } from 'vs/base/browser/builder';
 import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
-import * as TestUtils from 'vs/test/utils/servicesTestUtils';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 class MyPart extends Part {
 
@@ -33,6 +33,10 @@ class MyPart extends Part {
 	public createStatusArea(parent: Builder): Builder {
 		assert.strictEqual(parent, this.expectedParent);
 		return super.createStatusArea(parent);
+	}
+
+	public getMemento(storageService: IStorageService): any {
+		return super.getMemento(storageService);
 	}
 }
 
@@ -104,7 +108,7 @@ suite('Workbench Part', () => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
-		context = new WorkspaceContextService(TestUtils.TestWorkspace);
+		context = new WorkspaceContextService(TestWorkspace);
 		storage = new StorageService(new InMemoryLocalStorage(), null, context);
 	});
 

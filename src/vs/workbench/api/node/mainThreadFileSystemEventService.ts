@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IEventService } from 'vs/platform/event/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents } from './extHost.protocol';
 
 export class MainThreadFileSystemEventService {
 
-	constructor( @IEventService eventService: IEventService, @IThreadService threadService: IThreadService) {
+	constructor(
+		@IThreadService threadService: IThreadService,
+		@IFileService fileService: IFileService
+	) {
 
 		const proxy: ExtHostFileSystemEventServiceShape = threadService.get(ExtHostContext.ExtHostFileSystemEventService);
 		const events: FileSystemEvents = {
@@ -28,7 +30,7 @@ export class MainThreadFileSystemEventService {
 			events.deleted.length = 0;
 		}, 100);
 
-		eventService.addListener2('files:fileChanges', (event: FileChangesEvent) => {
+		fileService.onFileChanges(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:

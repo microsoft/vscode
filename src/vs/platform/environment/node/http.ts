@@ -5,7 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getMachineId } from 'vs/base/node/id';
-import pkg from 'vs/platform/package';
+import pkg from 'vs/platform/node/package';
 
 export function getCommonHTTPHeaders(): TPromise<{ [key: string]: string; }> {
 	return getMachineId().then(machineId => ({

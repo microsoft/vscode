@@ -13,8 +13,8 @@ let _isRootUser = false;
 let _isNative = false;
 let _isWeb = false;
 let _isQunit = false;
-let _locale = undefined;
-let _language = undefined;
+let _locale: string = undefined;
+let _language: string = undefined;
 
 interface NLSConfig {
 	locale: string;
@@ -124,7 +124,7 @@ interface IGlobals {
 	clearTimeout(token: TimeoutToken): void;
 
 	setInterval(callback: (...args: any[]) => void, delay: number, ...args: any[]): IntervalToken;
-	clearInterval(token: IntervalToken);
+	clearInterval(token: IntervalToken): void;
 }
 
 const _globals = <IGlobals>(typeof self === 'object' ? self : global);

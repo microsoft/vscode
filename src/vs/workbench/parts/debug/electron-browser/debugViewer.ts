@@ -16,8 +16,8 @@ import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, Separator, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -27,11 +27,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { ContinueAction, StepOverAction, PauseAction, AddFunctionBreakpointAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, ToggleEnablementAction, RenameFunctionBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, EditWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, ToggleBreakpointsActivatedAction, RestartFrameAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction, StopAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { CopyValueAction, CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { once } from 'vs/base/common/functional';
 
@@ -75,7 +76,8 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
-		container.textContent = value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+		const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+		container.textContent = value.replace(/[\n\r\t]/g, char => map[char]);
 	} else {
 		container.textContent = value;
 	}
@@ -184,6 +186,7 @@ export class BaseDebugController extends DefaultController {
 		private actionProvider: IActionProvider,
 		menuId: MenuId,
 		@debug.IDebugService protected debugService: debug.IDebugService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
@@ -265,7 +268,9 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		this.focusStackFrame(element, event, true);
+		if (element instanceof StackFrame) {
+			this.focusStackFrame(element, event, true);
+		}
 
 		return super.onLeftClick(tree, element, event);
 	}
@@ -275,37 +280,11 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		this.focusStackFrame(element, event, false);
+		if (element instanceof StackFrame) {
+			this.focusStackFrame(element, event, false);
+		}
 
 		return super.onEnter(tree, event);
-	}
-
-	protected onUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
 	}
 
 	protected getContext(element: any): any {
@@ -326,26 +305,11 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	private focusStackFrame(element: any, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		let stackFrame: debug.IStackFrame;
-		let process: debug.IProcess;
-		if (element instanceof StackFrame) {
-			stackFrame = element;
-			process = element.thread.process;
-		}
-		if (element instanceof Thread) {
-			process = element.process;
-		}
-		if (element instanceof Process) {
-			process = element;
-		}
-
-		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
-
-		if (stackFrame) {
+	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-		}
+			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
+		}, errors.onUnexpectedError);
 	}
 }
 
@@ -365,12 +329,15 @@ export class CallStackActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
-		return element instanceof Thread || element instanceof StackFrame;
+		return element !== tree.getInput();
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
-		if (element instanceof Thread) {
+		if (element instanceof Process) {
+			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
+			actions.push(this.instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL));
+		} else if (element instanceof Thread) {
 			const thread = <Thread>element;
 			if (thread.stopped) {
 				actions.push(this.instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL));
@@ -381,10 +348,10 @@ export class CallStackActionProvider implements IActionProvider {
 				actions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
 			}
 		} else if (element instanceof StackFrame) {
-			const capabilities = this.debugService.getViewModel().focusedProcess.session.configuration.capabilities;
-			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
+			if (element.thread.process.session.configuration.capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(RestartFrameAction, RestartFrameAction.ID, RestartFrameAction.LABEL));
 			}
+			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
 		return TPromise.as(actions);
@@ -572,7 +539,7 @@ export class CallStackRenderer implements IRenderer {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 
-		data.stateLabel.textContent = thread.stopped ? nls.localize('pausedOn', "Paused on {0}", thread.stoppedDetails.reason)
+		data.stateLabel.textContent = thread.stopped ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason)
 			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 	}
 
@@ -587,7 +554,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
 		stackFrame.source.available ? dom.removeClass(data.stackFrame, 'disabled') : dom.addClass(data.stackFrame, 'disabled');
-		data.file.title = stackFrame.source.uri.fsPath;
+		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
@@ -830,11 +797,7 @@ export class WatchExpressionsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as(this.getExpressionActions());
-	}
-
-	public getExpressionActions(): IAction[] {
-		return [this.instantiationService.createInstance(RemoveWatchExpressionAction, RemoveWatchExpressionAction.ID, RemoveWatchExpressionAction.LABEL)];
+		return TPromise.as([]);
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
@@ -842,7 +805,6 @@ export class WatchExpressionsActionProvider implements IActionProvider {
 		if (element instanceof Expression) {
 			const expression = <Expression>element;
 			actions.push(this.instantiationService.createInstance(AddWatchExpressionAction, AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL));
-			actions.push(this.instantiationService.createInstance(EditWatchExpressionAction, EditWatchExpressionAction.ID, EditWatchExpressionAction.LABEL, expression));
 			if (!expression.hasChildren) {
 				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value));
 			}
@@ -901,7 +863,6 @@ export class WatchExpressionsDataSource implements IDataSource {
 
 interface IWatchExpressionTemplateData {
 	watchExpression: HTMLElement;
-	actionBar: ActionBar;
 	expression: HTMLElement;
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
@@ -947,8 +908,6 @@ export class WatchExpressionsRenderer implements IRenderer {
 			const data: IWatchExpressionTemplateData = Object.create(null);
 			data.watchExpression = dom.append(container, $('.watch-expression'));
 			createVariableTemplate(data, data.watchExpression);
-			data.actionBar = new ActionBar(data.watchExpression, { actionRunner: this.actionRunner });
-			data.actionBar.push(this.actionProvider.getExpressionActions(), { icon: true, label: false });
 
 			return data;
 		}
@@ -976,7 +935,6 @@ export class WatchExpressionsRenderer implements IRenderer {
 				ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
 			});
 		}
-		data.actionBar.context = watchExpression;
 
 		data.name.textContent = watchExpression.name;
 		if (watchExpression.value) {
@@ -992,9 +950,7 @@ export class WatchExpressionsRenderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
-			(<IWatchExpressionTemplateData>templateData).actionBar.dispose();
-		}
+		// noop
 	}
 
 	public dispose(): void {
@@ -1080,7 +1036,14 @@ export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
-		return DRAG_OVER_ACCEPT;
+		if (target instanceof Expression || target instanceof Model) {
+			return {
+				accept: true,
+				autoExpand: false
+			};
+		}
+
+		return DRAG_OVER_REJECT;
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): void {
@@ -1098,12 +1061,12 @@ export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 
 export class BreakpointsActionProvider implements IActionProvider {
 
-	constructor(private instantiationService: IInstantiationService) {
+	constructor(private instantiationService: IInstantiationService, private debugService: debug.IDebugService) {
 		// noop
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return element instanceof Breakpoint;
+		return false;;
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -1111,40 +1074,24 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		if (element instanceof Breakpoint) {
-			return TPromise.as(this.getBreakpointActions());
-		}
-
 		return TPromise.as([]);
 	}
 
-	public getBreakpointActions(): IAction[] {
-		return [this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL)];
-	}
-
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		const actions: IAction[] = [this.instantiationService.createInstance(ToggleEnablementAction, ToggleEnablementAction.ID, ToggleEnablementAction.LABEL)];
-		actions.push(new Separator());
+		const actions: IAction[] = [];
 
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
 			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
 		}
-		actions.push(this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL));
-		actions.push(new Separator());
+		if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length > 1) {
+			actions.push(this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL));
+			actions.push(new Separator());
 
-		actions.push(this.instantiationService.createInstance(ToggleBreakpointsActivatedAction, ToggleBreakpointsActivatedAction.ID, ToggleBreakpointsActivatedAction.ACTIVATE_LABEL));
-		actions.push(new Separator());
-
-		actions.push(this.instantiationService.createInstance(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL));
-		actions.push(this.instantiationService.createInstance(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL));
-		actions.push(new Separator());
-
-		actions.push(this.instantiationService.createInstance(AddFunctionBreakpointAction, AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL));
-		if (element instanceof FunctionBreakpoint) {
-			actions.push(this.instantiationService.createInstance(RenameFunctionBreakpointAction, RenameFunctionBreakpointAction.ID, RenameFunctionBreakpointAction.LABEL));
+			actions.push(this.instantiationService.createInstance(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL));
+			actions.push(this.instantiationService.createInstance(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL));
 		}
-		actions.push(new Separator());
 
+		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ReapplyBreakpointsAction, ReapplyBreakpointsAction.ID, ReapplyBreakpointsAction.LABEL));
 
 		return TPromise.as(actions);
@@ -1360,8 +1307,15 @@ export class BreakpointsController extends BaseDebugController {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
+
+		return false;
+	}
+
+	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
 		if (element instanceof Breakpoint) {
 			this.openBreakpointSource(element, event, false);
+			return true;
 		}
 
 		return super.onEnter(tree, event);
@@ -1392,6 +1346,14 @@ export class BreakpointsController extends BaseDebugController {
 
 	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
-		this.debugService.openOrRevealSource(breakpoint.uri, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor({
+			resource: breakpoint.uri,
+			options: {
+				preserveFocus,
+				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true
+			}
+		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}
 }

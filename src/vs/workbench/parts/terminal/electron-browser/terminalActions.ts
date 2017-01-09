@@ -57,7 +57,7 @@ export class KillTerminalAction extends Action {
 
 /**
  * Copies the terminal selection. Note that since the command palette takes focus from the terminal,
- * this can only be triggered via a keybinding.
+ * this cannot be triggered through the command palette.
  */
 export class CopyTerminalSelectionAction extends Action {
 
@@ -227,7 +227,7 @@ export class SwitchTerminalInstanceAction extends Action {
 	}
 
 	public run(item?: string): TPromise<any> {
-		if (!item) {
+		if (!item || !item.split) {
 			return TPromise.as(null);
 		}
 		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;

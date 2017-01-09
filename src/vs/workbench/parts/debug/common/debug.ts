@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
@@ -15,6 +14,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
@@ -29,7 +29,6 @@ export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('bre
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
-export const NO_CONFIGURATIONS_LABEL = nls.localize('noConfigurations', "No Configurations");
 
 // raw
 
@@ -171,6 +170,8 @@ export interface IStackFrame extends ITreeElement {
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	restart(): TPromise<any>;
+	toString(): string;
+	openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -179,6 +180,7 @@ export interface IEnablement extends ITreeElement {
 
 export interface IRawBreakpoint {
 	lineNumber: number;
+	column?: number;
 	enabled?: boolean;
 	condition?: string;
 	hitCondition?: string;
@@ -187,6 +189,7 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
+	column: number;
 	condition: string;
 	hitCondition: string;
 	verified: boolean;
@@ -234,7 +237,6 @@ export interface IViewModel extends ITreeElement {
 	isMultiProcessView(): boolean;
 
 	onDidFocusStackFrame: Event<IStackFrame>;
-	onDidFocusProcess: Event<IProcess>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 	/**
@@ -258,7 +260,7 @@ export interface IModel extends ITreeElement {
 	onDidChangeReplElements: Event<void>;
 };
 
-// service enums
+// Debug enums
 
 export enum State {
 	Disabled,
@@ -269,18 +271,15 @@ export enum State {
 	RunningNoDebug
 }
 
-// Service config
+// Debug configuration interfaces
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openExplorerOnEnd: boolean;
 }
 
-// service interfaces
-
 export interface IGlobalConfig {
 	version: string;
-	debugServer?: number;
 	compounds: ICompound[];
 	configurations: IConfig[];
 }
@@ -330,10 +329,6 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
-export interface IRawBreakpointContribution {
-	language: string;
-}
-
 export interface IConfigurationManager {
 
 	/**
@@ -341,6 +336,12 @@ export interface IConfigurationManager {
 	 * If nameOrConfig is null resolves the first configuration and returns it.
 	 */
 	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+
+	/**
+	 * Returns the names of all configurations and compounds.
+	 * Ignores configurations which are invalid.
+	 */
+	getConfigurationNames(): string[];
 
 	/**
 	 * Returns a compound with the specified name.
@@ -358,6 +359,8 @@ export interface IConfigurationManager {
 	 */
 	canSetBreakpointsIn(model: EditorIModel): boolean;
 }
+
+// Debug service interfaces
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
@@ -473,16 +476,11 @@ export interface IDebugService {
 	 * Gets the current view model.
 	 */
 	getViewModel(): IViewModel;
-
-	/**
-	 * Opens a new or reveals an already visible editor showing the source.
-	 */
-	openOrRevealSource(sourceOrUri: Source | uri, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
 }
 
 // Editor interfaces
 export interface IDebugEditorContribution extends IEditorContribution {
-	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
+	showHover(range: Range, focus: boolean): TPromise<void>;
 	showBreakpointWidget(lineNumber: number): void;
 	closeBreakpointWidget(): void;
 }

@@ -409,8 +409,10 @@ export function find(node: Node, position: IPosition): Node {
 	var result: Node;
 
 	if (node instanceof NodeList) {
-		for (var i = 0, len = node.children.length; i < len && !result; i++) {
-			result = find(node.children[i], position);
+		if (node.hasChildren) {
+			for (var i = 0, len = node.children.length; i < len && !result; i++) {
+				result = find(node.children[i], position);
+			}
 		}
 
 	} else if (node instanceof Block) {

@@ -60,7 +60,7 @@ export class GitViewlet
 			this.instantiationService.createInstance(empty.EmptyView, this, this.getActionRunner()),
 			this.instantiationService.createInstance(gitless.GitlessView),
 			new notroot.NotRootView(),
-			new noworkspace.NoWorkspaceView(),
+			this.instantiationService.createInstance(noworkspace.NoWorkspaceView, this.getActionRunner()),
 			new DisabledView(),
 			this.instantiationService.createInstance(HugeView)
 		];

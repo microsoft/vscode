@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface ISettingsGroup {
@@ -20,8 +19,8 @@ export interface ISettingsGroup {
 }
 
 export interface ISettingsSection {
-	descriptionRange?: IRange;
-	description?: string;
+	titleRange?: IRange;
+	title?: string;
 	settings: ISetting[];
 }
 
@@ -31,8 +30,8 @@ export interface ISetting {
 	keyRange: IRange;
 	value: any;
 	valueRange: IRange;
-	description: string;
-	descriptionRange: IRange;
+	description: string[];
+	descriptionRanges: IRange[];
 }
 
 export interface IFilterResult {
@@ -49,6 +48,7 @@ export interface IPreferencesEditorModel {
 export interface ISettingsEditorModel extends IPreferencesEditorModel {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
+	getSetting(key: string): ISetting;
 	filterSettings(filter: string): IFilterResult;
 }
 
@@ -60,16 +60,17 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
+	defaultSettingsResource: URI;
+	defaultKeybindingsResource: URI;
+
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
-	createDefaultSettingsModel(): TPromise<IPreferencesEditorModel>;
 	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 
 	openGlobalSettings(): TPromise<void>;
 	openWorkspaceSettings(): TPromise<void>;
 	openGlobalKeybindingSettings(): TPromise<void>;
-
-	copyConfiguration(configurationValue: IConfigurationValue): void;
 }
 
 export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);
 export const DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL = 'defaultSettingsEditor.action.collapseAllGroups';
+export const DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH = 'defaultSettings.action.focusSearch';

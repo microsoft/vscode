@@ -357,6 +357,18 @@ declare module monaco {
         static readonly WinCtrl: number;
         static chord(firstPart: number, secondPart: number): number;
     }
+
+    export class Keybinding {
+        value: number;
+        constructor(keybinding: number);
+        equals(other: Keybinding): boolean;
+        hasCtrlCmd(): boolean;
+        hasShift(): boolean;
+        hasAlt(): boolean;
+        hasWinCtrl(): boolean;
+        isModifierKey(): boolean;
+        getKeyCode(): KeyCode;
+    }
     /**
      * MarkedString can be used to render human readable text. It is either a markdown string
      * or a code-block that provides a language and a code snippet. Note that
@@ -375,7 +387,7 @@ declare module monaco {
         readonly altKey: boolean;
         readonly metaKey: boolean;
         readonly keyCode: KeyCode;
-        asKeybinding(): number;
+        toKeybinding(): Keybinding;
         equals(keybinding: number): boolean;
         preventDefault(): void;
         stopPropagation(): void;
@@ -1641,6 +1653,10 @@ declare module monaco.editor {
          * Options associated with this decoration.
          */
         readonly options: IModelDecorationOptions;
+        /**
+         * A flag describing if this is a problem decoration (e.g. warning/error).
+         */
+        readonly isForValidation: boolean;
     }
 
     /**
@@ -1708,7 +1724,7 @@ declare module monaco.editor {
     }
 
     /**
-     * And identifier for a single edit operation.
+     * An identifier for a single edit operation.
      */
     export interface ISingleEditOperationIdentifier {
         /**
@@ -2109,12 +2125,6 @@ declare module monaco.editor {
     }
 
     /**
-     * A model that can track ranges.
-     */
-    export interface ITextModelWithTrackedRanges extends ITextModel {
-    }
-
-    /**
      * A model that can have decorations.
      */
     export interface ITextModelWithDecorations {
@@ -2222,7 +2232,7 @@ declare module monaco.editor {
     /**
      * A model.
      */
-    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations, IEditorModel {
         /**
          * An event emitted when the contents of the model have changed.
          * @event
@@ -2343,59 +2353,21 @@ declare module monaco.editor {
     }
 
     /**
-     * Decoration data associated with a model decorations changed event.
-     */
-    export interface IModelDecorationsChangedEventDecorationData {
-        /**
-         * The id of the decoration.
-         */
-        readonly id: string;
-        /**
-         * The owner id of the decoration.
-         */
-        readonly ownerId: number;
-        /**
-         * The range of the decoration.
-         */
-        readonly range: IRange;
-        /**
-         * A flag describing if this is a problem decoration (e.g. warning/error).
-         */
-        readonly isForValidation: boolean;
-        /**
-         * The options for this decoration.
-         */
-        readonly options: IModelDecorationOptions;
-    }
-
-    /**
      * An event describing that model decorations have changed.
      */
     export interface IModelDecorationsChangedEvent {
         /**
-         * A summary with ids of decorations that have changed.
+         * Lists of ids for added decorations.
          */
-        readonly ids: string[];
+        readonly addedDecorations: string[];
         /**
-         * Lists of details for added or changed decorations.
+         * Lists of ids for changed decorations.
          */
-        readonly addedOrChangedDecorations: IModelDecorationsChangedEventDecorationData[];
+        readonly changedDecorations: string[];
         /**
          * List of ids for removed decorations.
          */
         readonly removedDecorations: string[];
-        /**
-         * Details regarding old options.
-         */
-        readonly oldOptions: {
-            [decorationId: string]: IModelDecorationOptions;
-        };
-        /**
-         * Details regarding old ranges.
-         */
-        readonly oldRanges: {
-            [decorationId: string]: IRange;
-        };
     }
 
     /**
@@ -3191,11 +3163,12 @@ declare module monaco.editor {
          */
         pushUndoStop(): boolean;
         /**
-         * Execute a command on the editor.
+         * Execute edits on the editor.
          * @param source The source of the call.
-         * @param command The command to execute
+         * @param edits The edits to execute.
+         * @param endCursoState Cursor state after the edits were applied.
          */
-        executeEdits(source: string, edits: IIdentifiedSingleEditOperation[]): boolean;
+        executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
         /**
          * Execute multiple (concommitent) commands on the editor.
          * @param source The source of the call.
@@ -3411,7 +3384,6 @@ declare module monaco.editor {
         DeleteWordRight: string;
         DeleteWordStartRight: string;
         DeleteWordEndRight: string;
-        DeleteAllRight: string;
         RemoveSecondaryCursors: string;
         CancelSelection: string;
         Cut: string;
@@ -3983,6 +3955,7 @@ declare module monaco.languages {
         Color = 15,
         File = 16,
         Reference = 17,
+        Folder = 18,
     }
 
     /**
@@ -4287,10 +4260,6 @@ declare module monaco.languages {
          * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
          */
         endState: IState;
-        /**
-         * An optional promise to force the model to retokenize this line (e.g. missing information at the point of tokenization)
-         */
-        retokenize?: Promise<void>;
     }
 
     /**
@@ -4689,6 +4658,7 @@ declare module monaco.languages {
     }
 
     export interface CodeLensProvider {
+        onDidChange?: IEvent<this>;
         provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
         resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
     }

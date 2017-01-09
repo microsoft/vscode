@@ -9,15 +9,15 @@ import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FinalNewLineParticipant } from 'vs/workbench/api/node/mainThreadSaveParticipant';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { workbenchInstantiationService, TestTextFileService, toResource } from 'vs/test/utils/servicesTestUtils';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { toResource } from 'vs/base/test/common/utils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IEventService } from 'vs/platform/event/common/event';
 import { ITextFileService, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
 class ServiceAccessor {
-	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 

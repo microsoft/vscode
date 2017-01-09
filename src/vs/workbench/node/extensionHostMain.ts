@@ -20,7 +20,7 @@ import * as errors from 'vs/base/common/errors';
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
 	const err = new Error('An extension called process.exit() and this was prevented.');
-	console.warn((<any>err).stack);
+	console.warn(err.stack);
 };
 export function exit(code?: number) {
 	nativeExit(code);

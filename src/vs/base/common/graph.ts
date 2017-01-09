@@ -5,7 +5,7 @@
 'use strict';
 
 import { isEmptyObject } from 'vs/base/common/types';
-import { forEach, contains, lookup } from 'vs/base/common/collections';
+import { forEach } from 'vs/base/common/collections';
 
 export interface Node<T> {
 	data: T;
@@ -49,7 +49,7 @@ export class Graph<T> {
 
 	private _traverse(node: Node<T>, inwards: boolean, seen: { [key: string]: boolean }, callback: (data: T) => void): void {
 		var key = this._hashFn(node.data);
-		if (contains(seen, key)) {
+		if (seen[key]) {
 			return;
 		}
 		seen[key] = true;
@@ -76,8 +76,8 @@ export class Graph<T> {
 	}
 
 	lookupOrInsertNode(data: T): Node<T> {
-		var key = this._hashFn(data),
-			node = lookup(this._nodes, key);
+		const key = this._hashFn(data);
+		let node = this._nodes[key];
 
 		if (!node) {
 			node = newNode(data);
@@ -88,7 +88,7 @@ export class Graph<T> {
 	}
 
 	lookup(data: T): Node<T> {
-		return lookup(this._nodes, this._hashFn(data));
+		return this._nodes[this._hashFn(data)];
 	}
 
 	get length(): number {

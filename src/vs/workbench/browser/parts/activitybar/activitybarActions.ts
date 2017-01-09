@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose } from 'vs/base/common/lifecycle';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
@@ -194,7 +194,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Activate on drag over to reveal targets
 		[this.$badge, this.$e].forEach(b => new DelayedDragHandler(b.getHTMLElement(), () => {
-			if (!this.getDraggedViewlet() && !this.getAction().checked) {
+			if (!ActivityActionItem.getDraggedViewlet() && !this.getAction().checked) {
 				this.getAction().run();
 			}
 		}));
@@ -213,7 +213,7 @@ export class ActivityActionItem extends BaseActionItem {
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 		$(container).on(DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				counter++;
 				DOM.addClass(container, 'dropfeedback');
@@ -222,7 +222,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Drag leave
 		$(container).on(DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter--;
 				if (counter === 0) {
@@ -233,30 +233,30 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Drag end
 		$(container).on(DOM.EventType.DRAG_END, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter = 0;
 				DOM.removeClass(container, 'dropfeedback');
 
-				this.clearDraggedViewlet();
+				ActivityActionItem.clearDraggedViewlet();
 			}
 		});
 
 		// Drop
 		$(container).on(DOM.EventType.DROP, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
-			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
-				DOM.EventHelper.stop(e, true);
+			DOM.EventHelper.stop(e, true);
 
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				DOM.removeClass(container, 'dropfeedback');
-				this.clearDraggedViewlet();
+				ActivityActionItem.clearDraggedViewlet();
 
 				this.activityBarService.move(draggedViewlet.id, this.viewlet.id);
 			}
 		});
 	}
 
-	private getDraggedViewlet(): ViewletDescriptor {
+	public static getDraggedViewlet(): ViewletDescriptor {
 		return ActivityActionItem.draggedViewlet;
 	}
 
@@ -264,7 +264,7 @@ export class ActivityActionItem extends BaseActionItem {
 		ActivityActionItem.draggedViewlet = viewlet;
 	}
 
-	private clearDraggedViewlet(): void {
+	public static clearDraggedViewlet(): void {
 		ActivityActionItem.draggedViewlet = void 0;
 	}
 
@@ -384,7 +384,7 @@ export class ActivityActionItem extends BaseActionItem {
 	public dispose(): void {
 		super.dispose();
 
-		this.clearDraggedViewlet();
+		ActivityActionItem.clearDraggedViewlet();
 
 		if (this.mouseUpTimeout) {
 			clearTimeout(this.mouseUpTimeout);
@@ -400,7 +400,7 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 	constructor(
 		private showMenu: () => void
 	) {
-		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
+		super('activitybar.additionalViewlets.action', nls.localize('additionalViews', "Additional Views"), 'toggle-more');
 	}
 
 	public run(event): TPromise<any> {
@@ -546,7 +546,7 @@ export class ToggleViewletPinnedAction extends Action {
 		private viewlet: ViewletDescriptor,
 		@IActivityBarService private activityBarService: IActivityBarService
 	) {
-		super('activitybar.show.toggleViewletPinned', viewlet ? viewlet.name : nls.localize('toggle', "Toggle Viewlet Pinned"));
+		super('activitybar.show.toggleViewletPinned', viewlet ? viewlet.name : nls.localize('toggle', "Toggle View Pinned"));
 
 		this.checked = this.viewlet && this.activityBarService.isPinned(this.viewlet.id);
 	}

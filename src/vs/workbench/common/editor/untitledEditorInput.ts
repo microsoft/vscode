@@ -10,18 +10,19 @@ import { suggestFilename } from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
-import { UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends AbstractUntitledEditorInput {
+export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	public static ID: string = 'workbench.editors.untitledEditorInput';
 	public static SCHEMA: string = 'untitled';
@@ -30,6 +31,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	private _hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
+	private modelResolve: TPromise<UntitledEditorModel>;
 
 	private _onDidModelChangeContent: Emitter<void>;
 	private _onDidModelChangeEncoding: Emitter<void>;
@@ -72,6 +74,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	public getModeId(): string {
+		if (this.cachedModel) {
+			return this.cachedModel.getModeId();
+		}
+
+		return this.modeId;
 	}
 
 	public getName(): string {
@@ -143,15 +153,16 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public resolve(refresh?: boolean): TPromise<UntitledEditorModel> {
 
-		// Use Cached Model
-		if (this.cachedModel) {
-			return TPromise.as(this.cachedModel);
+		// Join a model resolve if we have had one before
+		if (this.modelResolve) {
+			return this.modelResolve;
 		}
 
 		// Otherwise Create Model and load
 		this.cachedModel = this.createModel();
+		this.modelResolve = this.cachedModel.load();
 
-		return this.cachedModel.load();
+		return this.modelResolve;
 	}
 
 	private createModel(): UntitledEditorModel {
@@ -163,6 +174,13 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.toUnbind.push(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 
 		return model;
+	}
+
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+
+		return descriptor;
 	}
 
 	public matches(otherInput: any): boolean {
@@ -192,6 +210,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
+		this.modelResolve = void 0;
 
 		super.dispose();
 	}

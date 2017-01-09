@@ -34,10 +34,13 @@ import FormattingProvider from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
+import CodeActionProvider from './features/codeActionProvider';
+import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 
-import * as VersionStatus from './utils/versionStatus';
-import * as ProjectStatus from './utils/projectStatus';
 import * as BuildStatus from './utils/buildStatus';
+import * as ProjectStatus from './utils/projectStatus';
+import TypingsStatus from './utils/typingsStatus';
+import * as VersionStatus from './utils/versionStatus';
 
 interface LanguageDescription {
 	id: string;
@@ -96,14 +99,16 @@ const validateSetting = 'validate.enable';
 class LanguageProvider {
 
 	private description: LanguageDescription;
-	private extensions: Map<boolean>;
-	private syntaxDiagnostics: Map<Diagnostic[]>;
+	private extensions: ObjectMap<boolean>;
+	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
 	private bufferSyncSupport: BufferSyncSupport;
 
 	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
 	private formattingProviderRegistration: Disposable | null;
+	private typingsStatus: TypingsStatus;
+	private referenceCodeLensProvider: ReferenceCodeLensProvider;
 
 	private _validate: boolean;
 
@@ -121,6 +126,7 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
+		this.typingsStatus = new TypingsStatus(client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
@@ -136,7 +142,7 @@ class LanguageProvider {
 	private registerProviders(client: TypeScriptServiceClient): void {
 		let config = workspace.getConfiguration(this.id);
 
-		this.completionItemProvider = new CompletionItemProvider(client);
+		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration(config);
 
 		let hoverProvider = new HoverProvider(client);
@@ -152,6 +158,12 @@ class LanguageProvider {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 		}
 
+		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
+		this.referenceCodeLensProvider.updateConfiguration(config);
+		if (client.apiVersion.has206Features()) {
+			languages.registerCodeLensProvider(this.description.modeIds, this.referenceCodeLensProvider);
+		}
+
 		this.description.modeIds.forEach(modeId => {
 			let selector: DocumentFilter = { scheme: 'file', language: modeId };
 			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
@@ -164,6 +176,10 @@ class LanguageProvider {
 			languages.registerRenameProvider(selector, renameProvider);
 			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			if (client.apiVersion.has213Features()) {
+				languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, modeId));
+			}
+
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
@@ -209,6 +225,9 @@ class LanguageProvider {
 		this.updateValidate(config.get(validateSetting, true));
 		if (this.completionItemProvider) {
 			this.completionItemProvider.updateConfiguration(config);
+		}
+		if (this.referenceCodeLensProvider) {
+			this.referenceCodeLensProvider.updateConfiguration(config);
 		}
 		if (this.formattingProvider) {
 			this.formattingProvider.updateConfiguration(config);
@@ -285,9 +304,9 @@ class LanguageProvider {
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[];
-	private languagePerId: Map<LanguageProvider>;
+	private languagePerId: ObjectMap<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[], storagePath: string, globalState: Memento) {
+	constructor(descriptions: LanguageDescription[], storagePath: string | undefined, globalState: Memento) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -427,6 +446,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
 			let converted = new Diagnostic(range, text);
 			converted.source = source;
+			converted.code = '' + diagnostic.code;
 			result.push(converted);
 		}
 		return result;

@@ -35,6 +35,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import product from 'vs/platform/node/product';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -57,15 +58,15 @@ class Extension implements IExtension {
 	}
 
 	get name(): string {
-		return this.local ? this.local.manifest.name : this.gallery.name;
+		return this.gallery ? this.gallery.name : this.local.manifest.name;
 	}
 
 	get displayName(): string {
-		if (this.local) {
-			return this.local.manifest.displayName || this.local.manifest.name;
+		if (this.gallery) {
+			return this.gallery.displayName || this.gallery.name;
 		}
 
-		return this.gallery.displayName || this.gallery.name;
+		return this.local.manifest.displayName || this.local.manifest.name;
 	}
 
 	get identifier(): string {
@@ -73,19 +74,19 @@ class Extension implements IExtension {
 	}
 
 	get publisher(): string {
-		return this.local ? this.local.manifest.publisher : this.gallery.publisher;
+		return this.gallery ? this.gallery.publisher : this.local.manifest.publisher;
 	}
 
 	get publisherDisplayName(): string {
-		if (this.local) {
-			if (this.local.metadata && this.local.metadata.publisherDisplayName) {
-				return this.local.metadata.publisherDisplayName;
-			}
-
-			return this.local.manifest.publisher;
+		if (this.gallery) {
+			return this.gallery.publisherDisplayName || this.gallery.publisher;
 		}
 
-		return this.gallery.publisherDisplayName || this.gallery.publisher;
+		if (this.local.metadata && this.local.metadata.publisherDisplayName) {
+			return this.local.metadata.publisherDisplayName;
+		}
+
+		return this.local.manifest.publisher;
 	}
 
 	get version(): string {
@@ -97,23 +98,23 @@ class Extension implements IExtension {
 	}
 
 	get description(): string {
-		return this.local ? this.local.manifest.description : this.gallery.description;
+		return this.gallery ? this.gallery.description : this.local.manifest.description;
 	}
 
-	private get changelogUrl(): string {
-		if (this.local && this.local.changelogUrl) {
-			return this.local.changelogUrl;
+	get url(): string {
+		if (!product.extensionsGallery) {
+			return null;
 		}
 
-		return this.gallery && this.gallery.assets.changelog && this.gallery.assets.changelog.uri;
+		return `${product.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
 	}
 
 	get iconUrl(): string {
-		return this.localIconUrl || this.galleryIconUrl || this.defaultIconUrl;
+		return this.galleryIconUrl || this.localIconUrl || this.defaultIconUrl;
 	}
 
 	get iconUrlFallback(): string {
-		return this.localIconUrl || this.galleryIconUrlFallback || this.defaultIconUrl;
+		return this.galleryIconUrlFallback || this.localIconUrl || this.defaultIconUrl;
 	}
 
 	private get localIconUrl(): string {
@@ -168,28 +169,32 @@ class Extension implements IExtension {
 	}
 
 	getManifest(): TPromise<IExtensionManifest> {
-		if (this.local) {
-			return TPromise.as(this.local.manifest);
+		if (this.gallery) {
+			return this.galleryService.getManifest(this.gallery);
 		}
 
-		return this.galleryService.getManifest(this.gallery);
+		return TPromise.as(this.local.manifest);
 	}
 
 	getReadme(): TPromise<string> {
+		if (this.gallery) {
+			return this.galleryService.getReadme(this.gallery);
+		}
+
 		if (this.local && this.local.readmeUrl) {
 			const uri = URI.parse(this.local.readmeUrl);
 			return readFile(uri.fsPath, 'utf8');
-		}
-
-		if (this.gallery) {
-			return this.galleryService.getReadme(this.gallery);
 		}
 
 		return TPromise.wrapError('not available');
 	}
 
 	getChangelog(): TPromise<string> {
-		const changelogUrl = this.changelogUrl;
+		if (this.gallery && this.gallery.assets.changelog) {
+			return this.galleryService.getChangelog(this.gallery);
+		}
+
+		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
 			return TPromise.wrapError('not available');
@@ -201,7 +206,6 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		// TODO@Joao
 		return TPromise.wrapError('not available');
 	}
 
@@ -523,7 +527,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const globalElablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, false);
-		if (enable && this.workspaceContextService.getWorkspace()) {
+		if (enable && this.workspaceContextService.hasWorkspace()) {
 			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, true);
 			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}
@@ -576,11 +580,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 						.then(null, onUnexpectedError);
 				}
 			}
-		}
-
-		if (extension.gallery) {
-			// Report telemetry only for gallery extensions
-			this.reportTelemetry(installing, !error);
+			if (extension.gallery) {
+				// Report telemetry only for gallery extensions
+				this.reportTelemetry(installing, !error);
+			}
 		}
 		this._onChange.fire();
 	}
@@ -674,7 +677,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		if (extension.gallery && this.installing.some(e => e.extension.gallery.id === extension.gallery.id)) {
+		if (extension.gallery && this.installing.some(e => e.extension.gallery && e.extension.gallery.id === extension.gallery.id)) {
 			return ExtensionState.Installing;
 		}
 

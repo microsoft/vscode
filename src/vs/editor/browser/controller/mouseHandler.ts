@@ -113,9 +113,9 @@ export interface IPointerHandlerHelper {
 	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**
-	 * Decode an Editor.IPosition from a rendered dom node
+	 * Decode a position from a rendered dom node
 	 */
-	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): editorCommon.IPosition;
+	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position;
 
 	visibleRangeForPosition2(lineNumber: number, column: number): VisibleRange;
 	getLineWidth(lineNumber: number): number;
@@ -291,7 +291,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 			// In IE11, if the focus is in the browser's address bar and
 			// then you click in the editor, calling preventDefault()
 			// will not move focus properly (focus remains the address bar)
-			if (browser.isIE11orEarlier && !this._isFocused) {
+			if (browser.isIE && !this._isFocused) {
 				this._asyncFocus.schedule();
 			} else {
 				e.preventDefault();

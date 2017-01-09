@@ -495,7 +495,7 @@ export class TreeView extends HeightMap {
 			this.emit('scroll', e); // TODO@Joao: is anyone interested in this event?
 		});
 
-		if (Browser.isIE11orEarlier) {
+		if (Browser.isIE) {
 			this.wrapper.style.msTouchAction = 'none';
 			this.wrapper.style.msContentZooming = 'none';
 		} else {
@@ -504,6 +504,9 @@ export class TreeView extends HeightMap {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-tree-rows';
+		if (context.options.showTwistie) {
+			this.rowsContainer.className += ' show-twisties';
+		}
 
 		var focusTracker = DOM.trackFocus(this.domNode);
 		focusTracker.addFocusListener(() => this.onFocus());
@@ -519,7 +522,7 @@ export class TreeView extends HeightMap {
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
 
-		if (Browser.isIE11orEarlier) {
+		if (Browser.isIE) {
 			this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'MSPointerDown', (e) => this.onMsPointerDown(e)));
 			this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'MSGestureTap', (e) => this.onMsGestureTap(e)));
 
@@ -1116,7 +1119,7 @@ export class TreeView extends HeightMap {
 			return;
 		}
 
-		if (Browser.isIE10orLater && Date.now() - this.lastClickTimeStamp < 300) {
+		if (Browser.isIE && Date.now() - this.lastClickTimeStamp < 300) {
 			// IE10+ doesn't set the detail property correctly. While IE10 simply
 			// counts the number of clicks, IE11 reports always 1. To align with
 			// other browser, we set the value to 2 if clicks events come in a 300ms
@@ -1465,11 +1468,11 @@ export class TreeView extends HeightMap {
 					}
 				}
 
-				this.currentDropPromise = WinJS.TPromise.timeout(500).then(() => {
-					return this.context.tree.expand(this.currentDropElement).then(() => {
-						this.shouldInvalidateDropReaction = true;
-					});
-				});
+				if (reaction.autoExpand) {
+					this.currentDropPromise = WinJS.TPromise.timeout(500)
+						.then(() => this.context.tree.expand(this.currentDropElement))
+						.then(() => this.shouldInvalidateDropReaction = true);
+				}
 			}
 		}
 

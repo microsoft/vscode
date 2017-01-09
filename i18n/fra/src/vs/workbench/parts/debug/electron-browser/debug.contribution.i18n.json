@@ -10,7 +10,7 @@
 	"debugConfigurationTitle": "Déboguer",
 	"debugErrorEditor": "Erreur de débogage",
 	"debugPanel": "Console de débogage",
-	"openExplorerOnEnd": "Ouvrir automatiquement la viewlet d'exploration à la fin d'une session de débogage",
+	"openExplorerOnEnd": "Ouvrir automatiquement le mode explorateur à la fin d'une session de débogage",
 	"toggleDebugPanel": "Console de débogage",
 	"toggleDebugViewlet": "Afficher le débogage",
 	"view": "Affichage"

@@ -31,7 +31,7 @@ import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
 
-import { IPickOpenEntry, IPickOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
@@ -150,7 +150,8 @@ export abstract class MainThreadErrorsShape {
 export abstract class MainThreadLanguageFeaturesShape {
 	$unregister(handle: number): TPromise<any> { throw ni(); }
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> { throw ni(); }
+	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any> { throw ni(); }
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }

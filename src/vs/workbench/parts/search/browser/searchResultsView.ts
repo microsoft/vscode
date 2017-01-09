@@ -283,7 +283,18 @@ export class SearchController extends DefaultController {
 			this.viewlet.moveFocusFromResults();
 			return true;
 		}
-		return super.onUp(tree, event);
+
+		const result = super.onUp(tree, event);
+		let focus = tree.getFocus();
+		this.selectOnScroll(tree, focus, event);
+		return result;
+	}
+
+	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
+		const result = super.onDown(tree, event);
+		let focus = tree.getFocus();
+		this.selectOnScroll(tree, focus, event);
+		return result;
 	}
 
 	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
@@ -292,6 +303,14 @@ export class SearchController extends DefaultController {
 			return this.onEnter(tree, event);
 		}
 		super.onSpace(tree, event);
+	}
+
+	private selectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
+		if (focus instanceof Match) {
+			this.onEnter(tree, event);
+		} else {
+			tree.setSelection([focus]);
+		}
 	}
 }
 

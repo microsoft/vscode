@@ -17,18 +17,19 @@ function uriFromPath(_path) {
 }
 
 var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
-var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages:{} };
+var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
 
 loader.config({
 	baseUrl: uriFromPath(__dirname),
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename,
-	'vs/nls': nlsConfig
+	'vs/nls': nlsConfig,
+	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
 });
 
 if (nlsConfig.pseudo) {
-	loader(['vs/nls'], function(nlsPlugin) {
+	loader(['vs/nls'], function (nlsPlugin) {
 		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 	});
 }

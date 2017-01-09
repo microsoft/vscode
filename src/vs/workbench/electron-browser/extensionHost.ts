@@ -21,13 +21,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
-import { WatchDog } from 'vs/base/common/watchDog';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
@@ -57,8 +56,6 @@ export class ExtensionHostProcessWorker {
 	private isExtensionDevelopmentHost: boolean;
 	private isExtensionDevelopmentTestFromCli: boolean;
 	private isExtensionDevelopmentDebugging: boolean;
-
-	private extHostWatchDog = new WatchDog(250, 4);
 
 	private _onMessage = new Emitter<any>();
 	public get onMessage(): Event<any> {
@@ -117,29 +114,6 @@ export class ExtensionHostProcessWorker {
 
 		// Initialize extension host process with hand shakes
 		this.initializeExtensionHostProcess = this.doInitializeExtensionHostProcess(opts);
-
-		// Check how well the extension host is doing
-		if (this.environmentService.isBuilt) {
-			this.initializeExtensionHostProcess.done(() => {
-				this.extHostWatchDog.start();
-				this.extHostWatchDog.onAlert(() => {
-
-					this.extHostWatchDog.reset();
-
-					// log the identifiers of those extensions that
-					// have code and are loaded in the extension host
-					this.extensionService.getExtensions().then(extensions => {
-						const ids: string[] = [];
-						for (const ext of extensions) {
-							if (ext.main && this.extensionService.isActivated(ext.id)) {
-								ids.push(ext.id);
-							}
-						}
-						this.telemetryService.publicLog('extHostUnresponsive2', { extensionIds: ids });
-					});
-				});
-			});
-		}
 	}
 
 	public get messagingProtocol(): IMessagePassingProtocol {
@@ -190,15 +164,15 @@ export class ExtensionHostProcessWorker {
 			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
-					c(void 0);
+					return c(void 0);
 				}
 				if (port !== extensionHostPort) {
-					console.warn('%c[Extension Host] %cProvided debugging port ' + extensionHostPort + ' is not free, using ' + port + ' instead.', 'color: blue', 'color: black');
+					console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
 				}
 				if (this.isExtensionDevelopmentDebugging) {
-					console.warn('%c[Extension Host] %cSTOPPED on first line for debugging on port ' + port, 'color: blue', 'color: black');
+					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
 				} else {
-					console.info('%c[Extension Host] %cdebugger listening on port ' + port, 'color: blue', 'color: black');
+					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
 				}
 				return c(port);
 			});
@@ -219,12 +193,6 @@ export class ExtensionHostProcessWorker {
 			this.unsentMessages = [];
 			this.extensionHostProcessReady = true;
 			return true;
-		}
-
-		// Heartbeat message
-		if (msg === '__$heartbeat') {
-			this.extHostWatchDog.reset();
-			return false;
 		}
 
 		// Support logging from extension host

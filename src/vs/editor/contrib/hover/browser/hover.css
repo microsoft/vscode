@@ -78,3 +78,4 @@
 .monaco-editor.vs-dark .hoverHighlight { background: rgba(38, 79, 120, 0.25); }
 
 .monaco-editor.hc-black .monaco-editor-hover { background-color: #0C141F; }
+.monaco-editor.hc-black .monaco-editor-hover a { color: #1C5DAF; }

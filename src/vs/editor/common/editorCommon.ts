@@ -1191,21 +1191,6 @@ export interface IModelDeltaDecoration {
 }
 
 /**
- * A tracked range in the model.
- * @internal
- */
-export interface IModelTrackedRange {
-	/**
-	 * Identifier for a tracked range
-	 */
-	id: string;
-	/**
-	 * Range that this tracked range covers
-	 */
-	range: Range;
-}
-
-/**
  * A decoration in the model.
  */
 export interface IModelDecoration {
@@ -1225,6 +1210,10 @@ export interface IModelDecoration {
 	 * Options associated with this decoration.
 	 */
 	readonly options: IModelDecorationOptions;
+	/**
+	 * A flag describing if this is a problem decoration (e.g. warning/error).
+	 */
+	readonly isForValidation: boolean;
 }
 
 /**
@@ -1368,16 +1357,7 @@ export enum EndOfLineSequence {
 }
 
 /**
- * A read-only line marker in the model.
- * @internal
- */
-export interface IReadOnlyLineMarker {
-	readonly id: string;
-	readonly column: number;
-}
-
-/**
- * And identifier for a single edit operation.
+ * An identifier for a single edit operation.
  */
 export interface ISingleEditOperationIdentifier {
 	/**
@@ -1967,7 +1947,7 @@ export interface ITextModelWithMarkers extends ITextModel {
 	/**
 	 * @internal
 	 */
-	_addMarker(lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
+	_addMarker(internalDecorationId: number, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
 	/**
 	 * @internal
 	 */
@@ -1984,18 +1964,6 @@ export interface ITextModelWithMarkers extends ITextModel {
 	 * @internal
 	 */
 	_removeMarker(id: string): void;
-	/**
-	 * @internal
-	 */
-	_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[];
-}
-
-/**
- * A map of changed ranges used during the model internal processing
- * @internal
- */
-export interface IChangedTrackedRanges {
-	[key: string]: IRange;
 }
 
 /**
@@ -2006,59 +1974,6 @@ export enum TrackedRangeStickiness {
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,
 	GrowsOnlyWhenTypingAfter = 3,
-}
-
-/**
- * A model that can track ranges.
- */
-export interface ITextModelWithTrackedRanges extends ITextModel {
-	/**
-	 * Start tracking a range (across edit operations).
-	 * @param range The range to start tracking.
-	 * @param stickiness The behaviour when typing at the edges of the range.
-	 * @return A unique identifier for the tracked range.
-	 * @internal
-	 */
-	addTrackedRange(range: IRange, stickiness: TrackedRangeStickiness): string;
-
-	/**
-	 * Change the range of a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRange` call.
-	 * @param newRange The new range of the tracked range.
-	 * @internal
-	 */
-	changeTrackedRange(id: string, newRange: IRange): void;
-
-	/**
-	 * Change the stickiness (behaviour when typing at the edges of the range) for a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRange` call.
-	 * @param newStickiness The new behaviour when typing at the edges of the range.
-	 * @internal
-	 */
-	changeTrackedRangeStickiness(id: string, newStickiness: TrackedRangeStickiness): void;
-
-	/**
-	 * Remove a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
-	 * @internal
-	 */
-	removeTrackedRange(id: string): void;
-
-	/**
-	 * Get the range of a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
-	 * @internal
-	 */
-	getTrackedRange(id: string): Range;
-
-	/**
-	 * Gets all the tracked ranges for the lines between `startLineNumber` and `endLineNumber` as an array.
-	 * @param startLineNumber The start line number
-	 * @param endLineNumber The end line number
-	 * @return An array with the tracked ranges
-	 * @internal
-	 */
-	getLinesTrackedRanges(startLineNumber: number, endLineNumber: number): IModelTrackedRange[];
 }
 
 /**
@@ -2073,7 +1988,7 @@ export interface ITextModelWithDecorations {
 	 * @param ownerId Identifies the editor id in which these decorations should appear. If no `ownerId` is provided, the decorations will appear in all editors that attach this model.
 	 * @internal
 	 */
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any, ownerId?: number): any;
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T, ownerId?: number): T;
 
 	/**
 	 * Perform a minimum ammount of operations, in order to transform the decorations
@@ -2231,7 +2146,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 /**
  * A model.
  */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations, IEditorModel {
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
@@ -2471,54 +2386,21 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
 	readonly detail: string;
 }
 /**
- * Decoration data associated with a model decorations changed event.
- */
-export interface IModelDecorationsChangedEventDecorationData {
-	/**
-	 * The id of the decoration.
-	 */
-	readonly id: string;
-	/**
-	 * The owner id of the decoration.
-	 */
-	readonly ownerId: number;
-	/**
-	 * The range of the decoration.
-	 */
-	readonly range: IRange;
-	/**
-	 * A flag describing if this is a problem decoration (e.g. warning/error).
-	 */
-	readonly isForValidation: boolean;
-	/**
-	 * The options for this decoration.
-	 */
-	readonly options: IModelDecorationOptions;
-}
-/**
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
 	/**
-	 * A summary with ids of decorations that have changed.
+	 * Lists of ids for added decorations.
 	 */
-	readonly ids: string[];
+	readonly addedDecorations: string[];
 	/**
-	 * Lists of details for added or changed decorations.
+	 * Lists of ids for changed decorations.
 	 */
-	readonly addedOrChangedDecorations: IModelDecorationsChangedEventDecorationData[];
+	readonly changedDecorations: string[];
 	/**
 	 * List of ids for removed decorations.
 	 */
 	readonly removedDecorations: string[];
-	/**
-	 * Details regarding old options.
-	 */
-	readonly oldOptions: { [decorationId: string]: IModelDecorationOptions; };
-	/**
-	 * Details regarding old ranges.
-	 */
-	readonly oldRanges: { [decorationId: string]: IRange; };
 }
 /**
  * An event describing that some ranges of lines have been tokenized (their tokens have changed).
@@ -2634,7 +2516,7 @@ export interface ICursorSelectionChangedEvent {
 /**
  * @internal
  */
-export enum VerticalRevealType {
+export const enum VerticalRevealType {
 	Simple = 0,
 	Center = 1,
 	CenterIfOutsideViewport = 2,
@@ -3377,10 +3259,7 @@ export interface IViewTokensChangedEvent {
  * @internal
  */
 export interface IViewDecorationsChangedEvent {
-	/**
-	 * signals that at least one inline decoration has changed
-	 */
-	readonly inlineDecorationsChanged: boolean;
+	_videDecorationsChangedEventBrand: void;
 }
 
 /**
@@ -4060,11 +3939,12 @@ export interface ICommonCodeEditor extends IEditor {
 	pushUndoStop(): boolean;
 
 	/**
-	 * Execute a command on the editor.
+	 * Execute edits on the editor.
 	 * @param source The source of the call.
-	 * @param command The command to execute
+	 * @param edits The edits to execute.
+	 * @param endCursoState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concommitent) commands on the editor.
@@ -4592,8 +4472,6 @@ export var Handler = {
 	DeleteWordRight: 'deleteWordRight',
 	DeleteWordStartRight: 'deleteWordStartRight',
 	DeleteWordEndRight: 'deleteWordEndRight',
-
-	DeleteAllRight: 'deleteAllRight',
 
 	RemoveSecondaryCursors: 'removeSecondaryCursors',
 	CancelSelection: 'cancelSelection',

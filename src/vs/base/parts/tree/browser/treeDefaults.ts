@@ -14,7 +14,7 @@ import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -115,11 +115,11 @@ export class KeybindingDispatcher {
 		});
 	}
 
-	public dispatch(keybinding: number): IKeyBindingCallback {
+	public dispatch(keybinding: Keybinding): IKeyBindingCallback {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
-			if (keybinding === item.keybinding) {
+			if (keybinding.value === item.keybinding) {
 				return item.callback;
 			}
 		}
@@ -153,7 +153,7 @@ export class DefaultController implements _.IController {
 	}
 
 	public onMouseDown(tree: _.ITree, element: any, event: mouse.IMouseEvent, origin: string = 'mouse'): boolean {
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
+		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			if (event.target) {
 				if (event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 					return false; // Ignore event if target is a form input field (avoids browser specific issues)
@@ -181,15 +181,11 @@ export class DefaultController implements _.IController {
 			return false;
 		}
 
-		if (event.middleButton) {
-			return false; // Give contents of the item a chance to handle this (e.g. open link in new tab)
-		}
-
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
+		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			return false; // Already handled by onMouseDown
 		}
 
@@ -256,7 +252,7 @@ export class DefaultController implements _.IController {
 	}
 
 	private onKey(bindings: KeybindingDispatcher, tree: _.ITree, event: IKeyboardEvent): boolean {
-		var handler = bindings.dispatch(event.asKeybinding());
+		var handler = bindings.dispatch(event.toKeybinding());
 		if (handler) {
 			if (handler(tree, event)) {
 				event.preventDefault();

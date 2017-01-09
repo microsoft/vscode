@@ -1123,15 +1123,16 @@ declare module 'vscode' {
 		/**
 		 * Derive a new Uri from this Uri.
 		 *
+		 * ```ts
+		 * let file = Uri.parse('before:some/file/path');
+		 * let other = file.with({ scheme: 'after' });
+		 * assert.ok(other.toString() === 'after:some/file/path');
+		 * ```
+		 *
 		 * @param change An object that describes a change to this Uri. To unset components use `null` or
 		 *  the empty string.
 		 * @return A new Uri that reflects the given change. Will return `this` Uri if the change
 		 *  is not changing anything.
-		 * @sample ```
-			let file = Uri.parse('before:some/file/path');
-			let other = file.with({ scheme: 'after' });
-			assert.ok(other.toString() === 'after:some/file/path');
-		 * ```
 		 */
 		with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
 
@@ -1510,26 +1511,26 @@ declare module 'vscode' {
 	 * The snippets below are all valid implementions of the [`HoverProvider`](#HoverProvider):
 	 *
 	 * ```ts
-	 *	let a: HoverProvider = {
-	 *		provideHover(doc, pos, token): ProviderResult<Hover> {
-	 *			return new Hover('Hello World');
-	 *		}
-	 *	}
+	 * let a: HoverProvider = {
+	 * 	provideHover(doc, pos, token): ProviderResult<Hover> {
+	 * 		return new Hover('Hello World');
+	 * 	}
+	 * }
 	 *
-	 *	let b: HoverProvider = {
-	 *		provideHover(doc, pos, token): ProviderResult<Hover> {
-	 *			return new Promise(resolve => {
-	 * 				resolve(new Hover('Hello World'));
-	 *			});
-	 *		}
-	 *	}
+	 * let b: HoverProvider = {
+	 * 	provideHover(doc, pos, token): ProviderResult<Hover> {
+	 * 		return new Promise(resolve => {
+	 * 			resolve(new Hover('Hello World'));
+	 * 	 	});
+	 * 	}
+	 * }
 	 *
-	 *	let c: HoverProvider = {
-	 *		provideHover(doc, pos, token): ProviderResult<Hover> {
-	 *			return; // undefined
-	 *		}
-	 *	}
-	 *```
+	 * let c: HoverProvider = {
+	 * 	provideHover(doc, pos, token): ProviderResult<Hover> {
+	 * 		return; // undefined
+	 * 	}
+	 * }
+	 * ```
 	 */
 	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>
 
@@ -1611,6 +1612,11 @@ declare module 'vscode' {
 	 * as dedicated horizontal lines in between the source text.
 	 */
 	export interface CodeLensProvider {
+
+		/**
+		 * An optional event to signal that the code lenses from this provider have changed.
+		 */
+		onDidChangeCodeLenses?: Event<this>;
 
 		/**
 		 * Compute a list of [lenses](#CodeLens). This call should return as fast as possible and if
@@ -2066,8 +2072,9 @@ declare module 'vscode' {
 	 *
 	 * A snippet can define tab stops and placeholders with `$1`, `$2`
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
-	 * the end of the snippet. Placeholders with equal identifiers are linked,
-	 * that is typing in one will update others too.
+	 * the end of the snippet. Variables are defined with `$name` and
+	 * `${name:default value}`. The full snippet syntax is documented
+	 * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -2110,19 +2117,10 @@ declare module 'vscode' {
 		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
 
 		/**
-		 * Builder-function that appends a variable (`$VAR`) to
+		 * Builder-function that appends a variable (`${VAR}`) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
 		 * @param name The name of the variable - excluding the `$`.
-		 * @return This snippet string.
-		 */
-		appendVariable(name: string): SnippetString;
-
-		/**
-		 * Builder-function that appends a variable and default value (`${VAR:fallback}`) to
-		 * the [`value`](#SnippetString.value) of this snippet string.
-		 *
-		 * @param name The name of the variable (excluding the `$`)
 		 * @param defaultValue The default value which is used when the variable name cannot
 		 * be resolved - either a string or a function with which a nested snippet can be created.
 		 * @return This snippet string.
@@ -2358,7 +2356,8 @@ declare module 'vscode' {
 		Snippet = 14,
 		Color = 15,
 		File = 16,
-		Reference = 17
+		Reference = 17,
+		Folder = 18
 	}
 
 	/**
@@ -2781,7 +2780,7 @@ declare module 'vscode' {
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
 	 * from `launch.json`:
 	 *
-	 * ```
+	 * ```ts
 	 * // launch.json configuration
 	 * const config = workspace.getConfiguration('launch');
 	 *
@@ -3338,7 +3337,7 @@ declare module 'vscode' {
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
-		storagePath: string;
+		storagePath: string | undefined;
 	}
 
 	/**
@@ -3430,17 +3429,18 @@ declare module 'vscode' {
 	 * register a command handler with the identfier `extension.sayHello`.
 	 * ```javascript
 	 * commands.registerCommand('extension.sayHello', () => {
-	 * 		window.showInformationMessage('Hello World!');
+	 * 	window.showInformationMessage('Hello World!');
 	 * });
 	 * ```
 	 * Second, bind the command identfier to a title under which it will show in the palette (`package.json`).
 	 * ```json
 	 * {
-	 * "contributes": {
-	 * 	"commands": [{
-	 * 		"command": "extension.sayHello",
-	 * 		"title": "Hello World"
-	 * 	}]
+	 * 	"contributes": {
+	 * 		"commands": [{
+	 * 			"command": "extension.sayHello",
+	 * 			"title": "Hello World"
+	 * 		}]
+	 * 	}
 	 * }
 	 * ```
 	 */
@@ -3718,7 +3718,8 @@ declare module 'vscode' {
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
-		 * Creates a [Terminal](#Terminal).
+		 * Creates a [Terminal](#Terminal). The cwd of the terminal will be the workspace directory
+		 * if it exists, regardless of whether an explicit customStartPath setting exists.
 		 *
 		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
 		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.
@@ -3813,11 +3814,11 @@ declare module 'vscode' {
 		 *
 		 * ```ts
 		 * workspace.onWillSaveTextDocument(event => {
-			// async, will *throw* an error
-		 	setTimeout(() => event.waitUntil(promise));
-
-		 	// sync, OK
-		 *	event.waitUntil(promise);
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
 		 * })
 		 * ```
 		 *
@@ -4023,9 +4024,9 @@ declare module 'vscode' {
 	 *
 	 * ```javascript
 	 * languages.registerHoverProvider('javascript', {
-	 * 		provideHover(document, position, token) {
-	 * 			return new Hover('I am a hover!');
-	 * 		}
+	 * 	provideHover(document, position, token) {
+	 * 		return new Hover('I am a hover!');
+	 * 	}
 	 * });
 	 * ```
 	 *
@@ -4301,16 +4302,16 @@ declare module 'vscode' {
 	 *
 	 * ```javascript
 	 * export function activate(context: vscode.ExtensionContext) {
-	 * 		let api = {
-	 * 			sum(a, b) {
-	 * 				return a + b;
-	 * 			},
-	 * 			mul(a, b) {
-	 * 				return a * b;
-	 * 			}
-	 * 		};
-	 * 		// 'export' public api-surface
-	 *		return api;
+	 * 	let api = {
+	 * 		sum(a, b) {
+	 * 			return a + b;
+	 * 		},
+	 * 		mul(a, b) {
+	 * 			return a * b;
+	 * 		}
+	 * 	};
+	 * 	// 'export' public api-surface
+	 * 	return api;
 	 * }
 	 * ```
 	 * When depending on the API of another extension add an `extensionDependency`-entry

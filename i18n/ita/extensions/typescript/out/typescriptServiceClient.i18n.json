@@ -6,9 +6,7 @@
 {
 	"channelName": "TypeScript",
 	"close": "Chiudi",
-	"doNotCheckAgain": "Non eseguire più la verifica",
 	"localTSFound": "La cartella dell'area di lavoro contiene TypeScript versione {0}. Usare questa versione invece della {1} in bundle?",
-	"moreInformation": "Altre informazioni",
 	"neverCheckLocalVesion": "Non controllare mai la versione dell'area di lavoro",
 	"noServerFound": "Il percorso {0} non punta a un'installazione valida di tsserver. Le funzionalità del linguaggio TypeScript verranno disabilitate.",
 	"serverCouldNotBeStarted": "Non è stato possibile avviare il server di linguaggio TypeScript. Messaggio di errore: {0}",
@@ -16,10 +14,8 @@
 	"serverDiedAfterStart": "Il servizio di linguaggio TypeScript è stato arrestato in modo imprevisto per cinque volte dopo che è stato avviato e non verrà riavviato. Aprire una segnalazione bug.",
 	"updateGlobalWorkspaceCheck": "L'impostazione utente 'typescript.check.workspaceVersion' è stata aggiornata ed è ora false",
 	"updateLocalWorkspaceCheck": "L'impostazione dell'area di lavoro 'typescript.check.workspaceVersion' è stata aggiornata ed è ora false",
-	"updateTscCheck": "L'impostazione utente 'typescript.check.tscVersion' è stata aggiornata ed è ora false",
 	"updatedtsdk": "L'impostazione dell'area di lavoro 'typescript.tsdk' è stata aggiornata ed è ora {0}",
 	"use": "Usa l'area di lavoro ({0})",
 	"useBundled": "Usa la versione in bundle ({0})",
-	"versionMismatch": "Le versioni non corrispondono. Compilatore tsc globale ({0}) != servizio di linguaggio di Visual Studio Code ({1}). Potrebbero verificarsi errori di compilazione incoerente",
 	"versionNumber.custom": "personalizzato"
 }

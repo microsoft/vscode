@@ -654,9 +654,11 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		}
 
 		// trigger action
-		let actionItem = (<BaseActionItem>this.items[this.focusedItem]);
-		const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-		this.run(actionItem._action, context).done();
+		let actionItem = this.items[this.focusedItem];
+		if (actionItem instanceof BaseActionItem) {
+			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
+			this.run(actionItem._action, context).done();
+		}
 	}
 
 	private cancel(): void {
@@ -703,8 +705,12 @@ export class SelectActionItem extends BaseActionItem {
 		this.registerListeners();
 	}
 
-	public setOptions(options: string[], selected: number): void {
+	public setOptions(options: string[], selected?: number): void {
 		this.selectBox.setOptions(options, selected);
+	}
+
+	public select(index: number): void {
+		this.selectBox.select(index);
 	}
 
 	private registerListeners(): void {
@@ -731,10 +737,6 @@ export class SelectActionItem extends BaseActionItem {
 
 	public render(container: HTMLElement): void {
 		this.selectBox.render(container);
-	}
-
-	protected getSelected(): string {
-		return this.selectBox.getSelected();
 	}
 
 	public dispose(): void {

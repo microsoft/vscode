@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -14,8 +14,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IEventService } from 'vs/platform/event/common/event';
-import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -62,7 +60,6 @@ const eventPrefix = 'monacoworkbench';
 function main(server: Server, initData: ISharedProcessInitData): void {
 	const services = new ServiceCollection();
 
-	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));

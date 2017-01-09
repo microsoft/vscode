@@ -124,7 +124,7 @@ export class Scanner {
 export abstract class Marker {
 	_markerBrand: any;
 
-	static toString(marker: Marker[]): string {
+	static toString(marker?: Marker[]): string {
 		let result = '';
 		for (const m of marker) {
 			result += m.toString();
@@ -281,13 +281,13 @@ export class SnippetParser {
 
 				while (true) {
 
-					if (this._accept(TokenType.Colon)) {
+					if (target !== children && this._accept(TokenType.Colon)) {
 						target = children;
 						continue;
 					}
 
 					if (this._accept(TokenType.CurlyClose)) {
-						const idOrName = Marker.toString(name);;
+						const idOrName = Marker.toString(name);
 						marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, children) : new Variable(idOrName, children));
 						return true;
 					}

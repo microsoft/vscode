@@ -16,20 +16,19 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import { dispose, IDisposable, Disposables } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import pkg from 'vs/platform/node/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import timer = require('vs/base/common/timer');
-import { IStartupFingerprint, IMemoryInfo } from 'vs/workbench/electron-browser/common';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
-import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
+import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
+import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { ElectronIntegration } from 'vs/workbench/electron-browser/integration';
 import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
 import { IWindowIPCService, WindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -58,7 +57,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IEventService } from 'vs/platform/event/common/event';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -68,7 +66,7 @@ import { ISearchService } from 'vs/platform/search/common/search';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -91,10 +89,8 @@ import { IBackupService } from 'vs/platform/backup/common/backup';
 import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
+import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
-import * as os from 'os';
-
-// self registering services
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
@@ -102,12 +98,12 @@ import 'vs/platform/opener/browser/opener.contribution';
  */
 export interface ICoreServices {
 	contextService: IWorkspaceContextService;
-	eventService: IEventService;
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
+	timerService: ITimerService;
 }
 
-const timers = (<any>window).MonacoEnvironment.timers;
+const currentWindow = remote.getCurrentWindow();
 
 /**
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
@@ -116,7 +112,6 @@ const timers = (<any>window).MonacoEnvironment.timers;
 export class WorkbenchShell {
 	private storageService: IStorageService;
 	private messageService: MessageService;
-	private eventService: IEventService;
 	private environmentService: IEnvironmentService;
 	private contextViewService: ContextViewService;
 	private threadService: MainThreadService;
@@ -125,6 +120,8 @@ export class WorkbenchShell {
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
 	private extensionService: MainProcessExtensionService;
+	private windowIPCService: IWindowIPCService;
+	private timerService: ITimerService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -133,20 +130,18 @@ export class WorkbenchShell {
 	private content: HTMLElement;
 	private contentsContainer: Builder;
 
-	private workspace: IWorkspace;
 	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, options: IOptions) {
+	constructor(container: HTMLElement, services: ICoreServices, options: IOptions) {
 		this.container = container;
 
-		this.workspace = workspace;
 		this.options = options;
 
 		this.contextService = services.contextService;
-		this.eventService = services.eventService;
 		this.configurationService = services.configurationService;
 		this.environmentService = services.environmentService;
+		this.timerService = services.timerService;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
@@ -169,7 +164,7 @@ export class WorkbenchShell {
 		}
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
@@ -181,8 +176,9 @@ export class WorkbenchShell {
 			}
 		});
 
-		// Electron integration
-		this.workbench.getInstantiationService().createInstance(ElectronIntegration).integrate(this.container);
+		// Window
+		const activeWindow = this.workbench.getInstantiationService().createInstance(ElectronWindow, currentWindow, this.container);
+		this.windowIPCService.registerWindow(activeWindow);
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
@@ -198,15 +194,12 @@ export class WorkbenchShell {
 
 	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
 
-		// Log to timer
-		timer.start(timer.Topic.STARTUP, '[renderer] overall workbench load', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
-
 		// Telemetry: workspace info
 		const { filesToOpen, filesToCreate, filesToDiff } = this.options;
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: !this.contextService.getWorkspace(),
+			emptyWorkbench: !this.contextService.hasWorkspace(),
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
@@ -217,73 +210,19 @@ export class WorkbenchShell {
 			pinnedViewlets: info.pinnedViewlets
 		});
 
-		// Telemetry: performance info
+		// Telemetry: startup metrics
 		const workbenchStarted = Date.now();
-		timers.workbenchStarted = new Date(workbenchStarted);
+		this.timerService.workbenchStarted = new Date(workbenchStarted);
+		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
+		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
 		this.extensionService.onReady().done(() => {
-			const now = Date.now();
-			const initialStartup = !!timers.isInitialStartup;
-			const start = initialStartup ? timers.perfStartTime : timers.perfWindowLoadTime;
-			let totalmem: number;
-			let freemem: number;
-			let cpus: { count: number; speed: number; model: string; };
-			let platform: string;
-			let release: string;
-			let loadavg: number[];
-			let meminfo: IMemoryInfo;
-
-			try {
-				totalmem = os.totalmem();
-				freemem = os.freemem();
-				platform = os.platform();
-				release = os.release();
-				loadavg = os.loadavg();
-				meminfo = process.getProcessMemoryInfo();
-
-				const rawCpus = os.cpus();
-				if (rawCpus && rawCpus.length > 0) {
-					cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
-				}
-			} catch (error) {
-				console.error(error); // be on the safe side with these hardware method calls
-			}
-
-			const startupTimeEvent: IStartupFingerprint = {
-				version: 1,
-				ellapsed: Math.round(workbenchStarted - start),
-				timers: {
-					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
-					ellapsedExtensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
-					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
-					ellapsedViewletRestore: Math.round(info.restoreViewletDuration),
-					ellapsedEditorRestore: Math.round(info.restoreEditorsDuration),
-					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen),
-					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime),
-					ellapsedTimersToTimersComputed: Date.now() - now
-				},
-				platform,
-				release,
-				totalmem,
-				freemem,
-				meminfo,
-				cpus,
-				loadavg,
-				initialStartup,
-				hasAccessibilitySupport: !!timers.hasAccessibilitySupport,
-				emptyWorkbench: !this.contextService.getWorkspace()
-			};
-
-			if (initialStartup) {
-				startupTimeEvent.timers.ellapsedWindowLoad = Math.round(timers.perfWindowLoadTime - timers.perfStartTime);
-			}
-
-			this.telemetryService.publicLog('startupTime', startupTimeEvent);
-			timers.fingerprint = startupTimeEvent;
+			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
 
 		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
 		workspaceStats.reportWorkspaceTags(this.options);
+		workspaceStats.reportCloudStats();
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
@@ -293,33 +232,31 @@ export class WorkbenchShell {
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
-		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));
-		disposables.add(mainProcessClient);
-
 		const serviceCollection = new ServiceCollection();
-		serviceCollection.set(IEventService, this.eventService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
+		serviceCollection.set(ITimerService, this.timerService);
 
-		const instantiationServiceImpl = new InstantiationService(serviceCollection, true);
-		const instantiationService = instantiationServiceImpl as IInstantiationService;
+		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
 		// TODO@joao remove this
-		const windowIPCService = instantiationService.createInstance<IWindowIPCService>(WindowIPCService);
-		serviceCollection.set(IWindowIPCService, windowIPCService);
+		this.windowIPCService = instantiationService.createInstance<IWindowIPCService>(WindowIPCService);
+		serviceCollection.set(IWindowIPCService, this.windowIPCService);
+
+		const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
+		disposables.add(mainProcessClient);
 
 		const windowsChannel = mainProcessClient.getChannel('windows');
-		const windowsChannelClient = new WindowsChannelClient(windowsChannel);
-		serviceCollection.set(IWindowsService, windowsChannelClient);
+		serviceCollection.set(IWindowsService, new SyncDescriptor(WindowsChannelClient, windowsChannel));
 
-		const windowService = new WindowService(windowIPCService.getWindowId(), windowsChannelClient);
-		serviceCollection.set(IWindowService, windowService);
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.windowIPCService.getWindowId()));
 
-		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${windowIPCService.getWindowId()}`);
+		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${this.windowIPCService.getWindowId()}`);
 		sharedProcess.done(client => {
 
-			client.registerChannel('choice', new ChoiceChannel(this.messageService));
+			// Choice channel
+			client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel));
 
 			client.onClose(() => {
 				this.messageService.show(Severity.Error, {
@@ -330,7 +267,7 @@ export class WorkbenchShell {
 		}, errors.onUnexpectedError);
 
 		// Storage Sevice
-		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.isExtensionDevelopment); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
+		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
@@ -378,8 +315,7 @@ export class WorkbenchShell {
 		disposables.add(lifecycleTelemetry(this.telemetryService, lifecycleService));
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
-		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
@@ -389,64 +325,50 @@ export class WorkbenchShell {
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
-		const extensionTimer = timer.start(timer.Topic.STARTUP, '[renderer] create extension host => extensions onReady()');
-		timers.perfBeforeExtensionLoad = new Date();
+		this.timerService.beforeExtensionLoad = new Date();
 		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {
-			extensionTimer.stop();
-			timers.perfAfterExtensionLoad = new Date();
+			this.timerService.afterExtensionLoad = new Date();
 		});
 
-		serviceCollection.set(ICommandService, new CommandService(instantiationService, this.extensionService));
+		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
 
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);
 
-		const requestService = instantiationService.createInstance(RequestService);
-		serviceCollection.set(IRequestService, requestService);
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
 
-		const markerService = instantiationService.createInstance(MarkerService);
-		serviceCollection.set(IMarkerService, markerService);
+		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
-		const modeService = instantiationService.createInstance(MainThreadModeServiceImpl);
-		serviceCollection.set(IModeService, modeService);
+		serviceCollection.set(IModeService, new SyncDescriptor(MainThreadModeServiceImpl));
 
-		const modelService = instantiationService.createInstance(ModelServiceImpl);
-		serviceCollection.set(IModelService, modelService);
+		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
 
-		const editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
-		serviceCollection.set(IEditorWorkerService, editorWorkerService);
+		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 
-		const untitledEditorService = instantiationService.createInstance(UntitledEditorService);
-		serviceCollection.set(IUntitledEditorService, untitledEditorService);
+		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
 
 		this.themeService = instantiationService.createInstance(ThemeService);
 		serviceCollection.set(IThemeService, this.themeService);
 
-		const searchService = instantiationService.createInstance(SearchService);
-		serviceCollection.set(ISearchService, searchService);
+		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
-		const codeEditorService = instantiationServiceImpl.createInstance(CodeEditorServiceImpl);
-		serviceCollection.set(ICodeEditorService, codeEditorService);
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
 
-		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
-		serviceCollection.set(IIntegrityService, integrityService);
+		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
 		const updateChannel = mainProcessClient.getChannel('update');
-		const updateChannelClient = new UpdateChannelClient(updateChannel);
-		serviceCollection.set(IUpdateService, updateChannelClient);
+		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 		const urlChannel = mainProcessClient.getChannel('url');
-		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());
-		serviceCollection.set(IURLService, urlChannelClient);
+		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, this.windowIPCService.getWindowId()));
 
 		const backupChannel = mainProcessClient.getChannel('backup');
-		const backupChannelClient = new BackupChannelClient(backupChannel);
-		serviceCollection.set(IBackupService, backupChannelClient);
+		serviceCollection.set(IBackupService, new SyncDescriptor(BackupChannelClient, backupChannel));
 
-		return [instantiationServiceImpl, serviceCollection];
+		return [instantiationService, serviceCollection];
 	}
 
 	public open(): void {
@@ -461,9 +383,6 @@ export class WorkbenchShell {
 
 		// Controls
 		this.content = $('.monaco-shell-content').appendTo(this.container).getHTMLElement();
-
-		// Handle Load Performance Timers
-		this.writeTimers();
 
 		// Create Contents
 		this.contentsContainer = this.createContents($(this.content));
@@ -484,42 +403,6 @@ export class WorkbenchShell {
 
 		// Resize
 		$(window).on(dom.EventType.RESIZE, () => this.layout(), this.toUnbind);
-	}
-
-	private writeTimers(): void {
-		const events: timer.IExistingTimerEvent[] = [];
-
-		// Window
-		if (timers.isInitialStartup && timers.perfStartTime) {
-			events.push({
-				startTime: timers.perfStartTime,
-				stopTime: timers.perfBeforeLoadWorkbenchMain,
-				topic: 'Startup',
-				name: '[main] initial start => begin to require(workbench.main.js)',
-				description: 'Time spend in main process until we load JavaScript of the workbench'
-			});
-		}
-
-		// Load
-		events.push({
-			startTime: timers.perfBeforeLoadWorkbenchMain,
-			stopTime: timers.perfAfterLoadWorkbenchMain,
-			topic: 'Startup',
-			name: '[renderer] require(workbench.main.js)',
-			description: 'Time it takes to load VSCodes main modules'
-		});
-
-		// Ready
-		events.push({
-			startTime: timers.perfBeforeDOMContentLoaded,
-			stopTime: timers.perfAfterDOMContentLoaded,
-			topic: 'Startup',
-			name: '[renderer] event DOMContentLoaded',
-			description: 'Time it takes for the DOM to emit DOMContentLoaded event'
-		});
-
-		// Write to Timer
-		timer.getTimeKeeper().setInitialCollectedEvents(events, timers.start);
 	}
 
 	public onUnexpectedError(error: any): void {

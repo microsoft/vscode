@@ -26,11 +26,7 @@ import arrays = require('vs/base/common/arrays');
 export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
 	private toUnbind: IDisposable[];
-
 	private lastDirtyCount: number;
-	private pendingDirtyResources: URI[];
-	private pendingDirtyHandle: number;
-
 	private stacks: IEditorStacksModel;
 
 	constructor(
@@ -44,7 +40,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.isDocumentedEdited = false;
-		this.pendingDirtyResources = [];
 		this.stacks = editorGroupService.getStacksModel();
 
 		this.registerListeners();
@@ -54,10 +49,10 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 		// Local text file changes
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.textFileService.models.onModelDirty(e => this.onTextFileDirty(e)));
-		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onTextFileSaved(e)));
-		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onTextFileSaveError(e)));
-		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onTextFileReverted(e)));
+		this.toUnbind.push(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
+		this.toUnbind.push(this.textFileService.models.onModelsSaved(e => this.onTextFilesSaved(e)));
+		this.toUnbind.push(this.textFileService.models.onModelsSaveError(e => this.onTextFilesSaveError(e)));
+		this.toUnbind.push(this.textFileService.models.onModelsReverted(e => this.onTextFilesReverted(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -75,7 +70,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onTextFileDirty(e: TextFileModelChangeEvent): void {
+	private onTextFilesDirty(e: TextFileModelChangeEvent[]): void {
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
@@ -84,22 +79,12 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
 
-		// If a file becomes dirty but is not opened, we open it in the background
-		// Since it might be the intent of whoever created the model to show it shortly
-		// after, we delay this a little bit and check again if the editor has not been
-		// opened meanwhile
-		this.pendingDirtyResources.push(e.resource);
-		if (!this.pendingDirtyHandle) {
-			this.pendingDirtyHandle = setTimeout(() => this.doOpenDirtyResources(), 250);
-		}
+		// If files become dirty but are not opened, we open it in the background
+		this.doOpenDirtyResources(e.map(e => e.resource));
 	}
 
-	private doOpenDirtyResources(): void {
-		const dirtyNotOpenedResources = arrays.distinct(this.pendingDirtyResources.filter(r => !this.stacks.isOpen(r) && this.textFileService.isDirty(r)), r => r.toString());
-
-		// Reset
-		this.pendingDirtyHandle = void 0;
-		this.pendingDirtyResources = [];
+	private doOpenDirtyResources(resources: URI[]): void {
+		const dirtyNotOpenedResources = arrays.distinct(resources.filter(r => !this.stacks.isOpen(r) && this.textFileService.isDirty(r)), r => r.toString());
 
 		const activeEditor = this.editorService.getActiveEditor();
 		const activePosition = activeEditor ? activeEditor.position : Position.ONE;
@@ -116,7 +101,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		})).done(null, errors.onUnexpectedError);
 	}
 
-	private onTextFileSaved(e: TextFileModelChangeEvent): void {
+	private onTextFilesSaved(e: TextFileModelChangeEvent[]): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
@@ -126,7 +111,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onTextFileSaveError(e: TextFileModelChangeEvent): void {
+	private onTextFilesSaveError(e: TextFileModelChangeEvent[]): void {
 		if (!this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
@@ -134,7 +119,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.updateActivityBadge();
 	}
 
-	private onTextFileReverted(e: TextFileModelChangeEvent): void {
+	private onTextFilesReverted(e: TextFileModelChangeEvent[]): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}

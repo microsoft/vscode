@@ -40,6 +40,7 @@ declare module monaco {
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI
 #include(vs/editor/common/standalone/standaloneBase): KeyCode, KeyMod
+#include(vs/base/common/keyCodes): Keybinding
 #include(vs/base/common/htmlContent): MarkedString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
@@ -70,7 +71,7 @@ declare module monaco.languages {
 
 #includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/modes/languageConfiguration):
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
+#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
 #includeAll(vs/editor/common/modes/monarch/monarchTypes):
 

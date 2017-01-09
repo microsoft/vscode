@@ -17,6 +17,7 @@ import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEdit
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
@@ -83,7 +84,7 @@ export class SuggestController implements IEditorContribution {
 
 			if (Array.isArray(suggestion.additionalTextEdits)) {
 				this.editor.pushUndoStop();
-				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 				this.editor.pushUndoStop();
 			}
 

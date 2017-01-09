@@ -48,6 +48,48 @@
 	visibility: hidden;
 }
 
+.explorer-folders-view .monaco-tree-row > .content {
+	display: inline-block;
+}
+
+.explorer-folders-view .monaco-tree-row::before {
+	/* svg icons rendered as background image */
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	display: inline-block;
+	vertical-align: top;
+	content: ' ';
+}
+
+.explorer-folders-view .monaco-tree-row.has-children.expanded::before {
+	background-image: url("expanded.svg");
+}
+
+.explorer-folders-view .monaco-tree-row.has-children::before {
+	display: inline-block;
+	background-image: url("collapsed.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children.expanded::before {
+	background-image: url("expanded-dark.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children::before {
+	background-image: url("collapsed-dark.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children.expanded::before {
+	background-image: url("expanded-hc.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children::before {
+	background-image: url("collapsed-hc.svg");
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
