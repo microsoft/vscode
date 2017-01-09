@@ -62,7 +62,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	public getResource(): URI {
-		return toResource(this.editor, { supportSideBySide: true, filter: 'file' });
+		return toResource(this.editor, { supportSideBySide: true });
 	}
 
 	public getAriaLabel(): string {
