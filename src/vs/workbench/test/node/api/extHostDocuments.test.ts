@@ -38,6 +38,15 @@ suite('ExtHostDocument', () => {
 		], '\n', 'text', 1, false);
 	});
 
+	test('readonly-ness', function () {
+		assert.throws(() => (<any>data).document.uri = null);
+		assert.throws(() => (<any>data).document.fileName = 'foofile');
+		assert.throws(() => (<any>data).document.isDirty = false);
+		assert.throws(() => (<any>data).document.isUntitled = false);
+		assert.throws(() => (<any>data).document.languageId = 'dddd');
+		assert.throws(() => (<any>data).document.lineCount = 9);
+	});
+
 	test('lines', function () {
 
 		assert.equal(data.document.lineCount, 4);
