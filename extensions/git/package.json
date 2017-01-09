@@ -50,7 +50,7 @@
         }
       },
       {
-        "command": "git.stage-all",
+        "command": "git.stageAll",
         "title": "Stage All",
         "category": "Git",
         "icon": {
@@ -68,7 +68,7 @@
         }
       },
       {
-        "command": "git.unstage-all",
+        "command": "git.unstageAll",
         "title": "Unstage All",
         "category": "Git",
         "icon": {
@@ -105,12 +105,12 @@
       ],
       "scm/resourceGroup/context": [
         {
-          "command": "git.unstage-all",
+          "command": "git.unstageAll",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "1_modification"
         },
         {
-          "command": "git.unstage-all",
+          "command": "git.unstageAll",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "inline"
         },
@@ -120,7 +120,7 @@
           "group": "1_modification"
         },
         {
-          "command": "git.stage-all",
+          "command": "git.stageAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
@@ -130,7 +130,7 @@
           "group": "inline"
         },
         {
-          "command": "git.stage-all",
+          "command": "git.stageAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
         }
