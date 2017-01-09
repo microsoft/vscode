@@ -400,6 +400,11 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 
 			@proposed(extension)
+			getResourceFromURI(uri) {
+				return extHostSCM.getResourceFromURI(uri);
+			}
+
+			@proposed(extension)
 			registerSCMProvider(id, provider) {
 				return extHostSCM.registerSCMProvider(id, provider);
 			}

@@ -15,7 +15,7 @@ import * as vscode from 'vscode';
 
 function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
 	if (!decorations) {
-		return void 0;
+		return undefined;
 	} else if (typeof decorations.iconPath === 'string') {
 		return URI.file(decorations.iconPath).toString();
 	} else if (decorations.iconPath) {
@@ -24,9 +24,11 @@ function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
 }
 
 export interface Cache {
-	[groupId: string]: {
-		resourceGroup: vscode.SCMResourceGroup,
-		resources: { [uri: string]: vscode.SCMResource }
+	[providerId: string]: {
+		[groupId: string]: {
+			resourceGroup: vscode.SCMResourceGroup,
+			resources: { [uri: string]: vscode.SCMResource }
+		};
 	};
 }
 
@@ -47,15 +49,69 @@ export class ExtHostSCM {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
 	}
 
-	registerSCMProvider(id: string, provider: vscode.SCMProvider): Disposable {
-		if (this._providers[id]) {
-			throw new Error(`Provider ${id} already registered`);
+	getResourceFromURI(uri: vscode.Uri): vscode.SCMResource | vscode.SCMResourceGroup | undefined {
+		if (uri.scheme !== 'scm') {
+			return undefined;
+		}
+
+		const providerId = uri.authority;
+		const providerCache = this.cache[providerId];
+
+		if (!providerCache) {
+			return undefined;
+		}
+
+		const match = /^\/([^/]+)(\/(.*))?$/.exec(uri.path);
+
+		if (!match) {
+			return undefined;
+		}
+
+		const resourceGroupId = match[1];
+		const resourceGroupRef = providerCache[resourceGroupId];
+
+		if (!resourceGroupRef) {
+			return undefined;
+		}
+
+		const rawResourceUri = match[3];
+
+		if (!rawResourceUri) {
+			return resourceGroupRef.resourceGroup;
+		}
+
+		let resourceUri: string;
+
+		try {
+			const rawResource = JSON.parse(rawResourceUri);
+			const resource = URI.from(rawResource);
+			resourceUri = resource.toString();
+		} catch (err) {
+			resourceUri = undefined;
+		}
+
+		if (!resourceUri) {
+			return undefined;
+		}
+
+		const resource = resourceGroupRef.resources[resourceUri];
+
+		if (!resource) {
+			return undefined;
+		}
+
+		return resource;
+	}
+
+	registerSCMProvider(providerId: string, provider: vscode.SCMProvider): Disposable {
+		if (this._providers[providerId]) {
+			throw new Error(`Provider ${providerId} already registered`);
 		}
 
 		// TODO@joao: should pluck all the things out of the provider
-		this._providers[id] = provider;
+		this._providers[providerId] = provider;
 
-		this._proxy.$register(id, {
+		this._proxy.$register(providerId, {
 			label: provider.label,
 			supportsCommit: !!provider.commit,
 			supportsOpen: !!provider.open,
@@ -65,7 +121,7 @@ export class ExtHostSCM {
 
 		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 100);
 		const onDidChangeListener = onDidChange(resourceGroups => {
-			this.cache = Object.create(null);
+			this.cache[providerId] = Object.create(null);
 
 			const rawResourceGroups = resourceGroups.map(g => {
 				const resources: { [id: string]: vscode.SCMResource; } = Object.create(null);
@@ -91,23 +147,23 @@ export class ExtHostSCM {
 					return [uri, icons, strikeThrough] as SCMRawResource;
 				});
 
-				this.cache[g.id] = { resourceGroup: g, resources };
+				this.cache[providerId][g.id] = { resourceGroup: g, resources };
 
 				return [g.id, g.label, rawResources] as SCMRawResourceGroup;
 			});
 
-			this._proxy.$onChange(id, rawResourceGroups);
+			this._proxy.$onChange(providerId, rawResourceGroups);
 		});
 
 		return new Disposable(() => {
 			onDidChangeListener.dispose();
-			delete this._providers[id];
-			this._proxy.$unregister(id);
+			delete this._providers[providerId];
+			this._proxy.$unregister(providerId);
 		});
 	}
 
-	$commit(id: string, message: string): TPromise<void> {
-		const provider = this._providers[id];
+	$commit(providerId: string, message: string): TPromise<void> {
+		const provider = this._providers[providerId];
 
 		if (!provider) {
 			return TPromise.as(null);
@@ -116,14 +172,15 @@ export class ExtHostSCM {
 		return asWinJsPromise(token => provider.commit(message, token));
 	}
 
-	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> {
-		const provider = this._providers[id];
+	$open(providerId: string, resourceGroupId: string, uri: string): TPromise<void> {
+		const provider = this._providers[providerId];
 
 		if (!provider) {
 			return TPromise.as(null);
 		}
 
-		const resourceGroup = this.cache[resourceGroupId];
+		const providerCache = this.cache[providerId];
+		const resourceGroup = providerCache[resourceGroupId];
 		const resource = resourceGroup && resourceGroup.resources[uri];
 
 		if (!resource) {
@@ -133,16 +190,17 @@ export class ExtHostSCM {
 		return asWinJsPromise(token => provider.open(resource, token));
 	}
 
-	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> {
-		const provider = this._providers[id];
+	$drag(providerId: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> {
+		const provider = this._providers[providerId];
 
 		if (!provider) {
 			return TPromise.as(null);
 		}
 
-		const fromResourceGroup = this.cache[fromResourceGroupId];
+		const providerCache = this.cache[providerId];
+		const fromResourceGroup = providerCache[fromResourceGroupId];
 		const resource = fromResourceGroup && fromResourceGroup.resources[fromUri];
-		const toResourceGroup = this.cache[toResourceGroupId];
+		const toResourceGroup = providerCache[toResourceGroupId];
 		const resourceGroup = toResourceGroup && toResourceGroup.resourceGroup;
 
 		if (!resource || !resourceGroup) {
