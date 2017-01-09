@@ -4,21 +4,80 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { DefaultConfig, GOLDEN_LINE_HEIGHT_RATIO } from 'vs/editor/common/config/defaultConfig';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+
+function safeParseFloat(n: number | string, defaultValue: number): number {
+	if (typeof n === 'number') {
+		return n;
+	}
+	let r = parseFloat(n);
+	if (isNaN(r)) {
+		return defaultValue;
+	}
+	return r;
+}
+
+function safeParseInt(n: number | string, defaultValue: number): number {
+	if (typeof n === 'number') {
+		return Math.round(n);
+	}
+	let r = parseInt(n);
+	if (isNaN(r)) {
+		return defaultValue;
+	}
+	return r;
+}
+
+function clamp(n: number, min: number, max: number): number {
+	if (n < min) {
+		return min;
+	}
+	if (n > max) {
+		return max;
+	}
+	return n;
+}
 
 export class BareFontInfo {
 	readonly _bareFontInfoBrand: void;
 
-	// /**
-	//  * @internal
-	//  */
-	// public static createFromRawSettings(editor: {
-	// 	fontFamily: string;
-	// 	fontWeight: string;
-	// 	fontSize: number;
-	// 	lineHeight: number;
-	// }): BareFontInfo {
+	/**
+	 * @internal
+	 */
+	public static createFromRawSettings(opts: {
+		fontFamily?: string;
+		fontWeight?: string;
+		fontSize?: number | string;
+		lineHeight?: number | string;
+	}): BareFontInfo {
 
-	// }
+		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
+		let fontWeight = String(opts.fontWeight) || DefaultConfig.editor.fontWeight;
+
+		let fontSize = safeParseFloat(opts.fontSize, DefaultConfig.editor.fontSize);
+		fontSize = clamp(fontSize, 0, 100);
+		if (fontSize === 0) {
+			fontSize = DefaultConfig.editor.fontSize;
+		}
+
+		let lineHeight = safeParseInt(opts.lineHeight, 0);
+		lineHeight = clamp(lineHeight, 0, 150);
+		if (lineHeight === 0) {
+			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
+		}
+
+		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);
+		fontSize *= editorZoomLevelMultiplier;
+		lineHeight *= editorZoomLevelMultiplier;
+
+		return new BareFontInfo({
+			fontFamily: fontFamily,
+			fontWeight: fontWeight,
+			fontSize: fontSize,
+			lineHeight: lineHeight
+		});
+	}
 
 	readonly fontFamily: string;
 	readonly fontWeight: string;
@@ -28,7 +87,7 @@ export class BareFontInfo {
 	/**
 	 * @internal
 	 */
-	constructor(opts: {
+	protected constructor(opts: {
 		fontFamily: string;
 		fontWeight: string;
 		fontSize: number;
