@@ -430,9 +430,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.2.0",
+      "version": "2.2.3",
       "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.9",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#618e6bbd0a0ebaabc4b06ab10bea89768ded62b5"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#01dd436a56ee2370fa9b5aa5bc2e138b22799eda"
     },
     "yauzl": {
       "version": "2.3.1",
