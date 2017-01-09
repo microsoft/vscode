@@ -5,79 +5,96 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TokenizationRegistry, IState, ILineTokens } from 'vs/editor/common/modes';
-import { tokenizeToHtmlContent } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, MetadataConsts } from 'vs/editor/common/modes';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { Token } from 'vs/editor/common/core/token';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
-	test('TextToHtmlTokenizer', () => {
-		var mode = new Mode();
-		var result = tokenizeToHtmlContent('.abc..def...gh', mode.getId());
+	function toStr(pieces: { className: string; text: string }[]): string {
+		let resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);
+		return resultArr.join('');
+	}
 
-		assert.ok(!!result);
+	test('TextToHtmlTokenizer 1', () => {
+		let mode = new Mode();
 
-		var children = result.children;
-		assert.equal(children.length, 6);
+		let actual = tokenizeToString('.abc..def...gh', mode.getId());
+		let expected = [
+			{ className: 'mtk7', text: '.' },
+			{ className: 'mtk9', text: 'abc' },
+			{ className: 'mtk7', text: '..' },
+			{ className: 'mtk9', text: 'def' },
+			{ className: 'mtk7', text: '...' },
+			{ className: 'mtk9', text: 'gh' },
+		];
+		let expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
 
-		assert.equal(children[0].text, '.');
-		assert.equal(children[0].className, 'token');
-		assert.equal(children[0].tagName, 'span');
+		assert.equal(actual, expectedStr);
 
-		assert.equal(children[1].text, 'abc');
-		assert.equal(children[1].className, 'token text');
-		assert.equal(children[1].tagName, 'span');
+		mode.dispose();
+	});
 
-		assert.equal(children[2].text, '..');
-		assert.equal(children[2].className, 'token');
-		assert.equal(children[2].tagName, 'span');
+	test('TextToHtmlTokenizer 2', () => {
+		let mode = new Mode();
 
-		assert.equal(children[3].text, 'def');
-		assert.equal(children[3].className, 'token text');
-		assert.equal(children[3].tagName, 'span');
+		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', mode.getId());
+		let expected1 = [
+			{ className: 'mtk7', text: '.' },
+			{ className: 'mtk9', text: 'abc' },
+			{ className: 'mtk7', text: '..' },
+			{ className: 'mtk9', text: 'def' },
+			{ className: 'mtk7', text: '...' },
+			{ className: 'mtk9', text: 'gh' },
+		];
+		let expected2 = [
+			{ className: 'mtk7', text: '.' },
+			{ className: 'mtk9', text: 'abc' },
+			{ className: 'mtk7', text: '..' },
+			{ className: 'mtk9', text: 'def' },
+			{ className: 'mtk7', text: '...' },
+			{ className: 'mtk9', text: 'gh' },
+		];
+		let expectedStr1 = toStr(expected1);
+		let expectedStr2 = toStr(expected2);
+		let expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
 
-		assert.equal(children[4].text, '...');
-		assert.equal(children[4].className, 'token');
-		assert.equal(children[4].tagName, 'span');
+		assert.equal(actual, expectedStr);
 
-		assert.equal(children[5].text, 'gh');
-		assert.equal(children[5].className, 'token text');
-		assert.equal(children[5].tagName, 'span');
-
-		result = tokenizeToHtmlContent('.abc..def...gh\n.abc..def...gh', mode.getId());
-
-		assert.ok(!!result);
-
-		children = result.children;
-		assert.equal(children.length, 12 + 1 /* +1 for the line break */);
-
-		assert.equal(children[6].tagName, 'br');
+		mode.dispose();
 	});
 
 });
 
 class Mode extends MockMode {
+
+	private static _id = new LanguageIdentifier('textToHtmlTokenizerMode', 3);
+
 	constructor() {
-		super();
-		TokenizationRegistry.register(this.getId(), {
+		super(Mode._id);
+		this._register(TokenizationRegistry.register(this.getId(), {
 			getInitialState: (): IState => null,
-			tokenize: (line: string, state: IState): ILineTokens => {
-				let tokens: Token[] = [];
+			tokenize: undefined,
+			tokenize2: (line: string, state: IState): TokenizationResult2 => {
+				let tokensArr: number[] = [];
+				let prevColor: ColorId = -1;
 				for (let i = 0; i < line.length; i++) {
-					let chr = line.charAt(i);
-					let type = chr === '.' ? '' : 'text';
-					if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
-						continue;
+					let colorId = line.charAt(i) === '.' ? 7 : 9;
+					if (prevColor !== colorId) {
+						tokensArr.push(i);
+						tokensArr.push((
+							colorId << MetadataConsts.FOREGROUND_OFFSET
+						) >>> 0);
 					}
-					tokens.push(new Token(i, type));
+					prevColor = colorId;
 				}
-				return {
-					tokens: tokens,
-					actualStopOffset: -1,
-					endState: null,
-					modeTransitions: null
-				};
+
+				let tokens = new Uint32Array(tokensArr.length);
+				for (let i = 0; i < tokens.length; i++) {
+					tokens[i] = tokensArr[i];
+				}
+				return new TokenizationResult2(tokens, null);
 			}
-		});
+		}));
 	}
 }

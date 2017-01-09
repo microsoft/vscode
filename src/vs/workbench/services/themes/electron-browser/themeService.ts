@@ -12,7 +12,7 @@ import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoi
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IThemeService, IThemeData, IThemeSetting, IThemeDocument, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/themeService';
-import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -103,6 +103,7 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 
 interface IInternalThemeData extends IThemeData {
 	styleSheetContent?: string;
+	document?: IThemeDocument;
 	extensionId: string;
 	extensionPublisher: string;
 	extensionName: string;
@@ -155,6 +156,7 @@ export class ThemeService implements IThemeService {
 
 	private knownColorThemes: IInternalThemeData[];
 	private currentColorTheme: string;
+	private currentColorThemeDocument: IThemeDocument;
 	private container: HTMLElement;
 	private onColorThemeChange: Emitter<string>;
 
@@ -168,6 +170,7 @@ export class ThemeService implements IThemeService {
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.knownColorThemes = [];
+		this.currentColorThemeDocument = null;
 		this.onColorThemeChange = new Emitter<string>();
 		this.knownIconThemes = [];
 		this.currentIconTheme = '';
@@ -258,6 +261,7 @@ export class ThemeService implements IThemeService {
 			} else {
 				this.sendTelemetry(newTheme);
 			}
+			this.currentColorThemeDocument = newTheme.document;
 			this.onColorThemeChange.fire(newThemeId);
 		};
 
@@ -266,6 +270,10 @@ export class ThemeService implements IThemeService {
 
 	public getColorTheme() {
 		return this.currentColorTheme || this.storageService.get(COLOR_THEME_PREF, StorageScope.GLOBAL, DEFAULT_THEME_ID);
+	}
+
+	public getColorThemeDocument(): IThemeDocument {
+		return this.currentColorThemeDocument;
 	}
 
 	private findThemeData(themeId: string, defaultId?: string): TPromise<IInternalThemeData> {
@@ -640,6 +648,7 @@ function applyTheme(theme: IInternalThemeData, onApply: (theme: IInternalThemeDa
 		return TPromise.as(true);
 	}
 	return _loadThemeDocument(theme.path).then(themeDocument => {
+		theme.document = themeDocument;
 		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent, colorThemeRulesClassName);
@@ -679,7 +688,6 @@ function _processThemeObject(themeId: string, themeDocument: IThemeDocument): st
 	let themeSettings: IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
-		new TokenStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new EditorStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new SearchViewStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new TerminalStylesContribution().contributeStyles(themeId, themeDocument, cssRules);

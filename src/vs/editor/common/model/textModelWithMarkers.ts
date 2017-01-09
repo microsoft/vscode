@@ -9,6 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
 import { LineMarker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 export interface IMarkerIdToMarkerMap {
 	[key: string]: LineMarker;
@@ -26,8 +27,9 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
-	constructor(allowedEventTypes: string[], rawText: IRawText, languageId: string) {
-		super(allowedEventTypes, rawText, languageId);
+
+	constructor(allowedEventTypes: string[], rawText: IRawText, languageIdentifier: LanguageIdentifier) {
+		super(allowedEventTypes, rawText, languageIdentifier);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._markerIdToMarker = Object.create(null);
 	}

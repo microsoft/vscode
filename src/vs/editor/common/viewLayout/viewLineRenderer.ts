@@ -162,9 +162,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 				charOffsetInPart++;
 
 				if (charIndex >= charBreakIndex) {
-					out += '<span class="token ' + part.type + '" style="width:' + (spaceWidth * partContentCnt) + 'px">';
-					out += partContent;
-					out += '&hellip;</span></span>';
+					out += `<span class="${part.type}" style="width:${(spaceWidth * partContentCnt)}px">${partContent}&hellip;</span></span>`;
 					charOffsetInPartArr[charIndex] = charOffsetInPart;
 					return new RenderLineOutput(
 						charOffsetInPartArr,
@@ -174,13 +172,9 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					);
 				}
 			}
-			out += '<span class="token ' + part.type + '" style="width:' + (spaceWidth * partContentCnt) + 'px">';
-			out += partContent;
-			out += '</span>';
+			out += `<span class="${part.type}" style="width:${(spaceWidth * partContentCnt)}px">${partContent}</span>`;
 		} else {
-			out += '<span class="token ';
-			out += part.type;
-			out += '">';
+			out += `<span class="${part.type}">`;
 
 			for (; charIndex < toCharIndex; charIndex++) {
 				charOffsetInPartArr[charIndex] = charOffsetInPart;

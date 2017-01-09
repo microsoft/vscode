@@ -27,7 +27,7 @@ suite('viewLineRenderer.renderLine', () => {
 			new LineParts([createPart(0, '')], lineContent.length + 1)
 		));
 
-		assert.equal(_actual.output, '<span><span class="token ">' + expected + '</span></span>');
+		assert.equal(_actual.output, '<span><span class="">' + expected + '</span></span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedCharOffsetInPart);
 	}
 
@@ -78,15 +78,15 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('uses part type', () => {
-		assertParts('x', 4, [createPart(0, 'y')], '<span class="token y">x</span>', [0, 1]);
-		assertParts('x', 4, [createPart(0, 'aAbBzZ0123456789-cC')], '<span class="token aAbBzZ0123456789-cC">x</span>', [0, 1]);
-		assertParts('x', 4, [createPart(0, '"~!@#$%^&*()\'')], '<span class="token              ">x</span>', [0, 1]);
+		assertParts('x', 4, [createPart(0, 'y')], '<span class="y">x</span>', [0, 1]);
+		assertParts('x', 4, [createPart(0, 'aAbBzZ0123456789-cC')], '<span class="aAbBzZ0123456789-cC">x</span>', [0, 1]);
+		assertParts('x', 4, [createPart(0, '             ')], '<span class="             ">x</span>', [0, 1]);
 	});
 
 	test('two parts', () => {
-		assertParts('xy', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="token a">x</span><span class="token b">y</span>', [0, 0, 1]);
-		assertParts('xyz', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="token a">x</span><span class="token b">yz</span>', [0, 0, 1, 2]);
-		assertParts('xyz', 4, [createPart(0, 'a'), createPart(2, 'b')], '<span class="token a">xy</span><span class="token b">z</span>', [0, 1, 0, 1]);
+		assertParts('xy', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="a">x</span><span class="b">y</span>', [0, 0, 1]);
+		assertParts('xyz', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="a">x</span><span class="b">yz</span>', [0, 0, 1, 2]);
+		assertParts('xyz', 4, [createPart(0, 'a'), createPart(2, 'b')], '<span class="a">xy</span><span class="b">z</span>', [0, 1, 0, 1]);
 	});
 
 	test('overflow', () => {
@@ -117,12 +117,12 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		let expectedOutput = [
-			'<span class="token 0">H</span>',
-			'<span class="token 1">e</span>',
-			'<span class="token 2">l</span>',
-			'<span class="token 3">l</span>',
-			'<span class="token 4">o</span>',
-			'<span class="token 5">&nbsp;&hellip;</span>'
+			'<span class="0">H</span>',
+			'<span class="1">e</span>',
+			'<span class="2">l</span>',
+			'<span class="3">l</span>',
+			'<span class="4">o</span>',
+			'<span class="5">&nbsp;&hellip;</span>'
 		].join('');
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -153,18 +153,18 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(43, 'block body comment declaration line meta object ts vs-whitespace'),
 		];
 		let expectedOutput = [
-			'<span class="token block meta ts vs-whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
-			'<span class="token block declaration meta modifier object storage ts">export</span>',
-			'<span class="token block declaration meta object ts">&nbsp;</span>',
-			'<span class="token block declaration meta object storage type ts">class</span>',
-			'<span class="token block declaration meta object ts">&nbsp;</span>',
-			'<span class="token block class declaration entity meta name object ts">Game</span>',
-			'<span class="token block declaration meta object ts">&nbsp;</span>',
-			'<span class="token delimiter curly typescript">{</span>',
-			'<span class="token block body declaration meta object ts">&nbsp;</span>',
-			'<span class="token block body comment declaration line meta object ts">//&nbsp;</span>',
-			'<span class="token block body comment declaration line meta object ts detected-link">http://test.com</span>',
-			'<span class="token block body comment declaration line meta object ts vs-whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
+			'<span class="block meta ts vs-whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
+			'<span class="block declaration meta modifier object storage ts">export</span>',
+			'<span class="block declaration meta object ts">&nbsp;</span>',
+			'<span class="block declaration meta object storage type ts">class</span>',
+			'<span class="block declaration meta object ts">&nbsp;</span>',
+			'<span class="block class declaration entity meta name object ts">Game</span>',
+			'<span class="block declaration meta object ts">&nbsp;</span>',
+			'<span class="delimiter curly typescript">{</span>',
+			'<span class="block body declaration meta object ts">&nbsp;</span>',
+			'<span class="block body comment declaration line meta object ts">//&nbsp;</span>',
+			'<span class="block body comment declaration line meta object ts detected-link">http://test.com</span>',
+			'<span class="block body comment declaration line meta object ts vs-whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 4, 5, 6, 7],
@@ -212,16 +212,16 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(67, 'block body decl declaration meta method object ts'), // 2 chars
 		];
 		let expectedOutput = [
-			'<span class="token block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="token block body decl declaration member meta method object ts">cursorStyle:</span>',
-			'<span class="token block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="token delimiter paren typescript">(</span>',
-			'<span class="token block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
-			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
-			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">=</span>',
-			'<span class="token block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
-			'<span class="token delimiter paren typescript">)</span>',
-			'<span class="token block body decl declaration meta method object ts">,</span>',
+			'<span class="block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="block body decl declaration member meta method object ts">cursorStyle:</span>',
+			'<span class="block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="delimiter paren typescript">(</span>',
+			'<span class="block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
+			'<span class="block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
+			'<span class="block body comparison decl declaration keyword member meta method object operator ts">=</span>',
+			'<span class="block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
+			'<span class="delimiter paren typescript">)</span>',
+			'<span class="block body decl declaration meta method object ts">,</span>',
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 4, 8], // 3 chars
@@ -267,16 +267,16 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(68, 'block body decl declaration meta method object ts'), // 2 chars
 		];
 		let expectedOutput = [
-			'<span class="token block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="token block body decl declaration member meta method object ts">cursorStyle:</span>',
-			'<span class="token block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="token delimiter paren typescript">(</span>',
-			'<span class="token block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
-			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
-			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">=</span>',
-			'<span class="token block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
-			'<span class="token delimiter paren typescript">)</span>',
-			'<span class="token block body decl declaration meta method object ts">,</span>',
+			'<span class="block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="block body decl declaration member meta method object ts">cursorStyle:</span>',
+			'<span class="block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="delimiter paren typescript">(</span>',
+			'<span class="block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
+			'<span class="block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
+			'<span class="block body comparison decl declaration keyword member meta method object operator ts">=</span>',
+			'<span class="block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
+			'<span class="delimiter paren typescript">)</span>',
+			'<span class="block body decl declaration meta method object ts">,</span>',
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 1, 4, 8], // 4 chars

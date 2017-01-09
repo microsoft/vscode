@@ -18,13 +18,13 @@ import { anonymize } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IMode } from 'vs/editor/common/modes';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -350,13 +350,13 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | editorCommon.IRawText, languageId: string, resource: URI): ModelData {
+	private _createModelData(value: string | editorCommon.IRawText, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
 		let model: Model;
 		if (typeof value === 'string') {
-			model = Model.createFromString(value, this._modelCreationOptions, languageId, resource);
+			model = Model.createFromString(value, this._modelCreationOptions, languageIdentifier, resource);
 		} else {
-			model = new Model(value, languageId, resource);
+			model = new Model(value, languageIdentifier, resource);
 		}
 		let modelId = MODEL_ID(model.uri);
 
@@ -375,10 +375,10 @@ export class ModelServiceImpl implements IModelService {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
-			modelData = this._createModelData(value, PLAINTEXT_MODE_ID, resource);
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource);
 			this.setMode(modelData.model, modeOrPromise);
 		} else {
-			modelData = this._createModelData(value, modeOrPromise.getId(), resource);
+			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource);
 		}
 
 		// handle markers (marker service => model)
@@ -398,11 +398,11 @@ export class ModelServiceImpl implements IModelService {
 		if (TPromise.is(modeOrPromise)) {
 			modeOrPromise.then((mode) => {
 				if (!model.isDisposed()) {
-					model.setMode(mode.getId());
+					model.setMode(mode.getLanguageIdentifier());
 				}
 			});
 		} else {
-			model.setMode(modeOrPromise.getId());
+			model.setMode(modeOrPromise.getLanguageIdentifier());
 		}
 	}
 
@@ -476,10 +476,10 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelModeChanged) {
+			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
 				this._onModelModeChanged.fire({
 					model: modelData.model,
-					oldModeId: (<editorCommon.IModelModeChangedEvent>e.getData()).oldMode.getId()
+					oldModeId: (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguage
 				});
 			}
 		}
