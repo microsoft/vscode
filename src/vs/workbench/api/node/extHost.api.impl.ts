@@ -277,7 +277,10 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
 			},
-			createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+				if (typeof nameOrOptions === 'object') {
+					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
+				}
 				return extHostTerminalService.createTerminal(name, shellPath, shellArgs);
 			},
 			// proposed API

@@ -3669,6 +3669,40 @@ declare module 'vscode' {
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): Terminal;
+
+		/**
+		 * Creates a [Terminal](#Terminal). The cwd of the terminal will be the workspace directory
+		 * if it exists, regardless of whether an explicit customStartPath setting exists.
+		 *
+		 * @param options A TerminalOptions object describing the characteristics of the new terminal.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(options: TerminalOptions): Terminal;
+	}
+
+	/**
+	 * Value-object describing what options formatting should use.
+	 */
+	export interface TerminalOptions {
+		/**
+		 * A human-readable string which will be used to represent the terminal in the UI.
+		 */
+		name?: string;
+
+		/**
+		 * A path to a custom shell executable to be used in the terminal.
+		 */
+		shellPath?: string;
+
+		/**
+		 * Args for the custom shell executable, this does not work on Windows (see #8429)
+		 */
+		shellArgs?: string[];
+
+		/**
+		 * Whether the terminal should wait on exit for a keypress before closing the instance.
+		 */
+		waitOnExit?: boolean;
 	}
 
 	/**
