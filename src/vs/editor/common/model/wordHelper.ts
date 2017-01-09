@@ -54,38 +54,69 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp): RegExp {
 	return result;
 }
 
-export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+	// find whitespace enclosed text around column and match from there
 
-	// console.log('_getWordAtText: ', column, text, textOffset);
+	if (wordDefinition.test(' ')) {
+		return getWordAtPosSlow(column, wordDefinition, text, textOffset);
+	}
 
-	var words = text.match(wordDefinition),
-		k: number,
-		startWord: number,
-		endWord: number,
-		startColumn: number,
-		endColumn: number,
-		word: string;
+	let pos = column - 1 - textOffset;
+	let start = text.lastIndexOf(' ', pos - 1) + 1;
+	let end = text.indexOf(' ', pos);
+	if (end === -1) {
+		end = text.length;
+	}
 
-	if (words) {
-		for (k = 0; k < words.length; k++) {
-			word = words[k].trim();
-			if (word.length > 0) {
-				startWord = text.indexOf(word, endWord);
-				endWord = startWord + word.length;
-
-				startColumn = textOffset + startWord + 1;
-				endColumn = textOffset + endWord + 1;
-
-				if (startColumn <= column && column <= endColumn) {
-					return {
-						word: word,
-						startColumn: startColumn,
-						endColumn: endColumn
-					};
-				}
-			}
+	wordDefinition.lastIndex = start;
+	let match: RegExpMatchArray;
+	while (match = wordDefinition.exec(text)) {
+		if (match.index <= pos && wordDefinition.lastIndex >= pos) {
+			return {
+				word: match[0],
+				startColumn: textOffset + 1 + match.index,
+				endColumn: textOffset + 1 + wordDefinition.lastIndex
+			};
 		}
 	}
 
 	return null;
+}
+
+
+function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+	// matches all words starting at the beginning
+	// of the input until it finds a match that encloses
+	// the desired column. slow but correct
+
+	let pos = column - 1 - textOffset;
+	wordDefinition.lastIndex = 0;
+
+	let match: RegExpMatchArray;
+	while (match = wordDefinition.exec(text)) {
+
+		if (match.index > pos) {
+			// |nW -> matched only after the pos
+			return null;
+
+		} else if (wordDefinition.lastIndex >= pos) {
+			// W|W -> match encloses pos
+			return {
+				word: match[0],
+				startColumn: textOffset + 1 + match.index,
+				endColumn: textOffset + 1 + wordDefinition.lastIndex
+			};
+		}
+	}
+
+	return null;
+}
+
+export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+	const result = getWordAtPosFast(column, wordDefinition, text, textOffset);
+	// both (getWordAtPosFast and getWordAtPosSlow) leave the wordDefinition-RegExp
+	// in an undefined state and to not confuse other users of the wordDefinition
+	// we reset the lastIndex
+	wordDefinition.lastIndex = 0;
+	return result;
 }

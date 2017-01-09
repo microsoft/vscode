@@ -156,8 +156,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}, 0);
 		});
 
-		let xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
-		let focusTrap: HTMLElement = document.createElement('div');
+		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
+		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		DOM.addClass(focusTrap, 'focus-trap');
 		focusTrap.addEventListener('focus', function (event: FocusEvent) {
@@ -165,7 +165,7 @@ export class TerminalInstance implements ITerminalInstance {
 			while (!DOM.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement;
 			}
-			let hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
+			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
 			hidePanelElement.focus();
 		});
 		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
@@ -240,7 +240,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		let text = window.getSelection().toString();
+		const text = window.getSelection().toString();
 		if (!text || force) {
 			this._xterm.focus();
 		}
@@ -331,11 +331,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
-		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -378,7 +378,7 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, cwd: string, locale?: string): IStringDictionary<string> {
-		let env = TerminalInstance._cloneEnv(parentEnv);
+		const env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {
@@ -402,7 +402,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private static _cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
-		let newEnv: IStringDictionary<string> = Object.create(null);
+		const newEnv: IStringDictionary<string> = Object.create(null);
 		Object.keys(env).forEach((key) => {
 			newEnv[key] = env[key];
 		});
@@ -442,7 +442,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public layout(dimension: { width: number, height: number }): void {
-		let font = this._configHelper.getFont();
+		const font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;
 		}
@@ -455,10 +455,12 @@ export class TerminalInstance implements ITerminalInstance {
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			this._xterm.emit('scroll', this._xterm.ydisp);
 		}
-		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
-		let innerWidth = dimension.width - leftPadding;
-		let cols = Math.floor(innerWidth / font.charWidth);
-		let rows = Math.floor(dimension.height / font.charHeight);
+		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		// Use left padding as right padding, right padding is not defined in CSS just in case
+		// xterm.js causes an unexpected overflow.
+		const innerWidth = dimension.width - padding * 2;
+		const cols = Math.floor(innerWidth / font.charWidth);
+		const rows = Math.floor(dimension.height / font.charHeight);
 		if (this._xterm) {
 			this._xterm.resize(cols, rows);
 			this._xterm.element.style.width = innerWidth + 'px';

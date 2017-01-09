@@ -125,7 +125,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	openWorkspaceSettings(): TPromise<void> {
 		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
-			return;
+			return TPromise.as(null);
 		}
 		return this.openSettings(ConfigurationTarget.WORKSPACE);
 	}
