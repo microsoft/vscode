@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
-import { toResource, EditorInput, IEditorStacksModel, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { toResource, EditorInput, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
@@ -164,7 +164,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 								pinned: group.isPinned(input),
 								index: group.indexOf(input),
 								inactive: !group.isActive(input),
-								viewState: this.getViewStateFor(oldResource)
+								viewState: this.getViewStateFor(oldResource, group)
 							}
 						}, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
@@ -173,12 +173,13 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private getViewStateFor(resource: URI): IEditorViewState {
-		const editors = [this.editorService.getActiveEditor(), ...this.editorService.getVisibleEditors()];
+	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState {
+		const stacks = this.editorGroupService.getStacksModel();
+		const editors = this.editorService.getVisibleEditors();
 
 		for (let i = 0; i < editors.length; i++) {
 			const editor = editors[i];
-			if (editor) {
+			if (editor && editor.position === stacks.positionOfGroup(group)) {
 				const resource = toResource(editor.input, { filter: 'file' });
 				if (resource && resource.fsPath === resource.fsPath) {
 					return (editor.getControl() as IEditor).saveViewState();
