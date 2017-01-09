@@ -261,8 +261,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		}
 
 		// Install Menu
-		const menu = instantiationService2.createInstance(VSCodeMenu);
-		menu.ready();
+		instantiationService2.createInstance(VSCodeMenu);
 	});
 }
 

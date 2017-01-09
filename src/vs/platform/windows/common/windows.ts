@@ -37,7 +37,6 @@ export interface IWindowsService {
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
-	toggleMenuBar(windowId: number): TPromise<void>;
 	quit(): TPromise<void>;
 
 	// Global methods
@@ -80,7 +79,6 @@ export interface IWindowService {
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
-	toggleMenuBar(): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;
 	unmaximizeWindow(): TPromise<void>;
@@ -94,4 +92,5 @@ export interface IWindowSettings {
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
 	autoDetectHighContrast: boolean;
+	menuBarVisibility: 'visible' | 'toggle' | 'hidden';
 }

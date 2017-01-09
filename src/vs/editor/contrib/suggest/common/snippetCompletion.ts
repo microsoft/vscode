@@ -22,7 +22,7 @@ interface ISnippetPick extends IPickOpenEntry {
 class Args {
 
 	static fromUser(arg: any): Args {
-		if (typeof arg !== 'object') {
+		if (!arg || typeof arg !== 'object') {
 			return Args._empty;
 		}
 		let {snippet, name, langId} = arg;

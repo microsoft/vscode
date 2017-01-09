@@ -68,7 +68,11 @@
 			{
 				"language": "typescriptreact",
 				"scopeName": "source.tsx",
-				"path": "./syntaxes/TypeScriptReact.tmLanguage.json"
+				"path": "./syntaxes/TypeScriptReact.tmLanguage.json",
+				"embeddedLanguages": {
+					"meta.tag.tsx": "jsx-tags",
+					"meta.tag.without-attributes.tsx": "jsx-tags"
+				}
 			}
 		],
 		"configuration": {
@@ -98,6 +102,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.check.tscVersion%"
+				},
+				"typescript.referencesCodeLens.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "%typescript.referencesCodeLens.enabled%"
 				},
 				"typescript.tsserver.trace": {
 					"type": "string",

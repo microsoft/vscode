@@ -142,7 +142,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.folding = false;
 			options.renderWhitespace = 'none';
 			options.wrappingColumn = 0;
-			options.overviewRulerLanes = 0;
 			options.renderIndentGuides = false;
 			options.rulers = [];
 		}
