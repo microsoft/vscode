@@ -425,7 +425,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _interpretCommandResult(cursorState: Selection[]): boolean {
-		if (!cursorState) {
+		if (!cursorState || cursorState.length === 0) {
 			return false;
 		}
 
