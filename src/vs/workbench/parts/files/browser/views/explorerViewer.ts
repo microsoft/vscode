@@ -934,7 +934,14 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 								// Move with overwrite if the user confirms
 								if (this.messageService.confirm(confirm)) {
-									return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+									const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath));
+
+									// Make sure to revert all dirty in target first to be able to overwrite properly
+									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+
+										// Then continue to do the move operation
+										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+									});
 								}
 
 								return onError();
