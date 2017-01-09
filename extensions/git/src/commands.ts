@@ -44,6 +44,9 @@ function clean(resource: SCMResource): void {
 	log('clean', resource);
 }
 
+function cleanAll(resourceGroup: SCMResourceGroup): void {
+	log('clean all', resourceGroup);
+}
 
 export function registerCommands(model: Model): Disposable {
 	const disposables = [
@@ -55,6 +58,7 @@ export function registerCommands(model: Model): Disposable {
 		commands.registerCommand('git.unstage', unstage),
 		commands.registerCommand('git.unstage-all', unstageAll),
 		commands.registerCommand('git.clean', clean),
+		commands.registerCommand('git.cleanAll', cleanAll),
 	];
 
 	return Disposable.from(...disposables);
