@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, ITerminalService, IShell, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
@@ -61,7 +61,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomCwd?: boolean): ITerminalInstance {
-		let shell: IShell = {
+		let shell: IShellLaunchConfig = {
 			executable: shellPath,
 			args: shellArgs,
 			ignoreCustomCwd
