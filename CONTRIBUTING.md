@@ -28,9 +28,15 @@ Please include the following with each issue.
 
 * Version of VS Code
 * List of extensions that you have installed.
+
+> **Tip:** You can easily add the list of extensions by creating the issue using `Report Issues` from VS Code's Help menu.
+
 * Reproducible steps (1... 2... 3...) and what you expected versus what you actually saw.
 * Images, animations, or a link to a video.
 * A code snippet that demonstrates the issue or a link to a code repository we can easily pull down onto our machine to recreate the issue.
+
+> **Note:** Because we need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
+
 * Errors in the Dev Tools Console (Help | Toggle Developer Tools)
 
 Please remember to do the following:
