@@ -121,6 +121,7 @@ declare module 'vscode' {
 	export namespace scm {
 		export const onDidChangeActiveProvider: Event<SCMProvider>;
 		export let activeProvider: SCMProvider | undefined;
+		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
 		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
 	}
 }

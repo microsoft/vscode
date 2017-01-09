@@ -74,7 +74,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		template.name.textContent = group.label;
 		template.count.setCount(group.resources.length);
 		template.actionBar.clear();
-		template.actionBar.push(this.scmMenus.getResourceGroupActions(group.id));
+		template.actionBar.push(this.scmMenus.getResourceGroupActions(group));
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -117,7 +117,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
 		template.fileLabel.setFile(resource.uri);
 		template.actionBar.clear();
-		template.actionBar.push(this.scmMenus.getResourceActions(resource.resourceGroupId));
+		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
 		const theme = this.themeService.getColorTheme();
@@ -299,10 +299,10 @@ export class SCMViewlet extends Viewlet {
 
 		if ((element as ISCMResource).uri) {
 			const resource = element as ISCMResource;
-			actions = this.menus.getResourceContextActions(resource.resourceGroupId);
+			actions = this.menus.getResourceContextActions(resource);
 		} else {
 			const resourceGroup = element as ISCMResourceGroup;
-			actions = this.menus.getResourceGroupContextActions(resourceGroup.id);
+			actions = this.menus.getResourceGroupContextActions(resourceGroup);
 		}
 
 		this.contextMenuService.showContextMenu({
