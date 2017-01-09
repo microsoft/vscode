@@ -164,20 +164,30 @@ export class LanguagesRegistry {
 
 		resolvedLanguage.aliases.push(langId);
 
+		let langAliases: string[] = null;
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
-			for (let i = 0; i < lang.aliases.length; i++) {
-				if (!lang.aliases[i] || lang.aliases[i].length === 0) {
-					continue;
-				}
-				resolvedLanguage.aliases.push(lang.aliases[i]);
+			if (lang.aliases.length === 0) {
+				// signal that this language should not get a name
+				langAliases = [null];
+			} else {
+				langAliases = lang.aliases;
 			}
 		}
 
-		let containsAliases = (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases) && lang.aliases.length > 0);
-		if (containsAliases && lang.aliases[0] === null) {
+		if (langAliases !== null) {
+			for (let i = 0; i < langAliases.length; i++) {
+				if (!langAliases[i] || langAliases[i].length === 0) {
+					continue;
+				}
+				resolvedLanguage.aliases.push(langAliases[i]);
+			}
+		}
+
+		let containsAliases = (langAliases !== null && langAliases.length > 0);
+		if (containsAliases && langAliases[0] === null) {
 			// signal that this language should not get a name
 		} else {
-			let bestName = (containsAliases ? lang.aliases[0] : null) || langId;
+			let bestName = (containsAliases ? langAliases[0] : null) || langId;
 			if (containsAliases || !resolvedLanguage.name) {
 				resolvedLanguage.name = bestName;
 			}

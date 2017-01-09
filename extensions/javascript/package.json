@@ -51,6 +51,7 @@
 			},
 			{
 				"id": "jsx-tags",
+				"aliases": [],
 				"configuration": "./tags-language-configuration.json"
 			}
 		],
