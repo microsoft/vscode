@@ -829,12 +829,23 @@ export class ImportFileAction extends BaseFileAction {
 
 					// Run import in sequence
 					const importPromisesFactory: ITask<TPromise<void>>[] = [];
-					filesArray.forEach((file) => {
+					filesArray.forEach(file => {
 						importPromisesFactory.push(() => {
 							const sourceFile = URI.file(file.path);
+							const targetFile = URI.file(paths.join(targetElement.resource.fsPath, paths.basename(file.path)));
 
-							return this.fileService.importFile(sourceFile, targetElement.resource).then(null, (error: any) => {
-								this.messageService.show(Severity.Error, error);
+							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
+							// of the target file would replace the contents of the imported file. since we already
+							// confirmed the overwrite before, this is OK.
+							let revertPromise = TPromise.as(null);
+							if (this.textFileService.isDirty(targetFile)) {
+								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
+							}
+
+							return revertPromise.then(() => {
+								return this.fileService.importFile(sourceFile, targetElement.resource).then(null, (error: any) => {
+									this.messageService.show(Severity.Error, error);
+								});
 							});
 						});
 					});
