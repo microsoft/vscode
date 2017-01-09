@@ -5,22 +5,22 @@
 'use strict';
 
 import { Selection } from 'vs/editor/common/core/selection';
-import { MoveCarretCommand } from 'vs/editor/contrib/carretOperations/common/moveCarretCommand';
+import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/common/moveCaretCommand';
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 
 
-function testMoveCarretLeftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveCarretCommand(sel, true), expectedLines, expectedSelection);
+function testMoveCaretLeftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, null, selection, (sel) => new MoveCaretCommand(sel, true), expectedLines, expectedSelection);
 }
 
-function testMoveCarretRightCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveCarretCommand(sel, false), expectedLines, expectedSelection);
+function testMoveCaretRightCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, null, selection, (sel) => new MoveCaretCommand(sel, false), expectedLines, expectedSelection);
 }
 
-suite('Editor Contrib - Move Carret Command', () => {
+suite('Editor Contrib - Move Caret Command', () => {
 
 	test('move selection to left', function () {
-		testMoveCarretLeftCommand(
+		testMoveCaretLeftCommand(
 			[
 				'012345'
 			],
@@ -32,7 +32,7 @@ suite('Editor Contrib - Move Carret Command', () => {
 		);
 	});
 	test('move selection to right', function () {
-		testMoveCarretRightCommand(
+		testMoveCaretRightCommand(
 			[
 				'012345'
 			],
@@ -44,7 +44,7 @@ suite('Editor Contrib - Move Carret Command', () => {
 		);
 	});
 	test('move selection to left - from first column - no change', function () {
-		testMoveCarretLeftCommand(
+		testMoveCaretLeftCommand(
 			[
 				'012345'
 			],
@@ -56,7 +56,7 @@ suite('Editor Contrib - Move Carret Command', () => {
 		);
 	});
 	test('move selection to right - from last column - no change', function () {
-		testMoveCarretRightCommand(
+		testMoveCaretRightCommand(
 			[
 				'012345'
 			],
