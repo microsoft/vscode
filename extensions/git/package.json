@@ -84,6 +84,15 @@
           "light": "resources/icons/light/clean.svg",
           "dark": "resources/icons/dark/clean.svg"
         }
+      },
+      {
+        "command": "git.cleanAll",
+        "title": "Clean All",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
       }
     ],
     "menus": {
@@ -97,31 +106,45 @@
       "scm/resourceGroup/context": [
         {
           "command": "git.unstage-all",
-          "when": "scmProvider == git && scmResourceGroup == index"
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "1_modification"
         },
         {
           "command": "git.unstage-all",
-          "group": "inline",
-          "when": "scmProvider == git && scmResourceGroup == index"
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "inline"
+        },
+        {
+          "command": "git.cleanAll",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification"
         },
         {
           "command": "git.stage-all",
-          "when": "scmProvider == git && scmResourceGroup == workingTree"
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.cleanAll",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
         },
         {
           "command": "git.stage-all",
-          "group": "inline",
-          "when": "scmProvider == git && scmResourceGroup == workingTree"
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
         }
       ],
       "scm/resource/context": [
         {
           "command": "git.openChange",
-          "when": "scmProvider == git && scmResourceGroup == index"
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "navigation"
         },
         {
           "command": "git.openFile",
-          "when": "scmProvider == git && scmResourceGroup == index"
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "navigation"
         },
         {
           "command": "git.unstage",
