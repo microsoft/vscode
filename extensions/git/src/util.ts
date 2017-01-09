@@ -41,7 +41,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 }
 
 export function done<T>(promise: Promise<T>): Promise<void> {
-	return promise.then(() => null, () => null);
+	return promise.then<void>(() => void 0, () => void 0);
 }
 
 export function throttle<T>(fn: () => Promise<T>): () => Promise<T> {
