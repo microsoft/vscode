@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { IConfiguration as IEditorConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { Platform } from 'vs/base/common/platform';
@@ -91,16 +91,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
-		let style = this._charMeasureElement.style;
+		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
-		style.height = Math.floor(lineHeight * fontSize) + 'px';
+		style.lineHeight = lineHeight.toString(10);
 		this._charMeasureElement.innerText = 'X';
-		let rect = this._charMeasureElement.getBoundingClientRect();
+		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
-		let charWidth = Math.ceil(rect.width);
-		let charHeight = Math.ceil(rect.height);
+		const charWidth = rect.width;
+		const charHeight = rect.height;
 		return {
 			fontFamily,
 			fontSize: fontSize + 'px',
@@ -115,37 +115,46 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
 	public getFont(): ITerminalFont {
-		let terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
-		let editorConfig = this._configurationService.getConfiguration<IConfiguration>();
+		const config = this._configurationService.getConfiguration();
+		const editorConfig = (<IEditorConfiguration>config).editor;
+		const terminalConfig = (<ITerminalConfiguration>config).terminal.integrated;
 
-		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
+		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
 		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}
 		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
+		if (!lineHeight) {
+			lineHeight = DEFAULT_LINE_HEIGHT;
+		}
 
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
 	public getFontLigaturesEnabled(): boolean {
-		let terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
-		return terminalConfig.fontLigatures;
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.fontLigatures;
 	}
 
 	public getCursorBlink(): boolean {
-		let terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
-		return terminalConfig.cursorBlinking;
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.cursorBlinking;
 	}
 
 	public getRightClickCopyPaste(): boolean {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return config.terminal.integrated.rightClickCopyPaste;
 	}
 
+	public getCommandsToSkipShell(): string[] {
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.commandsToSkipShell;
+	}
+
 	public getShell(): IShell {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		let shell: IShell = {
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const shell: IShell = {
 			executable: '',
 			args: []
 		};
@@ -189,10 +198,5 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			r = Math.max(minimum, r);
 		}
 		return r;
-	}
-
-	public getCommandsToSkipShell(): string[] {
-		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.commandsToSkipShell;
 	}
 }

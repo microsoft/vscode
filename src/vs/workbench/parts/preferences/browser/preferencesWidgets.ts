@@ -91,8 +91,11 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	private layout(): void {
-		this.titleContainer.style.lineHeight = this.editor.getConfiguration().lineHeight + 3 + 'px';
-		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 'px';
+		const configuration = this.editor.getConfiguration();
+		const layoutInfo = this.editor.getLayoutInfo();
+		this.titleContainer.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
+		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
+		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
 		const iconSize = this.getIconSize();
 		this.icon.style.height = `${iconSize}px`;
 		this.icon.style.width = `${iconSize}px`;

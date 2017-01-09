@@ -9,13 +9,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import errors = require('vs/base/common/errors');
+import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType, EditorType } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,6 +31,11 @@ interface ITextEditorViewState {
 	0?: IEditorViewState;
 	1?: IEditorViewState;
 	2?: IEditorViewState;
+}
+
+interface IEditorConfiguration {
+	editor: any;
+	diffEditor: any;
 }
 
 /**
@@ -56,14 +60,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 		super(id, telemetryService);
 
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-		this.toUnbind.push(themeService.onDidColorThemeChange(_ => this.handleConfigurationChangeEvent()));
+		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent(this.configurationService.getConfiguration<IEditorConfiguration>())));
 	}
 
 	protected get instantiationService(): IInstantiationService {
 		return this._instantiationService;
 	}
 
-	private handleConfigurationChangeEvent(configuration?: any): void {
+	private handleConfigurationChangeEvent(configuration: IEditorConfiguration): void {
 		if (this.isVisible()) {
 			this.applyConfiguration(configuration);
 		} else {
@@ -73,28 +77,27 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	private consumePendingConfigurationChangeEvent(): void {
 		if (this.hasPendingConfigurationChange) {
-			this.applyConfiguration(this.configurationService.getConfiguration());
+			this.applyConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>());
 			this.hasPendingConfigurationChange = false;
 		}
 	}
 
-	protected applyConfiguration(configuration?: any): void {
+	private applyConfiguration(configuration: IEditorConfiguration): void {
 		if (!this.editorControl) {
 			return;
 		}
 
-		// Configuration & Options
-		if (configuration) {
-			const specificEditorSettings = this.getCodeEditorOptions();
-			configuration = objects.clone(configuration); // dont modify original config
-			objects.assign(configuration[EditorConfiguration.EDITOR_SECTION], specificEditorSettings);
-			EditorConfiguration.apply(configuration, this.editorControl);
+		// Specific editor options always overwrite user configuration
+		const editorConfiguration = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
+		objects.assign(editorConfiguration, this.getCodeEditorOptions());
+
+		// Handle diff editor specially by merging in diffEditor configuration
+		if (this.editorControl.getEditorType() === EditorType.IDiffEditor && types.isObject(configuration.diffEditor)) {
+			objects.mixin(editorConfiguration, configuration.diffEditor);
 		}
 
-		// Just options
-		else {
-			this.editorControl.updateOptions(this.getCodeEditorOptions());
-		}
+		// Apply to control
+		this.editorControl.updateOptions(editorConfiguration);
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
@@ -119,7 +122,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
 
 		// Configuration
-		this.applyConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>());
+		this.applyConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>());
 	}
 
 	private onEditorFocusLost(): void {

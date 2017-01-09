@@ -39,7 +39,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.9.0' },
+	{ name: 'ms-vscode.node-debug', version: '1.9.1' },
 	{ name: 'ms-vscode.node-debug2', version: '1.9.1' }
 ];
 
@@ -269,7 +269,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
-			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
+			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
 
 		let all = es.merge(
 			packageJsonStream,
