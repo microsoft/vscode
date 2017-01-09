@@ -180,6 +180,18 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
 			}
 		}).use(mdnh, {});
+
+		function addLineNumberRenderer(tokens: any, idx: number, options: any, env: any, self: any) {
+			const token = tokens[idx];
+			if (token.level === 0 && token.map && token.map.length) {
+				token.attrSet('data-line', token.map[0]);
+			}
+			return self.renderToken(tokens, idx, options, env, self);
+		}
+
+		md.renderer.rules.paragraph_open = addLineNumberRenderer;
+		md.renderer.rules.heading_open = addLineNumberRenderer;
+
 		return md;
 	}
 
