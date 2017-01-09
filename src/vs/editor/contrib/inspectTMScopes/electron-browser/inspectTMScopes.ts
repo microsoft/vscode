@@ -21,6 +21,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
+import { findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 
 @editorContribution
 class InspectTMScopesController extends Disposable implements IEditorContribution {
@@ -33,17 +35,20 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 
 	private _editor: ICodeEditor;
 	private _textMateService: ITextMateService;
+	private _themeService: IThemeService;
 	private _modeService: IModeService;
 	private _widget: InspectTMScopesWidget;
 
 	constructor(
 		editor: ICodeEditor,
 		@ITextMateService textMateService: ITextMateService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IThemeService themeService: IThemeService
 	) {
 		super();
 		this._editor = editor;
 		this._textMateService = textMateService;
+		this._themeService = themeService;
 		this._modeService = modeService;
 		this._widget = null;
 
@@ -67,7 +72,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (!this._editor.getModel()) {
 			return;
 		}
-		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService);
+		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService);
 	}
 
 	public stop(): void {
@@ -151,8 +156,10 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 	public allowEditorOverflow = true;
 
+	private _isDisposed: boolean;
 	private _editor: ICodeEditor;
 	private _modeService: IModeService;
+	private _themeService: IThemeService;
 	private _model: IModel;
 	private _domNode: HTMLElement;
 	private _grammar: TPromise<IGrammar>;
@@ -160,11 +167,14 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	constructor(
 		editor: ICodeEditor,
 		textMateService: ITextMateService,
-		modeService: IModeService
+		modeService: IModeService,
+		themeService: IThemeService
 	) {
 		super();
+		this._isDisposed = false;
 		this._editor = editor;
 		this._modeService = modeService;
+		this._themeService = themeService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'tm-inspect-widget';
@@ -175,6 +185,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 
 	public dispose(): void {
+		this._isDisposed = true;
 		this._editor.removeContentWidget(this);
 	}
 
@@ -190,6 +201,9 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 
 	private _compute(grammar: IGrammar, position: Position): void {
+		if (this._isDisposed) {
+			return;
+		}
 		let data = this._getTokensAtLine(grammar, position.lineNumber);
 
 		let token1Index = 0;
@@ -209,16 +223,16 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 			}
 		}
 
+		let result = '';
+
 		let tokenStartIndex = data.tokens1[token1Index].startIndex;
 		let tokenEndIndex = data.tokens1[token1Index].endIndex;
 		let tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
-		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
-
-		let result = '';
 		result += `<h2 class="tm-token">${renderTokenText(tokenText)}<span class="tm-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
 
 		result += `<hr style="clear:both"/>`;
 
+		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
 		result += `<table class="tm-metadata-table"><tbody>`;
 		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
 		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
@@ -227,6 +241,17 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background}</td>`;
 		result += `</tbody></table>`;
 
+		let theme = this._themeService.getColorThemeDocument();
+		if (theme) {
+			result += `<hr/>`;
+			let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes);
+			if (matchingRule) {
+				result += `<code class="tm-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+			} else {
+				result += `<span class="tm-theme-selector">No theme selector.</span>`;
+			}
+		}
+
 		result += `<hr/>`;
 
 		result += `<ul>`;
@@ -234,6 +259,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 			result += `<li>${escape(data.tokens1[token1Index].scopes[i])}</li>`;
 		}
 		result += `</ul>`;
+
 
 		this._domNode.innerHTML = result;
 	}
