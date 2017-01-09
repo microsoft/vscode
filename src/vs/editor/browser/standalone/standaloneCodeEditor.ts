@@ -76,6 +76,9 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		@IStandaloneColorService standaloneColorService: IStandaloneColorService
 	) {
 		options = options || {};
+		if (typeof options.theme === 'string') {
+			options.theme = standaloneColorService.setTheme(options.theme);
+		}
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 		this._standaloneColorService = standaloneColorService;
 
@@ -116,12 +119,10 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 	}
 
 	public updateOptions(newOptions: IEditorOptions): void {
-		let oldTheme = this._configuration.editor.viewInfo.theme;
-		super.updateOptions(newOptions);
-		let newTheme = this._configuration.editor.viewInfo.theme;
-		if (oldTheme !== newTheme) {
-			this._standaloneColorService.setTheme(newTheme);
+		if (typeof newOptions.theme === 'string') {
+			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
 		}
+		super.updateOptions(newOptions);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
