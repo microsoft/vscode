@@ -479,7 +479,7 @@ export class ModelServiceImpl implements IModelService {
 			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
 				this._onModelModeChanged.fire({
 					model: modelData.model,
-					oldModeId: (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguageIdentifier.language
+					oldModeId: (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguage
 				});
 			}
 		}

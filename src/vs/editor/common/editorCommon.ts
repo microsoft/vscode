@@ -1818,8 +1818,14 @@ export interface IReadOnlyModel extends ITextModel {
 
 	/**
 	 * Get the language associated with this model.
+	 * @internal
 	 */
 	getLanguageIdentifier(): LanguageIdentifier;
+
+	/**
+	 * Get the language associated with this model.
+	 */
+	getModeId(): string;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -1863,8 +1869,14 @@ export interface ITokenizedModel extends ITextModel {
 
 	/**
 	 * Get the language associated with this model.
+	 * @internal
 	 */
 	getLanguageIdentifier(): LanguageIdentifier;
+
+	/**
+	 * Get the language associated with this model.
+	 */
+	getModeId(): string;
 
 	/**
 	 * Set the current language mode associated with the model.
@@ -2222,11 +2234,11 @@ export interface IModelLanguageChangedEvent {
 	/**
 	 * Previous language
 	 */
-	readonly oldLanguageIdentifier: LanguageIdentifier;
+	readonly oldLanguage: string;
 	/**
 	 * New language
 	 */
-	readonly newLanguageIdentifier: LanguageIdentifier;
+	readonly newLanguage: string;
 }
 
 /**
