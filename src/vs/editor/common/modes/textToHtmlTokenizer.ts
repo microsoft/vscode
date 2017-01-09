@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { IState, ITokenizationSupport, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize3 } from 'vs/editor/common/modes/nullMode';
+import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
 export function tokenizeToString(text: string, languageId: string): string {
@@ -21,7 +21,7 @@ function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
 	return {
 		getInitialState: () => NULL_STATE,
 		tokenize: undefined,
-		tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize3(LanguageId.Null, buffer, state, deltaOffset)
+		tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
 	};
 }
 

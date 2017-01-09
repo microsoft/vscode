@@ -28,7 +28,7 @@ export function nullTokenize(modeId: string, buffer: string, state: IState, delt
 	return new TokenizationResult([new Token(deltaOffset, '', modeId)], state);
 }
 
-export function nullTokenize3(languageId: LanguageId, buffer: string, state: IState, deltaOffset: number): TokenizationResult2 {
+export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState, deltaOffset: number): TokenizationResult2 {
 	let tokens = new Uint32Array(2);
 	tokens[0] = deltaOffset;
 	tokens[1] = (
