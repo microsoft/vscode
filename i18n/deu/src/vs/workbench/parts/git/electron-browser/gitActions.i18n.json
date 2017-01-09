@@ -8,5 +8,6 @@
 	"cloning": "Das Repository \"{0}\" wird geklont...",
 	"directory": "Zielklonverzeichnis",
 	"repo": "Geben Sie eine URL für das Git-Repository an.",
-	"url": "Repository-URL"
+	"url": "Repository-URL",
+	"valid": "Geben Sie eine gültige URL für das Git-Repository an."
 }

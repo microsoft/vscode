@@ -66,9 +66,9 @@ export class HtmlPreviewPart extends BaseEditor {
 		// unhook listeners
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
-		if (this._modelRef) {
-			this._modelRef.dispose();
-		}
+
+		// dipose model ref
+		dispose(this._modelRef);
 		super.dispose();
 	}
 
@@ -138,9 +138,15 @@ export class HtmlPreviewPart extends BaseEditor {
 		this.webview.focus();
 	}
 
+	public clearInput(): void {
+		dispose(this._modelRef);
+		this._modelRef = undefined;
+		super.clearInput();
+	}
+
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 
-		if (this.input === input && this._hasValidModel()) {
+		if (this.input && this.input.matches(input) && this._hasValidModel()) {
 			return TPromise.as(undefined);
 		}
 
@@ -154,7 +160,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		}
 
 		return super.setInput(input, options).then(() => {
-			const resourceUri = (<HtmlInput>input).getResource();
+			const resourceUri = input.getResource();
 			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
 				const model = ref.object;
 

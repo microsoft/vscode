@@ -51,13 +51,13 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
 
-		function convertNavBar(indent: number, foldingMap: Map<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
+		function convertNavBar(indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
 			let realIndent = indent + item.indent;
 			let key = `${realIndent}|${item.text}`;
 			if (realIndent !== 0 && !foldingMap[key]) {
 				let result = new SymbolInformation(item.text,
 					outlineTypeTable[item.kind] || SymbolKind.Variable,
-					'' + containerLabel,
+					containerLabel ? containerLabel : '',
 					new Location(resource.uri, textSpan2Range(item.spans[0])));
 				foldingMap[key] = result;
 				bucket.push(result);
@@ -72,7 +72,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		function convertNavTree(bucket: SymbolInformation[], item: Proto.NavigationTree, containerLabel?: string): void {
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind] || SymbolKind.Variable,
-				'' + containerLabel,
+				containerLabel ? containerLabel : '',
 				new Location(resource.uri, textSpan2Range(item.spans[0]))
 			);
 			if (item.childItems && item.childItems.length > 0) {
@@ -102,7 +102,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			return this.client.execute('navbar', args, token).then((response) => {
 				let result: SymbolInformation[] = [];
 				if (response.body) {
-					let foldingMap: Map<SymbolInformation> = Object.create(null);
+					let foldingMap: ObjectMap<SymbolInformation> = Object.create(null);
 					response.body.forEach(item => convertNavBar(0, foldingMap, result, item));
 				}
 				return result;

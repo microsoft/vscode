@@ -14,7 +14,6 @@ import { mkdirp, fileExists, readdir } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import lifecycle = require('vs/base/common/lifecycle');
 import { readAndRegisterSnippets } from 'vs/editor/node/textMate/TMSnippets';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { watch, FSWatcher } from 'fs';
@@ -28,7 +27,6 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private fileWatchDelayer: async.ThrottledDelayer<void>;
 
 	constructor(
-		@IFileService private fileService: IFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {

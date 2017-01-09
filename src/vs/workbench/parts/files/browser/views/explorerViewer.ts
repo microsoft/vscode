@@ -25,8 +25,8 @@ import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
-import { LocalFileChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileOperationResult, FileOperationResult, IFileStat, IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
@@ -37,33 +37,29 @@ import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export class FileDataSource implements IDataSource {
-	private workspace: IWorkspace;
-
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
-	) {
-		this.workspace = contextService.getWorkspace();
-	}
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) { }
 
 	public getId(tree: ITree, stat: FileStat): string {
 		return stat.getId();
@@ -115,7 +111,7 @@ export class FileDataSource implements IDataSource {
 		}
 
 		// Return if root reached
-		if (this.workspace && stat.resource.toString() === this.workspace.resource.toString()) {
+		if (this.contextService.hasWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			return TPromise.as(null);
 		}
 
@@ -381,14 +377,12 @@ export class FileController extends DefaultController {
 
 	private contributedContextMenu: IMenu;
 
-	private workspace: IWorkspace;
-
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
@@ -396,8 +390,6 @@ export class FileController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
-
-		this.workspace = contextService.getWorkspace();
 
 		this.didCatchEnterDown = false;
 
@@ -441,7 +433,7 @@ export class FileController extends DefaultController {
 		}
 
 		// Handle root
-		if (this.workspace && stat.resource.toString() === this.workspace.resource.toString()) {
+		if (this.contextService.getWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 
@@ -729,12 +721,13 @@ export class FileDragAndDrop implements IDragAndDrop {
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEventService private eventService: IEventService,
 		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		this.toDispose = [];
 
@@ -849,7 +842,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 		// All
 		if (target.isDirectory) {
-			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY : DRAG_OVER_ACCEPT_BUBBLE_DOWN;
+			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
 		if (target.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
@@ -879,79 +872,87 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 			promise = tree.expand(target).then(() => {
 
-				// Reuse action if user copies
+				// Reuse duplicate action if user copies
 				if (isCopy) {
-					const copyAction = this.instantiationService.createInstance(DuplicateFileAction, tree, source, target);
-					return copyAction.run();
+					return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();
 				}
 
-				// Handle dirty (in file or inside the folder if any)
-				let revertPromise: TPromise<any> = TPromise.as(null);
+				const dirtyMoved: URI[] = [];
+
+				// Success: load all files that are dirty again to restore their dirty contents
+				// Error: discard any backups created during the process
+				const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textModelResolverService.createModelReference(t)));
+				const onError = (error?: Error, showError?: boolean) => {
+					if (showError) {
+						this.messageService.show(Severity.Error, error);
+					}
+
+					return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));
+				};
+
+				// 1. check for dirty files that are being moved and backup to new target
 				const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath));
-				if (dirty.length) {
-					let message: string;
-					if (source.isDirectory) {
-						if (dirty.length === 1) {
-							message = nls.localize('dirtyMessageFolderOne', "You are moving a folder with unsaved changes in 1 file. Do you want to continue?");
-						} else {
-							message = nls.localize('dirtyMessageFolder', "You are moving a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
-						}
-					} else {
-						message = nls.localize('dirtyMessageFile', "You are moving a file with unsaved changes. Do you want to continue?");
+				return TPromise.join(dirty.map(d => {
+					let moved: URI;
+
+					// If the dirty file itself got moved, just reparent it to the target folder
+					if (source.resource.fsPath === d.fsPath) {
+						moved = URI.file(paths.join(target.resource.fsPath, source.name));
 					}
 
-					const res = this.messageService.confirm({
-						message,
-						type: 'warning',
-						detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
-						primaryButton: nls.localize({ key: 'moveLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
-					});
-
-					if (!res) {
-						return TPromise.as(null);
+					// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
+					else {
+						moved = URI.file(paths.join(target.resource.fsPath, d.fsPath.substr(source.parent.resource.fsPath.length + 1)));
 					}
 
-					revertPromise = this.textFileService.revertAll(dirty);
-				}
+					dirtyMoved.push(moved);
 
-				return revertPromise.then(() => {
-					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
-					let didHandleConflict = false;
+					const model = this.textFileService.models.get(d);
 
-					const onMove = (result: IFileStat) => {
-						this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(source.clone(), result));
-					};
+					return this.backupFileService.backupResource(moved, model.getValue(), model.getVersionId());
+				}))
 
-					// Move File/Folder and emit event
-					return this.fileService.moveFile(source.resource, targetResource).then(onMove, error => {
+					// 2. soft revert all dirty since we have backed up their contents
+					.then(() => this.textFileService.revertAll(dirty, { soft: true /* do not attempt to load content from disk */ }))
 
-						// Conflict
-						if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-							didHandleConflict = true;
+					// 3.) run the move operation
+					.then(() => {
+						const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
+						let didHandleConflict = false;
 
-							const confirm: IConfirmation = {
-								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-								detail: nls.localize('irreversible', "This action is irreversible!"),
-								primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
-							};
+						return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
-							if (this.messageService.confirm(confirm)) {
-								return this.fileService.moveFile(source.resource, targetResource, true).then(result => {
-									const fakeTargetState = new FileStat(targetResource);
-									this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(fakeTargetState, null));
+							// Conflict
+							if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+								didHandleConflict = true;
 
-									onMove(result);
-								}, (error) => {
-									this.messageService.show(Severity.Error, error);
-								});
+								const confirm: IConfirmation = {
+									message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
+									detail: nls.localize('irreversible', "This action is irreversible!"),
+									primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+								};
+
+								// Move with overwrite if the user confirms
+								if (this.messageService.confirm(confirm)) {
+									const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath));
+
+									// Make sure to revert all dirty in target first to be able to overwrite properly
+									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+
+										// Then continue to do the move operation
+										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+									});
+								}
+
+								return onError();
 							}
 
-							return;
-						}
+							return onError(error, true);
+						});
+					})
 
-						this.messageService.show(Severity.Error, error);
-					});
-				});
+					// 4.) resolve those that were dirty to load their previous dirty contents from disk
+					.then(onSuccess, onError);
 			}, errors.onUnexpectedError);
 		}
 

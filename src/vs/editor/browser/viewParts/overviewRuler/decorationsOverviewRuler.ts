@@ -139,21 +139,20 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	private _createZonesFromDecorations(): editorCommon.OverviewRulerZone[] {
-		let decorations = this._context.model.getAllDecorations();
+		let decorations = this._context.model.getAllOverviewRulerDecorations();
 		let zones: editorCommon.OverviewRulerZone[] = [];
 
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
-			if (dec.options.overviewRuler.color) {
-				zones.push(new editorCommon.OverviewRulerZone(
-					dec.range.startLineNumber,
-					dec.range.endLineNumber,
-					dec.options.overviewRuler.position,
-					0,
-					dec.options.overviewRuler.color,
-					dec.options.overviewRuler.darkColor
-				));
-			}
+			let ovewviewRuler = dec.source.options.overviewRuler;
+			zones.push(new editorCommon.OverviewRulerZone(
+				dec.range.startLineNumber,
+				dec.range.endLineNumber,
+				ovewviewRuler.position,
+				0,
+				ovewviewRuler.color,
+				ovewviewRuler.darkColor
+			));
 		}
 
 		return zones;
@@ -211,7 +210,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		let hasRendered = this._overviewRuler.render(false);
 
-		if (hasRendered && OverviewRulerImpl.hasCanvas && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
+		if (hasRendered && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
 			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;

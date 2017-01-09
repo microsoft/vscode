@@ -9,14 +9,12 @@ import 'vs/css!./viewCursors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { Position } from 'vs/editor/common/core/position';
 import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
-import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
-import * as browsers from 'vs/base/browser/browser';
-
-const ANIMATIONS_SUPPORTED = !browsers.isIE9;
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export class ViewCursors extends ViewPart {
 
@@ -31,7 +29,6 @@ export class ViewCursors extends ViewPart {
 	private _domNode: FastDomNode;
 
 	private _startCursorBlinkAnimation: TimeoutTimer;
-	private _compatBlink: IntervalTimer;
 	private _blinkingEnabled: boolean;
 
 	private _editorHasFocus: boolean;
@@ -57,7 +54,6 @@ export class ViewCursors extends ViewPart {
 		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._startCursorBlinkAnimation = new TimeoutTimer();
-		this._compatBlink = new IntervalTimer();
 		this._blinkingEnabled = false;
 
 		this._editorHasFocus = false;
@@ -67,7 +63,6 @@ export class ViewCursors extends ViewPart {
 	public dispose(): void {
 		super.dispose();
 		this._startCursorBlinkAnimation.dispose();
-		this._compatBlink.dispose();
 	}
 
 	public getDomNode(): HTMLElement {
@@ -87,7 +82,7 @@ export class ViewCursors extends ViewPart {
 	}
 	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
-		return e.inlineDecorationsChanged;
+		return true;//e.inlineDecorationsChanged;
 	}
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
@@ -99,7 +94,7 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
-		let shouldRender = (position: editorCommon.IPosition) => {
+		let shouldRender = (position: Position) => {
 			for (let i = 0, len = e.ranges.length; i < len; i++) {
 				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
 					return true;
@@ -185,7 +180,7 @@ export class ViewCursors extends ViewPart {
 	}
 	// --- end event handlers
 
-	public getPosition(): editorCommon.IPosition {
+	public getPosition(): Position {
 		return this._primaryCursor.getPosition();
 	}
 
@@ -203,7 +198,6 @@ export class ViewCursors extends ViewPart {
 
 	private _updateBlinking(): void {
 		this._startCursorBlinkAnimation.cancel();
-		this._compatBlink.cancel();
 
 		let blinkingStyle = this._getCursorBlinking();
 
@@ -221,14 +215,10 @@ export class ViewCursors extends ViewPart {
 		this._updateDomClassName();
 
 		if (!isHidden && !isSolid) {
-			if (ANIMATIONS_SUPPORTED) {
-				this._startCursorBlinkAnimation.setIfNotSet(() => {
-					this._blinkingEnabled = true;
-					this._updateDomClassName();
-				}, ViewCursors.BLINK_INTERVAL);
-			} else {
-				this._compatBlink.cancelAndSet(() => this._compatBlinkUpdate(), ViewCursors.BLINK_INTERVAL);
-			}
+			this._startCursorBlinkAnimation.setIfNotSet(() => {
+				this._blinkingEnabled = true;
+				this._updateDomClassName();
+			}, ViewCursors.BLINK_INTERVAL);
 		}
 	}
 	// --- end blinking logic
@@ -276,14 +266,6 @@ export class ViewCursors extends ViewPart {
 			result += ' cursor-solid';
 		}
 		return result;
-	}
-
-	private _compatBlinkUpdate(): void {
-		if (this._isVisible) {
-			this._hide();
-		} else {
-			this._show();
-		}
 	}
 
 	private _show(): void {

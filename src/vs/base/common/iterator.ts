@@ -24,7 +24,7 @@ export class ArrayIterator<T> implements IIterator<T> {
 	}
 
 	public first(): T {
-		this.index = this.start - 1;
+		this.index = this.start;
 		return this.current();
 	}
 

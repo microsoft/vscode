@@ -17,7 +17,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { download, asJson } from 'vs/base/node/request';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IAutoUpdater } from 'vs/platform/update/common/update';
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 
 interface IUpdate {
 	url: string;

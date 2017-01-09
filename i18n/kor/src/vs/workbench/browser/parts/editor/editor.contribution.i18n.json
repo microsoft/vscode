@@ -9,6 +9,7 @@
 	"groupOnePicker": "첫 번째 그룹에 편집기 표시",
 	"groupThreePicker": "세 번째 그룹에 편집기 표시",
 	"groupTwoPicker": "두 번째 그룹에 편집기 표시",
+	"sideBySideEditor": "병렬 편집기",
 	"textDiffEditor": "텍스트 Diff 편집기",
 	"textEditor": "텍스트 편집기",
 	"view": "보기"

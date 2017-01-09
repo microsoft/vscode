@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelDecoration } from 'vs/editor/common/editorCommon';
-import { IDecorationsViewportData, InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewModelDecoration, IDecorationsViewportData, InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface IPartialViewLinesViewportData {
@@ -47,7 +46,7 @@ export class ViewLinesViewportData {
 	 */
 	completelyVisibleLinesRange: Range;
 
-	private _decorations: IModelDecoration[];
+	private _decorations: ViewModelDecoration[];
 	private _inlineDecorations: InlineDecoration[][];
 
 	constructor(partialData: IPartialViewLinesViewportData, visibleRange: Range, completelyVisibleLinesRange: Range, decorationsData: IDecorationsViewportData) {
@@ -64,7 +63,7 @@ export class ViewLinesViewportData {
 		this._inlineDecorations = decorationsData.inlineDecorations;
 	}
 
-	public getDecorationsInViewport(): IModelDecoration[] {
+	public getDecorationsInViewport(): ViewModelDecoration[] {
 		return this._decorations;
 	}
 

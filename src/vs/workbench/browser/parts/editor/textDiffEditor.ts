@@ -12,7 +12,6 @@ import { Builder } from 'vs/base/browser/builder';
 import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
-import { Position } from 'vs/platform/editor/common/editor';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -26,18 +25,14 @@ import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorMo
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-
-export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -50,23 +45,17 @@ export class TextDiffEditor extends BaseTextEditor {
 	private nextDiffAction: NavigateAction;
 	private previousDiffAction: NavigateAction;
 
-	private textDiffEditorVisible: IContextKey<boolean>;
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IThemeService themeService: IThemeService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
-
-		this.textDiffEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
 	}
 
 	public getTitle(): string {
@@ -88,12 +77,12 @@ export class TextDiffEditor extends BaseTextEditor {
 
 			// Check if arg4 is a position argument that differs from this editors position
 			if (types.isUndefinedOrNull(arg3) || arg3 === false || arg3 === this.position) {
-				const activeDiffInput = <DiffEditorInput>this.getInput();
+				const activeDiffInput = <DiffEditorInput>this.input;
 				if (input && options && activeDiffInput) {
 
 					// Input matches modified side of the diff editor: perform the action on modified side
 					if (input.matches(activeDiffInput.modifiedInput)) {
-						return this.setInput(this.getInput(), options).then(() => this);
+						return this.setInput(this.input, options).then(() => this);
 					}
 
 					// Input matches original side of the diff editor: perform the action on original side
@@ -118,7 +107,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.getInput();
+		const oldInput = this.input;
 		super.setInput(input, options);
 
 		// Detect options
@@ -150,7 +139,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
-			if (!this.getInput() || this.getInput() !== input) {
+			if (!this.input || this.input !== input) {
 				return null;
 			}
 
@@ -226,6 +215,14 @@ export class TextDiffEditor extends BaseTextEditor {
 				ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
 			}
 
+			const model = this.editorGroupService.getStacksModel();
+			if (model.groups.length > 1) {
+				const group = model.groupAt(this.position);
+				if (group) {
+					ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
+				}
+			}
+
 			options.ariaLabel = ariaLabel;
 		}
 
@@ -255,12 +252,6 @@ export class TextDiffEditor extends BaseTextEditor {
 
 		// Pass to super
 		super.clearInput();
-	}
-
-	public setEditorVisible(visible: boolean, position: Position): void {
-		this.textDiffEditorVisible.set(visible);
-
-		super.setEditorVisible(visible, position);
 	}
 
 	public getDiffNavigator(): DiffNavigator {
@@ -305,7 +296,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public getControl(): IDiffEditor {
-		return <any>super.getControl();
+		return super.getControl() as IDiffEditor;
 	}
 
 	public dispose(): void {

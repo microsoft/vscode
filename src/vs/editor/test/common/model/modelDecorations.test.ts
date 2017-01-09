@@ -8,15 +8,20 @@ import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration, IRange, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 
 // --------- utils
 
-function modelHasDecorations(model, decorations) {
-	var modelDecorations = [];
-	var actualDecorations = model.getAllDecorations();
-	for (var i = 0, len = actualDecorations.length; i < len; i++) {
+interface ILightWeightDecoration2 {
+	range: Range;
+	className: string;
+}
+
+function modelHasDecorations(model: Model, decorations: ILightWeightDecoration2[]) {
+	let modelDecorations: ILightWeightDecoration2[] = [];
+	let actualDecorations = model.getAllDecorations();
+	for (let i = 0, len = actualDecorations.length; i < len; i++) {
 		modelDecorations.push({
 			range: actualDecorations[i].range,
 			className: actualDecorations[i].options.className
@@ -25,18 +30,18 @@ function modelHasDecorations(model, decorations) {
 	assert.deepEqual(modelDecorations, decorations, 'Model decorations');
 }
 
-function modelHasDecoration(model, startLineNumber, startColumn, endLineNumber, endColumn, className) {
+function modelHasDecoration(model: Model, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string) {
 	modelHasDecorations(model, [{
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		className: className
 	}]);
 }
 
-function modelHasNoDecorations(model) {
+function modelHasNoDecorations(model: Model) {
 	assert.equal(model.getAllDecorations().length, 0, 'Model has no decoration');
 }
 
-function addDecoration(model, startLineNumber, startColumn, endLineNumber, endColumn, className) {
+function addDecoration(model: Model, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string): string {
 	return model.changeDecorations((changeAccessor) => {
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
 			className: className
@@ -199,17 +204,11 @@ suite('Editor Model - Model Decorations', () => {
 	// --------- eventing
 
 	test('decorations emit event on add', () => {
-		var listenerCalled = 0;
+		let listenerCalled = 0;
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
+			assert.equal(e.addedDecorations.length, 1);
+			assert.equal(e.changedDecorations.length, 0);
 			assert.equal(e.removedDecorations.length, 0);
 		});
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
@@ -217,24 +216,13 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event on change', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 1,
-				endColumn: 2
-			}));
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
+			assert.equal(e.addedDecorations.length, 0);
+			assert.equal(e.changedDecorations.length, 1);
+			assert.equal(e.changedDecorations[0], decId);
 			assert.equal(e.removedDecorations.length, 0);
 		});
 		thisModel.changeDecorations((changeAccessor) => {
@@ -244,18 +232,12 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event on remove', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 0);
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
+			assert.equal(e.addedDecorations.length, 0);
+			assert.equal(e.changedDecorations.length, 0);
 			assert.equal(e.removedDecorations.length, 1);
 			assert.equal(e.removedDecorations[0], decId);
 		});
@@ -266,25 +248,14 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event when inserting one line text before it', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 8,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
+			assert.equal(e.addedDecorations.length, 0);
+			assert.equal(e.changedDecorations.length, 1);
+			assert.equal(e.changedDecorations[0], decId);
 			assert.equal(e.removedDecorations.length, 0);
 		});
 
@@ -396,9 +367,9 @@ suite('Editor Model - Model Decorations', () => {
 	});
 });
 
-export interface ILightWeightDecoration {
+interface ILightWeightDecoration {
 	id: string;
-	range: IRange;
+	range: Range;
 }
 
 suite('deltaDecorations', () => {
@@ -406,12 +377,7 @@ suite('deltaDecorations', () => {
 	function decoration(id: string, startLineNumber: number, startColumn: number, endLineNumber: number, endColum: number): ILightWeightDecoration {
 		return {
 			id: id,
-			range: {
-				startLineNumber: startLineNumber,
-				startColumn: startColumn,
-				endLineNumber: endLineNumber,
-				endColumn: endColum
-			}
+			range: new Range(startLineNumber, startColumn, endLineNumber, endColum)
 		};
 	}
 
@@ -605,13 +571,21 @@ suite('deltaDecorations', () => {
 			'How are you?'
 		].join('\n'));
 
-		var trackedRangeId = model.addTrackedRange({
-			startLineNumber: 1,
-			startColumn: 1,
-			endLineNumber: 1,
-			endColumn: 1
-		}, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-		model.removeTrackedRange(trackedRangeId);
+		var trackedRangeId = model.changeDecorations((changeAcessor) => {
+			return changeAcessor.addDecoration(
+				{
+					startLineNumber: 1,
+					startColumn: 1,
+					endLineNumber: 1,
+					endColumn: 1
+				}, {
+					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+				}
+			);
+		});
+		model.changeDecorations((changeAccessor) => {
+			changeAccessor.removeDecoration(trackedRangeId);
+		});
 
 		var ids = model.deltaDecorations([], [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
@@ -628,6 +602,36 @@ suite('deltaDecorations', () => {
 
 		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
 		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
+
+		model.dispose();
+	});
+
+	test('issue #16922: Clicking on link doesn\'t seem to do anything', () => {
+		var model = Model.createFromString([
+			'Hello world,',
+			'How are you?',
+			'Fine.',
+			'Good.',
+		].join('\n'));
+
+		model.deltaDecorations([], [
+			{ range: new Range(1, 1, 1, 1), options: { className: '1' } },
+			{ range: new Range(1, 13, 1, 13), options: { className: '2' } },
+			{ range: new Range(2, 1, 2, 1), options: { className: '3' } },
+			{ range: new Range(2, 1, 2, 4), options: { className: '4' } },
+			{ range: new Range(2, 8, 2, 13), options: { className: '5' } },
+			{ range: new Range(3, 1, 4, 6), options: { className: '6' } },
+			{ range: new Range(1, 1, 3, 6), options: { className: 'x1' } },
+			{ range: new Range(2, 5, 2, 8), options: { className: 'x2' } },
+			{ range: new Range(1, 1, 2, 8), options: { className: 'x3' } },
+			{ range: new Range(2, 5, 3, 1), options: { className: 'x4' } },
+		]);
+
+		let inRange = model.getDecorationsInRange(new Range(2, 6, 2, 6));
+
+		let inRangeClassNames = inRange.map(d => d.options.className);
+		inRangeClassNames.sort();
+		assert.deepEqual(inRangeClassNames, ['x1', 'x2', 'x3', 'x4']);
 
 		model.dispose();
 	});

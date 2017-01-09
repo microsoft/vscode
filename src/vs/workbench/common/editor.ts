@@ -11,12 +11,14 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
 export enum ConfirmResult {
 	SAVE,
@@ -337,28 +339,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 }
 
 /**
- * The base class of untitled editor inputs in the workbench.
- */
-export abstract class UntitledEditorInput extends EditorInput implements IEncodingSupport {
-
-	abstract getResource(): URI;
-
-	abstract isDirty(): boolean;
-
-	abstract suggestFileName(): string;
-
-	abstract getEncoding(): string;
-
-	abstract setEncoding(encoding: string, mode: EncodingMode): void;
-
-	public getTelemetryDescriptor(): { [key: string]: any; } {
-		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
-		return descriptor;
-	}
-}
-
-/**
  * Side by side editor inputs that have a master and details side.
  */
 export class SideBySideEditorInput extends EditorInput {
@@ -596,13 +576,14 @@ export class TextEditorOptions extends EditorOptions {
 	protected endLineNumber: number;
 	protected endColumn: number;
 
+	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState;
 	private editorOptions: ICodeEditorOptions;
 
-	public static from(input: IResourceInput): TextEditorOptions {
+	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -629,6 +610,14 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.inactive) {
 				options.inactive = true;
+			}
+
+			if (input.options.revealInCenterIfOutsideViewport) {
+				options.revealInCenterIfOutsideViewport = true;
+			}
+
+			if (input.options.viewState) {
+				options.editorViewState = input.options.viewState;
 			}
 
 			if (typeof input.options.index === 'number') {
@@ -737,7 +726,11 @@ export class TextEditorOptions extends EditorOptions {
 					endColumn: this.endColumn
 				};
 				editor.setSelection(range);
-				editor.revealRangeInCenter(range);
+				if (this.revealInCenterIfOutsideViewport) {
+					editor.revealRangeInCenterIfOutsideViewport(range);
+				} else {
+					editor.revealRangeInCenter(range);
+				}
 			}
 
 			// Reveal
@@ -747,7 +740,11 @@ export class TextEditorOptions extends EditorOptions {
 					column: this.startColumn
 				};
 				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos);
+				if (this.revealInCenterIfOutsideViewport) {
+					editor.revealPositionInCenterIfOutsideViewport(pos);
+				} else {
+					editor.revealPositionInCenter(pos);
+				}
 			}
 
 			gotApplied = true;
@@ -803,37 +800,6 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 }
 
 /**
- * Given an input, tries to get the associated URI for it (either file or untitled scheme).
- */
-export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boolean): URI {
-	if (!input) {
-		return null;
-	}
-
-	// Untitled
-	if (input instanceof UntitledEditorInput) {
-		return input.getResource();
-	}
-
-	// File
-	const fileInput = asFileEditorInput(input, supportDiff);
-
-	return fileInput && fileInput.getResource();
-}
-
-// TODO@Ben every editor should have an associated resource
-export function getResource(input: IEditorInput): URI {
-	if (input instanceof EditorInput && typeof (<any>input).getResource === 'function') {
-		const candidate = (<any>input).getResource();
-		if (candidate instanceof URI) {
-			return candidate;
-		}
-	}
-
-	return getUntitledOrFileResource(input, true);
-}
-
-/**
  * Helper to return all opened editors with resources not belonging to the currently opened workspace.
  */
 export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
@@ -842,32 +808,14 @@ export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGrou
 	editorGroupService.getStacksModel().groups.forEach(group => {
 		const editors = group.getEditors();
 		editors.forEach(editor => {
-			const fileInput = asFileEditorInput(editor, true);
-			if (fileInput && !contextService.isInsideWorkspace(fileInput.getResource())) {
-				resources.push(fileInput.getResource());
+			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
+			if (fileResource && !contextService.isInsideWorkspace(fileResource)) {
+				resources.push(fileResource);
 			}
 		});
 	});
 
 	return resources;
-}
-
-/**
- * Returns the object as IFileEditorInput only if it matches the signature.
- */
-export function asFileEditorInput(obj: any, supportSideBySide?: boolean): IFileEditorInput {
-	if (!obj) {
-		return null;
-	}
-
-	// Check for side by side if we are asked to
-	if (supportSideBySide && obj instanceof SideBySideEditorInput) {
-		obj = (<SideBySideEditorInput>obj).master;
-	}
-
-	const i = <IFileEditorInput>obj;
-
-	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setEncoding, i.getEncoding, i.getResource, i.setPreferredEncoding) ? i : null;
 }
 
 export interface IStacksModelChangeEvent {
@@ -917,6 +865,7 @@ export interface IEditorGroup {
 	getEditors(mru?: boolean): IEditorInput[];
 	isActive(editor: IEditorInput): boolean;
 	isPreview(editor: IEditorInput): boolean;
+	isPinned(index: number): boolean;
 	isPinned(editor: IEditorInput): boolean;
 }
 
@@ -977,6 +926,67 @@ export interface ActiveEditorMoveArguments {
 	value?: number;
 }
 
-export var EditorCommands = {
+export const EditorCommands = {
 	MoveActiveEditor: 'moveActiveEditor'
 };
+
+export interface IResourceOptions {
+	supportSideBySide?: boolean;
+	filter?: 'file' | 'untitled' | ['file', 'untitled'] | ['untitled', 'file'];
+}
+
+export function hasResource(editor: IEditorInput, options?: IResourceOptions): boolean {
+	return !!toResource(editor, options);
+}
+
+export function toResource(editor: IEditorInput, options?: IResourceOptions): URI {
+	if (!editor) {
+		return null;
+	}
+
+	// Check for side by side if we are asked to
+	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
+		editor = editor.master;
+	}
+
+	const resource = doGetEditorResource(editor);
+	if (!options || !options.filter) {
+		return resource; // return early if no filter is specified
+	}
+
+	if (!resource) {
+		return null;
+	}
+
+	let includeFiles: boolean;
+	let includeUntitled: boolean;
+	if (Array.isArray(options.filter)) {
+		includeFiles = (options.filter.indexOf('file') >= 0);
+		includeUntitled = (options.filter.indexOf('untitled') >= 0);
+	} else {
+		includeFiles = (options.filter === 'file');
+		includeUntitled = (options.filter === 'untitled');
+	}
+
+	if (includeFiles && resource.scheme === 'file') {
+		return resource;
+	}
+
+	if (includeUntitled && resource.scheme === 'untitled') {
+		return resource;
+	}
+
+	return null;
+}
+
+// TODO@Ben every editor should have an associated resource
+function doGetEditorResource(editor: IEditorInput): URI {
+	if (editor instanceof EditorInput && typeof (<any>editor).getResource === 'function') {
+		const candidate = (<any>editor).getResource();
+		if (candidate instanceof URI) {
+			return candidate;
+		}
+	}
+
+	return null;
+}

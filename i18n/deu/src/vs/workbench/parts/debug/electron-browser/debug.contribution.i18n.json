@@ -10,7 +10,7 @@
 	"debugConfigurationTitle": "Debuggen",
 	"debugErrorEditor": "Debuggingfehler",
 	"debugPanel": "Debugging-Konsole",
-	"openExplorerOnEnd": "Hiermit wird am Ende einer Debugsitzung automatisch ein Explorer-Viewlet geöffnet.",
+	"openExplorerOnEnd": "Hiermit wird am Ende einer Debugsitzung automatisch eine Explorer-Ansicht geöffnet.",
 	"toggleDebugPanel": "Debugging-Konsole",
 	"toggleDebugViewlet": "Debuggen anzeigen",
 	"view": "Anzeigen"

@@ -44,70 +44,70 @@
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
 	display: flex;
 	align-items: center;
-	margin: 6px 0;
-	border: 1px solid #dddddd;
 	font-size: 11px;
 	margin-right: 0.3em;
 	height: 20px;
+	flex-shrink: 1;
+	border: 1px solid #dddddd;
+	margin-top: 7px;
+}
+
+.monaco-workbench.mac > .part > .title > .title-actions .start-debug-action-item {
+	border-radius: 4px;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
-	border-color: #383838;
+	border-color: #3c3c3c;
 }
 
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
-	border-right: 1px solid #dddddd;
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	height: 20px;
-}
-
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .name {
-	margin-right: 6px;
-	display: inline-block;
-	overflow: hidden;
-	max-width: 100px;
-}
-
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
-	border-color: #383838;
-}
-
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon {
 	width: 20px;
-	height: 20px;
 	background: url('continue.svg') center center no-repeat;
+	flex-shrink: 0;
+	transition: transform 50ms ease;
+	-webkit-transition: -webkit-transform 50ms ease;
 }
 
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon {
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
+	border-left: 1px solid #dddddd;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
+	border-color: #3c3c3c;
+}
+
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	width: 18px;
-	background-color: inherit;
+	background-color: #f3f3f3;
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
-	outline: none;
 }
 
-.monaco-workbench.mac .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	width: 13px;
+.vs-dark .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+	background-color: #252526;
 }
 
-/* Hover feedback for start debug action item */
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
-	background-color: #ececec;
+.hc-black .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+	background-color: #000;
 }
 
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
-	background-color: #2A2D2E;
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {
+	opacity: 0.7;
+	font-style: italic;
+	cursor: initial;
+}
+
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon.active {
+	-webkit-transform: scale(1.272019649, 1.272019649);
+	transform: scale(1.272019649, 1.272019649);
 }
 
 /* Debug viewlet trees */

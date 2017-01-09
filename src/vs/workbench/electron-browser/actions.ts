@@ -11,28 +11,27 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -125,7 +124,7 @@ export class CloseFolderAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
 			return TPromise.as(null);
 		}
@@ -171,12 +170,36 @@ export class ToggleMenuBarAction extends Action {
 	static ID = 'workbench.action.toggleMenuBar';
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	private static menuBarVisibilityKey = 'window.menuBarVisibility';
+
+	constructor(
+		id: string,
+		label: string,
+		@IMessageService private messageService: IMessageService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+	) {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
-		return this.windowService.toggleMenuBar();
+	public run(): TPromise<any> {
+		let currentVisibilityValue = this.configurationService.lookup<'visible' | 'toggle' | 'hidden'>(ToggleMenuBarAction.menuBarVisibilityKey).value;
+		if (typeof (currentVisibilityValue) !== 'string') {
+			currentVisibilityValue = 'visible';
+		}
+
+		let newVisibilityValue: string;
+		if (currentVisibilityValue === 'visible') {
+			newVisibilityValue = 'toggle';
+		} else {
+			newVisibilityValue = 'visible';
+		}
+
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue }).then(null, error => {
+			this.messageService.show(Severity.Error, error);
+		});
+
+		return TPromise.as(null);
 	}
 }
 
@@ -311,8 +334,6 @@ interface ILoaderEvent {
 	detail: string;
 }
 
-const timers = (<any>window).MonacoEnvironment.timers;
-
 export class ShowStartupPerformance extends Action {
 
 	public static ID = 'workbench.action.appPerf';
@@ -322,6 +343,7 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
+		@ITimerService private timerService: ITimerService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
@@ -335,14 +357,14 @@ export class ShowStartupPerformance extends Action {
 		// Print to console
 		setTimeout(() => {
 			(<any>console).group('Startup Performance Measurement');
-			const fingerprint: IStartupFingerprint = timers.fingerprint;
-			console.log(`OS: ${fingerprint.platform} (${fingerprint.release})`);
-			console.log(`CPUs: ${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})`);
-			console.log(`Memory (System): ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(fingerprint.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
-			console.log(`Memory (Process): ${(fingerprint.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(fingerprint.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(fingerprint.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(fingerprint.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
-			console.log(`Initial Startup: ${fingerprint.initialStartup}`);
-			console.log(`Screen Reader Active: ${fingerprint.hasAccessibilitySupport}`);
-			console.log(`Empty Workspace: ${fingerprint.emptyWorkbench}`);
+			const metrics: IStartupMetrics = this.timerService.startupMetrics;
+			console.log(`OS: ${metrics.platform} (${metrics.release})`);
+			console.log(`CPUs: ${metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})`);
+			console.log(`Memory (System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
+			console.log(`Memory (Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
+			console.log(`Initial Startup: ${metrics.initialStartup}`);
+			console.log(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
+			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
 
 			let nodeModuleLoadTime: number;
 			let nodeModuleLoadDetails: any[];
@@ -352,41 +374,46 @@ export class ShowStartupPerformance extends Action {
 				nodeModuleLoadDetails = nodeModuleTimes.table;
 			}
 
-			(<any>console).table(this.getFingerprintTable(nodeModuleLoadTime));
+			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
 
-			if (nodeModuleLoadDetails) {
-				(<any>console).groupCollapsed('node_modules Load Details');
-				(<any>console).table(nodeModuleLoadDetails);
-				(<any>console).groupEnd();
+			if (this.environmentService.performance) {
+				const data = this.analyzeLoaderStats();
+				for (let type in data) {
+					(<any>console).groupCollapsed(`Loader: ${type}`);
+					(<any>console).table(data[type]);
+					(<any>console).groupEnd();
+				}
 			}
+
 			(<any>console).groupEnd();
 		}, 1000);
 
 		return TPromise.as(true);
 	}
 
-	private getFingerprintTable(nodeModuleLoadTime?: number): any[] {
+	private getStartupMetricsTable(nodeModuleLoadTime?: number): any[] {
 		const table: any[] = [];
-		const fingerprint: IStartupFingerprint = timers.fingerprint;
+		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
-		if (fingerprint.initialStartup) {
-			table.push({ Topic: '[main] start => window.loadUrl()', 'Took (ms)': fingerprint.timers.ellapsedWindowLoad });
+		if (metrics.initialStartup) {
+			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
+			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
 
-		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedWindowLoadToRequire });
-		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedRequire });
+		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
+		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedRequire });
 
 		if (nodeModuleLoadTime) {
 			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
 		}
 
-		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': fingerprint.timers.ellapsedExtensions });
-		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': fingerprint.timers.ellapsedViewletRestore });
-		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': fingerprint.timers.ellapsedEditorRestore });
-		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': fingerprint.timers.ellapsedWorkbench });
+		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': metrics.timers.ellapsedExtensions });
+		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.ellapsedViewletRestore });
+		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.ellapsedEditorRestore });
+		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.ellapsedWorkbench });
 		table.push({ Topic: '------------------------------------------------------' });
-		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': fingerprint.timers.ellapsedExtensionsReady });
-		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': fingerprint.ellapsed });
+		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': metrics.timers.ellapsedExtensionsReady });
+		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': metrics.ellapsed });
 
 		return table;
 	}
@@ -424,6 +451,114 @@ export class ShowStartupPerformance extends Action {
 		}
 
 		return { table: result, duration: Math.round(total) };
+	}
+
+	private analyzeLoaderStats(): { [type: string]: any[] } {
+		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a, b) => {
+			if (a.detail < b.detail) {
+				return -1;
+			} else if (a.detail > b.detail) {
+				return 1;
+			} else if (a.type < b.type) {
+				return -1;
+			} else if (a.type > b.type) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
+
+		class Tick {
+
+			public readonly duration: number;
+			public readonly detail: string;
+
+			constructor(public readonly start: ILoaderEvent, public readonly end: ILoaderEvent) {
+				console.assert(start.detail === end.detail);
+
+				this.duration = this.end.timestamp - this.start.timestamp;
+				this.detail = start.detail;
+			}
+
+			toTableObject() {
+				return {
+					['Path']: this.start.detail,
+					['Took (ms)']: this.duration.toFixed(2),
+					// ['Start (ms)']: this.start.timestamp,
+					// ['End (ms)']: this.end.timestamp
+				};
+			}
+
+			static compareUsingStartTimestamp(a: Tick, b: Tick): number {
+				if (a.start.timestamp < b.start.timestamp) {
+					return -1;
+				} else if (a.start.timestamp > b.start.timestamp) {
+					return 1;
+				} else {
+					return 0;
+				}
+			}
+		}
+
+		const ticks: { [type: number]: Tick[] } = {
+			[LoaderEventType.BeginLoadingScript]: [],
+			[LoaderEventType.BeginInvokeFactory]: [],
+			[LoaderEventType.NodeBeginEvaluatingScript]: [],
+			[LoaderEventType.NodeBeginNativeRequire]: [],
+		};
+
+		for (let i = 1; i < stats.length - 1; i++) {
+			const stat = stats[i];
+			const nextStat = stats[i + 1];
+
+			if (nextStat.type - stat.type > 2) {
+				//bad?!
+				break;
+			}
+
+			i += 1;
+			ticks[stat.type].push(new Tick(stat, nextStat));
+		}
+
+		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.NodeBeginEvaluatingScript].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.NodeBeginNativeRequire].sort(Tick.compareUsingStartTimestamp);
+
+		const ret = {
+			'Load Script': ticks[LoaderEventType.BeginLoadingScript].map(t => t.toTableObject()),
+			'(Node) Load Script': ticks[LoaderEventType.NodeBeginNativeRequire].map(t => t.toTableObject()),
+			'Eval Script': ticks[LoaderEventType.BeginInvokeFactory].map(t => t.toTableObject()),
+			'(Node) Eval Script': ticks[LoaderEventType.NodeBeginEvaluatingScript].map(t => t.toTableObject()),
+		};
+
+		function total(ticks: Tick[]): number {
+			let sum = 0;
+			for (const tick of ticks) {
+				sum += tick.duration;
+			}
+			return sum;
+		}
+
+		// totals
+		ret['Load Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.BeginLoadingScript]).toFixed(2)
+		});
+		ret['Eval Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.BeginInvokeFactory]).toFixed(2)
+		});
+		ret['(Node) Load Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginNativeRequire]).toFixed(2)
+		});
+		ret['(Node) Eval Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginEvaluatingScript]).toFixed(2)
+		});
+
+		return ret;
 	}
 }
 
@@ -479,14 +614,14 @@ export class OpenRecentAction extends Action {
 		}
 
 		const runPick = (path: string, context: IEntryRunContext) => {
-			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			this.windowsService.windowOpen([path], newWindow);
+			const forceNewWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			this.windowsService.openWindow([path], { forceNewWindow });
 		};
 
 		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
 
-		const hasWorkspace = !!this.contextService.getWorkspace();
+		const hasWorkspace = this.contextService.hasWorkspace();
 
 		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
@@ -580,7 +715,7 @@ Steps to Reproduce:
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return tableHeader + '\n' + table;
+		return `${tableHeader}\n${table}`;
 	}
 }
 
@@ -607,20 +742,15 @@ export class KeybindingsReferenceAction extends Action {
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string]) {
+CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string]) {
 	const editorService = accessor.get(IWorkbenchEditorService);
-	let [left, right, label] = args;
+	let [leftResource, rightResource, label, description] = args;
 
 	if (!label) {
-		label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", left.toString(true), right.toString(true));
+		label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 	}
 
-	return TPromise.join([editorService.createInput({ resource: left }), editorService.createInput({ resource: right })]).then(inputs => {
-		const [left, right] = inputs;
-
-		const diff = new DiffEditorInput(label, void 0, <EditorInput>left, <EditorInput>right);
-		return editorService.openEditor(diff);
-	}).then(() => {
+	return editorService.openEditor({ leftResource, rightResource, label, description }).then(() => {
 		return void 0;
 	});
 });

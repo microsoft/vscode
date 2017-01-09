@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation, IActionItemProvider, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuProvider, DropdownMenu, IActionProvider, ILabelRenderer, IDropdownMenuOptions } from 'vs/base/browser/ui/dropdown/dropdown';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
 
 export const CONTEXT = 'context.toolbar';
 

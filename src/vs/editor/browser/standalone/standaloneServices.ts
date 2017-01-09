@@ -10,8 +10,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IEventService } from 'vs/platform/event/common/event';
-import { EventService } from 'vs/platform/event/common/eventService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -120,8 +118,6 @@ export module StaticServices {
 	}));
 
 	export const telemetryService = define(ITelemetryService, () => NullTelemetryService);
-
-	export const eventService = define(IEventService, () => new EventService());
 
 	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
 

@@ -159,7 +159,7 @@ suite('Event', function () {
 	});
 
 	test('throwingListener', function () {
-		var origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => null);
 
 		try {

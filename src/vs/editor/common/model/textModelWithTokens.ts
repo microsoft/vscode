@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import * as timer from 'vs/base/common/timer';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -294,7 +293,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._withModelTokensChangedEventBuilder((eventBuilder) => {
 
-			var t1 = timer.start(timer.Topic.EDITOR, 'backgroundTokenization');
 			toLineNumber = Math.min(this._lines.length, toLineNumber);
 
 			var MAX_ALLOWED_TIME = 20,
@@ -332,6 +330,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				this._updateTokensUntilLine(eventBuilder, lineNumber, false);
 				tokenizedChars += currentCharsToTokenize;
+
+				// Skip the lines that got tokenized
+				lineNumber = Math.max(lineNumber, this._invalidLineStartIndex + 1);
 			}
 
 			elapsedTime = sw.elapsed();
@@ -339,8 +340,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			if (this._invalidLineStartIndex < this._lines.length) {
 				this._beginBackgroundTokenization();
 			}
-
-			t1.stop();
 		});
 	}
 
@@ -362,7 +361,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 			try {
 				// Tokenize only the first X characters
-				r = this._tokenizationSupport.tokenize(this._lines[lineIndex].text, this._lines[lineIndex].getState(), 0, stopLineTokenizationAfter);
+				let freshState = this._lines[lineIndex].getState().clone();
+				r = this._tokenizationSupport.tokenize(this._lines[lineIndex].text, freshState, 0, stopLineTokenizationAfter);
 			} catch (e) {
 				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
 				onUnexpectedError(e);

@@ -98,7 +98,7 @@ class ConfigClass implements IConfiguration {
 			renderWhitespace: 'none',
 			renderControlCharacters: false,
 			renderIndentGuides: false,
-			renderLineHighlight: 'all',
+			renderLineHighlight: 'line',
 			useTabStops: true,
 
 			fontFamily: (

@@ -13,7 +13,8 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import Severity from 'vs/base/common/severity';
 import { IGitService } from 'vs/workbench/parts/git/common/git';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import * as url from 'url';
 import { remote } from 'electron';
 
 const dialog = remote.dialog;
@@ -34,7 +35,19 @@ export class CloneAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		return this.quickOpenService.input({ prompt: localize('repo', "Please provide a git repository URL."), placeHolder: localize('url', "Repository URL") })
+		return this.quickOpenService.input({
+			prompt: localize('valid', "Provide a valid git repository URL"),
+			placeHolder: localize('url', "Repository URL"),
+			validateInput: input => {
+				const parsedUrl = url.parse(input);
+
+				if (!parsedUrl.protocol || !parsedUrl.host) {
+					return TPromise.as(localize('valid', "Provide a valid git repository URL"));
+				}
+
+				return TPromise.as('');
+			}
+		})
 			.then(url => {
 				if (!url) {
 					return TPromise.as(null);
@@ -56,8 +69,8 @@ export class CloneAction extends Action {
 				const clone = always(this.gitService.clone(url, result[0]), () => promise.cancel());
 
 				return clone.then(path => {
-					const forceNewWindow = !!this.workspaceService.getWorkspace();
-					return this.windowsService.windowOpen([path], forceNewWindow);
+					const forceNewWindow = this.workspaceService.hasWorkspace();
+					return this.windowsService.openWindow([path], { forceNewWindow, forceReuseWindow: !forceNewWindow });
 
 				}).then<void>(null, e => {
 					if (/already exists and is not an empty directory/.test(e.stderr || '')) {

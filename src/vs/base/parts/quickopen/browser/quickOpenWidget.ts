@@ -8,7 +8,6 @@ import 'vs/css!./quickopen';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
-import browser = require('vs/base/browser/browser');
 import { EventType } from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
@@ -182,11 +181,6 @@ export class QuickOpenWidget implements IModelProvider {
 							this.elementSelected(focus, e, shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
 						}
 					}
-
-					// Bug in IE 9: onInput is not fired for Backspace or Delete keys
-					else if (browser.isIE9 && (keyboardEvent.keyCode === KeyCode.Backspace || keyboardEvent.keyCode === KeyCode.Delete)) {
-						this.onType();
-					}
 				});
 
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.INPUT, (e: Event) => {
@@ -301,7 +295,6 @@ export class QuickOpenWidget implements IModelProvider {
 
 			// Widget Attributes
 			.addClass('quick-open-widget')
-			.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
 			.build(this.container);
 
 		// Support layout

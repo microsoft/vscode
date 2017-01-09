@@ -15,11 +15,13 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DefaultPreferencesEditor, DefaultPreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenWorkspaceSettingsAction, StartSearchDefaultSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
+import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenWorkspaceSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IPreferencesService, CONTEXT_DEFAULT_SETTINGS_EDITOR, DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { PreferencesContentProvider } from 'vs/workbench/parts/preferences/common/preferencesContentProvider';
 
 registerSingleton(IPreferencesService, PreferencesService);
 
@@ -37,7 +39,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;
-	isSettings: boolean;
 }
 
 // Register Editor Input Factory for Default Preferences Input
@@ -46,7 +47,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	public serialize(editorInput: EditorInput): string {
 		const input = <DefaultPreferencesEditorInput>editorInput;
 
-		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString(), isSettings: input.isSettings };
+		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
 
 		return JSON.stringify(serialized);
 	}
@@ -54,7 +55,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
-		return new DefaultPreferencesEditorInput(URI.parse(deserialized.resource), deserialized.isSettings);
+		return instantiationService.createInstance(DefaultPreferencesEditorInput, URI.parse(deserialized.resource));
 	}
 }
 
@@ -69,7 +70,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsActi
 }), 'Preferences: Open User Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), 'Preferences: Open Workspace Settings', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(StartSearchDefaultSettingsAction, StartSearchDefaultSettingsAction.ID, StartSearchDefaultSettingsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }, ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR)), '');
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
@@ -80,3 +80,5 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR),
 	group: 'navigation'
 });
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContentProvider);

@@ -21,7 +21,8 @@ suite('Snippet Variables Resolver', function () {
 
 		const lines: string[] = [
 			'this is line one',
-			'this is line two'
+			'this is line two',
+			'    this is line three'
 		];
 
 		model.setValue(lines.join('\n'));
@@ -57,6 +58,10 @@ suite('Snippet Variables Resolver', function () {
 				assert.equal(resolver.resolve('TM_DIRECTORY'), '/abc/def');
 				assert.equal(resolver.resolve('TM_FILEPATH'), '/abc/def/ghi');
 			}
+
+			editor.setModel(Model.createFromString('', undefined, undefined, URI.parse('mem:fff.ts')));
+			assert.equal(resolver.resolve('TM_DIRECTORY'), '');
+			assert.equal(resolver.resolve('TM_FILEPATH'), 'fff.ts');
 		});
 	});
 
@@ -80,6 +85,9 @@ suite('Snippet Variables Resolver', function () {
 			assert.equal(resolver.resolve('TM_SELECTED_TEXT'), '');
 
 			assert.equal(resolver.resolve('TM_CURRENT_WORD'), 'this');
+
+			editor.setSelection(new Selection(3, 1, 3, 1));
+			assert.equal(resolver.resolve('TM_CURRENT_WORD'), '');
 		});
 	});
 

@@ -47,7 +47,7 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 	const xhr = new XMLHttpRequest();
 	return new TPromise<IRequestContext>((resolve, reject) => {
 
-		xhr.open(options.type, options.url, true, options.user, options.password);
+		xhr.open(options.type || 'GET', options.url, true, options.user, options.password);
 		setRequestHeaders(xhr, options);
 
 		xhr.responseType = 'arraybuffer';

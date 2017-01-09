@@ -67,10 +67,11 @@ export class MirrorModel2 {
 
 	protected _ensureLineStarts(): void {
 		if (!this._lineStarts) {
-			const lineStartValues: number[] = [];
 			const eolLength = this._eol.length;
-			for (let i = 0, len = this._lines.length; i < len; i++) {
-				lineStartValues.push(this._lines[i].length + eolLength);
+			const linesLength = this._lines.length;
+			const lineStartValues = new Uint32Array(linesLength);
+			for (let i = 0; i < linesLength; i++) {
+				lineStartValues[i] = this._lines[i].length + eolLength;
 			}
 			this._lineStarts = new PrefixSumComputer(lineStartValues);
 		}
@@ -142,7 +143,7 @@ export class MirrorModel2 {
 		);
 
 		// Insert new lines & store lengths
-		let newLengths: number[] = new Array<number>(insertLines.length - 1);
+		let newLengths = new Uint32Array(insertLines.length - 1);
 		for (let i = 1; i < insertLines.length; i++) {
 			this._lines.splice(position.lineNumber + i - 1, 0, insertLines[i]);
 			newLengths[i - 1] = insertLines[i].length + this._eol.length;

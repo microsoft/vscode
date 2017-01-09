@@ -12,6 +12,5 @@
 	"debugServer": "Solo per lo sviluppo dell'estensione di debug: se si specifica una porta, Visual Studio Code prova a connettersi a un adattatore di debug in esecuzione in modalità server",
 	"debugType": "Tipo di configurazione.",
 	"debugWindowsConfiguration": "Attributi della configurazione di avvio specifici di Windows.",
-	"internalConsoleOptions": "Controlla il comportamento della console di debug interna.",
-	"relativePathsNotConverted": "I percorsi relativi non verranno più convertiti in quelli assoluti. Provare a usare ${workspaceRoot} come prefisso."
+	"internalConsoleOptions": "Controlla il comportamento della console di debug interna."
 }

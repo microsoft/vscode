@@ -17,7 +17,7 @@ import { Action } from 'vs/base/common/actions';
 import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IQuickOpenService, IInputOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 @editorAction
@@ -54,7 +54,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			return;
 		}
 
-		if (!workspaceContext.getWorkspace()) {
+		if (!workspaceContext.hasWorkspace()) {
 			const message = nls.localize('noWorkspace', "Decoding a data:URL image is only available inside a workspace folder.");
 			messageService.show(Severity.Info, message);
 			return;

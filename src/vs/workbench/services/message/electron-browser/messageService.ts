@@ -7,7 +7,7 @@
 
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
-import product from 'vs/platform/product';
+import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IConfirmation, Severity, IChoiceService } from 'vs/platform/message/common/message';

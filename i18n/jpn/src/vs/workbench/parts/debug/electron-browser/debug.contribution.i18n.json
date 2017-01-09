@@ -10,7 +10,7 @@
 	"debugConfigurationTitle": "デバッグ",
 	"debugErrorEditor": "デバッグ エラー",
 	"debugPanel": "デバッグ コンソール",
-	"openExplorerOnEnd": "デバッグ セッションの終わりに Explorer ビューレットを自動的に開く",
+	"openExplorerOnEnd": "デバッグ セッションの終わりにエクスプローラ ビューを自動的に開きます",
 	"toggleDebugPanel": "デバッグ コンソール",
 	"toggleDebugViewlet": "デバッグの表示",
 	"view": "表示"

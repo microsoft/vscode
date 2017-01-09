@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelDecoration, IRange, IPosition } from 'vs/editor/common/editorCommon';
+import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface IRestrictedRenderingContext {
 	linesViewportData: ViewLinesViewportData;
@@ -26,14 +27,14 @@ export interface IRestrictedRenderingContext {
 	getViewportVerticalOffsetForLineNumber(lineNumber: number): number;
 	lineIsVisible(lineNumber: number): boolean;
 
-	getDecorationsInViewport(): IModelDecoration[];
+	getDecorationsInViewport(): ViewModelDecoration[];
 }
 
 export interface IRenderingContext extends IRestrictedRenderingContext {
 
-	linesVisibleRangesForRange(range: IRange, includeNewLines: boolean): LineVisibleRanges[];
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
 
-	visibleRangeForPosition(position: IPosition): VisibleRange;
+	visibleRangeForPosition(position: Position): VisibleRange;
 }
 
 export class LineVisibleRanges {

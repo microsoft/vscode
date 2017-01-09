@@ -7,24 +7,27 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetry';
 import { getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import * as dom from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -113,11 +116,14 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
-export class WorkbenchKeybindingService extends KeybindingService {
+export class WorkbenchKeybindingService extends AbstractKeybindingService {
+
+	private _cachedResolver: KeybindingResolver;
+	private _firstTimeComputingResolver: boolean;
 	private userKeybindings: ConfigWatcher<IUserFriendlyKeybinding[]>;
 
 	constructor(
-		domNode: HTMLElement,
+		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -126,6 +132,9 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
 		super(contextKeyService, commandService, messageService, statusBarService);
+
+		this._cachedResolver = null;
+		this._firstTimeComputingResolver = true;
 
 		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [] });
 		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
@@ -138,13 +147,24 @@ export class WorkbenchKeybindingService extends KeybindingService {
 			}
 
 			if (commandAdded) {
-				this.updateResolver();
+				this.updateResolver({ source: KeybindingSource.Default });
 			}
 		});
 
-		this.toDispose.push(this.userKeybindings.onDidUpdateConfiguration(() => this.updateResolver()));
+		this.toDispose.push(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
+			source: KeybindingSource.User,
+			keybindings: event.config
+		})));
 
-		this._beginListening(domNode);
+		this.toDispose.push(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let keyEvent = new StandardKeyboardEvent(e);
+			let shouldPreventDefault = this._dispatch(keyEvent.toKeybinding(), keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+		}));
+
+		keybindingsTelemetry(telemetryService, this);
 	}
 
 	private _safeGetConfig(): IUserFriendlyKeybinding[] {
@@ -161,7 +181,20 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return userKeybindings.length;
 	}
 
-	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
+	private updateResolver(event: IKeybindingEvent): void {
+		this._cachedResolver = null;
+		this._onDidUpdateKeybindings.fire(event);
+	}
+
+	protected _getResolver(): KeybindingResolver {
+		if (!this._cachedResolver) {
+			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings(this._firstTimeComputingResolver));
+			this._firstTimeComputingResolver = false;
+		}
+		return this._cachedResolver;
+	}
+
+	private _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
 		let extraUserKeybindings: IUserFriendlyKeybinding[] = this._safeGetConfig();
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
@@ -175,15 +208,15 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
-		return keybinding.toCustomLabel(getNativeLabelProvider());
+		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
 	}
 
 	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return keybinding.toCustomHTMLLabel(getNativeLabelProvider());
+		return KeybindingLabels.toCustomHTMLLabel(keybinding, getNativeLabelProvider());
 	}
 
 	public getAriaLabelFor(keybinding: Keybinding): string {
-		return keybinding.toCustomLabel(getNativeAriaLabelProvider());
+		return KeybindingLabels.toCustomLabel(keybinding, getNativeAriaLabelProvider());
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
@@ -192,7 +225,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 			return super.getElectronAcceleratorFor(keybinding);
 		}
 
-		let usLabel = keybinding._toUSLabel();
+		let usLabel = KeybindingLabels._toUSLabel(keybinding);
 		let label = this.getLabelFor(keybinding);
 		if (usLabel !== label) {
 			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
@@ -281,14 +314,17 @@ let schema: IJSONSchema = {
 		'properties': {
 			'key': {
 				'type': 'string',
-				'description': nls.localize('keybindings.json.key', 'Key or key sequence (separated by space)'),
+				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
-				'description': nls.localize('keybindings.json.command', 'Name of the command to execute'),
+				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'when': {
 				'type': 'string',
-				'description': nls.localize('keybindings.json.when', 'Condition when the key is active.')
+				'description': nls.localize('keybindings.json.when', "Condition when the key is active.")
+			},
+			'args': {
+				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		}
 	}

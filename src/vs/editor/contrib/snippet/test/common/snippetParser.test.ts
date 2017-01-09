@@ -286,4 +286,12 @@ suite('SnippetParser', () => {
 		const actual = new SnippetParser(true, false).escape('Foo \\\\${abc}bar');
 		assert.equal(actual, 'Foo \\bar');
 	});
+
+	test('colon as variable/placeholder value, #16717', () => {
+		let actual = new SnippetParser(true, false).escape('${TM_SELECTED_TEXT:foo:bar}');
+		assert.equal(actual, 'foo:bar');
+
+		actual = new SnippetParser(true, false).escape('${1:foo:bar}');
+		assert.equal(actual, 'foo:bar');
+	});
 });

@@ -25,14 +25,14 @@ import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
-import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
+import { ReplInputEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
@@ -71,7 +71,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private renderer: ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: ReplEditor;
+	private replInput: ReplInputEditor;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: IAction[];
@@ -80,7 +80,6 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
@@ -138,11 +137,14 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext);
+		controller.toFocusOnClick = this.replInput;
+
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(ReplExpressionsController, this.replInput, new ReplExpressionsActionProvider(this.instantiationService))
+			controller
 		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {
@@ -165,7 +167,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(ReplEditor, this.replInputContainer, this.getReplInputOptions());
+		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
 		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
 		this.replInput.setModel(model);
 

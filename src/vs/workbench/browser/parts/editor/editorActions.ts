@@ -9,18 +9,19 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/common/editor';
+import { EditorInput, hasResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class SplitEditorAction extends Action {
 
@@ -194,7 +195,7 @@ export class FocusFirstGroupAction extends Action {
 
 			// For now only support to open files from history to the side
 			if (input instanceof EditorInput) {
-				if (!!getUntitledOrFileResource(input)) {
+				if (hasResource(input, { filter: ['file', 'untitled'] })) {
 					return this.editorService.openEditor(input, null, Position.ONE);
 				}
 			} else {
@@ -267,7 +268,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 				// For now only support to open files from history to the side
 				if (input instanceof EditorInput) {
-					if (!!getUntitledOrFileResource(input)) {
+					if (hasResource(input, { filter: ['file', 'untitled'] })) {
 						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
 					}
 				} else {
@@ -355,6 +356,10 @@ export class FocusPreviousGroup extends Action {
 		let nextPosition: Position = Position.ONE;
 		if (activeEditor.position === Position.THREE) {
 			nextPosition = Position.TWO;
+		} else if (activeEditor.position === Position.ONE) {
+			// Get the last active position
+			const lastPosition = this.editorGroupService.getStacksModel().groups.length - 1;
+			nextPosition = lastPosition;
 		}
 
 		// Focus next position if provided
@@ -390,7 +395,9 @@ export class FocusNextGroup extends Action {
 		// Find the next position to the right/bottom to use
 		let nextPosition: Position;
 		const activeEditor = this.editorService.getActiveEditor();
-		if (!activeEditor) {
+
+		const lastPosition = POSITIONS[POSITIONS.length - 1];
+		if (!activeEditor || activeEditor.position === lastPosition) {
 			nextPosition = Position.ONE;
 		} else if (activeEditor.position === Position.ONE) {
 			nextPosition = Position.TWO;
@@ -565,12 +572,40 @@ export class CloseAllEditorsAction extends Action {
 	public static ID = 'workbench.action.closeAllEditors';
 	public static LABEL = nls.localize('closeAllEditors', "Close All Editors");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@ITextFileService private textFileService: ITextFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label, 'action-close-all-files');
 	}
 
 	public run(): TPromise<any> {
-		return this.editorService.closeAllEditors();
+
+		// Just close all if there are no or one dirty editor
+		if (this.textFileService.getDirty().length < 2) {
+			return this.editorService.closeAllEditors();
+		}
+
+		// Otherwise ask for combined confirmation
+		const confirm = this.textFileService.confirmSave();
+		if (confirm === ConfirmResult.CANCEL) {
+			return;
+		}
+
+		let saveOrRevertPromise: TPromise<boolean>;
+		if (confirm === ConfirmResult.DONT_SAVE) {
+			saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
+		} else {
+			saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
+		}
+
+		return saveOrRevertPromise.then(success => {
+			if (success) {
+				return this.editorService.closeAllEditors();
+			}
+		});
 	}
 }
 

@@ -247,7 +247,7 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 			}
 			return this.getNugetService('SearchQueryService').then(service => {
 				let queryUrl = service + '?q=' + encodeURIComponent(pack) + '&take=' + 10;
-				return this.makeJSONRequest<any>(queryUrl).then(resultObj => {
+				return this.makeJSONRequest<CompletionItem>(queryUrl).then(resultObj => {
 					let itemResolved = false;
 					if (Array.isArray(resultObj.data)) {
 						let results = <any[]>resultObj.data;

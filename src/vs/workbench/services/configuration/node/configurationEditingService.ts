@@ -17,6 +17,7 @@ import { Queue } from 'vs/base/common/async';
 import { applyEdits, Edit } from 'vs/base/common/jsonFormatter';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -67,7 +68,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		// First validate before making any edits
 		return this.validate(target, operation, options).then(validation => {
-			if (typeof validation.error === 'number') {
+			if (!options.writeToBuffer && typeof validation.error === 'number') {
+				// Target cannot contain JSON errors if writing to disk
 				return this.wrapError(validation.error, target);
 			}
 
@@ -92,7 +94,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		});
 	}
 
-	private writeToBuffer(contents: string, operation: IConfigurationEditOperation, resource: URI, options: IConfigurationEditingOptions): TPromise<any> {
+	private writeToBuffer(contents: string, operation: IConfigurationEditOperation, resource: URI, options: IConfigurationEditingOptions): TPromise<void> {
 		const isDirtyBefore = this.textFileService.isDirty(resource);
 		const edit = this.getEdits(contents, operation)[0];
 		return this.textModelResolverService.createModelReference(resource).
@@ -109,12 +111,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private applyEditsToBuffer(edit: Edit, model: editorCommon.IModel): boolean {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
-		const range: editorCommon.IRange = {
-			startLineNumber: startPosition.lineNumber,
-			startColumn: startPosition.column,
-			endLineNumber: endPosition.lineNumber,
-			endColumn: endPosition.column
-		};
+		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 		let currentText = model.getValueInRange(range);
 		if (edit.content !== currentText) {
 			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
@@ -124,7 +121,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return false;
 	}
 
-	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<any> {
+	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<void> {
 		// Apply all edits to the configuration file
 		const result = this.applyEdits(contents, operation);
 
@@ -209,7 +206,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace if no workspace opened
-		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.getWorkspace()) {
+		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.hasWorkspace()) {
 			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED });
 		}
 
@@ -232,14 +229,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 					return { exists, contents: content };
 				}
 
-				// Target cannot contain JSON errors
+				let error = void 0;
 				const parseErrors: json.ParseError[] = [];
 				json.parse(content, parseErrors);
 				if (parseErrors.length > 0) {
-					return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
+					error = ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION;
 				}
 
-				return { exists, contents: content };
+				return { exists, contents: content, error };
 			});
 		});
 	}

@@ -11,6 +11,7 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, LineVisibleRanges, IRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Range } from 'vs/editor/common/core/range';
+import * as browser from 'vs/base/browser/browser';
 
 const enum CornerStyle {
 	EXTERN,
@@ -58,10 +59,7 @@ function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
 // TODO@Alex: Remove this once IE11 fixes Bug #524217
 // The problem in IE11 is that it does some sort of auto-zooming to accomodate for displays with different pixel density.
 // Unfortunately, this auto-zooming is buggy around dealing with rounded borders
-const isIEWithZoomingIssuesNearRoundedBorders = (
-	(navigator.userAgent.indexOf('Trident/7.0') >= 0)
-	|| (navigator.userAgent.indexOf('Edge/') >= 0)
-);
+const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdgeOrIE;
 
 
 export class SelectionsOverlay extends DynamicViewOverlay {
@@ -105,7 +103,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
-		return e.inlineDecorationsChanged;
+		return true;//e.inlineDecorationsChanged;
 	}
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;

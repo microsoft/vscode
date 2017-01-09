@@ -6,7 +6,7 @@
 {
 	"console.title": "Консоль VS Code",
 	"linux.term.failed": "Сбой \"{0}\" с кодом выхода {1}",
-	"mac.terminal.script.failed": "сбой скрипта \"{0}\" с кодом выхода {1}",
+	"mac.terminal.script.failed": "Сбой скрипта \"{0}\" с кодом выхода {1}",
 	"mac.terminal.type.not.supported": "\"{0}\" не поддерживается",
 	"press.any.key": "Для продолжения нажмите любую клавишу..."
 }

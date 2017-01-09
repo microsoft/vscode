@@ -179,7 +179,7 @@ export class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 	public isInOverwriteMode(): boolean {
 		// In IE, pressing Insert will bring the typing into overwrite mode
-		if (browser.isIE11orEarlier && document.queryCommandValue('OverWrite')) {
+		if (browser.isIE && document.queryCommandValue('OverWrite')) {
 			return true;
 		}
 		return false;

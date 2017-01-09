@@ -8,68 +8,20 @@
 import * as nls from 'vs/nls';
 import * as defaultPlatform from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord, KeyCodeUtils, BinaryKeybindings, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils, BinaryKeybindings, USER_SETTINGS } from 'vs/base/common/keyCodes';
 
 export interface ISimplifiedPlatform {
 	isMacintosh: boolean;
 	isWindows: boolean;
 }
 
-export class Keybinding {
-
-	/**
-	 * Format the binding to a format appropiate for rendering in the UI
-	 */
-	private static _toUSLabel(value: number, Platform: ISimplifiedPlatform): string {
-		return _asString(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
-	}
-
-	/**
-	 * Format the binding to a format appropiate for placing in an aria-label.
-	 */
-	private static _toUSAriaLabel(value: number, Platform: ISimplifiedPlatform): string {
-		return _asString(value, AriaKeyLabelProvider.INSTANCE, Platform);
-	}
-
-	/**
-	 * Format the binding to a format appropiate for rendering in the UI
-	 */
-	private static _toUSHTMLLabel(value: number, Platform: ISimplifiedPlatform): IHTMLContentElement[] {
-		return _asHTML(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
-	}
-
-	/**
-	 * Format the binding to a format appropiate for rendering in the UI
-	 */
-	private static _toCustomLabel(value: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
-		return _asString(value, labelProvider, Platform);
-	}
-
-	/**
-	 * Format the binding to a format appropiate for rendering in the UI
-	 */
-	private static _toCustomHTMLLabel(value: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): IHTMLContentElement[] {
-		return _asHTML(value, labelProvider, Platform);
-	}
-
-	/**
-	 * This prints the binding in a format suitable for electron's accelerators.
-	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
-	 */
-	private static _toElectronAccelerator(value: number, Platform: ISimplifiedPlatform): string {
-		if (BinaryKeybindings.hasChord(value)) {
-			// Electron cannot handle chords
-			return null;
-		}
-		let keyCode = BinaryKeybindings.extractKeyCode(value);
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-		return _asString(value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
-	}
+export class KeybindingLabels {
 
 	private static _cachedKeybindingRegex: string = null;
+
+	/**
+	 * @internal
+	 */
 	public static getUserSettingsKeybindingRegex(): string {
 		if (!this._cachedKeybindingRegex) {
 			let numpadKey = 'numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)';
@@ -87,6 +39,7 @@ export class Keybinding {
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
+	 * @internal
 	 */
 	public static toUserSettingsLabel(value: number, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE, Platform);
@@ -101,6 +54,9 @@ export class Keybinding {
 		return result;
 	}
 
+	/**
+	 * @internal
+	 */
 	public static fromUserSettingsLabel(input: string, Platform: ISimplifiedPlatform = defaultPlatform): number {
 		if (!input) {
 			return null;
@@ -161,7 +117,7 @@ export class Keybinding {
 		let firstSpaceIdx = input.indexOf(' ');
 		if (firstSpaceIdx > 0) {
 			key = input.substring(0, firstSpaceIdx);
-			chord = Keybinding.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
+			chord = KeybindingLabels.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
 		} else {
 			key = input;
 		}
@@ -185,82 +141,63 @@ export class Keybinding {
 		return KeyChord(result, chord);
 	}
 
-	public value: number;
-
-	constructor(keybinding: number) {
-		this.value = keybinding;
-	}
-
-	public hasCtrlCmd(): boolean {
-		return BinaryKeybindings.hasCtrlCmd(this.value);
-	}
-
-	public hasShift(): boolean {
-		return BinaryKeybindings.hasShift(this.value);
-	}
-
-	public hasAlt(): boolean {
-		return BinaryKeybindings.hasAlt(this.value);
-	}
-
-	public hasWinCtrl(): boolean {
-		return BinaryKeybindings.hasWinCtrl(this.value);
-	}
-
-	public extractKeyCode(): KeyCode {
-		return BinaryKeybindings.extractKeyCode(this.value);
-	}
-
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
-	public _toUSLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return Keybinding._toUSLabel(this.value, Platform);
+	public static _toUSLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		return _asString(keybinding.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for placing in an aria-label.
+	 * @internal
 	 */
-	public _toUSAriaLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return Keybinding._toUSAriaLabel(this.value, Platform);
+	public static _toUSAriaLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		return _asString(keybinding.value, AriaKeyLabelProvider.INSTANCE, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
-	public _toUSHTMLLabel(Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return Keybinding._toUSHTMLLabel(this.value, Platform);
+	public static _toUSHTMLLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return _asHTML(keybinding.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
-	public toCustomLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return Keybinding._toCustomLabel(this.value, labelProvider, Platform);
+	public static toCustomLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		return _asString(keybinding.value, labelProvider, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
+	 * @internal
 	 */
-	public toCustomHTMLLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return Keybinding._toCustomHTMLLabel(this.value, labelProvider, Platform);
+	public static toCustomHTMLLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return _asHTML(keybinding.value, labelProvider, Platform);
 	}
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
+	 * @internal
 	 */
-	public _toElectronAccelerator(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return Keybinding._toElectronAccelerator(this.value, Platform);
+	public static _toElectronAccelerator(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		if (BinaryKeybindings.hasChord(keybinding.value)) {
+			// Electron cannot handle chords
+			return null;
+		}
+		let keyCode = BinaryKeybindings.extractKeyCode(keybinding.value);
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
+			return null;
+		}
+		return _asString(keybinding.value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
 	}
-
-	/**
-	 * Format the binding to a format appropiate for the user settings file.
-	 */
-	public toUserSettingsLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return Keybinding.toUserSettingsLabel(this.value, Platform);
-	}
-
 }
 
 export interface IKeyBindingLabelProvider {

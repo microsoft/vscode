@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
@@ -16,6 +16,7 @@ import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestThreadService } from './testThreadService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/node/mainThreadLanguageFeatures';
@@ -67,7 +68,7 @@ suite('ExtHostLanguageFeatures', function () {
 		threadService = new TestThreadService();
 		let instantiationService = new TestInstantiationService();
 		instantiationService.stub(IThreadService, threadService);
-		instantiationService.stub(IMarkerService);
+		instantiationService.stub(IMarkerService, MarkerService);
 		instantiationService.stub(IHeapService, {
 			_serviceBrand: undefined,
 			trackRecursive(args) {

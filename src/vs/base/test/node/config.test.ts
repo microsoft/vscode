@@ -13,7 +13,7 @@ import fs = require('fs');
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { ConfigWatcher } from 'vs/base/node/config';
-import { onError } from 'vs/test/utils/servicesTestUtils';
+import { onError } from 'vs/base/test/common/utils';
 
 suite('Config', () => {
 

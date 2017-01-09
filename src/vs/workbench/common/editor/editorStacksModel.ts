@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, getResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -196,7 +196,7 @@ export class EditorGroup implements IEditorGroup {
 
 		for (let i = 0; i < this.editors.length; i++) {
 			const editor = this.editors[i];
-			const editorResource = getResource(editor);
+			const editorResource = toResource(editor, { supportSideBySide: true });
 			if (editorResource && editorResource.toString() === resource.toString()) {
 				return editor;
 			}
@@ -482,9 +482,20 @@ export class EditorGroup implements IEditorGroup {
 		this.closeEditor(oldPreview);
 	}
 
-	public isPinned(editor: EditorInput): boolean {
-		const index = this.indexOf(editor);
-		if (index === -1) {
+	public isPinned(editor: EditorInput): boolean;
+	public isPinned(index: number): boolean;
+	public isPinned(arg1: EditorInput | number): boolean {
+		let editor: EditorInput;
+		let index: number;
+		if (typeof arg1 === 'number') {
+			editor = this.editors[arg1];
+			index = arg1;
+		} else {
+			editor = arg1;
+			index = this.indexOf(editor);
+		}
+
+		if (index === -1 || !editor) {
 			return false; // editor not found
 		}
 
@@ -542,13 +553,13 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
-		const resource = getResource(editor);
+		const resource = toResource(editor, { supportSideBySide: true });
 		if (resource) {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
 			// So we need to do ref counting on the resource to provide the correct picture
 			let counter = this.mapResourceToEditorCount[resource.toString()] || 0;
-			let newCounter;
+			let newCounter: number;
 			if (remove) {
 				if (counter > 1) {
 					newCounter = counter - 1;

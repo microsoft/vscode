@@ -39,8 +39,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.8.9' },
-	{ name: 'ms-vscode.node-debug2', version: '1.8.2' }
+	{ name: 'ms-vscode.node-debug', version: '1.9.1' },
+	{ name: 'ms-vscode.node-debug2', version: '1.9.1' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -91,9 +91,17 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	out: 'out-vscode'
 }));
 
+
+gulp.task('optimize-index-js', ['optimize-vscode'], () => {
+	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js')
+	const contents = fs.readFileSync(fullpath).toString();
+	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
+	fs.writeFileSync(fullpath, newContents);
+})
+
 const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', baseUrl));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], common.minifyTask('out-vscode', baseUrl));
 
 // Package
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
@@ -102,7 +110,7 @@ const config = {
 	version: packageJson.electronVersion,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2016 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -202,6 +210,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
 			'!extensions/*/build/**',
+			'!extensions/**/node_modules/@types/**',
 			'!extensions/*/{client,server}/src/**',
 			'!extensions/*/{client,server}/test/**',
 			'!extensions/*/{client,server}/out/**/test/**',
@@ -260,7 +269,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
-			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
+			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
 
 		let all = es.merge(
 			packageJsonStream,

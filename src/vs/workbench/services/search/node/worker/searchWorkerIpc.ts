@@ -11,12 +11,9 @@ import { ISerializedFileMatch } from '../search';
 import { IPatternInfo } from 'vs/platform/search/common/search';
 import { SearchWorkerManager } from './searchWorker';
 
-export interface ISearchWorkerConfig {
+export interface ISearchWorkerSearchArgs {
 	pattern: IPatternInfo;
 	fileEncoding: string;
-}
-
-export interface ISearchWorkerSearchArgs {
 	absolutePaths: string[];
 	maxResults?: number;
 }
@@ -28,13 +25,13 @@ export interface ISearchWorkerSearchResult {
 }
 
 export interface ISearchWorker {
-	initialize(config: ISearchWorkerConfig): TPromise<void>;
+	initialize(): TPromise<void>;
 	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult>;
 	cancel(): TPromise<void>;
 }
 
 export interface ISearchWorkerChannel extends IChannel {
-	call(command: 'initialize', config: ISearchWorkerConfig): TPromise<void>;
+	call(command: 'initialize'): TPromise<void>;
 	call(command: 'search', args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult>;
 	call(command: 'cancel'): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
@@ -46,7 +43,7 @@ export class SearchWorkerChannel implements ISearchWorkerChannel {
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'initialize': return this.worker.initialize(arg);
+			case 'initialize': return this.worker.initialize();
 			case 'search': return this.worker.search(arg);
 			case 'cancel': return this.worker.cancel();
 		}
@@ -56,8 +53,8 @@ export class SearchWorkerChannel implements ISearchWorkerChannel {
 export class SearchWorkerChannelClient implements ISearchWorker {
 	constructor(private channel: ISearchWorkerChannel) { }
 
-	initialize(config: ISearchWorkerConfig): TPromise<void> {
-		return this.channel.call('initialize', config);
+	initialize(): TPromise<void> {
+		return this.channel.call('initialize');
 	}
 
 	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
