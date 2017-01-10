@@ -333,7 +333,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.quickOpenService.pick([...this.adapters, { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+			this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
 					if (picked instanceof Adapter) {
 						return picked ? picked.getInitialConfigurationContent() : null;

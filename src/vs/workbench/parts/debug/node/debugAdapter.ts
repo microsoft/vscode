@@ -84,6 +84,10 @@ export class Adapter {
 		objects.mixin(this.rawAdapter, secondRawAdapter, extensionDescription.isBuiltin);
 	}
 
+	public hasInitialConfiguration(): boolean {
+		return !!this.rawAdapter.initialConfigurations;
+	}
+
 	public getInitialConfigurationContent(): TPromise<string> {
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		if (typeof this.rawAdapter.initialConfigurations === 'string') {
