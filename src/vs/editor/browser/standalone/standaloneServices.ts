@@ -39,6 +39,8 @@ import {
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { StandaloneColorServiceImpl } from 'vs/editor/browser/services/standaloneColorServiceImpl';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -138,6 +140,8 @@ export module StaticServices {
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
 	export const storageService = define(IStorageService, () => NullStorageService);
+
+	export const standaloneColorService = define(IStandaloneColorService, () => new StandaloneColorServiceImpl());
 }
 
 export class DynamicStandaloneServices extends Disposable {

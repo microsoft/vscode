@@ -85,7 +85,7 @@ suite('ExtHostLanguageFeatures', function () {
 		extHostDocuments.$acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
-			modeId: model.getModeId(),
+			modeId: model.getLanguageIdentifier().language,
 			url: model.uri,
 			value: {
 				EOL: model.getEOL(),

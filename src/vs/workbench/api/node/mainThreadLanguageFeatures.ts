@@ -20,20 +20,24 @@ import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeature
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
 
 	private _proxy: ExtHostLanguageFeaturesShape;
 	private _heapService: IHeapService;
+	private _modeService: IModeService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@IHeapService heapService: IHeapService
+		@IHeapService heapService: IHeapService,
+		@IModeService modeService: IModeService,
 	) {
 		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
+		this._modeService = modeService;
 	}
 
 	$unregister(handle: number): TPromise<any> {
@@ -273,7 +277,11 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 			};
 		}
 
-		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, configuration);
+		let languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		if (languageIdentifier) {
+			this._registrations[handle] = LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+		}
+
 		return undefined;
 	}
 

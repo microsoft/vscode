@@ -5,9 +5,10 @@
 
 'use strict';
 
-import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
+import { EditorAccessor, ILanguageIdentifierResolver, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import assert = require('assert');
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 //
 // To run the emmet tests only change .vscode/launch.json
@@ -49,8 +50,17 @@ suite('Emmet', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
 			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
-				editor.getModel().setMode(mode);
-				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
+				const languageIdentifier = new LanguageIdentifier(mode, 73);
+				const languageIdentifierResolver: ILanguageIdentifierResolver = {
+					getLanguageIdentifier: (languageId: LanguageId) => {
+						if (languageId === 73) {
+							return languageIdentifier;
+						}
+						throw new Error('Unexpected');
+					}
+				};
+				editor.getModel().setMode(languageIdentifier);
+				let editorAccessor = new EditorAccessor(languageIdentifierResolver, editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}
 
@@ -90,9 +100,18 @@ suite('Emmet', () => {
 		], {}, (editor) => {
 
 			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
-				editor.getModel().setMode(mode);
+				const languageIdentifier = new LanguageIdentifier(mode, 73);
+				const languageIdentifierResolver: ILanguageIdentifierResolver = {
+					getLanguageIdentifier: (languageId: LanguageId) => {
+						if (languageId === 73) {
+							return languageIdentifier;
+						}
+						throw new Error('Unexpected');
+					}
+				};
+				editor.getModel().setMode(languageIdentifier);
 				editor.setPosition({ lineNumber: 1, column: 3 });
-				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
+				let editorAccessor = new EditorAccessor(languageIdentifierResolver, editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}
 
@@ -105,8 +124,17 @@ suite('Emmet', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
 			function testSyntax(mode: string, scopeName: string, expectedSyntax: string, profile = {}, excluded = []) {
-				editor.getModel().setMode(mode);
-				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
+				const languageIdentifier = new LanguageIdentifier(mode, 73);
+				const languageIdentifierResolver: ILanguageIdentifierResolver = {
+					getLanguageIdentifier: (languageId: LanguageId) => {
+						if (languageId === 73) {
+							return languageIdentifier;
+						}
+						throw new Error('Unexpected');
+					}
+				};
+				editor.getModel().setMode(languageIdentifier);
+				let editorAccessor = new EditorAccessor(languageIdentifierResolver, editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.getSyntax(), expectedSyntax);
 			}
 

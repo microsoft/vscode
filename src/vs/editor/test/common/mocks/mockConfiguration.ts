@@ -5,7 +5,8 @@
 'use strict';
 
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions, FontInfo, BareFontInfo } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export class MockConfiguration extends CommonEditorConfiguration {
 

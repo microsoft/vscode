@@ -106,7 +106,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
-			modeId: model.getMode().getId(),
+			modeId: model.getLanguageIdentifier().language,
 			isDirty: this._textFileService.isDirty(modelUrl)
 		});
 	}
@@ -117,7 +117,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri.toString(), oldModeId, model.getMode().getId());
+		this._proxy.$acceptModelModeChanged(model.uri.toString(), oldModeId, model.getLanguageIdentifier().language);
 	}
 
 	private _onModelRemoved(model: editorCommon.IModel): void {

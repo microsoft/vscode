@@ -383,8 +383,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return true;
 		}
 
-		const mode = model ? model.getMode() : null;
-		const modeId = mode ? mode.getId() : null;
+		const modeId = model ? model.getLanguageIdentifier().language : null;
 
 		return this.breakpointModeIdsSet.has(modeId);
 	}

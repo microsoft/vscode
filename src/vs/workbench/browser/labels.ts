@@ -215,7 +215,7 @@ function getConfiguredLangId(modelService: IModelService, resource: uri): string
 	if (resource) {
 		const model = modelService.getModel(resource);
 		if (model) {
-			const modeId = model.getModeId();
+			const modeId = model.getLanguageIdentifier().language;
 			if (modeId && modeId !== PLAINTEXT_MODE_ID) {
 				configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
 			}

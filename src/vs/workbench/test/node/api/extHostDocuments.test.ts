@@ -39,19 +39,17 @@ suite('ExtHostDocument', () => {
 	});
 
 	test('readonly-ness', function () {
-
-		assert.throws(() => data.document.uri = null);
-		assert.throws(() => data.document.fileName = 'foofile');
-		assert.throws(() => data.document.isDirty = false);
-		assert.throws(() => data.document.isUntitled = false);
-		assert.throws(() => data.document.languageId = 'dddd');
-		assert.throws(() => data.document.lineCount = 9);
+		assert.throws(() => (<any>data).document.uri = null);
+		assert.throws(() => (<any>data).document.fileName = 'foofile');
+		assert.throws(() => (<any>data).document.isDirty = false);
+		assert.throws(() => (<any>data).document.isUntitled = false);
+		assert.throws(() => (<any>data).document.languageId = 'dddd');
+		assert.throws(() => (<any>data).document.lineCount = 9);
 	});
 
 	test('lines', function () {
 
 		assert.equal(data.document.lineCount, 4);
-		assert.throws(() => data.document.lineCount = 9);
 
 		assert.throws(() => data.lineAt(-1));
 		assert.throws(() => data.lineAt(data.document.lineCount));
