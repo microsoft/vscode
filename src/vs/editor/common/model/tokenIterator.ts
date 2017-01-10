@@ -5,8 +5,9 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { LineToken, StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
 class TokenInfo implements editorCommon.ITokenInfo {
 	_tokenInfoBrand: void;
@@ -15,14 +16,14 @@ class TokenInfo implements editorCommon.ITokenInfo {
 	public readonly lineNumber: number;
 	public readonly startColumn: number;
 	public readonly endColumn: number;
-	public readonly standardType: StandardTokenType;
+	public readonly type: StandardTokenType;
 
 	constructor(actual: LineToken, lineNumber: number) {
 		this._actual = actual;
 		this.lineNumber = lineNumber;
 		this.startColumn = this._actual.startOffset + 1;
 		this.endColumn = this._actual.endOffset + 1;
-		this.standardType = this._actual.standardType;
+		this.type = this._actual.tokenType;
 	}
 }
 

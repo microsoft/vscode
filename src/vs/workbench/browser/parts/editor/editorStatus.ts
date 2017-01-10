@@ -24,7 +24,7 @@ import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecyc
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/workbench/parts/indentation/common/indentation';
@@ -495,7 +495,7 @@ export class EditorStatus implements IStatusbarItem {
 			}));
 
 			// Hook Listener for mode changes
-			this.activeEditorListeners.push(control.onDidChangeModelMode((event: IModelModeChangedEvent) => {
+			this.activeEditorListeners.push(control.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
 				this.onModeChange(control);
 			}));
 
@@ -525,16 +525,9 @@ export class EditorStatus implements IStatusbarItem {
 		if (editorWidget) {
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
-				if (typeof textModel.getMode !== 'function') {
-					console.log(Object.getPrototypeOf(textModel).toString());
-					console.log(Object.getOwnPropertyNames(textModel));
-				}
-
 				// Compute mode
-				const mode = textModel.getMode();
-				if (mode) {
-					info = { mode: this.modeService.getLanguageName(mode.getId()) };
-				}
+				const modeId = textModel.getLanguageIdentifier().language;
+				info = { mode: this.modeService.getLanguageName(modeId) };
 			}
 		}
 
@@ -743,10 +736,8 @@ export class ChangeModeAction extends Action {
 		// Compute mode
 		let currentModeId: string;
 		if (textModel) {
-			const mode = textModel.getMode();
-			if (mode) {
-				currentModeId = this.modeService.getLanguageName(mode.getId());
-			}
+			const modeId = textModel.getLanguageIdentifier().language;
+			currentModeId = this.modeService.getLanguageName(modeId);
 		}
 
 		// All languages are valid picks

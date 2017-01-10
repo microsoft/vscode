@@ -149,7 +149,7 @@ export class CompletionModel {
 			this._filteredItems.push(item);
 
 			// compute score against word
-			const score = CompletionModel._scoreByHighlight(item, word, word.toLowerCase());
+			const score = CompletionModel._scoreByHighlight(item, word);
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
@@ -166,7 +166,7 @@ export class CompletionModel {
 
 	private static _base = 100;
 
-	private static _scoreByHighlight(item: ICompletionItem, currentWord: string, BLA): number {
+	private static _scoreByHighlight(item: ICompletionItem, currentWord: string): number {
 		const {highlights, suggestion} = item;
 
 		if (isFalsyOrEmpty(highlights)) {
@@ -176,7 +176,6 @@ export class CompletionModel {
 		let caseSensitiveMatches = 0;
 		let caseInsensitiveMatches = 0;
 		let firstMatchStart = 0;
-		let notMatching = 0;
 
 		const len = Math.min(CompletionModel._base, suggestion.label.length);
 		let currentWordOffset = 0;
@@ -185,11 +184,7 @@ export class CompletionModel {
 
 			const highlight = highlights[idx];
 
-			if (pos < highlight.start) {
-				// not covered by a highlight
-				notMatching += 1;
-
-			} else if (pos === highlight.start) {
+			if (pos === highlight.start) {
 				// reached a highlight: find highlighted part
 				// and count case-sensitive /case-insensitive matches
 				const part = suggestion.label.substring(highlight.start, highlight.end);
@@ -212,20 +207,19 @@ export class CompletionModel {
 					firstMatchStart = highlight.start;
 				}
 				idx += 1;
+
 				if (idx >= highlights.length) {
-					notMatching += len - pos;
 					break;
 				}
 			}
 		}
 
-		// combine the five scoring values into one
+		// combine the 4 scoring values into one
 		// value using base_100. Values further left
 		// are more important
-		return (CompletionModel._base ** 4) * caseSensitiveMatches
-			+ (CompletionModel._base ** 3) * caseInsensitiveMatches
-			+ (CompletionModel._base ** 2) * (CompletionModel._base - firstMatchStart)
-			+ (CompletionModel._base ** 1) * (CompletionModel._base - highlights.length)
-			+ (CompletionModel._base ** 0) * (CompletionModel._base - notMatching);
+		return (CompletionModel._base ** 3) * caseSensitiveMatches
+			+ (CompletionModel._base ** 2) * caseInsensitiveMatches
+			+ (CompletionModel._base ** 1) * (CompletionModel._base - firstMatchStart)
+			+ (CompletionModel._base ** 0) * (CompletionModel._base - highlights.length);
 	}
 }

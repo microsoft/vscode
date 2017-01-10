@@ -13,6 +13,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { createSingleEditOp, getEditOperation, testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 function testShiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => new ShiftCommand(sel, {
@@ -32,9 +33,11 @@ function testUnshiftCommand(lines: string[], selection: Selection, expectedLines
 
 class DocBlockCommentMode extends MockMode {
 
+	private static _id = new LanguageIdentifier('commentMode', 3);
+
 	constructor() {
-		super();
-		LanguageConfigurationRegistry.register(this.getId(), {
+		super(DocBlockCommentMode._id);
+		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -69,24 +72,28 @@ class DocBlockCommentMode extends MockMode {
 					action: { indentAction: IndentAction.None, removeText: 1 }
 				}
 			]
-		});
+		}));
 	}
 }
 
 function testShiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, new DocBlockCommentMode().getId(), selection, (sel) => new ShiftCommand(sel, {
+	let mode = new DocBlockCommentMode();
+	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
 		oneIndent: '\t'
 	}), expectedLines, expectedSelection);
+	mode.dispose();
 }
 
 function testUnshiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, new DocBlockCommentMode().getId(), selection, (sel) => new ShiftCommand(sel, {
+	let mode = new DocBlockCommentMode();
+	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
 		oneIndent: '\t'
 	}), expectedLines, expectedSelection);
+	mode.dispose();
 }
 
 suite('Editor Commands - ShiftCommand', () => {

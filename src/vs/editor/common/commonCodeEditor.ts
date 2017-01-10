@@ -39,7 +39,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
 	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent2> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged2);
-	public readonly onDidChangeModelMode: Event<editorCommon.IModelModeChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelModeChanged);
+	public readonly onDidChangeModelLanguage: Event<editorCommon.IModelLanguageChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelLanguageChanged);
 	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelOptionsChanged);
 	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelDecorationsChanged);
 	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ConfigurationChanged);
@@ -741,7 +741,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this.cursor = null;
 
 		if (this.model) {
-			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
+			this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
 
 			this.model.onBeforeAttached();
@@ -877,9 +877,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
 							break;
 
-						case editorCommon.EventType.ModelModeChanged:
-							this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
-							this.emit(editorCommon.EventType.ModelModeChanged, e);
+						case editorCommon.EventType.ModelLanguageChanged:
+							this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
+							this.emit(editorCommon.EventType.ModelLanguageChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelRawContentChanged:
