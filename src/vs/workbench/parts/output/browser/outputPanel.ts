@@ -96,7 +96,7 @@ export class OutputPanel extends TextResourceEditor {
 		return super.setInput(input, options).then(() => this.revealLastLine());
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 
 		// First create the scoped instantation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());

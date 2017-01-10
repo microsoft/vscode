@@ -44,7 +44,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 
 		// Container for Binary
 		const binaryContainerElement = document.createElement('div');

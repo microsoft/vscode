@@ -109,7 +109,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		};
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 
 		// Editor for Text
 		this._editorContainer = parent;
@@ -123,6 +123,16 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Configuration
 		this.applyConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>());
+	}
+
+	/**
+	 * This method creates and returns the text editor control to be used. Subclasses can override to
+	 * provide their own editor control that should be used (e.g. a DiffEditor).
+	 */
+	protected createEditorControl(parent: Builder): IEditor {
+
+		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
+		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
 	private onEditorFocusLost(): void {
@@ -158,23 +168,13 @@ export abstract class BaseTextEditor extends BaseEditor {
 		});
 	}
 
-	/**
-	 * This method creates and returns the text editor control to be used. Subclasses can override to
-	 * provide their own editor control that should be used (e.g. a DiffEditor).
-	 */
-	public createEditorControl(parent: Builder): IEditor {
-
-		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
-	}
-
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => {
 			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
 		});
 	}
 
-	public setEditorVisible(visible: boolean, position: Position = null): void {
+	protected setEditorVisible(visible: boolean, position: Position = null): void {
 
 		// Pass on to Editor
 		if (visible) {
