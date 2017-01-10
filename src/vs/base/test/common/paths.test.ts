@@ -247,7 +247,7 @@ suite('Paths', () => {
 		assert.deepEqual(paths.shorten(['a\\b\\c\\d', 'f\\b\\c\\d']), ['a\\…', 'f\\…']);
 		assert.deepEqual(paths.shorten(['d\\e\\a\\b\\c', 'd\\b\\c']), ['…\\a\\…', 'd\\b\\…']);
 		assert.deepEqual(paths.shorten(['a\\b\\c\\d', 'a\\f\\b\\c\\d']), ['a\\b\\…', '…\\f\\…']);
-		assert.deepEqual(paths.shorten(['a\\b\\a', 'b\\b\\a']), ['a\\…', 'b\\b\\…']);
+		assert.deepEqual(paths.shorten(['a\\b\\a', 'b\\b\\a']), ['a\\b\\…', 'b\\b\\…']);
 		assert.deepEqual(paths.shorten(['d\\f\\a\\b\\c', 'h\\d\\b\\c']), ['…\\a\\…', 'h\\…']);
 		assert.deepEqual(paths.shorten(['a\\b\\c', 'x:\\0\\a\\b\\c']), ['a\\b\\c', '…\\0\\…'], 'TODO: drive letter (or schema) should be always preserved');
 		assert.deepEqual(paths.shorten(['x:\\a\\b', 'y:\\a\\b']), ['x:\\…', 'y:\\…']);
@@ -259,7 +259,9 @@ suite('Paths', () => {
 		// case-sensetive
 		assert.deepEqual(paths.shorten(['a\\b\\c', 'd\\b\\C']), ['…\\c', '…\\C']);
 
-		assert.deepEqual(paths.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\…', 'd\\b\\…', 'd\\b']);
+		assert.deepEqual(paths.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
+		assert.deepEqual(paths.shorten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
+		assert.deepEqual(paths.shorten(['', 'a', 'b', 'b\\c', 'a\\c']), ['', 'a', 'b', 'b\\c', 'a\\c']);
 		assert.deepEqual(paths.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
 	});
 });
