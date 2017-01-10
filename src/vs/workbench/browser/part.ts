@@ -124,12 +124,11 @@ export class PartLayout {
 	}
 
 	public computeStyle(): void {
-		const containerStyle = this.container.getComputedStyle();
 		this.containerStyle = {
-			borderLeftWidth: parseInt(containerStyle.getPropertyValue('border-left-width'), 10),
-			borderRightWidth: parseInt(containerStyle.getPropertyValue('border-right-width'), 10),
-			borderTopWidth: parseInt(containerStyle.getPropertyValue('border-top-width'), 10),
-			borderBottomWidth: parseInt(containerStyle.getPropertyValue('border-bottom-width'), 10)
+			borderLeftWidth: 0,
+			borderRightWidth: 0,
+			borderTopWidth: 0,
+			borderBottomWidth: 0
 		};
 
 		if (this.titleArea) {

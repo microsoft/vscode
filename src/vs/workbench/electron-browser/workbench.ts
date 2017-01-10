@@ -662,7 +662,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleRecompute: true });
+			this.workbenchLayout.layout();
 		}
 	}
 
@@ -672,7 +672,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleRecompute: true });
+			this.workbenchLayout.layout();
 		}
 	}
 
@@ -716,7 +716,7 @@ export class Workbench implements IPartService {
 
 			// Layout
 			if (!skipLayout) {
-				this.workbenchLayout.layout({ forceStyleRecompute: true });
+				this.workbenchLayout.layout();
 			}
 		});
 	}
@@ -758,13 +758,13 @@ export class Workbench implements IPartService {
 
 			// Layout
 			if (!skipLayout) {
-				this.workbenchLayout.layout({ forceStyleRecompute: true });
+				this.workbenchLayout.layout();
 			}
 		});
 	}
 
 	public toggleMaximizedPanel(): void {
-		this.workbenchLayout.layout({ forceStyleRecompute: true, toggleMaximizedPanel: true });
+		this.workbenchLayout.layout({ toggleMaximizedPanel: true });
 	}
 
 	public getSideBarPosition(): Position {
@@ -787,7 +787,7 @@ export class Workbench implements IPartService {
 		this.sidebarPart.getContainer().addClass(newPositionValue);
 
 		// Layout
-		this.workbenchLayout.layout({ forceStyleRecompute: true });
+		this.workbenchLayout.layout();
 	}
 
 	public dispose(): void {
@@ -1107,7 +1107,7 @@ export class Workbench implements IPartService {
 		this.inZenMode.set(this.zenMode.active);
 
 		if (!skipLayout) {
-			this.layout({ forceStyleRecompute: true });
+			this.layout();
 		}
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);
