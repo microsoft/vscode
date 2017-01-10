@@ -18,6 +18,7 @@ import { EditOperationsCommand } from './formatCommand';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -68,9 +69,16 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		}
 
 		// register typing listeners that will trigger the format
-		support.autoFormatTriggerCharacters.forEach(ch => {
-			this.callOnModel.push(this.editor.addTypingListener(ch, this.trigger.bind(this, ch)));
-		});
+		let triggerChars = new CharacterSet();
+		for (let ch of support.autoFormatTriggerCharacters) {
+			triggerChars.add(ch.charCodeAt(0));
+		}
+		this.callOnModel.push(this.editor.onDidType((text: string) => {
+			let lastCharCode = text.charCodeAt(text.length - 1);
+			if (triggerChars.has(lastCharCode)) {
+				this.trigger(String.fromCharCode(lastCharCode));
+			}
+		}));
 	}
 
 	private trigger(ch: string): void {

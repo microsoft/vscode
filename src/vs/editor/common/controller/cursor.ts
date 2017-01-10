@@ -75,17 +75,11 @@ export class Cursor extends EventEmitter {
 
 	private modelUnbinds: IDisposable[];
 
-	// Typing listeners
-	private typingListeners: {
-		[character: string]: ITypingListener[];
-	};
-
 	private cursors: CursorCollection;
 	private cursorUndoStack: ICursorCollectionState[];
 	private viewModelHelper: IViewModelHelper;
 
 	private _isHandling: boolean;
-	private charactersTyped: string;
 
 	private enableEmptySelectionClipboard: boolean;
 
@@ -107,8 +101,6 @@ export class Cursor extends EventEmitter {
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
 		this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
 		this.cursorUndoStack = [];
-
-		this.typingListeners = {};
 
 		this._isHandling = false;
 
@@ -205,25 +197,6 @@ export class Cursor extends EventEmitter {
 		}, 'restoreState', null);
 	}
 
-	public addTypingListener(character: string, callback: ITypingListener): void {
-		if (!this.typingListeners.hasOwnProperty(character)) {
-			this.typingListeners[character] = [];
-		}
-		this.typingListeners[character].push(callback);
-	}
-
-	public removeTypingListener(character: string, callback: ITypingListener): void {
-		if (this.typingListeners.hasOwnProperty(character)) {
-			var listeners = this.typingListeners[character];
-			for (var i = 0; i < listeners.length; i++) {
-				if (listeners[i] === callback) {
-					listeners.splice(i, 1);
-					return;
-				}
-			}
-		}
-	}
-
 	private _onModelLanguageChanged(): void {
 		// the mode of this model has changed
 		this.cursors.updateMode();
@@ -310,7 +283,6 @@ export class Cursor extends EventEmitter {
 	private _onHandler(command: string, handler: (ctx: IMultipleCursorOperationContext) => boolean, source: string, data: any): boolean {
 
 		this._isHandling = true;
-		this.charactersTyped = '';
 
 		var handled = false;
 
@@ -344,22 +316,6 @@ export class Cursor extends EventEmitter {
 
 			if (hasExecutedCommands) {
 				this.cursorUndoStack = [];
-			}
-
-			// Ping typing listeners after the model emits events & after I emit events
-			for (var i = 0; i < this.charactersTyped.length; i++) {
-				var chr = this.charactersTyped.charAt(i);
-				if (this.typingListeners.hasOwnProperty(chr)) {
-					var listeners = this.typingListeners[chr].slice(0);
-					for (var j = 0, lenJ = listeners.length; j < lenJ; j++) {
-						// Hoping that listeners understand that the view might be in an awkward state
-						try {
-							listeners[j]();
-						} catch (e) {
-							onUnexpectedError(e);
-						}
-					}
-				}
 			}
 
 			var newSelections = this.cursors.getSelections();
@@ -1417,8 +1373,6 @@ export class Cursor extends EventEmitter {
 				} else {
 					chr = text.charAt(i);
 				}
-
-				this.charactersTyped += chr;
 
 				// Here we must interpret each typed character individually, that's why we create a new context
 				ctx.hasExecutedCommands = this._createAndInterpretHandlerCtx(ctx.eventSource, ctx.eventData, (charHandlerCtx: IMultipleCursorOperationContext) => {
