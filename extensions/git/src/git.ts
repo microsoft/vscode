@@ -533,18 +533,18 @@ export class Repository {
 		}
 	}
 
-	async commit(message: string, all: boolean, amend: boolean, signoff: boolean): Promise<void> {
+	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
-		if (all) {
+		if (opts.all) {
 			args.push('--all');
 		}
 
-		if (amend) {
+		if (opts.amend) {
 			args.push('--amend');
 		}
 
-		if (signoff) {
+		if (opts.signoff) {
 			args.push('--signoff');
 		}
 
