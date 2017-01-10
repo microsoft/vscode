@@ -263,7 +263,6 @@ export interface IModel extends ITreeElement {
 // Debug enums
 
 export enum State {
-	Disabled,
 	Inactive,
 	Initializing,
 	Stopped,

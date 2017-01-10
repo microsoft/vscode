@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, State, IProcess, SessionRequestType, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
@@ -18,7 +19,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 
-export class AbstractDebugAction extends Action {
+export abstract class AbstractDebugAction extends Action {
 
 	protected toDispose: lifecycle.IDisposable[];
 
@@ -56,7 +57,7 @@ export class AbstractDebugAction extends Action {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return state !== State.Disabled;
+		return true;
 	}
 
 	public dispose(): void {
@@ -69,7 +70,11 @@ export class ConfigureAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.configure';
 	static LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
 		this.toDispose.push(debugService.getViewModel().onDidSelectConfiguration(configurationName => this.updateClass()));
 		this.updateClass();
@@ -85,6 +90,10 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	private updateClass(): void {
 		this.class = this.debugService.getViewModel().selectedConfigurationName ? 'debug-action configure' : 'debug-action configure notification';
+	}
+
+	protected isEnabled(): boolean {
+		return !!this.contextService.getWorkspace();
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -440,7 +449,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && state !== State.Disabled && state !== State.Inactive &&
+		return super.isEnabled(state) && state !== State.Inactive &&
 			(model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length > 0);
 	}
 }
