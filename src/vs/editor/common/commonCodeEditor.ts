@@ -51,6 +51,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public readonly onDidFocusEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorFocus);
 	public readonly onDidBlurEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorBlur);
 	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
+	public readonly onWillType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.WillType);
+	public readonly onDidType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.DidType);
 
 	protected domElement: IContextKeyServiceTarget;
 
@@ -569,6 +571,23 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public trigger(source: string, handlerId: string, payload: any): void {
 		payload = payload || {};
+
+		// Special case for typing
+		if (handlerId === editorCommon.Handler.Type) {
+			if (!this.cursor || typeof payload.text !== 'string' || payload.text.length === 0) {
+				// nothing to do
+				return;
+			}
+			if (source === 'keyboard') {
+				this.emit(editorCommon.EventType.WillType, payload.text);
+			}
+			this.cursor.trigger(source, handlerId, payload);
+			if (source === 'keyboard') {
+				this.emit(editorCommon.EventType.DidType, payload.text);
+			}
+			return;
+		}
+
 		let candidate = this.getAction(handlerId);
 		if (candidate !== null) {
 			TPromise.as(candidate.run()).done(null, onUnexpectedError);
@@ -710,24 +729,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
 			delete this._decorationTypeSubtypes[decorationTypeKey];
 		}
-	}
-
-	public addTypingListener(character: string, callback: () => void): IDisposable {
-		if (!this.cursor) {
-			return {
-				dispose: () => {
-					// no-op
-				}
-			};
-		}
-		this.cursor.addTypingListener(character, callback);
-		return {
-			dispose: () => {
-				if (this.cursor) {
-					this.cursor.removeTypingListener(character, callback);
-				}
-			}
-		};
 	}
 
 	public getLayoutInfo(): editorCommon.EditorLayoutInfo {

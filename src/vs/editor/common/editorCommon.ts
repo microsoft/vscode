@@ -3765,6 +3765,20 @@ export interface ICommonCodeEditor extends IEditor {
 	onDidBlurEditor(listener: () => void): IDisposable;
 
 	/**
+	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * @event
+	 * @internal
+	 */
+	onWillType(listener: (text: string) => void): IDisposable;
+
+	/**
+	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * @event
+	 * @internal
+	 */
+	onDidType(listener: (text: string) => void): IDisposable;
+
+	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
 	 */
 	hasWidgetFocus(): boolean;
@@ -3905,16 +3919,6 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): EditorLayoutInfo;
-
-	/**
-	 * This listener is notified when a keypress produces a visible character.
-	 * The callback should not do operations on the view, as the view might not be updated to reflect previous typed characters.
-	 * @param character Character to listen to.
-	 * @param callback Function to call when `character` is typed.
-	 * @internal
-	 */
-	addTypingListener(character: string, callback: () => void): IDisposable;
-
 }
 
 export interface ICommonDiffEditor extends IEditor {
@@ -4068,6 +4072,9 @@ export var EventType = {
 	MouseLeave: 'mouseleave',
 	KeyDown: 'keydown',
 	KeyUp: 'keyup',
+
+	WillType: 'willType',
+	DidType: 'didType',
 
 	EditorLayout: 'editorLayout',
 

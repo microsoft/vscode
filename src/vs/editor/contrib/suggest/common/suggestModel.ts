@@ -6,7 +6,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { forEach } from 'vs/base/common/collections';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -181,11 +180,13 @@ export class SuggestModel implements IDisposable {
 			}
 		}
 
-		forEach(supportsByTriggerCharacter, entry => {
-			this.triggerCharacterListeners.push(this.editor.addTypingListener(entry.key, () => {
-				this.trigger(true, false, entry.value);
-			}));
-		});
+		this.triggerCharacterListeners.push(this.editor.onDidType((text: string) => {
+			let lastChar = text.charAt(text.length - 1);
+			let supports = supportsByTriggerCharacter[lastChar];
+			if (supports) {
+				this.trigger(true, false, supports);
+			}
+		}));
 	}
 
 	// --- trigger/retrigger/cancel suggest
