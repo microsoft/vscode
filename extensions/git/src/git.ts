@@ -253,7 +253,6 @@ export interface IGitOptions {
 	gitPath: string;
 	version: string;
 	defaultEncoding?: string;
-	env?: any;
 }
 
 export const GitErrorCodes = {
@@ -280,7 +279,6 @@ export class Git {
 
 	private gitPath: string;
 	private version: string;
-	private env: any;
 	private defaultEncoding: string;
 
 	private _onOutput = new EventEmitter<string>();
@@ -290,7 +288,6 @@ export class Git {
 		this.gitPath = options.gitPath;
 		this.version = options.version;
 		this.defaultEncoding = options.defaultEncoding || 'utf8';
-		this.env = options.env || {};
 	}
 
 	open(repository: string, env: any = {}): Repository {
@@ -298,12 +295,12 @@ export class Git {
 	}
 
 	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
-		options = _.assign({ cwd: cwd }, options || {});
+		options = _.assign({ cwd }, options || {});
 		return await this._exec(args, options);
 	}
 
 	stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
-		options = _.assign({ cwd: cwd }, options || {});
+		options = _.assign({ cwd }, options || {});
 		return this.spawn(args, options);
 	}
 
@@ -363,7 +360,7 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = _.assign({}, options.env || {}, this.env);
+		options.env = _.assign({}, process.env, options.env || {});
 
 		if (options.log !== false) {
 			this.log(`git ${args.join(' ')}\n`);
