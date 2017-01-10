@@ -331,7 +331,7 @@ export class Git {
 			}
 
 			if (options.log !== false) {
-				this.log(result.stderr);
+				this.log(`ERROR: ${result.stderr}`);
 			}
 
 			return Promise.reject<IExecutionResult>(new GitError({
@@ -363,7 +363,7 @@ export class Git {
 		options.env = _.assign({}, process.env, options.env || {});
 
 		if (options.log !== false) {
-			this.log(`git ${args.join(' ')}\n`);
+			this.log(`SPAWN: git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.gitPath, args, options);
@@ -716,12 +716,12 @@ export class Repository {
 	}
 
 	async getRoot(): Promise<string> {
-		const result = await this.run(['rev-parse', '--show-toplevel'], { log: false });
+		const result = await this.run(['rev-parse', '--show-toplevel']);
 		return result.stdout.trim();
 	}
 
 	async getStatus(): Promise<IFileStatus[]> {
-		const executionResult = await this.run(['status', '-z', '-u'], { log: false });
+		const executionResult = await this.run(['status', '-z', '-u']);
 		const status = executionResult.stdout;
 		const result: IFileStatus[] = [];
 		let current: IFileStatus;
@@ -762,7 +762,7 @@ export class Repository {
 
 	async getHEAD(): Promise<IRef> {
 		try {
-			const result = await this.run(['symbolic-ref', '--short', 'HEAD'], { log: false });
+			const result = await this.run(['symbolic-ref', '--short', 'HEAD']);
 
 			if (!result.stdout) {
 				throw new Error('Not in a branch');
@@ -770,7 +770,7 @@ export class Repository {
 
 			return { name: result.stdout.trim(), commit: void 0, type: RefType.Head };
 		} catch (err) {
-			const result = await this.run(['rev-parse', 'HEAD'], { log: false });
+			const result = await this.run(['rev-parse', 'HEAD']);
 
 			if (!result.stdout) {
 				throw new Error('Error parsing HEAD');
@@ -781,7 +781,7 @@ export class Repository {
 	}
 
 	async getRefs(): Promise<IRef[]> {
-		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)'], { log: false });
+		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
 
 		const fn = (line): IRef | null => {
 			let match: RegExpExecArray | null;
@@ -804,7 +804,7 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<IRemote[]> {
-		const result = await this.run(['remote', '--verbose'], { log: false });
+		const result = await this.run(['remote', '--verbose']);
 		const regex = /^([^\s]+)\s+([^\s]+)\s/;
 
 		return _(result.stdout.trim().split('\n'))
@@ -821,7 +821,7 @@ export class Repository {
 			return this.getHEAD();
 		}
 
-		const result = await this.run(['rev-parse', name], { log: false });
+		const result = await this.run(['rev-parse', name]);
 
 		if (!result.stdout) {
 			return Promise.reject<IBranch>(new Error('No such branch'));
@@ -830,10 +830,10 @@ export class Repository {
 		const commit = result.stdout.trim();
 
 		try {
-			const res2 = await this.run(['rev-parse', '--symbolic-full-name', '--abbrev-ref', name + '@{u}'], { log: false });
+			const res2 = await this.run(['rev-parse', '--symbolic-full-name', '--abbrev-ref', name + '@{u}']);
 			const upstream = res2.stdout.trim();
 
-			const res3 = await this.run(['rev-list', '--left-right', name + '...' + upstream], { log: false });
+			const res3 = await this.run(['rev-list', '--left-right', name + '...' + upstream]);
 
 			let ahead = 0, behind = 0;
 			let i = 0;
