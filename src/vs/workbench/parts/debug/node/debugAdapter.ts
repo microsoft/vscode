@@ -76,6 +76,10 @@ export class Adapter {
 		return this.rawAdapter.configurationSnippets;
 	}
 
+	public hasInitialConfiguarations(): boolean {
+		return !!this.rawAdapter.initialConfigurations;
+	}
+
 	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
 		// Give priority to built in debug adapters
 		if (extensionDescription.isBuiltin) {
