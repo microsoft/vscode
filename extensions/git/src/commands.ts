@@ -11,9 +11,8 @@ import { log } from './util';
 
 type Command = (...args: any[]) => any;
 
-function refresh(model: Model): void {
-	log('refresh');
-	model.update();
+async function refresh(model: Model): Promise<void> {
+	return await model.update();
 }
 
 function openChange(model: Model, resource: Resource): void {
@@ -77,7 +76,7 @@ export function registerCommands(model: Model): Disposable {
 	const bindModel = command => (...args: any[]) => command(model, ...args);
 
 	const disposables = [
-		commands.registerCommand('git.refresh', compose(refresh, bindModel)),
+		commands.registerCommand('git.refresh', compose(refresh, catchErrors, bindModel)),
 		commands.registerCommand('git.openChange', compose(openChange, bindModel, resolveURI)),
 		commands.registerCommand('git.openFile', compose(openFile, bindModel, resolveURI)),
 		commands.registerCommand('git.stage', compose(stage, catchErrors, bindModel, resolveURI)),
