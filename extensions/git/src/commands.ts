@@ -24,20 +24,20 @@ function openFile(model: Model, resource: Resource): void {
 	log('open file', resource);
 }
 
-function stage(model: Model, resource: Resource): void {
-	log('stage', resource);
+async function stage(model: Model, resource: Resource): Promise<void> {
+	return await model.stage(resource);
 }
 
-function stageAll(model: Model, resourceGroup: ResourceGroup): void {
-	log('stageAll', resourceGroup);
+async function stageAll(model: Model): Promise<void> {
+	return await model.stage();
 }
 
-function unstage(model: Model, resource: Resource): void {
-	log('unstage', resource);
+async function unstage(model: Model, resource: Resource): Promise<void> {
+	return await model.unstage(resource);
 }
 
-function unstageAll(model: Model, resourceGroup: ResourceGroup): void {
-	log('unstageAll', resourceGroup);
+async function unstageAll(model: Model): Promise<void> {
+	return await model.unstage();
 }
 
 function clean(model: Model, resource: Resource): void {
@@ -56,6 +56,11 @@ function skipUndefined<T, R>(command: (t: T) => R): (t: T | undefined) => R | un
 	return t => t === undefined ? undefined : command(t);
 }
 
+// TODO: do more with these errors
+function catchErrors<T, R>(command: (t: T) => Promise<R>): (t: T) => void {
+	return t => command(t).catch(err => console.error(err));
+}
+
 function compose(command: Command, ...args: Function[]): Command {
 	return args.reduce((r, fn) => fn(r), command) as Command;
 }
@@ -67,10 +72,10 @@ export function registerCommands(model: Model): Disposable {
 		commands.registerCommand('git.refresh', compose(refresh, bindModel)),
 		commands.registerCommand('git.openChange', compose(openChange, bindModel, resolveURI, skipUndefined)),
 		commands.registerCommand('git.openFile', compose(openFile, bindModel, resolveURI, skipUndefined)),
-		commands.registerCommand('git.stage', compose(stage, bindModel, resolveURI, skipUndefined)),
-		commands.registerCommand('git.stageAll', compose(stageAll, bindModel, resolveURI, skipUndefined)),
-		commands.registerCommand('git.unstage', compose(unstage, bindModel, resolveURI, skipUndefined)),
-		commands.registerCommand('git.unstageAll', compose(unstageAll, bindModel, resolveURI, skipUndefined)),
+		commands.registerCommand('git.stage', compose(stage, bindModel, resolveURI, skipUndefined, catchErrors)),
+		commands.registerCommand('git.stageAll', compose(stageAll, bindModel, catchErrors)),
+		commands.registerCommand('git.unstage', compose(unstage, bindModel, resolveURI, skipUndefined, catchErrors)),
+		commands.registerCommand('git.unstageAll', compose(unstageAll, bindModel, catchErrors)),
 		commands.registerCommand('git.clean', compose(clean, bindModel, resolveURI, skipUndefined)),
 		commands.registerCommand('git.cleanAll', compose(cleanAll, bindModel, resolveURI, skipUndefined)),
 	];
