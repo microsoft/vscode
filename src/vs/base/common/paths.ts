@@ -402,7 +402,6 @@ export function isAbsolute(path: string): boolean {
 export function shorten(paths: string[]): string[] {
 	const ellipsis = '\u2026';
 	let shortenedPaths: string[] = new Array(paths.length);
-	// paths = paths.map(path => path + '\\xxx');
 	let match = false;
 
 	// for every path
@@ -446,6 +445,5 @@ export function shorten(paths: string[]): string[] {
 		}
 	}
 
-	// shortenedPaths = shortenedPaths.map(path => path.replace('\\xxx', ''));
 	return shortenedPaths;
 }
