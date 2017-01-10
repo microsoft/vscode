@@ -14,7 +14,7 @@ import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType, EditorType } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,7 +33,7 @@ interface ITextEditorViewState {
 	2?: IEditorViewState;
 }
 
-interface IEditorConfiguration {
+export interface IEditorConfiguration {
 	editor: any;
 	diffEditor: any;
 }
@@ -87,20 +87,22 @@ export abstract class BaseTextEditor extends BaseEditor {
 			return;
 		}
 
-		// Specific editor options always overwrite user configuration
-		const editorConfiguration = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
-		objects.assign(editorConfiguration, this.getCodeEditorOptions());
-
-		// Handle diff editor specially by merging in diffEditor configuration
-		if (this.editorControl.getEditorType() === EditorType.IDiffEditor && types.isObject(configuration.diffEditor)) {
-			objects.mixin(editorConfiguration, configuration.diffEditor);
-		}
+		const editorConfiguration = this.computeConfiguration(configuration);
 
 		// Apply to control
 		this.editorControl.updateOptions(editorConfiguration);
 	}
 
-	protected getCodeEditorOptions(): IEditorOptions {
+	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
+
+		// Specific editor options always overwrite user configuration
+		const editorConfiguration = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
+		objects.assign(editorConfiguration, this.getConfigurationOverrides());
+
+		return editorConfiguration;
+	}
+
+	protected getConfigurationOverrides(): IEditorOptions {
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
@@ -113,26 +115,25 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Editor for Text
 		this._editorContainer = parent;
-		this.editorControl = this.createEditorControl(parent);
+		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
 
 		// Application & Editor focus change
 		if (this.editorControl instanceof EventEmitter) {
 			this.toUnbind.push(this.editorControl.addListener2(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
 		}
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
-
-		// Configuration
-		this.applyConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>());
 	}
 
 	/**
 	 * This method creates and returns the text editor control to be used. Subclasses can override to
 	 * provide their own editor control that should be used (e.g. a DiffEditor).
+	 *
+	 * The passed in configuration object should be passed to the editor control when creating it.
 	 */
-	protected createEditorControl(parent: Builder): IEditor {
+	protected createEditorControl(parent: Builder, configuration: IEditorOptions): IEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
+		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), configuration);
 	}
 
 	private onEditorFocusLost(): void {
@@ -170,7 +171,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => {
-			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
+
+			// Update editor options after having set the input. We do this because there can be
+			// editor input specific options (e.g. an ARIA label depending on the input showing)
+			this.editorControl.updateOptions(this.getConfigurationOverrides());
 		});
 	}
 

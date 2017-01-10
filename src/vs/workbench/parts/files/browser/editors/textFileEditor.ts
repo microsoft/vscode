@@ -206,8 +206,8 @@ export class TextFileEditor extends BaseTextEditor {
 		return true; // in any case we handled it
 	}
 
-	protected getCodeEditorOptions(): IEditorOptions {
-		const options = super.getCodeEditorOptions();
+	protected getConfigurationOverrides(): IEditorOptions {
+		const options = super.getConfigurationOverrides();
 
 		const input = this.input;
 		const inputName = input && input.getName();

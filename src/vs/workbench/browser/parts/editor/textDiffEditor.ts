@@ -8,13 +8,14 @@
 import 'vs/css!./media/textdiffeditor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
+import objects = require('vs/base/common/objects');
 import { Builder } from 'vs/base/browser/builder';
 import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/editorCommon';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -66,7 +67,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		return nls.localize('textDiffEditor', "Text Diff Editor");
 	}
 
-	public createEditorControl(parent: Builder): IDiffEditor {
+	public createEditorControl(parent: Builder, configuration: IEditorOptions): IDiffEditor {
 
 		// Actions
 		this.nextDiffAction = new NavigateAction(this, true);
@@ -103,7 +104,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
 		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 
-		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
+		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), configuration);
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
@@ -167,9 +168,6 @@ export class TextDiffEditor extends BaseTextEditor {
 			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
 				(<TextEditorOptions>options).apply(<IDiffEditor>diffEditor);
 			}
-
-			// Apply options again because input has changed
-			diffEditor.updateOptions(this.getCodeEditorOptions());
 		}, (error) => {
 
 			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
@@ -197,8 +195,19 @@ export class TextDiffEditor extends BaseTextEditor {
 		return false;
 	}
 
-	protected getCodeEditorOptions(): IEditorOptions {
-		const options: IDiffEditorOptions = super.getCodeEditorOptions();
+	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
+		const editorConfiguration = super.computeConfiguration(configuration);
+
+		// Handle diff editor specially by merging in diffEditor configuration
+		if (types.isObject(configuration.diffEditor)) {
+			objects.mixin(editorConfiguration, configuration.diffEditor);
+		}
+
+		return editorConfiguration;
+	}
+
+	protected getConfigurationOverrides(): IEditorOptions {
+		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
 		const input = this.input;
 		if (input instanceof DiffEditorInput) {
