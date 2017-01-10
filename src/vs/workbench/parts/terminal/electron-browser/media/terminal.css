@@ -37,6 +37,13 @@
 	height: 100%;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm-viewport {
+	/* Subtract right margin so that the scroll bar aligns with size of panel */
+	margin-right: -20px;
+	/* Force 100% height so that the scroll bar is aligned to the top and the bottom of the panel, the terminal rows may not be top aligned */
+	height: 100% !important;
+}
+
 /* Terminal actions */
 
 /* Light theme */

@@ -12,6 +12,7 @@ import 'vs/base/common/errors';
 // Editor
 import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
+import 'vs/editor/contrib/inspectTMScopes/electron-browser/inspectTMScopes';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
 import 'vs/editor/browser/editor.all';
 
@@ -80,7 +81,9 @@ import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/node/emmet.contribution';
 
+// Code Editor enhacements
 import 'vs/workbench/parts/indentation/common/indentation';
+import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
 import 'vs/workbench/parts/execution/electron-browser/terminal.contribution';

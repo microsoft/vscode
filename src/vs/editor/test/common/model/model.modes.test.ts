@@ -5,161 +5,157 @@
 'use strict';
 
 import * as assert from 'assert';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Model } from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
-import { Token } from 'vs/editor/common/core/token';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 // --------- utils
 
 suite('Editor Model - Model Modes 1', () => {
 
-	const LANGUAGE_ID = 'modelModeTest1';
+	let calledFor: string[] = [];
 
-	let calledState = {
-		calledFor: <string[]>[]
-	};
-	let thisModel: Model;
-
-	function checkAndClear(calledState: { calledFor: string[] }, arr: string[]) {
-		assert.deepEqual(calledState.calledFor, arr);
-		calledState.calledFor = [];
+	function checkAndClear(arr: string[]) {
+		assert.deepEqual(calledFor, arr);
+		calledFor = [];
 	}
 
-	class ModelState1 implements modes.IState {
-		clone(): modes.IState { return this; }
-		equals(other: modes.IState): boolean { return this === other; }
-	}
-
-	modes.TokenizationRegistry.register(LANGUAGE_ID, {
-		getInitialState: () => new ModelState1(),
-		tokenize: (line: string, state: modes.IState): modes.ILineTokens => {
-			calledState.calledFor.push(line.charAt(0));
-			return {
-				tokens: [new Token(0, '')],
-				actualStopOffset: line.length,
-				endState: state,
-				modeTransitions: null
-			};
+	const tokenizationSupport: modes.ITokenizationSupport = {
+		getInitialState: () => NULL_STATE,
+		tokenize: undefined,
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+			calledFor.push(line.charAt(0));
+			return new TokenizationResult2(null, state);
 		}
-	});
+	};
+
+	let thisModel: Model = null;
+	let languageRegistration: IDisposable = null;
 
 	setup(() => {
-		calledState.calledFor = [];
-		var text =
+		const TEXT =
 			'1\r\n' +
 			'2\n' +
 			'3\n' +
 			'4\r\n' +
 			'5';
-		thisModel = Model.createFromString(text, undefined, LANGUAGE_ID);
+		const LANGUAGE_ID = 'modelModeTest1';
+		calledFor = [];
+		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {
 		thisModel.dispose();
+		thisModel = null;
+		languageRegistration.dispose();
+		languageRegistration = null;
+		calledFor = [];
 	});
+
 	test('model calls syntax highlighter 1', () => {
 		thisModel.getLineTokens(1);
-		checkAndClear(calledState, ['1']);
+		checkAndClear(['1']);
 	});
 
 	test('model calls syntax highlighter 2', () => {
 		thisModel.getLineTokens(2);
-		checkAndClear(calledState, ['1', '2']);
+		checkAndClear(['1', '2']);
 
 		thisModel.getLineTokens(2);
-		checkAndClear(calledState, []);
+		checkAndClear([]);
 	});
 
 	test('model caches states', () => {
 		thisModel.getLineTokens(1);
-		checkAndClear(calledState, ['1']);
+		checkAndClear(['1']);
 
 		thisModel.getLineTokens(2);
-		checkAndClear(calledState, ['2']);
+		checkAndClear(['2']);
 
 		thisModel.getLineTokens(3);
-		checkAndClear(calledState, ['3']);
+		checkAndClear(['3']);
 
 		thisModel.getLineTokens(4);
-		checkAndClear(calledState, ['4']);
+		checkAndClear(['4']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['5']);
+		checkAndClear(['5']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for one line insert', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '-')]);
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['-']);
+		checkAndClear(['-']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines insert', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '0\n-\n+')]);
 		assert.equal(thisModel.getLineCount(), 7);
 		thisModel.getLineTokens(7);
-		checkAndClear(calledState, ['0', '-', '+']);
+		checkAndClear(['0', '-', '+']);
 
 		thisModel.getLineTokens(7);
-		checkAndClear(calledState, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for one new line', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '\n')]);
 		thisModel.applyEdits([EditOperation.insert(new Position(2, 1), 'a')]);
 		thisModel.getLineTokens(6);
-		checkAndClear(calledState, ['1', 'a']);
+		checkAndClear(['1', 'a']);
 	});
 
 	test('model invalidates states for one line delete', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '-')]);
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['1']);
+		checkAndClear(['1']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['-']);
+		checkAndClear(['-']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines delete', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
 		thisModel.getLineTokens(3);
-		checkAndClear(calledState, ['3']);
+		checkAndClear(['3']);
 
 		thisModel.getLineTokens(3);
-		checkAndClear(calledState, []);
+		checkAndClear([]);
 	});
 });
 
 suite('Editor Model - Model Modes 2', () => {
-
-	const LANGUAGE_ID = 'modelModeTest2';
 
 	class ModelState2 implements modes.IState {
 		prevLineContent: string;
@@ -177,34 +173,30 @@ suite('Editor Model - Model Modes 2', () => {
 		}
 	}
 
-	modes.TokenizationRegistry.register(LANGUAGE_ID, {
+	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
-		tokenize: (line: string, state: modes.IState): modes.ILineTokens => {
+		tokenize: undefined,
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			(<ModelState2>state).prevLineContent = line;
-			return {
-				tokens: [new Token(0, '')],
-				actualStopOffset: line.length,
-				endState: state,
-				modeTransitions: null
-			};
+			return new TokenizationResult2(null, state);
 		}
-	});
+	};
 
-	function invalidEqual(model, indexArray) {
-		var i, len, asHash = {};
-		for (i = 0, len = indexArray.length; i < len; i++) {
-			asHash[indexArray[i]] = true;
+	function invalidEqual(model: Model, expected: number[]): void {
+		let actual: number[] = [];
+		for (let i = 0, len = model.getLineCount(); i < len; i++) {
+			if (model._lines[i].isInvalid) {
+				actual.push(i);
+			}
 		}
-		for (i = 0, len = model.getLineCount(); i < len; i++) {
-			assert.equal(model._lines[i].isInvalid, asHash.hasOwnProperty(i));
-		}
+		assert.deepEqual(actual, expected);
 	}
 
-	function stateEqual(state, content) {
-		assert.equal(state.prevLineContent, content);
+	function stateEqual(state: modes.IState, content: string): void {
+		assert.equal((<ModelState2>state).prevLineContent, content);
 	}
 
-	function statesEqual(model: Model, states: string[]) {
+	function statesEqual(model: Model, states: string[]): void {
 		var i, len = states.length - 1;
 		for (i = 0; i < len; i++) {
 			stateEqual(model._lines[i].getState(), states[i]);
@@ -212,21 +204,28 @@ suite('Editor Model - Model Modes 2', () => {
 		stateEqual((<any>model)._lastState, states[len]);
 	}
 
-	var thisModel: Model;
+	let thisModel: Model = null;
+	let languageRegistration: IDisposable = null;
 
 	setup(() => {
-		var text =
+		const TEXT =
 			'Line1' + '\r\n' +
 			'Line2' + '\n' +
 			'Line3' + '\n' +
 			'Line4' + '\r\n' +
 			'Line5';
-		thisModel = Model.createFromString(text, undefined, LANGUAGE_ID);
+		const LANGUAGE_ID = 'modelModeTest2';
+		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {
 		thisModel.dispose();
+		thisModel = null;
+		languageRegistration.dispose();
+		languageRegistration = null;
 	});
+
 	test('getTokensForInvalidLines one text insert', () => {
 		thisModel.getLineTokens(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
@@ -293,43 +292,43 @@ suite('Editor Model - Model Modes 2', () => {
 
 suite('Editor Model - Token Iterator', () => {
 
-	const LANGUAGE_ID = 'modelModeTestTokenIterator';
-
-	class NState implements modes.IState {
-		clone(): modes.IState { return this; }
-		equals(other: modes.IState): boolean { return this === other; }
-	}
-
-	modes.TokenizationRegistry.register(LANGUAGE_ID, {
-		getInitialState: (): modes.IState => new NState(),
-		tokenize: (line: string, state: modes.IState): modes.ILineTokens => {
-			let tokens: Token[] = [];
-			for (let i = 0; i < line.length / 3; i++) {
-				let from = 3 * i;
-				let to = from + 3;
-				tokens.push(new Token(from, 'n-3-' + line.substring(from, to)));
+	const tokenizationSupport: modes.ITokenizationSupport = {
+		getInitialState: (): modes.IState => NULL_STATE,
+		tokenize: undefined,
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+			if (line.length % 3 !== 0) {
+				throw new Error('Unexpected line length in ' + line);
 			}
-			return {
-				tokens: tokens,
-				actualStopOffset: line.length,
-				endState: state,
-				modeTransitions: null
-			};
+			let tokensCount = line.length / 3;
+			let tokens = new Uint32Array(tokensCount << 1);
+			for (let i = 0; i < tokensCount; i++) {
+				tokens[(i << 1)] = 3 * i;
+				tokens[(i << 1) + 1] = (
+					i << modes.MetadataConsts.FOREGROUND_OFFSET
+				) >>> 0;
+			}
+			return new TokenizationResult2(tokens, state);
 		}
-	});
+	};
 
-	var thisModel: Model;
+	let thisModel: Model = null;
+	let languageRegistration: IDisposable = null;
 
 	setup(() => {
-		var text =
+		const TEXT =
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n';
-		thisModel = Model.createFromString(text, undefined, LANGUAGE_ID);
+		const LANGUAGE_ID = 'modelModeTestTokenIterator';
+		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {
 		thisModel.dispose();
+		thisModel = null;
+		languageRegistration.dispose();
+		languageRegistration = null;
 	});
 
 	test('all tokens with ranges', () => {
@@ -521,5 +520,3 @@ suite('Editor Model - Token Iterator', () => {
 		}
 	});
 });
-
-

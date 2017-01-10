@@ -330,7 +330,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._modelChangeCounter = 0;
 
 		this._globalToDispose.push(this._editor.onDidChangeModel(() => this.onModelChange()));
-		this._globalToDispose.push(this._editor.onDidChangeModelMode(() => this.onModelChange()));
+		this._globalToDispose.push(this._editor.onDidChangeModelLanguage(() => this.onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
@@ -401,7 +401,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		};
 
 		const detectVisible = new RunOnceScheduler(() => {
-			this._onViewportChanged(model.getMode().getId());
+			this._onViewportChanged(model.getLanguageIdentifier().language);
 		}, 500);
 
 		const scheduler = new RunOnceScheduler(() => {

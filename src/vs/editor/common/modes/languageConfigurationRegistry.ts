@@ -17,6 +17,7 @@ import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -29,16 +30,16 @@ export interface ICommentsConfiguration {
 
 export class RichEditSupport {
 
-	private _conf: LanguageConfiguration;
+	private readonly _conf: LanguageConfiguration;
 
-	public electricCharacter: BracketElectricCharacterSupport;
-	public comments: ICommentsConfiguration;
-	public characterPair: CharacterPairSupport;
-	public wordDefinition: RegExp;
-	public onEnter: OnEnterSupport;
-	public brackets: RichEditBrackets;
+	public readonly electricCharacter: BracketElectricCharacterSupport;
+	public readonly comments: ICommentsConfiguration;
+	public readonly characterPair: CharacterPairSupport;
+	public readonly wordDefinition: RegExp;
+	public readonly onEnter: OnEnterSupport;
+	public readonly brackets: RichEditBrackets;
 
-	constructor(modeId: string, previous: RichEditSupport, rawConf: LanguageConfiguration) {
+	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
 		let prev: LanguageConfiguration = null;
 		if (previous) {
@@ -48,12 +49,12 @@ export class RichEditSupport {
 		this._conf = RichEditSupport._mergeConf(prev, rawConf);
 
 		if (this._conf.brackets) {
-			this.brackets = new RichEditBrackets(modeId, this._conf.brackets);
+			this.brackets = new RichEditBrackets(languageIdentifier, this._conf.brackets);
 		}
 
-		this._handleOnEnter(modeId, this._conf);
+		this.onEnter = RichEditSupport._handleOnEnter(this._conf);
 
-		this._handleComments(modeId, this._conf);
+		this.comments = RichEditSupport._handleComments(this._conf);
 
 		this.characterPair = new CharacterPairSupport(this._conf);
 		this.electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
@@ -74,7 +75,7 @@ export class RichEditSupport {
 		};
 	}
 
-	private _handleOnEnter(modeId: string, conf: LanguageConfiguration): void {
+	private static _handleOnEnter(conf: LanguageConfiguration): OnEnterSupport {
 		// on enter
 		let onEnter: IOnEnterSupportOptions = {};
 		let empty = true;
@@ -93,66 +94,75 @@ export class RichEditSupport {
 		}
 
 		if (!empty) {
-			this.onEnter = new OnEnterSupport(onEnter);
+			return new OnEnterSupport(onEnter);
 		}
+		return null;
 	}
 
-	private _handleComments(modeId: string, conf: LanguageConfiguration): void {
+	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration {
 		let commentRule = conf.comments;
+		if (!commentRule) {
+			return null;
+		}
 
 		// comment configuration
-		if (commentRule) {
-			this.comments = {};
+		let comments: ICommentsConfiguration = {};
 
-			if (commentRule.lineComment) {
-				this.comments.lineCommentToken = commentRule.lineComment;
-			}
-			if (commentRule.blockComment) {
-				let [blockStart, blockEnd] = commentRule.blockComment;
-				this.comments.blockCommentStartToken = blockStart;
-				this.comments.blockCommentEndToken = blockEnd;
-			}
+		if (commentRule.lineComment) {
+			comments.lineCommentToken = commentRule.lineComment;
 		}
-	}
+		if (commentRule.blockComment) {
+			let [blockStart, blockEnd] = commentRule.blockComment;
+			comments.blockCommentStartToken = blockStart;
+			comments.blockCommentEndToken = blockEnd;
+		}
 
+		return comments;
+	}
 }
 
 export class LanguageConfigurationRegistryImpl {
 
-	private _entries: { [languageId: string]: RichEditSupport; };
+	private _entries: RichEditSupport[];
 
 	private _onDidChange: Emitter<void> = new Emitter<void>();
 	public onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor() {
-		this._entries = Object.create(null);
+		this._entries = [];
 	}
 
-	public register(languageId: string, configuration: LanguageConfiguration): IDisposable {
-		let previous = this._entries[languageId] || null;
-		this._entries[languageId] = new RichEditSupport(languageId, previous, configuration);
+	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration): IDisposable {
+		let previous = this._getRichEditSupport(languageIdentifier.id);
+		let current = new RichEditSupport(languageIdentifier, previous, configuration);
+		this._entries[languageIdentifier.id] = current;
 		this._onDidChange.fire(void 0);
 		return {
-			dispose: () => { }
+			dispose: () => {
+				if (this._entries[languageIdentifier.id] === current) {
+					this._entries[languageIdentifier.id] = previous;
+					this._onDidChange.fire(void 0);
+				}
+			}
 		};
 	}
 
-	private _getRichEditSupport(modeId: string): RichEditSupport {
-		return this._entries[modeId];
+	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
+		return this._entries[languageId] || null;
 	}
 
 	// begin electricCharacter
 
-	private _getElectricCharacterSupport(modeId: string): BracketElectricCharacterSupport {
-		let value = this._getRichEditSupport(modeId);
+	private _getElectricCharacterSupport(languageId: LanguageId): BracketElectricCharacterSupport {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.electricCharacter || null;
 	}
 
-	public getElectricCharacters(modeId: string): string[] {
-		let electricCharacterSupport = this._getElectricCharacterSupport(modeId);
+	public getElectricCharacters(languageId: LanguageId): string[] {
+		let electricCharacterSupport = this._getElectricCharacterSupport(languageId);
 		if (!electricCharacterSupport) {
 			return [];
 		}
@@ -164,7 +174,7 @@ export class LanguageConfigurationRegistryImpl {
 	 */
 	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction {
 		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.modeId);
+		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
 		if (!electricCharacterSupport) {
 			return null;
 		}
@@ -173,8 +183,8 @@ export class LanguageConfigurationRegistryImpl {
 
 	// end electricCharacter
 
-	public getComments(modeId: string): ICommentsConfiguration {
-		let value = this._getRichEditSupport(modeId);
+	public getComments(languageId: LanguageId): ICommentsConfiguration {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
@@ -183,24 +193,24 @@ export class LanguageConfigurationRegistryImpl {
 
 	// begin characterPair
 
-	private _getCharacterPairSupport(modeId: string): CharacterPairSupport {
-		let value = this._getRichEditSupport(modeId);
+	private _getCharacterPairSupport(languageId: LanguageId): CharacterPairSupport {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.characterPair || null;
 	}
 
-	public getAutoClosingPairs(modeId: string): IAutoClosingPair[] {
-		let characterPairSupport = this._getCharacterPairSupport(modeId);
+	public getAutoClosingPairs(languageId: LanguageId): IAutoClosingPair[] {
+		let characterPairSupport = this._getCharacterPairSupport(languageId);
 		if (!characterPairSupport) {
 			return [];
 		}
 		return characterPairSupport.getAutoClosingPairs();
 	}
 
-	public getSurroundingPairs(modeId: string): IAutoClosingPair[] {
-		let characterPairSupport = this._getCharacterPairSupport(modeId);
+	public getSurroundingPairs(languageId: LanguageId): IAutoClosingPair[] {
+		let characterPairSupport = this._getCharacterPairSupport(languageId);
 		if (!characterPairSupport) {
 			return [];
 		}
@@ -209,7 +219,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	public shouldAutoClosePair(character: string, context: LineTokens, column: number): boolean {
 		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.modeId);
+		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
 		if (!characterPairSupport) {
 			return false;
 		}
@@ -218,8 +228,8 @@ export class LanguageConfigurationRegistryImpl {
 
 	// end characterPair
 
-	public getWordDefinition(modeId: string): RegExp {
-		let value = this._getRichEditSupport(modeId);
+	public getWordDefinition(languageId: LanguageId): RegExp {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return ensureValidWordDefinition(null);
 		}
@@ -228,8 +238,8 @@ export class LanguageConfigurationRegistryImpl {
 
 	// begin onEnter
 
-	private _getOnEnterSupport(modeId: string): OnEnterSupport {
-		let value = this._getRichEditSupport(modeId);
+	private _getOnEnterSupport(languageId: LanguageId): OnEnterSupport {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
@@ -239,7 +249,7 @@ export class LanguageConfigurationRegistryImpl {
 	public getRawEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
 		let lineTokens = model.getLineTokens(lineNumber, false);
 		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
-		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.modeId);
+		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
 		if (!onEnterSupport) {
 			return null;
 		}
@@ -254,7 +264,7 @@ export class LanguageConfigurationRegistryImpl {
 			let oneLineAboveLineTokens = model.getLineTokens(lineNumber - 1, false);
 			let oneLineAboveMaxColumn = model.getLineMaxColumn(lineNumber - 1);
 			let oneLineAboveScopedLineTokens = createScopedLineTokens(oneLineAboveLineTokens, oneLineAboveMaxColumn - 1);
-			if (oneLineAboveScopedLineTokens.modeId === scopedLineTokens.modeId) {
+			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
 				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
 			}
@@ -307,8 +317,8 @@ export class LanguageConfigurationRegistryImpl {
 
 	// end onEnter
 
-	public getBracketsSupport(modeId: string): RichEditBrackets {
-		let value = this._getRichEditSupport(modeId);
+	public getBracketsSupport(languageId: LanguageId): RichEditBrackets {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}

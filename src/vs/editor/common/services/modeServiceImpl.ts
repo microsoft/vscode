@@ -14,14 +14,12 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as modes from 'vs/editor/common/modes';
+import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Token } from 'vs/editor/common/core/token';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 
 export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
@@ -135,15 +133,15 @@ export class ModeServiceImpl implements IModeService {
 	private _instantiationService: IInstantiationService;
 	protected _extensionService: IExtensionService;
 
-	private _instantiatedModes: { [modeId: string]: modes.IMode; };
+	private _instantiatedModes: { [modeId: string]: IMode; };
 
 	private _registry: LanguagesRegistry;
 
 	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
 	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
 
-	private _onDidCreateMode: Emitter<modes.IMode> = new Emitter<modes.IMode>();
-	public onDidCreateMode: Event<modes.IMode> = this._onDidCreateMode.event;
+	private _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
+	public onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
 	constructor(
 		instantiationService: IInstantiationService,
@@ -200,6 +198,10 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
+	public getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier {
+		return this._registry.getLanguageIdentifier(modeId);
+	}
+
 	public getConfigurationFiles(modeId: string): string[] {
 		return this._registry.getConfigurationFiles(modeId);
 	}
@@ -222,7 +224,7 @@ export class ModeServiceImpl implements IModeService {
 		return r;
 	}
 
-	public getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): modes.IMode {
+	public getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode {
 		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		var isPlainText = false;
@@ -235,7 +237,7 @@ export class ModeServiceImpl implements IModeService {
 
 		if (isPlainText) {
 			// Try to do it synchronously
-			var r: modes.IMode = null;
+			var r: IMode = null;
 			this.getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds).then((mode) => {
 				r = mode;
 			}).done(null, onUnexpectedError);
@@ -267,7 +269,7 @@ export class ModeServiceImpl implements IModeService {
 		return this._extensionService.onReady();
 	}
 
-	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<modes.IMode> {
+	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
 		return this.onReady().then(() => {
 			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			// Fall back to plain text if no mode was found
@@ -275,7 +277,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public getOrCreateModeByLanguageName(languageName: string): TPromise<modes.IMode> {
+	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
 		return this.onReady().then(() => {
 			var modeId = this.getModeIdByLanguageName(languageName);
 			// Fall back to plain text if no mode was found
@@ -283,7 +285,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<modes.IMode> {
+	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<IMode> {
 		return this.onReady().then(() => {
 			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
@@ -291,61 +293,16 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	private _getOrCreateMode(modeId: string): modes.IMode {
+	private _getOrCreateMode(modeId: string): IMode {
 		if (!this._instantiatedModes.hasOwnProperty(modeId)) {
-			this._instantiatedModes[modeId] = this._instantiationService.createInstance(FrankensteinMode, {
-				id: modeId
-			});
+			let languageIdentifier = this.getLanguageIdentifier(modeId);
+			this._instantiatedModes[modeId] = new FrankensteinMode(languageIdentifier);
 
 			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);
 
 			this._extensionService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
 		}
 		return this._instantiatedModes[modeId];
-	}
-}
-
-export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
-
-	private _modeId: string;
-	private _actual: modes.TokensProvider;
-
-	constructor(modeId: string, actual: modes.TokensProvider) {
-		this._modeId = modeId;
-		this._actual = actual;
-	}
-
-	public getInitialState(): modes.IState {
-		return this._actual.getInitialState();
-	}
-
-	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
-		let actualResult = this._actual.tokenize(line, state);
-		let tokens: Token[] = [];
-		actualResult.tokens.forEach((t) => {
-			if (typeof t.scopes === 'string') {
-				tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
-			} else if (Array.isArray(t.scopes) && t.scopes.length === 1) {
-				tokens.push(new Token(t.startIndex + offsetDelta, t.scopes[0]));
-			} else {
-				throw new Error('Only token scopes as strings or of precisely 1 length are supported at this time!');
-			}
-		});
-
-		let endState: modes.IState;
-		// try to save an object if possible
-		if (actualResult.endState.equals(state)) {
-			endState = state;
-		} else {
-			endState = actualResult.endState;
-		}
-
-		return {
-			tokens: tokens,
-			actualStopOffset: offsetDelta + line.length,
-			endState: endState,
-			modeTransitions: [new ModeTransition(offsetDelta, this._modeId)],
-		};
 	}
 }
 

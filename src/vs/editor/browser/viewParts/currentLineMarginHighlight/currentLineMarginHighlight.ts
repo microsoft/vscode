@@ -93,7 +93,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
 				return (
-					'<div class="current-line" style="width:'
+					'<div class="current-line-margin" style="width:'
 					+ String(this._contentLeft)
 					+ 'px; height:'
 					+ String(this._lineHeight)
