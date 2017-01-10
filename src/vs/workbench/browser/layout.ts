@@ -298,7 +298,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public layout(options?: ILayoutOptions): void {
-		this.workbenchSize = this.getWorkbenchArea();
+		this.workbenchSize = this.parent.getClientArea();
 
 		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
 		const isTitlebarHidden = !this.partService.isVisible(Parts.TITLEBAR_PART);
@@ -492,15 +492,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Propagate to Context View
 		this.contextViewService.layout();
-	}
-
-	private getWorkbenchArea(): Dimension {
-
-		// Client Area: Parent
-		let clientArea = this.parent.getClientArea();
-
-		// Workbench: Client Area - Margins
-		return clientArea;
 	}
 
 	public getVerticalSashTop(sash: Sash): number {
