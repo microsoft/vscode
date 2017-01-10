@@ -3941,6 +3941,11 @@ declare module monaco.languages {
     export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
 
     /**
+     * Register a implementation provider (used by e.g. go to implementation).
+     */
+    export function registerImplementationProvider(languageId: string, provider: ImplementationProvider): IDisposable;
+
+    /**
      * Register a code lens provider (used by e.g. inline code lenses).
      */
     export function registerCodeLensProvider(languageId: string, provider: CodeLensProvider): IDisposable;
@@ -4517,6 +4522,17 @@ declare module monaco.languages {
          * Provide the definition of the symbol at the given position and document.
          */
         provideDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+    }
+
+    /**
+     * The implementation provider interface defines the contract between extensions and
+     * the go to implementation and peek implementation features.
+     */
+    export interface ImplementationProvider {
+        /**
+         * Provide the implementation of the symbol at the given position and document.
+         */
+        provideImplementation(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
     }
 
     /**
