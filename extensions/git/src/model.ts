@@ -260,9 +260,7 @@ export class Model {
 			resources.push(new IndexGroup(index));
 		}
 
-		if (workingTree.length > 0) {
-			resources.push(new WorkingTreeGroup(workingTree));
-		}
+		resources.push(new WorkingTreeGroup(workingTree));
 
 		return resources;
 	}
