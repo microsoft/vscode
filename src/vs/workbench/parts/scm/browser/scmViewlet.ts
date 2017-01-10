@@ -243,13 +243,8 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
-		const elements = provider.resources.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => {
-			if (group.resources.length === 0) {
-				return result;
-			}
-
-			return [...result, group, ...group.resources];
-		}, []);
+		const elements = provider.resources
+			.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => [...result, group, ...group.resources], []);
 
 		this.list.splice(0, this.list.length, ...elements);
 	}
