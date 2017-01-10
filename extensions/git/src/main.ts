@@ -9,7 +9,6 @@ import { scm, ExtensionContext, workspace, Uri, window, Disposable } from 'vscod
 import * as path from 'path';
 import { findGit, Git } from './git';
 import { Model } from './model';
-import { log } from './util';
 import { GitSCMProvider } from './scmProvider';
 import { registerCommands } from './commands';
 import * as nls from 'vscode-nls';
@@ -51,8 +50,6 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const repositoryRoot = await repository.getRoot();
 	const model = new Model(repositoryRoot, repository);
 	const provider = new GitSCMProvider(model);
-
-	provider.onDidChange(g => log(g));
 
 	const outputChannel = window.createOutputChannel('git');
 	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
