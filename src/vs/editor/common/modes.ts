@@ -214,6 +214,7 @@ export interface ISuggestion {
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
+	commitCharacters?: string[];
 	overwriteBefore?: number;
 	overwriteAfter?: number;
 	additionalTextEdits?: editorCommon.ISingleEditOperation[];

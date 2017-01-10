@@ -293,7 +293,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	// Editor.IContentWidget.allowEditorOverflow
-	allowEditorOverflow = true;
+	readonly allowEditorOverflow = true;
 
 	private state: State;
 	private isAuto: boolean;
@@ -312,11 +312,15 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
-	private onDidSelectEmitter = new Emitter<ICompletionItem>();
-
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
+
+	private onDidSelectEmitter = new Emitter<ICompletionItem>();
+	private onDidFocusEmitter = new Emitter<ICompletionItem>();
+
+	readonly onDidSelect: Event<ICompletionItem> = this.onDidSelectEmitter.event;
+	readonly onDidFocus: Event<ICompletionItem> = this.onDidFocusEmitter.event;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -472,6 +476,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
 			.then(() => this.currentSuggestionDetails = null);
+
+		// emit an event
+		this.onDidFocusEmitter.fire(item);
 	}
 
 	private setState(state: State): void {
@@ -526,10 +533,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (stateChanged) {
 			this.editor.layoutContentWidget(this);
 		}
-	}
-
-	get onDidSelect(): Event<ICompletionItem> {
-		return this.onDidSelectEmitter.event;
 	}
 
 	showTriggered(auto: boolean) {
