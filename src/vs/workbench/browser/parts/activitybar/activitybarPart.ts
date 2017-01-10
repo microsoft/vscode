@@ -64,7 +64,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService
 	) {
-		super(id);
+		super(id, { hasTitle: false });
 
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
