@@ -431,8 +431,8 @@ export interface DefinitionProvider {
 }
 
 /**
- * The implementation provider interface defines the contract between extensions and
- * the go to implementation and peek implementation features.
+ * The type definition provider interface defines the contract between extensions and
+ * the go to implementation feature.
  */
 export interface TypeDefinitionProvider {
 	/**

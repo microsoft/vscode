@@ -4095,7 +4095,7 @@ declare module 'vscode' {
 		export function registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable;
 
 		/**
-		 * Register an implementation provider.
+		 * Register an type definition provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used.
