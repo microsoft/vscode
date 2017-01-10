@@ -29,6 +29,7 @@
 		"onLanguage:javascriptreact",
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
+		"onLanguage:jsx-tags",
 		"onCommand:typescript.reloadProjects",
 		"onCommand:javascript.reloadProjects"
 	],
