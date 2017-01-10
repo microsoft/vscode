@@ -28,6 +28,7 @@ class MyCompletionItem extends CompletionItem {
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
 		this.document = document;
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(entry.kind);
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
@@ -84,6 +85,39 @@ class MyCompletionItem extends CompletionItem {
 		}
 
 		return CompletionItemKind.Property;
+	}
+
+	private static getCommitCharacters(kind: string): string[] | undefined {
+		switch (kind) {
+			case PConst.Kind.primitiveType:
+			case PConst.Kind.keyword:
+			case PConst.Kind.file:
+			case PConst.Kind.directory:
+			case PConst.Kind.script:
+			case PConst.Kind.warning:
+			case PConst.Kind.externalModuleName:
+				return undefined;
+
+			case PConst.Kind.alias:
+			case PConst.Kind.variable:
+			case PConst.Kind.localVariable:
+			case PConst.Kind.memberVariable:
+			case PConst.Kind.memberGetAccessor:
+			case PConst.Kind.memberSetAccessor:
+			case PConst.Kind.constructSignature:
+			case PConst.Kind.callSignature:
+			case PConst.Kind.indexSignature:
+			case PConst.Kind.enum:
+			case PConst.Kind.module:
+			case PConst.Kind.class:
+			case PConst.Kind.interface:
+			case PConst.Kind.type:
+			case PConst.Kind.function:
+			case PConst.Kind.memberFunction:
+				return ['.'];
+		}
+
+		return undefined;
 	}
 }
 
