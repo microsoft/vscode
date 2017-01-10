@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup } from 'vscode';
-import { Repository, IRef, IRemote, IFileStatus } from './git';
+import { Repository, IRef, IRemote } from './git';
 import { throttle } from './util';
 import { decorate, debounce } from 'core-decorators';
 import * as path from 'path';
@@ -124,20 +124,29 @@ export class ResourceGroup implements SCMResourceGroup {
 }
 
 export class MergeGroup extends ResourceGroup {
+
+	static readonly ID = 'merge';
+
 	constructor(resources: SCMResource[]) {
-		super('merge', 'Merge Changes', resources);
+		super(MergeGroup.ID, 'Merge Changes', resources);
 	}
 }
 
 export class IndexGroup extends ResourceGroup {
+
+	static readonly ID = 'index';
+
 	constructor(resources: SCMResource[]) {
-		super('index', 'Staged Changes', resources);
+		super(IndexGroup.ID, 'Staged Changes', resources);
 	}
 }
 
 export class WorkingTreeGroup extends ResourceGroup {
+
+	static readonly ID = 'workingTree';
+
 	constructor(resources: SCMResource[]) {
-		super('workingTree', 'Changes', resources);
+		super(WorkingTreeGroup.ID, 'Changes', resources);
 	}
 }
 
@@ -146,8 +155,30 @@ export class Model {
 	private _onDidChange = new EventEmitter<SCMResourceGroup[]>();
 	readonly onDidChange: Event<SCMResourceGroup[]> = this._onDidChange.event;
 
-	private _resources: ResourceGroup[] = [];
-	get resources(): ResourceGroup[] { return this._resources; }
+	private _mergeGroup = new MergeGroup([]);
+	get mergeGroup(): MergeGroup { return this._mergeGroup; }
+
+	private _indexGroup = new IndexGroup([]);
+	get indexGroup(): IndexGroup { return this._indexGroup; }
+
+	private _workingTreeGroup = new WorkingTreeGroup([]);
+	get workingTreeGroup(): WorkingTreeGroup { return this._workingTreeGroup; }
+
+	get resources(): ResourceGroup[] {
+		const result: ResourceGroup[] = [];
+
+		if (this._mergeGroup.resources.length > 0) {
+			result.push(this._mergeGroup);
+		}
+
+		if (this._indexGroup.resources.length > 0) {
+			result.push(this._indexGroup);
+		}
+
+		result.push(this._workingTreeGroup);
+
+		return result;
+	}
 
 	constructor(private _repositoryRoot: string, private repository: Repository) {
 
@@ -209,12 +240,7 @@ export class Model {
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
-		this._resources = this.getResources(status);
 
-		this._onDidChange.fire(this._resources);
-	}
-
-	private getResources(status: IFileStatus[]): ResourceGroup[] {
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
@@ -250,19 +276,11 @@ export class Model {
 			}
 		});
 
-		const resources: ResourceGroup[] = [];
+		this._mergeGroup = new MergeGroup(merge);
+		this._indexGroup = new IndexGroup(index);
+		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
 
-		if (merge.length > 0) {
-			resources.push(new MergeGroup(merge));
-		}
-
-		if (index.length > 0) {
-			resources.push(new IndexGroup(index));
-		}
-
-		resources.push(new WorkingTreeGroup(workingTree));
-
-		return resources;
+		this._onDidChange.fire(this.resources);
 	}
 
 	async stage(...resources: Resource[]): Promise<void> {
@@ -274,6 +292,11 @@ export class Model {
 	async unstage(...resources: Resource[]): Promise<void> {
 		const paths = resources.map(r => r.uri.fsPath);
 		await this.repository.revertFiles('HEAD', paths);
+		await this.updateNow();
+	}
+
+	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+		await this.repository.commit(message, opts);
 		await this.updateNow();
 	}
 }
