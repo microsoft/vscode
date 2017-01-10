@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup } from 'vscode';
-import { Repository, IRef, IFileStatus, IRemote } from './git';
+import { Repository, IRef, IRemote, IFileStatus } from './git';
 import { throttle } from './util';
 import { decorate, debounce } from 'core-decorators';
 import * as path from 'path';
@@ -143,8 +143,11 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 export class Model {
 
-	private _onDidChange = new EventEmitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private _onDidChange = new EventEmitter<SCMResourceGroup[]>();
+	readonly onDidChange: Event<SCMResourceGroup[]> = this._onDidChange.event;
+
+	private _resources: ResourceGroup[] = [];
+	get resources(): ResourceGroup[] { return this._resources; }
 
 	constructor(private _repositoryRoot: string, private repository: Repository) {
 
@@ -152,11 +155,6 @@ export class Model {
 
 	get repositoryRoot(): string {
 		return this._repositoryRoot;
-	}
-
-	private _status: IFileStatus[];
-	get status(): IFileStatus[] {
-		return this._status;
 	}
 
 	private _HEAD: IRef | undefined;
@@ -208,10 +206,64 @@ export class Model {
 
 		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
 
-		this._status = status;
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
-		this._onDidChange.fire();
+		this._resources = this.getResources(status);
+
+		this._onDidChange.fire(this._resources);
+	}
+
+	private getResources(status: IFileStatus[]): ResourceGroup[] {
+		const index: Resource[] = [];
+		const workingTree: Resource[] = [];
+		const merge: Resource[] = [];
+
+		status.forEach(raw => {
+			const uri = Uri.file(path.join(this.repositoryRoot, raw.path));
+
+			switch (raw.x + raw.y) {
+				case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));
+				case '!!': return workingTree.push(new Resource(uri, Status.IGNORED));
+				case 'DD': return merge.push(new Resource(uri, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new Resource(uri, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new Resource(uri, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new Resource(uri, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new Resource(uri, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new Resource(uri, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new Resource(uri, Status.BOTH_MODIFIED));
+			}
+
+			let isModifiedInIndex = false;
+
+			switch (raw.x) {
+				case 'M': index.push(new Resource(uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new Resource(uri, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new Resource(uri, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED/*, raw.rename*/)); break;
+				case 'C': index.push(new Resource(uri, Status.INDEX_COPIED)); break;
+			}
+
+			switch (raw.y) {
+				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED/*, raw.rename*/)); break;
+				case 'D': workingTree.push(new Resource(uri, Status.DELETED/*, raw.rename*/)); break;
+			}
+		});
+
+		const resources: ResourceGroup[] = [];
+
+		if (merge.length > 0) {
+			resources.push(new MergeGroup(merge));
+		}
+
+		if (index.length > 0) {
+			resources.push(new IndexGroup(index));
+		}
+
+		if (workingTree.length > 0) {
+			resources.push(new WorkingTreeGroup(workingTree));
+		}
+
+		return resources;
 	}
 }
