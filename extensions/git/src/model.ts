@@ -116,9 +116,9 @@ export class ResourceGroup implements SCMResourceGroup {
 
 	get id(): string { return this._id; }
 	get label(): string { return this._label; }
-	get resources(): SCMResource[] { return this._resources; }
+	get resources(): Resource[] { return this._resources; }
 
-	constructor(private _id: string, private _label: string, private _resources: SCMResource[]) {
+	constructor(private _id: string, private _label: string, private _resources: Resource[]) {
 
 	}
 }
@@ -127,7 +127,7 @@ export class MergeGroup extends ResourceGroup {
 
 	static readonly ID = 'merge';
 
-	constructor(resources: SCMResource[]) {
+	constructor(resources: Resource[]) {
 		super(MergeGroup.ID, 'Merge Changes', resources);
 	}
 }
@@ -136,7 +136,7 @@ export class IndexGroup extends ResourceGroup {
 
 	static readonly ID = 'index';
 
-	constructor(resources: SCMResource[]) {
+	constructor(resources: Resource[]) {
 		super(IndexGroup.ID, 'Staged Changes', resources);
 	}
 }
@@ -145,7 +145,7 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 	static readonly ID = 'workingTree';
 
-	constructor(resources: SCMResource[]) {
+	constructor(resources: Resource[]) {
 		super(WorkingTreeGroup.ID, 'Changes', resources);
 	}
 }
@@ -297,6 +297,37 @@ export class Model {
 
 	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
 		await this.repository.commit(message, opts);
+		await this.updateNow();
+	}
+
+	async clean(...resources: Resource[]): Promise<void> {
+		const toClean: string[] = [];
+		const toCheckout: string[] = [];
+
+		resources.forEach(r => {
+			switch (r.type) {
+				case Status.UNTRACKED:
+				case Status.IGNORED:
+					toClean.push(r.uri.fsPath);
+					break;
+
+				default:
+					toCheckout.push(r.uri.fsPath);
+					break;
+			}
+		});
+
+		const promises: Promise<void>[] = [];
+
+		if (toClean.length > 0) {
+			promises.push(this.repository.clean(toClean));
+		}
+
+		if (toCheckout.length > 0) {
+			promises.push(this.repository.checkout('', toCheckout));
+		}
+
+		await Promise.all(promises);
 		await this.updateNow();
 	}
 }

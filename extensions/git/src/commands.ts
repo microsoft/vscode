@@ -5,9 +5,10 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource } from 'vscode';
-import { Model, Resource, ResourceGroup } from './model';
+import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window } from 'vscode';
+import { Model, Resource } from './model';
 import { log } from './util';
+import * as path from 'path';
 
 type Command = (...args: any[]) => any;
 
@@ -39,12 +40,31 @@ async function unstageAll(model: Model): Promise<void> {
 	return await model.unstage();
 }
 
-function clean(model: Model, resource: Resource): void {
-	log('clean', resource);
+async function clean(model: Model, resource: Resource): Promise<void> {
+	const basename = path.basename(resource.uri.fsPath);
+	const message = `Are you sure you want to clean changes in ${basename}?`;
+	const yes = 'Yes';
+	const no = 'No, keep them';
+	const pick = await window.showQuickPick([no, yes], { placeHolder: message });
+
+	if (pick !== yes) {
+		return;
+	}
+
+	return await model.clean(resource);
 }
 
-function cleanAll(model: Model, resourceGroup: ResourceGroup): void {
-	log('clean all', resourceGroup);
+async function cleanAll(model: Model): Promise<void> {
+	const message = `Are you sure you want to clean all changes?`;
+	const yes = 'Yes';
+	const no = 'No, keep them';
+	const pick = await window.showQuickPick([no, yes], { placeHolder: message });
+
+	if (pick !== yes) {
+		return;
+	}
+
+	return await model.clean(...model.workingTreeGroup.resources);
 }
 
 function resolveURI<R>(command: (t: SCMResource | SCMResourceGroup | undefined) => R): (uri: Uri) => R | undefined {
@@ -83,8 +103,8 @@ export function registerCommands(model: Model): Disposable {
 		commands.registerCommand('git.stageAll', compose(stageAll, catchErrors, bindModel)),
 		commands.registerCommand('git.unstage', compose(unstage, catchErrors, bindModel, resolveURI)),
 		commands.registerCommand('git.unstageAll', compose(unstageAll, catchErrors, bindModel)),
-		commands.registerCommand('git.clean', compose(clean, bindModel, resolveURI)),
-		commands.registerCommand('git.cleanAll', compose(cleanAll, bindModel, resolveURI)),
+		commands.registerCommand('git.clean', compose(clean, catchErrors, bindModel, resolveURI)),
+		commands.registerCommand('git.cleanAll', compose(cleanAll, catchErrors, bindModel)),
 	];
 
 	return Disposable.from(...disposables);
