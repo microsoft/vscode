@@ -266,12 +266,8 @@ export class FindModelBoundToEditorModel {
 		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
 	}
 
-	private _moveToNextMatch(nextMatch: Range): void
-	private _moveToNextMatch(after: Position): void
-	private _moveToNextMatch(arg: any): void {
-		// @sandeep TS(2.0.2) - Adding cast to keep semantic. Necessary since the test are for interface but the code expects
-		// implemations.
-		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg as Position) : null;
+	private _moveToNextMatch(after: Position): void {
+		let nextMatch = this._getNextMatch(after);
 		if (nextMatch) {
 			this._setCurrentFindMatch(nextMatch as Range);
 		}
@@ -388,7 +384,7 @@ export class FindModelBoundToEditorModel {
 				this.research(true);
 			} else {
 				this._decorations.setStartPosition(this._editor.getPosition());
-				this._moveToNextMatch(nextMatch);
+				this._setCurrentFindMatch(nextMatch);
 			}
 		}
 	}
