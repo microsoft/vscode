@@ -58,7 +58,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			'panel',
 			'panel',
 			Scope.PANEL,
-			id
+			id,
+			{ hasTitle: true }
 		);
 	}
 

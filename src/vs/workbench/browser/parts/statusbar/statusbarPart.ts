@@ -42,7 +42,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(id);
+		super(id, { hasTitle: false });
 
 		this.toDispose = [];
 	}

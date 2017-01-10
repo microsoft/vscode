@@ -17,7 +17,7 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 class MyPart extends Part {
 
 	constructor(private expectedParent: Builder) {
-		super('myPart');
+		super('myPart', { hasTitle: true });
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -30,11 +30,6 @@ class MyPart extends Part {
 		return super.createContentArea(parent);
 	}
 
-	public createStatusArea(parent: Builder): Builder {
-		assert.strictEqual(parent, this.expectedParent);
-		return super.createStatusArea(parent);
-	}
-
 	public getMemento(storageService: IStorageService): any {
 		return super.getMemento(storageService);
 	}
@@ -43,7 +38,7 @@ class MyPart extends Part {
 class MyPart2 extends Part {
 
 	constructor() {
-		super('myPart2');
+		super('myPart2', { hasTitle: true });
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -63,21 +58,12 @@ class MyPart2 extends Part {
 			});
 		});
 	}
-
-	public createStatusArea(parent: Builder): Builder {
-		return parent.div(function (div) {
-			div.span({
-				id: 'myPart.status',
-				innerHtml: 'Status'
-			});
-		});
-	}
 }
 
 class MyPart3 extends Part {
 
 	constructor() {
-		super('myPart2');
+		super('myPart2', { hasTitle: false });
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -91,10 +77,6 @@ class MyPart3 extends Part {
 				innerHtml: 'Content'
 			});
 		});
-	}
-
-	public createStatusArea(parent: Builder): Builder {
-		return null;
 	}
 }
 
@@ -153,7 +135,7 @@ suite('Workbench Part', () => {
 		assert.strictEqual(Types.isEmptyObject(memento), true);
 	});
 
-	test('Part Layout with Title, Content and Status', function () {
+	test('Part Layout with Title and Content', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
@@ -162,7 +144,6 @@ suite('Workbench Part', () => {
 
 		assert(Build.withElementById('myPart.title'));
 		assert(Build.withElementById('myPart.content'));
-		assert(Build.withElementById('myPart.status'));
 	});
 
 	test('Part Layout with Content only', function () {
@@ -174,6 +155,5 @@ suite('Workbench Part', () => {
 
 		assert(!Build.withElementById('myPart.title'));
 		assert(Build.withElementById('myPart.content'));
-		assert(!Build.withElementById('myPart.status'));
 	});
 });

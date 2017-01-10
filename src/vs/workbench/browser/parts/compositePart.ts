@@ -20,7 +20,7 @@ import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/ac
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actionBarRegistry';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Part } from 'vs/workbench/browser/part';
+import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
@@ -65,9 +65,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
 		private actionContributionScope: string,
-		id: string
+		id: string,
+		options: IPartOptions
 	) {
-		super(id);
+		super(id, options);
 
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};

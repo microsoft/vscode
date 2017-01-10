@@ -65,7 +65,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
 			'sideBar',
 			'viewlet',
 			Scope.VIEWLET,
-			id
+			id,
+			{ hasTitle: true }
 		);
 	}
 
