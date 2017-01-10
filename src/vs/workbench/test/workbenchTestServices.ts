@@ -278,7 +278,7 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setPanelHidden(hidden: boolean): void { }
+	public setPanelHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public toggleMaximizedPanel(): void { }
 

@@ -690,7 +690,6 @@ export class Workbench implements IPartService {
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
-
 				const activeEditor = this.editorPart.getActiveEditor();
 				const activePanel = this.panelPart.getActivePanel();
 
@@ -722,7 +721,7 @@ export class Workbench implements IPartService {
 		});
 	}
 
-	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+	public setPanelHidden(hidden: boolean, skipLayout?: boolean): TPromise<void> {
 		this.panelHidden = hidden;
 
 		// Adjust CSS
@@ -732,20 +731,16 @@ export class Workbench implements IPartService {
 			this.workbench.removeClass('nopanel');
 		}
 
-		// Layout
-		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleRecompute: true });
-		}
-
+		let promise = TPromise.as(null);
 		// If panel part becomes hidden, also hide the current active panel if any
 		if (hidden && this.panelPart.getActivePanel()) {
-			this.panelPart.hideActivePanel();
-
-			// Pass Focus to Editor if Panel part is now hidden
-			const editor = this.editorPart.getActiveEditor();
-			if (editor) {
-				editor.focus();
-			}
+			promise = this.panelPart.hideActivePanel().then(() => {
+				// Pass Focus to Editor if Panel part is now hidden
+				const editor = this.editorPart.getActiveEditor();
+				if (editor) {
+					editor.focus();
+				}
+			});
 		}
 
 		// If panel part becomes visible, show last active panel or default panel
@@ -753,12 +748,19 @@ export class Workbench implements IPartService {
 			const registry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 			const panelToOpen = this.panelPart.getLastActivePanelId() || registry.getDefaultPanelId();
 			if (panelToOpen) {
-				this.panelPart.openPanel(panelToOpen, true).done(null, errors.onUnexpectedError);
+				promise = this.panelPart.openPanel(panelToOpen, true);
 			}
 		}
 
-		// Remember in settings
-		this.storageService.store(Workbench.panelHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+		return promise.then(() => {
+			// Remember in settings
+			this.storageService.store(Workbench.panelHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+
+			// Layout
+			if (!skipLayout) {
+				this.workbenchLayout.layout({ forceStyleRecompute: true });
+			}
+		});
 	}
 
 	public toggleMaximizedPanel(): void {
@@ -1076,7 +1078,7 @@ export class Workbench implements IPartService {
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
-			this.setPanelHidden(true, true);
+			this.setPanelHidden(true, true).done(undefined, errors.onUnexpectedError);
 			this.setSideBarHidden(true, true).done(undefined, errors.onUnexpectedError);
 
 			this.setActivityBarHidden(true, true);
@@ -1088,7 +1090,7 @@ export class Workbench implements IPartService {
 			}
 		} else {
 			if (this.zenMode.wasPanelVisible) {
-				this.setPanelHidden(false, true);
+				this.setPanelHidden(false, true).done(undefined, errors.onUnexpectedError);
 			}
 			if (this.zenMode.wasSideBarVisible) {
 				this.setSideBarHidden(false, true).done(undefined, errors.onUnexpectedError);

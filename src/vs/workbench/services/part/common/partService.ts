@@ -85,7 +85,7 @@ export interface IPartService {
 	/**
 	 * Set panel part hidden or not
 	 */
-	setPanelHidden(hidden: boolean): void;
+	setPanelHidden(hidden: boolean): TPromise<void>;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
