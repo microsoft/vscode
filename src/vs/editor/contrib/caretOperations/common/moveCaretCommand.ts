@@ -8,7 +8,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 
-export class MoveCarretCommand implements ICommand {
+export class MoveCaretCommand implements ICommand {
 
 	private _selection: Selection;
 	private _isMovingLeft: boolean;

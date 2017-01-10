@@ -12,17 +12,18 @@ import { Model } from 'vs/editor/common/model/model';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/common/quickFixModel';
-import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 
 
 suite('QuickFix', () => {
+	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 
 	let uri = URI.parse('fake:path');
-	let model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, 'foo-lang', uri);
+	let model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 	let markerService: MarkerService;
 	let editor: ICommonCodeEditor;
 
-	let reg = CodeActionProviderRegistry.register('foo-lang', {
+	let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 		provideCodeActions() {
 			return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
 		}
@@ -93,7 +94,7 @@ suite('QuickFix', () => {
 
 	test('Oracle -> ask once per marker/word', () => {
 		let counter = 0;
-		let reg = CodeActionProviderRegistry.register('foo-lang', {
+		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions() {
 				counter += 1;
 				return [];

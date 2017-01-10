@@ -159,17 +159,9 @@ export class ViewOverlayLine implements IVisibleLineData {
 	}
 
 	getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void {
-		out.push('<div lineNumber="');
-		out.push(lineNumber.toString());
-		out.push('" style="top:');
-		out.push(deltaTop.toString());
-		out.push('px;height:');
-		out.push(this._lineHeight.toString());
-		out.push('px;" class="');
-		out.push(editorBrowser.ClassNames.VIEW_LINE);
-		out.push('">');
+		out.push(`<div lineNumber="${lineNumber}" style="position:absolute;top:${deltaTop}px;width:100%;height:${this._lineHeight}px;">`);
 		out.push(this.getLineInnerHTML(lineNumber));
-		out.push('</div>');
+		out.push(`</div>`);
 	}
 
 	getLineInnerHTML(lineNumber: number): string {

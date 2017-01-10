@@ -11,49 +11,13 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { Extensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/platform';
-import { DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE, GOLDEN_LINE_HEIGHT_RATIO } from 'vs/editor/common/config/defaultConfig';
+import { DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorLayoutProvider } from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-
-// TODO@Alex: investigate if it is better to stick to 31 bits (see smi = SMall Integer)
-// See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
-/**
- * MAX_INT that fits in 32 bits
- */
-const MAX_SAFE_INT = 0x7fffffff;
-/**
- * MIN_INT that fits in 32 bits
- */
-const MIN_SAFE_INT = -0x80000000;
-
-export interface IEditorZoom {
-	onDidChangeZoomLevel: Event<number>;
-	getZoomLevel(): number;
-	setZoomLevel(zoomLevel: number): void;
-}
-
-export const EditorZoom: IEditorZoom = new class {
-
-	private _zoomLevel: number = 0;
-
-	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
-	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
-
-	public getZoomLevel(): number {
-		return this._zoomLevel;
-	}
-
-	public setZoomLevel(zoomLevel: number): void {
-		zoomLevel = Math.min(Math.max(-9, zoomLevel), 9);
-		if (this._zoomLevel === zoomLevel) {
-			return;
-		}
-
-		this._zoomLevel = zoomLevel;
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
-	}
-};
+import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { Constants } from 'vs/editor/common/core/uint';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
  * Control what pressing Tab does.
@@ -141,7 +105,7 @@ class InternalEditorOptionsHelper {
 	public static createInternalEditorOptions(
 		outerWidth: number, outerHeight: number,
 		opts: editorCommon.IEditorOptions,
-		fontInfo: editorCommon.FontInfo,
+		fontInfo: FontInfo,
 		editorClassName: string,
 		isDominatedByLongLines: boolean,
 		maxLineNumber: number,
@@ -407,7 +371,7 @@ function toFloat(source: any, defaultValue: number): number {
 	return r;
 }
 
-function toInteger(source: any, minimum: number = MIN_SAFE_INT, maximum: number = MAX_SAFE_INT): number {
+function toInteger(source: any, minimum: number = Constants.MIN_SAFE_SMALL_INTEGER, maximum: number = Constants.MAX_SAFE_SMALL_INTEGER): number {
 	let r = parseInt(source, 10);
 	if (isNaN(r)) {
 		r = 0;
@@ -532,22 +496,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		let opts = this._configWithDefaults.getEditorOptions();
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
-		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
-		let fontWeight = String(opts.fontWeight) || DefaultConfig.editor.fontWeight;
-		let fontSize = toFloat(opts.fontSize, DefaultConfig.editor.fontSize);
-		fontSize = Math.max(0, fontSize);
-		fontSize = Math.min(100, fontSize);
-		if (fontSize === 0) {
-			fontSize = DefaultConfig.editor.fontSize;
-		}
-
-		let lineHeight = toInteger(opts.lineHeight, 0, 150);
-		if (lineHeight === 0) {
-			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
-		}
-		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);
-		fontSize *= editorZoomLevelMultiplier;
-		lineHeight *= editorZoomLevelMultiplier;
 
 		let disableTranslate3d = toBoolean(opts.disableTranslate3d);
 		let canUseTranslate3d = this._getCanUseTranslate3d();
@@ -555,16 +503,13 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			canUseTranslate3d = false;
 		}
 
+		let bareFontInfo = BareFontInfo.createFromRawSettings(opts);
+
 		return InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
 			this.getOuterHeight(),
 			opts,
-			this.readConfiguration(new editorCommon.BareFontInfo({
-				fontFamily: fontFamily,
-				fontWeight: fontWeight,
-				fontSize: fontSize,
-				lineHeight: lineHeight
-			})),
+			this.readConfiguration(bareFontInfo),
 			editorClassName,
 			this._isDominatedByLongLines,
 			this._maxLineNumber,
@@ -595,7 +540,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	protected abstract _getCanUseTranslate3d(): boolean;
 
-	protected abstract readConfiguration(styling: editorCommon.BareFontInfo): editorCommon.FontInfo;
+	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 }
 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);

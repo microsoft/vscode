@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Position } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -81,6 +81,18 @@ export function activate(context: ExtensionContext): void {
 
 	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
 		clientHost.reloadProjects();
+	}));
+
+	context.subscriptions.push(commands.registerCommand('typescript.tryAcceptSelectedSuggestionOnDot', () => {
+		// When typing a dot, make sure the character before the dot is a valid indentifier character.
+		const editor = window.activeTextEditor;
+		if (editor && editor.selection && editor.selection.start.character >= 1) {
+			const preText = editor.document.getText(new Range(new Position(editor.selection.start.line, 0), new Position(editor.selection.start.line, editor.selection.start.character - 1)));
+			if (preText.match(/[a-z_$]\s*$/ig)) {
+				return commands.executeCommand('acceptSelectedSuggestion');
+			}
+		}
+		return commands.executeCommand('type', { text: '.' });
 	}));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
@@ -216,6 +228,23 @@ class LanguageProvider {
 						action: { indentAction: IndentAction.None, removeText: 1 }
 					}
 				]
+			});
+
+			const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
+
+			languages.setLanguageConfiguration('jsx-tags', {
+				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
+				onEnterRules: [
+					{
+						beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+						afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+						action: { indentAction: IndentAction.IndentOutdent }
+					},
+					{
+						beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+						action: { indentAction: IndentAction.Indent }
+					}
+				],
 			});
 		});
 	}

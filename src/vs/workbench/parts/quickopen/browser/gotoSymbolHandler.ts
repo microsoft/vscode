@@ -420,7 +420,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
+			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
 				canRun = DocumentSymbolProviderRegistry.has(<IModel>model);
 			}
 		}
@@ -476,7 +476,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
+			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
 
 				// Ask cache first
 				const modelId = (<IModel>model).id;

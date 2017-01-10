@@ -70,15 +70,19 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 		};
 		return this.client.execute('references', args, token).then(response => {
 			if (response && response.body) {
-				const referenceCount = Math.max(0, response.body.refs.length - 1);
-				const locations = response.body.refs.map(reference =>
-					new Location(Uri.file(reference.file),
-						new Range(
-							new Position(reference.start.line - 1, reference.start.offset - 1),
-							new Position(reference.end.line - 1, reference.end.offset - 1))));
+				// Exclude original definition from references
+				const locations = response.body.refs
+					.filter(reference =>
+						reference.start.line !== codeLens.range.start.line + 1
+						&& reference.start.offset !== codeLens.range.start.character + 1)
+					.map(reference =>
+						new Location(Uri.file(reference.file),
+							new Range(
+								new Position(reference.start.line - 1, reference.start.offset - 1),
+								new Position(reference.end.line - 1, reference.end.offset - 1))));
 
 				codeLens.command = {
-					title: referenceCount + ' ' + (referenceCount === 1 ? localize('oneReferenceLabel', 'reference') : localize('manyReferenceLabel', 'references')),
+					title: locations.length + ' ' + (locations.length === 1 ? localize('oneReferenceLabel', 'reference') : localize('manyReferenceLabel', 'references')),
 					command: 'editor.action.showReferences',
 					arguments: [codeLens.document, codeLens.range.start, locations]
 				};
@@ -129,7 +133,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				case PConst.Kind.interface:
 				case PConst.Kind.type:
 				case PConst.Kind.enum:
-					const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${item.text}`, 'g');
+					const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${item.text}`, 'gm');
 					const match = identifierMatch.exec(text);
 					const start = match ? match.index + match[1].length : 0;
 					results.push(new Range(

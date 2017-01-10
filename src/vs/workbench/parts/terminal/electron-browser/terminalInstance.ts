@@ -19,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -64,7 +64,7 @@ export class TerminalInstance implements ITerminalInstance {
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		name: string,
-		shell: IShell,
+		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
@@ -84,7 +84,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(this._contextService.getWorkspace(), name, shell);
+		this._createProcess(this._contextService.getWorkspace(), name, this._shellLaunchConfig);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -124,6 +124,11 @@ export class TerminalInstance implements ITerminalInstance {
 			return false;
 		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
+			// Disable all input if the terminal is exiting
+			if (this._isExiting) {
+				return false;
+			}
+
 			// Skip processing by xterm.js of keyboard events that resolve to commands described
 			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
@@ -213,8 +218,6 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
-		this._isExiting = true;
-
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
 		}
@@ -330,7 +333,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig) {
 		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			shell = this._configHelper.getShell();
@@ -356,28 +359,58 @@ export class TerminalInstance implements ITerminalInstance {
 				this._onProcessIdReady.fire(this);
 			}
 		});
-		this._process.on('exit', (exitCode: number) => {
-			// Prevent dispose functions being triggered multiple times
-			if (!this._isExiting) {
-				this.dispose();
-				if (exitCode) {
-					if (this._isLaunching) {
-						const args = shell.args && shell.args.length ? ' ' + shell.args.map(a => a.indexOf(' ') !== -1 ? `'${a}'` : a).join(' ') : '';
-						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', shell.executable, args, exitCode));
-					} else {
-						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
-					}
-				}
-			}
-		});
+		this._process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 		setTimeout(() => {
 			this._isLaunching = false;
 		}, LAUNCHING_DURATION);
 	}
 
+	private _onPtyProcessExit(exitCode: number): void {
+		// Prevent dispose functions being triggered multiple times
+		if (this._isExiting) {
+			return;
+		}
+
+		this._isExiting = true;
+		let exitCodeMessage: string;
+		if (exitCode !== 0) {
+			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+		}
+
+		if (this._shellLaunchConfig.waitOnExit) {
+			if (exitCode !== 0) {
+				this._xterm.writeln(exitCodeMessage);
+			}
+			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
+			// Disable all input if the terminal is exiting and listen for next keypress
+			this._xterm.setOption('disableStdin', true);
+			(<HTMLElement>this._xterm.textarea).addEventListener('keypress', (data) => {
+				this.dispose();
+			});
+		} else {
+			this.dispose();
+			if (exitCode !== 0) {
+				if (this._isLaunching) {
+					let args = '';
+					if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+						args = ' ' + this._shellLaunchConfig.args.map(a => {
+							if (a.indexOf(' ') !== -1) {
+								return `'${a}'`;
+							}
+							return a;
+						}).join(' ');
+					}
+					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+				} else {
+					this._messageService.show(Severity.Error, exitCodeMessage);
+				}
+			}
+		}
+	}
+
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, cwd: string, locale?: string): IStringDictionary<string> {
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string): IStringDictionary<string> {
 		const env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;

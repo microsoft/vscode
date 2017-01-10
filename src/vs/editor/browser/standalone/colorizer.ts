@@ -12,7 +12,9 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineParts } from 'vs/editor/common/core/lineParts';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -25,7 +27,7 @@ export interface IColorizerElementOptions extends IColorizerOptions {
 
 export class Colorizer {
 
-	public static colorizeElement(modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+	public static colorizeElement(standaloneColorService: IStandaloneColorService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
 		options = options || {};
 		let theme = options.theme || 'vs';
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
@@ -33,6 +35,9 @@ export class Colorizer {
 			console.error('Mode not detected');
 			return;
 		}
+
+		standaloneColorService.setTheme(theme);
+
 		let text = domNode.firstChild.nodeValue;
 		domNode.className += 'monaco-editor ' + theme;
 		let render = (str: string) => {
@@ -41,7 +46,7 @@ export class Colorizer {
 		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
 	}
 
-	private static _tokenizationSupportChangedPromise(languageId: string): TPromise<void> {
+	private static _tokenizationSupportChangedPromise(language: string): TPromise<void> {
 		let listener: IDisposable = null;
 		let stopListening = () => {
 			if (listener) {
@@ -52,7 +57,7 @@ export class Colorizer {
 
 		return new TPromise<void>((c, e, p) => {
 			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.languageId === languageId) {
+				if (e.languages.indexOf(language) >= 0) {
 					stopListening();
 					c(void 0);
 				}
@@ -65,7 +70,7 @@ export class Colorizer {
 			text = text.substr(1);
 		}
 		let lines = text.split(/\r\n|\r|\n/);
-		let languageId = modeService.getModeId(mimeType);
+		let language = modeService.getModeId(mimeType);
 
 		options = options || {};
 		if (typeof options.tabSize === 'undefined') {
@@ -73,16 +78,16 @@ export class Colorizer {
 		}
 
 		// Send out the event to create the mode
-		modeService.getOrCreateMode(languageId);
+		modeService.getOrCreateMode(language);
 
-		let tokenizationSupport = TokenizationRegistry.get(languageId);
+		let tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
 			return TPromise.as(_colorize(lines, options.tabSize, tokenizationSupport));
 		}
 
 		// wait 500ms for mode to load, then give up
-		return TPromise.any([this._tokenizationSupportChangedPromise(languageId), TPromise.timeout(500)]).then(_ => {
-			let tokenizationSupport = TokenizationRegistry.get(languageId);
+		return TPromise.any([this._tokenizationSupportChangedPromise(language), TPromise.timeout(500)]).then(_ => {
+			let tokenizationSupport = TokenizationRegistry.get(language);
 			if (tokenizationSupport) {
 				return _colorize(lines, options.tabSize, tokenizationSupport);
 			}
@@ -141,12 +146,12 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): string {
 	let html: string[] = [];
 	let state = tokenizationSupport.getInitialState();
+	let colorMap = TokenizationRegistry.getColorMap();
 
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
-
-		let tokenizeResult = tokenizationSupport.tokenize(line, state);
-
+		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
+		let lineTokens = new LineTokens(colorMap, tokenizeResult.tokens, line);
 		let renderResult = renderLine(new RenderLineInput(
 			line,
 			tabSize,
@@ -154,7 +159,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			-1,
 			'none',
 			false,
-			new LineParts(tokenizeResult.tokens.map(t => new ViewLineToken(t.startIndex, t.type)), line.length + 1)
+			new LineParts(lineTokens.inflate(), line.length + 1)
 		));
 
 		html = html.concat(renderResult.output);

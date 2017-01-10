@@ -96,7 +96,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.onDidChangeModelMode(() => { this.closeWidget(); }));
+		this._disposables.push(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
 		this._disposables.push(this._editor.onDidChangeModel(() => {
 			if (!this._ignoreModelChangeEvent) {
 				this.closeWidget();
@@ -188,7 +188,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
-			mode: this._editor.getModel().getMode().getId()
+			mode: this._editor.getModel().getLanguageIdentifier().language
 		}));
 	}
 

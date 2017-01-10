@@ -9,8 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
-import { Token } from 'vs/editor/common/core/token';
+import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
@@ -18,29 +17,106 @@ import { Range } from 'vs/editor/common/core/range';
 import Event, { Emitter } from 'vs/base/common/event';
 
 /**
+ * Open ended enum at runtime
  * @internal
  */
-export interface IModeDescriptor {
-	id: string;
+export const enum LanguageId {
+	Null = 0,
+	PlainText = 1
+}
+
+/**
+ * @internal
+ */
+export class LanguageIdentifier {
+	public readonly language: string;
+	public readonly id: LanguageId;
+
+	constructor(sid: string, iid: LanguageId) {
+		this.language = sid;
+		this.id = iid;
+	}
 }
 
 /**
  * A mode. Will soon be obsolete.
+ * @internal
  */
 export interface IMode {
 
 	getId(): string;
 
+	getLanguageIdentifier(): LanguageIdentifier;
+
 }
 
 /**
+ * A font style. Values are 2^x such that a bit mask can be used.
  * @internal
  */
-export interface ILineTokens {
-	tokens: Token[];
-	actualStopOffset: number;
-	endState: IState;
-	modeTransitions: ModeTransition[];
+export const enum FontStyle {
+	NotSet = -1,
+	None = 0,
+	Italic = 1,
+	Bold = 2,
+	Underline = 4
+}
+
+/**
+ * Open ended enum at runtime
+ * @internal
+ */
+export const enum ColorId {
+	None = 0,
+	DefaultForeground = 1,
+	DefaultBackground = 2
+}
+
+/**
+ * A standard token type. Values are 2^x such that a bit mask can be used.
+ * @internal
+ */
+export const enum StandardTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 4
+}
+
+/**
+ * Helpers to manage the "collapsed" metadata of an entire StackElement stack.
+ * The following assumptions have been made:
+ *  - languageId < 256 => needs 8 bits
+ *  - unique color count < 512 => needs 9 bits
+ *
+ * The binary format is:
+ * - -------------------------------------------
+ *     3322 2222 2222 1111 1111 1100 0000 0000
+ *     1098 7654 3210 9876 5432 1098 7654 3210
+ * - -------------------------------------------
+ *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
+ *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+ * - -------------------------------------------
+ *  - L = LanguageId (8 bits)
+ *  - T = StandardTokenType (3 bits)
+ *  - F = FontStyle (3 bits)
+ *  - f = foreground color (9 bits)
+ *  - b = background color (9 bits)
+ *
+ * @internal
+ */
+export const enum MetadataConsts {
+	LANGUAGEID_MASK = 0b00000000000000000000000011111111,
+	TOKEN_TYPE_MASK = 0b00000000000000000000011100000000,
+	FONT_STYLE_MASK = 0b00000000000000000011100000000000,
+	FOREGROUND_MASK = 0b00000000011111111100000000000000,
+	BACKGROUND_MASK = 0b11111111100000000000000000000000,
+
+	LANGUAGEID_OFFSET = 0,
+	TOKEN_TYPE_OFFSET = 8,
+	FONT_STYLE_OFFSET = 11,
+	FOREGROUND_OFFSET = 14,
+	BACKGROUND_OFFSET = 23
 }
 
 /**
@@ -51,31 +127,11 @@ export interface ITokenizationSupport {
 	getInitialState(): IState;
 
 	// add offsetDelta to each of the returned indices
-	// stop tokenizing at absolute value stopAtOffset (i.e. stream.pos() + offsetDelta > stopAtOffset)
-	tokenize(line: string, state: IState, offsetDelta?: number, stopAtOffset?: number): ILineTokens;
+	tokenize(line: string, state: IState, offsetDelta: number): TokenizationResult;
+
+	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
 }
 
-/**
- * A token. Only supports a single scope, but will soon support a scope array.
- */
-export interface IToken2 {
-	startIndex: number;
-	scopes: string | string[];
-}
-/**
- * The result of a line tokenization.
- */
-export interface ILineTokens2 {
-	/**
-	 * The list of tokens on the line.
-	 */
-	tokens: IToken2[];
-	/**
-	 * The tokenization end state.
-	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
-	 */
-	endState: IState;
-}
 /**
  * The state of the tokenizer between two lines.
  * It is useful to store flags such as in multiline comment, etc.
@@ -84,19 +140,6 @@ export interface ILineTokens2 {
 export interface IState {
 	clone(): IState;
 	equals(other: IState): boolean;
-}
-/**
- * A "manual" provider of tokens.
- */
-export interface TokensProvider {
-	/**
-	 * The initial state of a language. Will be the state passed in to tokenize the first line.
-	 */
-	getInitialState(): IState;
-	/**
-	 * Tokenize a line given the state at the beginning of the line.
-	 */
-	tokenize(line: string, state: IState): ILineTokens2;
 }
 
 /**
@@ -728,7 +771,7 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export interface ITokenizationSupportChangedEvent {
-	languageId: string;
+	languages: string[];
 }
 
 /**
@@ -736,39 +779,51 @@ export interface ITokenizationSupportChangedEvent {
  */
 export class TokenizationRegistryImpl {
 
-	private _map: { [languageId: string]: ITokenizationSupport };
+	private _map: { [language: string]: ITokenizationSupport };
 
 	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
 	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
+	private _colorMap: string[];
+
 	constructor() {
 		this._map = Object.create(null);
+		this._colorMap = null;
 	}
 
 	/**
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	public fire(languageId: string): void {
-		this._onDidChange.fire({ languageId: languageId });
+	public fire(languages: string[]): void {
+		this._onDidChange.fire({ languages: languages });
 	}
 
-	public register(languageId: string, support: ITokenizationSupport): IDisposable {
-		this._map[languageId] = support;
-		this.fire(languageId);
+	public register(language: string, support: ITokenizationSupport): IDisposable {
+		this._map[language] = support;
+		this.fire([language]);
 		return {
 			dispose: () => {
-				if (this._map[languageId] !== support) {
+				if (this._map[language] !== support) {
 					return;
 				}
-				delete this._map[languageId];
-				this.fire(languageId);
+				delete this._map[language];
+				this.fire([language]);
 			}
 		};
 	}
 
-	public get(languageId: string): ITokenizationSupport {
-		return (this._map[languageId] || null);
+	public get(language: string): ITokenizationSupport {
+		return (this._map[language] || null);
+	}
+
+	public setColorMap(colorMap: string[]): void {
+		this._colorMap = colorMap;
+		this.fire(Object.keys(this._map));
+	}
+
+	public getColorMap(): string[] {
+		return this._colorMap;
 	}
 }
 
