@@ -359,7 +359,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.RunningNoDebug) {
+			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.RunningNoDebug && this.contextService.getWorkspace()) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
@@ -426,10 +426,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public get state(): debug.State {
-		if (!this.contextService.hasWorkspace()) {
-			return debug.State.Disabled;
-		}
-
 		const focusedProcess = this.viewModel.focusedProcess;
 		if (focusedProcess) {
 			return this.sessionStates.get(focusedProcess.getId());
