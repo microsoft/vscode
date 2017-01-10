@@ -185,6 +185,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashHeight = this.startPanelHeight - (e.currentY - startY);
+			let promise = TPromise.as(null);
 
 			// Panel visible
 			if (isPanelVisible) {
@@ -192,7 +193,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				// Automatically hide panel when a certain threshold is met
 				if (newSashHeight + HIDE_PANEL_HEIGHT_THRESHOLD < this.computedStyles.panel.minHeight) {
 					let dragCompensation = DEFAULT_MIN_PANEL_PART_HEIGHT - HIDE_PANEL_HEIGHT_THRESHOLD;
-					this.partService.setPanelHidden(true);
+					promise = this.partService.setPanelHidden(true);
 					startY = Math.min(this.sidebarHeight - this.statusbarHeight - this.titlebarHeight, e.currentY + dragCompensation);
 					this.panelHeight = this.startPanelHeight; // when restoring panel, restore to the panel height we started from
 				}
@@ -209,12 +210,12 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				if (startY - e.currentY >= this.computedStyles.panel.minHeight) {
 					this.startPanelHeight = 0;
 					this.panelHeight = this.computedStyles.panel.minHeight;
-					this.partService.setPanelHidden(false);
+					promise = this.partService.setPanelHidden(false);
 				}
 			}
 
 			if (doLayout) {
-				this.layout();
+				promise.done(() => this.layout(), errors.onUnexpectedError);
 			}
 		});
 
@@ -229,8 +230,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.sashY.addListener2('reset', () => {
 			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
-			this.partService.setPanelHidden(false);
-			this.layout();
+			this.partService.setPanelHidden(false).done(() => this.layout(), errors.onUnexpectedError);
 		});
 
 		this.sashX.addListener2('reset', () => {
