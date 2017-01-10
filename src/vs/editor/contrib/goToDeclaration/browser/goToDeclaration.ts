@@ -26,7 +26,7 @@ import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { getDeclarationsAtPosition, getImplementationAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import { getDeclarationsAtPosition, getTypeDefinitionAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -233,7 +233,7 @@ export class GoToImplementationAction extends DefinitionAction {
 			id: GoToImplementationAction.ID,
 			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
 			alias: 'Go to Implementation',
-			precondition: ModeContextKeys.hasImplementationProvider,
+			precondition: ModeContextKeys.hasTypeDefinitionProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12
@@ -246,7 +246,7 @@ export class GoToImplementationAction extends DefinitionAction {
 	}
 
 	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
-		return getImplementationAtPosition(model, position);
+		return getTypeDefinitionAtPosition(model, position);
 	}
 }
 

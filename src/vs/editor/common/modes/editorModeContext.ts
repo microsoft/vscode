@@ -19,7 +19,7 @@ export class EditorModeContext {
 	private _hasCodeActionsProvider: IContextKey<boolean>;
 	private _hasCodeLensProvider: IContextKey<boolean>;
 	private _hasDefinitionProvider: IContextKey<boolean>;
-	private _hasImplementationProvider: IContextKey<boolean>;
+	private _hasTypeDefinitionProvider: IContextKey<boolean>;
 	private _hasHoverProvider: IContextKey<boolean>;
 	private _hasDocumentHighlightProvider: IContextKey<boolean>;
 	private _hasDocumentSymbolProvider: IContextKey<boolean>;
@@ -40,7 +40,7 @@ export class EditorModeContext {
 		this._hasCodeActionsProvider = ModeContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
 		this._hasCodeLensProvider = ModeContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
 		this._hasDefinitionProvider = ModeContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
-		this._hasImplementationProvider = ModeContextKeys.hasImplementationProvider.bindTo(contextKeyService);
+		this._hasTypeDefinitionProvider = ModeContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService);
 		this._hasHoverProvider = ModeContextKeys.hasHoverProvider.bindTo(contextKeyService);
 		this._hasDocumentHighlightProvider = ModeContextKeys.hasDocumentHighlightProvider.bindTo(contextKeyService);
 		this._hasDocumentSymbolProvider = ModeContextKeys.hasDocumentSymbolProvider.bindTo(contextKeyService);
@@ -59,7 +59,7 @@ export class EditorModeContext {
 		modes.CodeActionProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.CodeLensProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.DefinitionProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.ImplementationProviderRegistry.onDidChange(this._update, this, this._disposables);
+		modes.TypeDefinitionProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.HoverProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.DocumentHighlightProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.DocumentSymbolProviderRegistry.onDidChange(this._update, this, this._disposables);
@@ -82,7 +82,7 @@ export class EditorModeContext {
 		this._hasCodeActionsProvider.reset();
 		this._hasCodeLensProvider.reset();
 		this._hasDefinitionProvider.reset();
-		this._hasImplementationProvider.reset();
+		this._hasTypeDefinitionProvider.reset();
 		this._hasHoverProvider.reset();
 		this._hasDocumentHighlightProvider.reset();
 		this._hasDocumentSymbolProvider.reset();
@@ -104,7 +104,7 @@ export class EditorModeContext {
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
 		this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
-		this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));
+		this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
 		this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
 		this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
 		this._hasDocumentSymbolProvider.set(modes.DocumentSymbolProviderRegistry.has(model));

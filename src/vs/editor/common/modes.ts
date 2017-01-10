@@ -434,11 +434,11 @@ export interface DefinitionProvider {
  * The implementation provider interface defines the contract between extensions and
  * the go to implementation and peek implementation features.
  */
-export interface ImplementationProvider {
+export interface TypeDefinitionProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideTypeDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
 /**
@@ -751,7 +751,7 @@ export const DefinitionProviderRegistry = new LanguageFeatureRegistry<Definition
 /**
  * @internal
  */
-export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
+export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
 
 /**
  * @internal

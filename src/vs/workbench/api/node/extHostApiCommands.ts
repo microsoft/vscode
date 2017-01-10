@@ -46,7 +46,7 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of Location-instances.'
 		});
-		this._register('vscode.executeImplementationProvider', this._executeImplementationProvider, {
+		this._register('vscode.executeTypeDefinitionProvider', this._executeTypeDefinitionProvider, {
 			description: 'Execute all implementation providers.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
@@ -273,12 +273,12 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args).then(value => {
+		return this._commands.executeCommand<modes.Location[]>('_executeTypeDefinitionProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}

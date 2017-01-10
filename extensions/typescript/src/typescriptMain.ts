@@ -25,7 +25,7 @@ import { ITypescriptServiceClientHost } from './typescriptService';
 
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
-import ImplementationProvider from './features/implementationProvider';
+import TypeDefinitionProvider from './features/TypeDefinitionProvider';
 import DocumentHighlightProvider from './features/documentHighlightProvider';
 import ReferenceProvider from './features/referenceProvider';
 import DocumentSymbolProvider from './features/documentSymbolProvider';
@@ -160,7 +160,7 @@ class LanguageProvider {
 
 		let hoverProvider = new HoverProvider(client);
 		let definitionProvider = new DefinitionProvider(client);
-		let implementationProvider = new ImplementationProvider(client);
+		let typeDefinitionProvider = new TypeDefinitionProvider(client);
 		let documentHighlightProvider = new DocumentHighlightProvider(client);
 		let referenceProvider = new ReferenceProvider(client);
 		let documentSymbolProvider = new DocumentSymbolProvider(client);
@@ -183,7 +183,7 @@ class LanguageProvider {
 			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
 			languages.registerHoverProvider(selector, hoverProvider);
 			languages.registerDefinitionProvider(selector, definitionProvider);
-			languages.registerImplementationProvider(selector, implementationProvider);
+			languages.registerTypeDefinitionProvider(selector, typeDefinitionProvider);
 			languages.registerDocumentHighlightProvider(selector, documentHighlightProvider);
 			languages.registerReferenceProvider(selector, referenceProvider);
 			languages.registerDocumentSymbolProvider(selector, documentSymbolProvider);
