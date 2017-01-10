@@ -133,17 +133,9 @@ export class ViewLine implements IVisibleLineData {
 	}
 
 	public getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void {
-		out.push('<div lineNumber="');
-		out.push(lineNumber.toString());
-		out.push('" style="top:');
-		out.push(deltaTop.toString());
-		out.push('px;height:');
-		out.push(this._lineHeight.toString());
-		out.push('px;" class="');
-		out.push(ClassNames.VIEW_LINE);
-		out.push('">');
+		out.push(`<div lineNumber="${lineNumber}" style="top:${deltaTop}px;height:${this._lineHeight}px;" class="${ClassNames.VIEW_LINE}">`);
 		out.push(this.getLineInnerHTML(lineNumber));
-		out.push('</div>');
+		out.push(`</div>`);
 	}
 
 	public getLineInnerHTML(lineNumber: number): string {

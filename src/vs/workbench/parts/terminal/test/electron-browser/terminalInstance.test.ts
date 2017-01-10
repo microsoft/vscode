@@ -12,7 +12,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import { IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestMessageService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { MockKeybindingService, MockKeybindingService2 } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -24,7 +24,7 @@ class TestTerminalInstance extends TerminalInstance {
 		return super._getCwd(workspace, ignoreCustomCwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell): void { }
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig): void { }
 }
 
 suite('Workbench - TerminalInstance', () => {

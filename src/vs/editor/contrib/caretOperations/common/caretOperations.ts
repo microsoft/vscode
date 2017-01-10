@@ -7,9 +7,9 @@
 import * as nls from 'vs/nls';
 import { ICommand, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { IActionOptions, editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
-import { MoveCarretCommand } from './moveCarretCommand';
+import { MoveCaretCommand } from './moveCaretCommand';
 
-class MoveCarretAction extends EditorAction {
+class MoveCaretAction extends EditorAction {
 
 	private left: boolean;
 
@@ -25,7 +25,7 @@ class MoveCarretAction extends EditorAction {
 		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new MoveCarretCommand(selections[i], this.left));
+			commands.push(new MoveCaretCommand(selections[i], this.left));
 		}
 
 		editor.executeCommands(this.id, commands);
@@ -33,24 +33,24 @@ class MoveCarretAction extends EditorAction {
 }
 
 @editorAction
-class MoveCarretLeftAction extends MoveCarretAction {
+class MoveCaretLeftAction extends MoveCaretAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveCarretLeftAction',
-			label: nls.localize('carret.moveLeft', "Move Carret Left"),
-			alias: 'Move Carret Left',
+			label: nls.localize('caret.moveLeft', "Move Caret Left"),
+			alias: 'Move Caret Left',
 			precondition: EditorContextKeys.Writable
 		});
 	}
 }
 
 @editorAction
-class MoveCarretRightAction extends MoveCarretAction {
+class MoveCaretRightAction extends MoveCaretAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveCarretRightAction',
-			label: nls.localize('carret.moveRight', "Move Carret Right"),
-			alias: 'Move Carret Right',
+			label: nls.localize('caret.moveRight', "Move Caret Right"),
+			alias: 'Move Caret Right',
 			precondition: EditorContextKeys.Writable
 		});
 	}

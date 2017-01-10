@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IState, ILineTokens } from 'vs/editor/common/modes';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
-import { Token } from 'vs/editor/common/core/token';
+import { IState, ColorId, MetadataConsts, LanguageIdentifier, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
+import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 
 class NullStateImpl implements IState {
 
@@ -23,15 +22,22 @@ export const NULL_STATE: IState = new NullStateImpl();
 
 export const NULL_MODE_ID = 'vs.editor.nullMode';
 
-export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number): ILineTokens {
-	let tokens: Token[] = [new Token(deltaOffset, '')];
+export const NULL_LANGUAGE_IDENTIFIER = new LanguageIdentifier(NULL_MODE_ID, LanguageId.Null);
 
-	let modeTransitions: ModeTransition[] = [new ModeTransition(deltaOffset, modeId)];
+export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
+	return new TokenizationResult([new Token(deltaOffset, '', modeId)], state);
+}
 
-	return {
-		tokens: tokens,
-		actualStopOffset: deltaOffset + buffer.length,
-		endState: state,
-		modeTransitions: modeTransitions
-	};
+export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState, deltaOffset: number): TokenizationResult2 {
+	let tokens = new Uint32Array(2);
+	tokens[0] = deltaOffset;
+	tokens[1] = (
+		(languageId << MetadataConsts.LANGUAGEID_OFFSET)
+		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
+
+	return new TokenizationResult2(tokens, state);
 }

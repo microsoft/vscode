@@ -91,6 +91,10 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
+import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { readFontInfo } from 'vs/editor/browser/config/configuration';
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
@@ -353,6 +357,8 @@ export class WorkbenchShell {
 		this.themeService = instantiationService.createInstance(ThemeService);
 		serviceCollection.set(IThemeService, this.themeService);
 
+		serviceCollection.set(ITextMateService, new SyncDescriptor(MainProcessTextMateSyntax));
+
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
@@ -377,6 +383,9 @@ export class WorkbenchShell {
 		errors.setUnexpectedErrorHandler((error: any) => {
 			this.onUnexpectedError(error);
 		});
+
+		// Warm up font cache information before building up too many dom elements
+		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor')));
 
 		// Shell Class for CSS Scoping
 		$(this.container).addClass('monaco-shell');

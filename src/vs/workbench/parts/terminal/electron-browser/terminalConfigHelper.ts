@@ -5,7 +5,7 @@
 
 import { IConfiguration as IEditorConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { Platform } from 'vs/base/common/platform';
 
 const DEFAULT_LINE_HEIGHT = 1.2;
@@ -152,9 +152,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return config.terminal.integrated.commandsToSkipShell;
 	}
 
-	public getShell(): IShell {
+	public getShell(): IShellLaunchConfig {
 		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		const shell: IShell = {
+		const shell: IShellLaunchConfig = {
 			executable: '',
 			args: []
 		};

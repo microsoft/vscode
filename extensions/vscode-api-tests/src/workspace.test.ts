@@ -24,7 +24,7 @@ suite('workspace-namespace', () => {
 		assert.equal(config['config0'], true);
 		assert.equal(config['config4'], '');
 
-		assert.throws(() => config['config4'] = 'valuevalue');
+		assert.throws(() => (<any>config)['config4'] = 'valuevalue');
 
 		assert.ok(config.has('nested.config1'));
 		assert.equal(config.get('nested.config1'), 42);

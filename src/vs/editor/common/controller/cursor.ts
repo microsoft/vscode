@@ -116,12 +116,12 @@ export class Cursor extends EventEmitter {
 		this.modelUnbinds.push(this.model.onDidChangeRawContent((e) => {
 			this._onModelContentChanged(e);
 		}));
-		this.modelUnbinds.push(this.model.onDidChangeMode((e) => {
-			this._onModelModeChanged();
+		this.modelUnbinds.push(this.model.onDidChangeLanguage((e) => {
+			this._onModelLanguageChanged();
 		}));
 		this.modelUnbinds.push(LanguageConfigurationRegistry.onDidChange(() => {
 			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
-			this._onModelModeChanged();
+			this._onModelLanguageChanged();
 		}));
 
 		this._handlers = {};
@@ -224,7 +224,7 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _onModelModeChanged(): void {
+	private _onModelLanguageChanged(): void {
 		// the mode of this model has changed
 		this.cursors.updateMode();
 	}
@@ -425,7 +425,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _interpretCommandResult(cursorState: Selection[]): boolean {
-		if (!cursorState) {
+		if (!cursorState || cursorState.length === 0) {
 			return false;
 		}
 

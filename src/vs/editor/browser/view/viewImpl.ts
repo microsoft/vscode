@@ -113,6 +113,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this.linesContent = document.createElement('div');
 		this.linesContent.className = editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background';
+		this.linesContent.style.position = 'absolute';
 		this.domNode = document.createElement('div');
 		this.domNode.className = configuration.editor.viewInfo.editorClassName;
 
