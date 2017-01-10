@@ -59,7 +59,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		return this.input ? this.input.getName() : nls.localize('binaryDiffEditor', "Binary Diff Viewer");
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 
 		// Left Container for Binary
 		const leftBinaryContainerElement = document.createElement('div');
