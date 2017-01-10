@@ -350,7 +350,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Case: we closed the last visible viewlet
 		// Solv: we hide the sidebar
 		else if (visibleViewlets.length === 1) {
-			unpinPromise = TPromise.as(this.partService.setSideBarHidden(true));
+			unpinPromise = this.partService.setSideBarHidden(true);
 		}
 
 		// Case: we closed the default viewlet

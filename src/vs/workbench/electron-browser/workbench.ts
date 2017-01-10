@@ -676,7 +676,7 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	public setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	public setSideBarHidden(hidden: boolean, skipLayout?: boolean): TPromise<void> {
 		this.sideBarHidden = hidden;
 
 		// Adjust CSS
@@ -686,36 +686,40 @@ export class Workbench implements IPartService {
 			this.workbench.removeClass('nosidebar');
 		}
 
-		// Layout
-		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleRecompute: true });
-		}
-
+		let promise = TPromise.as(null);
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
-			this.sidebarPart.hideActiveViewlet();
+			promise = this.sidebarPart.hideActiveViewlet().then(() => {
 
-			const activeEditor = this.editorPart.getActiveEditor();
-			const activePanel = this.panelPart.getActivePanel();
+				const activeEditor = this.editorPart.getActiveEditor();
+				const activePanel = this.panelPart.getActivePanel();
 
-			// Pass Focus to Editor or Panel if Sidebar is now hidden
-			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
-				activePanel.focus();
-			} else if (activeEditor) {
-				activeEditor.focus();
-			}
+				// Pass Focus to Editor or Panel if Sidebar is now hidden
+				if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+					activePanel.focus();
+				} else if (activeEditor) {
+					activeEditor.focus();
+				}
+			});
 		}
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
 			const viewletToOpen = this.sidebarPart.getLastActiveViewletId() || this.viewletService.getDefaultViewletId();
 			if (viewletToOpen) {
-				this.sidebarPart.openViewlet(viewletToOpen, true).done(null, errors.onUnexpectedError);
+				promise = this.sidebarPart.openViewlet(viewletToOpen, true);
 			}
 		}
 
-		// Remember in settings
-		this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+		return promise.then(() => {
+			// Remember in settings
+			this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+
+			// Layout
+			if (!skipLayout) {
+				this.workbenchLayout.layout({ forceStyleRecompute: true });
+			}
+		});
 	}
 
 	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -767,7 +771,7 @@ export class Workbench implements IPartService {
 
 	private setSideBarPosition(position: Position): void {
 		if (this.sideBarHidden) {
-			this.setSideBarHidden(false, true /* Skip Layout */);
+			this.setSideBarHidden(false, true /* Skip Layout */).done(undefined, errors.onUnexpectedError);
 		}
 
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
@@ -1073,7 +1077,7 @@ export class Workbench implements IPartService {
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
 			this.setPanelHidden(true, true);
-			this.setSideBarHidden(true, true);
+			this.setSideBarHidden(true, true).done(undefined, errors.onUnexpectedError);
 
 			this.setActivityBarHidden(true, true);
 			if (config.hideStatusBar) {
@@ -1087,7 +1091,7 @@ export class Workbench implements IPartService {
 				this.setPanelHidden(false, true);
 			}
 			if (this.zenMode.wasSideBarVisible) {
-				this.setSideBarHidden(false, true);
+				this.setSideBarHidden(false, true).done(undefined, errors.onUnexpectedError);
 			}
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
@@ -1101,7 +1105,7 @@ export class Workbench implements IPartService {
 		this.inZenMode.set(this.zenMode.active);
 
 		if (!skipLayout) {
-			this.layout();
+			this.layout({ forceStyleRecompute: true });
 		}
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);

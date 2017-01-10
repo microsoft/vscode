@@ -272,7 +272,7 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setSideBarHidden(hidden: boolean): void { }
+	public setSideBarHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public isPanelHidden(): boolean {
 		return false;

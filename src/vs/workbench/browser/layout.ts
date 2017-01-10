@@ -5,6 +5,8 @@
 'use strict';
 
 import { Dimension, Builder } from 'vs/base/browser/builder';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as errors from 'vs/base/common/errors';
 import { Part } from 'vs/workbench/browser/part';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -144,6 +146,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			let sidebarPosition = this.partService.getSideBarPosition();
 			let isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 			let newSashWidth = (sidebarPosition === Position.LEFT) ? this.startSidebarWidth + e.currentX - startX : this.startSidebarWidth - e.currentX + startX;
+			let promise = TPromise.as(null);
 
 			// Sidebar visible
 			if (isSidebarVisible) {
@@ -151,7 +154,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				// Automatically hide side bar when a certain threshold is met
 				if (newSashWidth + HIDE_SIDEBAR_WIDTH_THRESHOLD < this.computedStyles.sidebar.minWidth) {
 					let dragCompensation = DEFAULT_MIN_SIDEBAR_PART_WIDTH - HIDE_SIDEBAR_WIDTH_THRESHOLD;
-					this.partService.setSideBarHidden(true);
+					promise = this.partService.setSideBarHidden(true);
 					startX = (sidebarPosition === Position.LEFT) ? Math.max(this.activitybarWidth, e.currentX - dragCompensation) : Math.min(e.currentX + dragCompensation, this.workbenchSize.width - this.activitybarWidth);
 					this.sidebarWidth = this.startSidebarWidth; // when restoring sidebar, restore to the sidebar width we started from
 				}
@@ -169,12 +172,12 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 					(sidebarPosition === Position.RIGHT && startX - e.currentX >= this.computedStyles.sidebar.minWidth)) {
 					this.startSidebarWidth = this.computedStyles.sidebar.minWidth - (sidebarPosition === Position.LEFT ? e.currentX - startX : startX - e.currentX);
 					this.sidebarWidth = this.computedStyles.sidebar.minWidth;
-					this.partService.setSideBarHidden(false);
+					promise = this.partService.setSideBarHidden(false);
 				}
 			}
 
 			if (doLayout) {
-				this.layout();
+				promise.done(() => this.layout(), errors.onUnexpectedError);
 			}
 		});
 
@@ -235,8 +238,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = Math.max(DEFAULT_MIN_SIDEBAR_PART_WIDTH, optimalWidth || 0);
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
-			this.partService.setSideBarHidden(false);
-			this.layout();
+			this.partService.setSideBarHidden(false).done(() => this.layout(), errors.onUnexpectedError);
 		});
 	}
 
