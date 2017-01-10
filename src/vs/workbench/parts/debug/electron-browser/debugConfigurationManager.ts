@@ -332,47 +332,50 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
 		let configFileCreated = false;
 
-		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.quickOpenService.pick([...this.adapters, { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(picked => {
-					if (picked instanceof Adapter) {
-						return picked ? picked.getInitialConfigurationContent() : null;
-					}
-					if (picked) {
-						return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-							.then(viewlet => viewlet as IExtensionsViewlet)
-							.then(viewlet => {
-								viewlet.search('tag:debuggers');
-								viewlet.focus();
-								return null;
-							});
-					}
-				})
-				.then(content => {
-					if (!content) {
-						return false;
-					}
+		return this.fileService.resolveContent(resource).then(content => true, err => {
+			const adapters = this.adapters.filter(a => a.hasInitialConfiguarations());
+			// If there is only one adapter with an initial configuration automatically pick it to simplify debug setup
+			const promise = adapters.length === 1 ? TPromise.as(adapters[0]) :
+				this.quickOpenService.pick([...adapters, { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") });
 
-					configFileCreated = true;
-					return this.fileService.updateContent(resource, content).then(() => true);
-				}))
-			.then(errorFree => {
-				if (!errorFree) {
+			return promise.then(picked => {
+				if (picked instanceof Adapter) {
+					return picked ? picked.getInitialConfigurationContent() : null;
+				}
+				if (picked) {
+					return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+						.then(viewlet => viewlet as IExtensionsViewlet)
+						.then(viewlet => {
+							viewlet.search('tag:debuggers');
+							viewlet.focus();
+							return null;
+						});
+				}
+			}).then(content => {
+				if (!content) {
 					return false;
 				}
-				this.telemetryService.publicLog('debugConfigure');
 
-				return this.editorService.openEditor({
-					resource: resource,
-					options: {
-						forceOpen: true,
-						pinned: configFileCreated, // pin only if config file is created #8727
-						revealIfVisible: true
-					},
-				}, sideBySide).then(() => true);
-			}, (error) => {
-				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+				configFileCreated = true;
+				return this.fileService.updateContent(resource, content).then(() => true);
 			});
+		}).then(errorFree => {
+			if (!errorFree) {
+				return false;
+			}
+			this.telemetryService.publicLog('debugConfigure');
+
+			return this.editorService.openEditor({
+				resource: resource,
+				options: {
+					forceOpen: true,
+					pinned: configFileCreated, // pin only if config file is created #8727
+					revealIfVisible: true
+				},
+			}, sideBySide).then(() => true);
+		}, (error) => {
+			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+		});
 	}
 
 	public canSetBreakpointsIn(model: IModel): boolean {
