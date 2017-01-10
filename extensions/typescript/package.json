@@ -29,6 +29,7 @@
 		"onLanguage:javascriptreact",
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
+		"onLanguage:jsx-tags",
 		"onCommand:typescript.reloadProjects",
 		"onCommand:javascript.reloadProjects"
 	],
@@ -257,7 +258,7 @@
 		},
 		"keybindings": {
 			"key": ".",
-			"command": "^acceptSelectedSuggestion",
+			"command": "typescript.tryAcceptSelectedSuggestionOnDot",
 			"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'typescript' && suggestionSupportsAcceptOnKey"
 		},
 		"commands": [
@@ -268,6 +269,10 @@
 			{
 				"command": "javascript.reloadProjects",
 				"title": "%javascript.reloadProjects.title%"
+			},
+			{
+				"command": "typescript.tryAcceptSelectedSuggestionOnDot",
+				"title": "%typescript.tryAcceptSelectedSuggestionOnDot%"
 			}
 		],
 		"breakpoints": [

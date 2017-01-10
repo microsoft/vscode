@@ -18,6 +18,7 @@ export interface IThemeService {
 	_serviceBrand: any;
 	setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
 	getColorTheme(): string;
+	getColorThemeDocument(): IThemeDocument;
 	getColorThemes(): TPromise<IThemeData[]>;
 	onDidColorThemeChange: Event<string>;
 
@@ -41,9 +42,10 @@ export interface IThemeDocument {
 
 export interface IThemeSetting {
 	name?: string;
-	scope?: string[];
-	settings: IThemeSettingStyle[];
+	scope?: string | string[];
+	settings: IThemeSettingStyle;
 }
 
 export interface IThemeSettingStyle {
+	foreground?: string;
 }

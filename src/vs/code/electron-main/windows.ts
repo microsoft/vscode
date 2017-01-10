@@ -132,7 +132,6 @@ export interface IWindowsMainService {
 	removeFromRecentPathsList(path: string): void;
 	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
-	toggleMenuBar(windowId: number): void;
 	quit(): void;
 }
 
@@ -1181,24 +1180,6 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		return pathA === pathB;
-	}
-
-	public toggleMenuBar(windowId: number): void {
-		// Update in settings
-		const menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
-		const newMenuBarHidden = !menuBarHidden;
-		this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
-
-		// Update across windows
-		WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
-
-		// Inform user if menu bar is now hidden
-		if (newMenuBarHidden) {
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
-			}
-		}
 	}
 
 	private updateWindowsJumpList(): void {

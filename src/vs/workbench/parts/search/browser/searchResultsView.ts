@@ -217,6 +217,8 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 export class SearchController extends DefaultController {
 
+	private _arrowKeyThrottler = new DumbThrottler(500);
+
 	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
@@ -305,10 +307,39 @@ export class SearchController extends DefaultController {
 	}
 
 	private selectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
+		this._arrowKeyThrottler.trigger(() => this.doSelectOnScroll(tree, focus, event));
+	}
+
+	private doSelectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
 		if (focus instanceof Match) {
 			this.onEnter(tree, event);
 		} else {
 			tree.setSelection([focus]);
+		}
+	}
+}
+
+class DumbThrottler {
+	private waiting = false;
+
+	private callback: Function;
+
+	constructor(private timeout: number) {
+	}
+
+	trigger(callback: Function): void {
+		if (this.waiting) {
+			this.callback = callback;
+		} else {
+			callback();
+			this.waiting = true;
+			setTimeout(() => {
+				this.waiting = false;
+				if (this.callback) {
+					this.callback();
+					this.callback = null;
+				}
+			}, this.timeout);
 		}
 	}
 }

@@ -10,7 +10,8 @@ import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCom
 import { EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { ICommandKeybindingsOptions } from 'vs/editor/common/config/config';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMSyntax';
+import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -146,10 +147,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const configurationService = accessor.get(IConfigurationService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const extensionService = accessor.get(IExtensionService);
+		const modeService = accessor.get(IModeService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
 			let editorAccessor = new EditorAccessor(
+				modeService,
 				editor,
 				configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles,
 				configurationService.getConfiguration<IEmmetConfiguration>().emmet.excludeLanguages,

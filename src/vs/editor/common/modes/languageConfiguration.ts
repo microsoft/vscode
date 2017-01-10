@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
 /**
  * Describes how comments for a language work.

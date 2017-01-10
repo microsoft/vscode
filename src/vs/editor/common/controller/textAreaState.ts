@@ -9,6 +9,7 @@ import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
+import { Constants } from 'vs/editor/common/core/uint';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
@@ -380,7 +381,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		let offset = page * NVDAPagedTextAreaState._LINES_PER_PAGE;
 		let startLineNumber = offset + 1;
 		let endLineNumber = offset + NVDAPagedTextAreaState._LINES_PER_PAGE;
-		return new Range(startLineNumber, 1, endLineNumber, Number.MAX_VALUE);
+		return new Range(startLineNumber, 1, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 
 	public fromEditorSelection(model: ISimpleModel, selection: Range): TextAreaState {

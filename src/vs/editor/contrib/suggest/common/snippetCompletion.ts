@@ -12,6 +12,8 @@ import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/e
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { LanguageId } from 'vs/editor/common/modes';
 
 interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
@@ -20,7 +22,7 @@ interface ISnippetPick extends IPickOpenEntry {
 class Args {
 
 	static fromUser(arg: any): Args {
-		if (typeof arg !== 'object') {
+		if (!arg || typeof arg !== 'object') {
 			return Args._empty;
 		}
 		let {snippet, name, langId} = arg;
@@ -61,6 +63,7 @@ class InsertSnippetAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, arg: any): TPromise<void> {
+		const modeService = accessor.get(IModeService);
 
 		if (!editor.getModel()) {
 			return;
@@ -69,6 +72,7 @@ class InsertSnippetAction extends EditorAction {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		const {lineNumber, column} = editor.getPosition();
 		let {snippet, name, langId} = Args.fromUser(arg);
+
 
 		return new TPromise<ISnippet>((resolve, reject) => {
 
@@ -82,13 +86,16 @@ class InsertSnippetAction extends EditorAction {
 				});
 			}
 
-			if (!langId) {
-				langId = editor.getModel().getModeIdAtPosition(lineNumber, column);
+			let languageId: LanguageId;
+			if (langId) {
+				languageId = modeService.getLanguageIdentifier(langId).id;
+			} else {
+				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
 			}
 
 			if (name) {
 				// take selected snippet
-				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(langId, snippet => {
+				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
 					if (snippet.name !== name) {
 						return true;
 					}
@@ -97,7 +104,7 @@ class InsertSnippetAction extends EditorAction {
 			} else {
 				// let user pick a snippet
 				const picks: ISnippetPick[] = [];
-				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(langId, snippet => {
+				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
 					picks.push({
 						label: snippet.prefix,
 						detail: snippet.description,

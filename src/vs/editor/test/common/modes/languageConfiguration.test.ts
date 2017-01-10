@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
-import { StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
 suite('StandardAutoClosingPairConditional', () => {
 
