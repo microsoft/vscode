@@ -310,7 +310,7 @@ class DecorationRenderHelper {
 				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, opts.contentIconPath.toString(true).replace(/'/g, '%27')));
 			}
 			if (typeof opts.contentText !== 'undefined') {
-				let escaped = opts.contentText.replace(/\"/g, '\\\"');
+				const escaped = opts.contentText.replace(/'/g, '\\\'');
 				cssTextArr.push(strings.format(this._CSS_MAP.contentText, escaped));
 			}
 			DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
