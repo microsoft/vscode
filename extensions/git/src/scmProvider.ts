@@ -21,11 +21,10 @@ export class GitSCMProvider implements SCMProvider {
 		model.update(true);
 	}
 
-	commit(message: string): void {
+	commit(message: string): Thenable<void> {
 		const all = this.model.indexGroup.resources.length === 0;
 
-		this.model.commit(message, { all })
-			.catch(err => console.error(err));
+		return this.model.commit(message, { all });
 	}
 
 	open(resource: Resource): Thenable<void> {
