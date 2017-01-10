@@ -49,16 +49,24 @@ function cleanAll(model: Model, resourceGroup: ResourceGroup): void {
 }
 
 function resolveURI<R>(command: (t: SCMResource | SCMResourceGroup | undefined) => R): (uri: Uri) => R | undefined {
-	return uri => uri.authority !== 'git' ? undefined : command(scm.getResourceFromURI(uri));
-}
+	return uri => {
+		if (uri.authority !== 'git') {
+			return;
+		}
 
-function skipUndefined<T, R>(command: (t: T) => R): (t: T | undefined) => R | undefined {
-	return t => t === undefined ? undefined : command(t);
+		const result = scm.getResourceFromURI(uri);
+
+		if (!result) {
+			return;
+		}
+
+		return command(result);
+	};
 }
 
 // TODO: do more with these errors
-function catchErrors<T, R>(command: (t: T) => Promise<R>): (t: T) => void {
-	return t => command(t).catch(err => console.error(err));
+function catchErrors<T, R>(command: (...args: any[]) => Promise<R>): (...args: any[]) => void {
+	return (...args) => command(...args).catch(err => console.error(err));
 }
 
 function compose(command: Command, ...args: Function[]): Command {
@@ -70,14 +78,14 @@ export function registerCommands(model: Model): Disposable {
 
 	const disposables = [
 		commands.registerCommand('git.refresh', compose(refresh, bindModel)),
-		commands.registerCommand('git.openChange', compose(openChange, bindModel, resolveURI, skipUndefined)),
-		commands.registerCommand('git.openFile', compose(openFile, bindModel, resolveURI, skipUndefined)),
-		commands.registerCommand('git.stage', compose(stage, bindModel, resolveURI, skipUndefined, catchErrors)),
-		commands.registerCommand('git.stageAll', compose(stageAll, bindModel, catchErrors)),
-		commands.registerCommand('git.unstage', compose(unstage, bindModel, resolveURI, skipUndefined, catchErrors)),
-		commands.registerCommand('git.unstageAll', compose(unstageAll, bindModel, catchErrors)),
-		commands.registerCommand('git.clean', compose(clean, bindModel, resolveURI, skipUndefined)),
-		commands.registerCommand('git.cleanAll', compose(cleanAll, bindModel, resolveURI, skipUndefined)),
+		commands.registerCommand('git.openChange', compose(openChange, bindModel, resolveURI)),
+		commands.registerCommand('git.openFile', compose(openFile, bindModel, resolveURI)),
+		commands.registerCommand('git.stage', compose(stage, catchErrors, bindModel, resolveURI)),
+		commands.registerCommand('git.stageAll', compose(stageAll, catchErrors, bindModel)),
+		commands.registerCommand('git.unstage', compose(unstage, catchErrors, bindModel, resolveURI)),
+		commands.registerCommand('git.unstageAll', compose(unstageAll, catchErrors, bindModel)),
+		commands.registerCommand('git.clean', compose(clean, bindModel, resolveURI)),
+		commands.registerCommand('git.cleanAll', compose(cleanAll, bindModel, resolveURI)),
 	];
 
 	return Disposable.from(...disposables);
