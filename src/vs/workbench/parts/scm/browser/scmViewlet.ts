@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
+import { Throttler } from 'vs/base/common/async';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
@@ -26,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -268,8 +269,11 @@ export class SCMViewlet extends Viewlet {
 		return 400;
 	}
 
+	private acceptThrottler = new Throttler();
 	private accept(): void {
-		this.scmService.activeProvider.commit(this.inputBox.value);
+		this.acceptThrottler
+			.queue(() => this.scmService.activeProvider.commit(this.inputBox.value))
+			.done(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err));
 	}
 
 	private open(e: ISCMResource): void {
