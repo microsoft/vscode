@@ -23,7 +23,6 @@ export enum Position {
 }
 
 export interface ILayoutOptions {
-	forceStyleRecompute?: boolean;
 	toggleMaximizedPanel?: boolean;
 }
 
