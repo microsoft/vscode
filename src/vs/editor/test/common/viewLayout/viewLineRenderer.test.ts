@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineParts } from 'vs/editor/common/core/lineParts';
@@ -16,7 +16,7 @@ suite('viewLineRenderer.renderLine', () => {
 		return new ViewLineToken(startIndex, type);
 	}
 
-	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[]): void {
+	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[][]): void {
 		let _actual = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
@@ -28,37 +28,37 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		assert.equal(_actual.output, '<span><span class="">' + expected + '</span></span>');
-		assert.deepEqual(_actual.charOffsetInPart, expectedCharOffsetInPart);
+		assertCharacterMapping(_actual.characterMapping, expectedCharOffsetInPart);
 	}
 
 	test('replaces spaces', () => {
-		assertCharacterReplacement(' ', 4, '&nbsp;', [0, 1]);
-		assertCharacterReplacement('  ', 4, '&nbsp;&nbsp;', [0, 1, 2]);
-		assertCharacterReplacement('a  b', 4, 'a&nbsp;&nbsp;b', [0, 1, 2, 3, 4]);
+		assertCharacterReplacement(' ', 4, '&nbsp;', [[0, 1]]);
+		assertCharacterReplacement('  ', 4, '&nbsp;&nbsp;', [[0, 1, 2]]);
+		assertCharacterReplacement('a  b', 4, 'a&nbsp;&nbsp;b', [[0, 1, 2, 3, 4]]);
 	});
 
 	test('escapes HTML markup', () => {
-		assertCharacterReplacement('a<b', 4, 'a&lt;b', [0, 1, 2, 3]);
-		assertCharacterReplacement('a>b', 4, 'a&gt;b', [0, 1, 2, 3]);
-		assertCharacterReplacement('a&b', 4, 'a&amp;b', [0, 1, 2, 3]);
+		assertCharacterReplacement('a<b', 4, 'a&lt;b', [[0, 1, 2, 3]]);
+		assertCharacterReplacement('a>b', 4, 'a&gt;b', [[0, 1, 2, 3]]);
+		assertCharacterReplacement('a&b', 4, 'a&amp;b', [[0, 1, 2, 3]]);
 	});
 
 	test('replaces some bad characters', () => {
-		assertCharacterReplacement('a\0b', 4, 'a&#00;b', [0, 1, 2, 3]);
-		assertCharacterReplacement('a' + String.fromCharCode(CharCode.UTF8_BOM) + 'b', 4, 'a\ufffdb', [0, 1, 2, 3]);
-		assertCharacterReplacement('a\u2028b', 4, 'a\ufffdb', [0, 1, 2, 3]);
-		assertCharacterReplacement('a\rb', 4, 'a&#8203b', [0, 1, 2, 3]);
+		assertCharacterReplacement('a\0b', 4, 'a&#00;b', [[0, 1, 2, 3]]);
+		assertCharacterReplacement('a' + String.fromCharCode(CharCode.UTF8_BOM) + 'b', 4, 'a\ufffdb', [[0, 1, 2, 3]]);
+		assertCharacterReplacement('a\u2028b', 4, 'a\ufffdb', [[0, 1, 2, 3]]);
+		assertCharacterReplacement('a\rb', 4, 'a&#8203b', [[0, 1, 2, 3]]);
 	});
 
 	test('handles tabs', () => {
-		assertCharacterReplacement('\t', 4, '&nbsp;&nbsp;&nbsp;&nbsp;', [0, 4]);
-		assertCharacterReplacement('x\t', 4, 'x&nbsp;&nbsp;&nbsp;', [0, 1, 4]);
-		assertCharacterReplacement('xx\t', 4, 'xx&nbsp;&nbsp;', [0, 1, 2, 4]);
-		assertCharacterReplacement('xxx\t', 4, 'xxx&nbsp;', [0, 1, 2, 3, 4]);
-		assertCharacterReplacement('xxxx\t', 4, 'xxxx&nbsp;&nbsp;&nbsp;&nbsp;', [0, 1, 2, 3, 4, 8]);
+		assertCharacterReplacement('\t', 4, '&nbsp;&nbsp;&nbsp;&nbsp;', [[0, 4]]);
+		assertCharacterReplacement('x\t', 4, 'x&nbsp;&nbsp;&nbsp;', [[0, 1, 4]]);
+		assertCharacterReplacement('xx\t', 4, 'xx&nbsp;&nbsp;', [[0, 1, 2, 4]]);
+		assertCharacterReplacement('xxx\t', 4, 'xxx&nbsp;', [[0, 1, 2, 3, 4]]);
+		assertCharacterReplacement('xxxx\t', 4, 'xxxx&nbsp;&nbsp;&nbsp;&nbsp;', [[0, 1, 2, 3, 4, 8]]);
 	});
 
-	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[]): void {
+	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[][]): void {
 		let _actual = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
@@ -70,7 +70,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		assert.equal(_actual.output, '<span>' + expected + '</span>');
-		assert.deepEqual(_actual.charOffsetInPart, expectedCharOffsetInPart);
+		assertCharacterMapping(_actual.characterMapping, expectedCharOffsetInPart);
 	}
 
 	test('empty line', () => {
@@ -78,15 +78,15 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('uses part type', () => {
-		assertParts('x', 4, [createPart(0, 'y')], '<span class="y">x</span>', [0, 1]);
-		assertParts('x', 4, [createPart(0, 'aAbBzZ0123456789-cC')], '<span class="aAbBzZ0123456789-cC">x</span>', [0, 1]);
-		assertParts('x', 4, [createPart(0, '             ')], '<span class="             ">x</span>', [0, 1]);
+		assertParts('x', 4, [createPart(0, 'y')], '<span class="y">x</span>', [[0, 1]]);
+		assertParts('x', 4, [createPart(0, 'aAbBzZ0123456789-cC')], '<span class="aAbBzZ0123456789-cC">x</span>', [[0, 1]]);
+		assertParts('x', 4, [createPart(0, '             ')], '<span class="             ">x</span>', [[0, 1]]);
 	});
 
 	test('two parts', () => {
-		assertParts('xy', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="a">x</span><span class="b">y</span>', [0, 0, 1]);
-		assertParts('xyz', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="a">x</span><span class="b">yz</span>', [0, 0, 1, 2]);
-		assertParts('xyz', 4, [createPart(0, 'a'), createPart(2, 'b')], '<span class="a">xy</span><span class="b">z</span>', [0, 1, 0, 1]);
+		assertParts('xy', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="a">x</span><span class="b">y</span>', [[0], [0, 1]]);
+		assertParts('xyz', 4, [createPart(0, 'a'), createPart(1, 'b')], '<span class="a">x</span><span class="b">yz</span>', [[0], [0, 1, 2]]);
+		assertParts('xyz', 4, [createPart(0, 'a'), createPart(2, 'b')], '<span class="a">xy</span><span class="b">z</span>', [[0, 1], [0, 1]]);
 	});
 
 	test('overflow', () => {
@@ -126,13 +126,13 @@ suite('viewLineRenderer.renderLine', () => {
 		].join('');
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
-		assert.deepEqual(_actual.charOffsetInPart, [
-			0,
-			0,
-			0,
-			0,
-			0,
-			1
+		assertCharacterMapping(_actual.characterMapping, [
+			[0],
+			[0],
+			[0],
+			[0],
+			[0],
+			[1],
 		]);
 	});
 
@@ -180,7 +180,6 @@ suite('viewLineRenderer.renderLine', () => {
 			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
 			[0, 1, 2, 3, 4, 5],
 		];
-		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
 
 		let _actual = renderLine(new RenderLineInput(
 			lineText,
@@ -193,7 +192,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
-		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
+		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr);
 	});
 
 	test('issue #2255: Weird line rendering part 1', () => {
@@ -235,7 +234,6 @@ suite('viewLineRenderer.renderLine', () => {
 			[0], // 1 char
 			[0, 1] // 2 chars
 		];
-		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
 
 		let _actual = renderLine(new RenderLineInput(
 			lineText,
@@ -248,7 +246,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
-		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
+		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr);
 	});
 
 	test('issue #2255: Weird line rendering part 2', () => {
@@ -290,7 +288,6 @@ suite('viewLineRenderer.renderLine', () => {
 			[0], // 1 char
 			[0, 1] // 2 chars
 		];
-		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
 
 		let _actual = renderLine(new RenderLineInput(
 			lineText,
@@ -303,8 +300,38 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
-		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
+		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr);
 	});
 
+	function assertCharacterMapping(actual: CharacterMapping, expected: number[][]): void {
+		let charOffset = 0;
+		for (let partIndex = 0; partIndex < expected.length; partIndex++) {
+			let part = expected[partIndex];
+			for (let i = 0; i < part.length; i++) {
+				let charIndex = part[i];
 
+				let _actualPartData = actual.charOffsetToPartData(charOffset);
+				let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);
+				let actualCharIndex = CharacterMapping.getCharIndex(_actualPartData);
+
+				assert.deepEqual(
+					{ partIndex: actualPartIndex, charIndex: actualCharIndex },
+					{ partIndex: partIndex, charIndex: charIndex },
+					`character mapping for offset ${charOffset}`
+				);
+
+				let actualOffset = actual.partDataToCharOffset(partIndex, part[part.length - 1] + 1, charIndex);
+
+				assert.equal(
+					actualOffset,
+					charOffset,
+					`character mapping for part ${partIndex}, ${charIndex}`
+				);
+
+				charOffset++;
+			}
+		}
+
+		assert.equal(actual.length, charOffset);
+	}
 });
