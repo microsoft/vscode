@@ -131,7 +131,6 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	// Forward message to the embedded iframe
 	ipcRenderer.on('message', function (event, data) {
 		const target = getTarget();
-		console.log(data);
 		target.contentWindow.postMessage(data, 'file://');
 	});
 
