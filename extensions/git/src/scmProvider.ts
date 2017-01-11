@@ -18,7 +18,7 @@ export class GitSCMProvider implements SCMProvider {
 	get label(): string { return 'Git'; }
 
 	constructor(private model: Model) {
-		model.update(true);
+		model.update();
 	}
 
 	commit(message: string): Thenable<void> {

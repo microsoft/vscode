@@ -203,21 +203,8 @@ export class Model {
 		return this._remotes;
 	}
 
-	update(now = false): void {
-		if (now) {
-			this.updateNow();
-		} else {
-			this.eventuallyUpdate();
-		}
-	}
-
-	@debounce(500)
-	private eventuallyUpdate(): void {
-		this.updateNow();
-	}
-
 	@decorate(throttle)
-	private async updateNow(): Promise<void> {
+	async update(): Promise<void> {
 		const status = await this.repository.getStatus();
 		let HEAD: IRef | undefined;
 
@@ -286,13 +273,13 @@ export class Model {
 	async stage(...resources: Resource[]): Promise<void> {
 		const paths = resources.map(r => r.uri.fsPath);
 		await this.repository.add(paths);
-		await this.updateNow();
+		await this.update();
 	}
 
 	async unstage(...resources: Resource[]): Promise<void> {
 		const paths = resources.map(r => r.uri.fsPath);
 		await this.repository.revertFiles('HEAD', paths);
-		await this.updateNow();
+		await this.update();
 	}
 
 	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
@@ -301,7 +288,7 @@ export class Model {
 		}
 
 		await this.repository.commit(message, opts);
-		await this.updateNow();
+		await this.update();
 	}
 
 	async clean(...resources: Resource[]): Promise<void> {
@@ -332,6 +319,6 @@ export class Model {
 		}
 
 		await Promise.all(promises);
-		await this.updateNow();
+		await this.update();
 	}
 }
