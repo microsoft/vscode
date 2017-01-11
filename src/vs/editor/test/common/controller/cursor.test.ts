@@ -134,7 +134,7 @@ function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]):
 suite('Editor Controller - Cursor', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
-	const LINE3 = '    Third Line💩';
+	const LINE3 = '    Third Line🐶';
 	const LINE4 = '';
 	const LINE5 = '1';
 
@@ -667,7 +667,7 @@ suite('Editor Controller - Cursor', () => {
 		moveRight(thisCursor, true);
 		moveRight(thisCursor, true);
 		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line💩');
+		assert.equal(thisModel.getLineContent(3), '    Thd Line🐶');
 		assertCursor(thisCursor, new Position(3, 7));
 	});
 
@@ -681,7 +681,7 @@ suite('Editor Controller - Cursor', () => {
 	test('delete word left for caret at end of whitespace', () => {
 		moveTo(thisCursor, 3, 11);
 		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Line💩');
+		assert.equal(thisModel.getLineContent(3), '    Line🐶');
 		assertCursor(thisCursor, new Position(3, 5));
 	});
 
@@ -704,7 +704,7 @@ suite('Editor Controller - Cursor', () => {
 		moveRight(thisCursor, true);
 		moveRight(thisCursor, true);
 		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line💩');
+		assert.equal(thisModel.getLineContent(3), '    Thd Line🐶');
 		assertCursor(thisCursor, new Position(3, 7));
 	});
 
@@ -718,7 +718,7 @@ suite('Editor Controller - Cursor', () => {
 	test('delete word right for caret at beggining of whitespace', () => {
 		moveTo(thisCursor, 3, 1);
 		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), 'Third Line💩');
+		assert.equal(thisModel.getLineContent(3), 'Third Line🐶');
 		assertCursor(thisCursor, new Position(3, 1));
 	});
 
