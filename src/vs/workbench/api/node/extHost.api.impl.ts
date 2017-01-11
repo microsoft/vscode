@@ -125,7 +125,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 
 		if (extension.enableProposedApi) {
 
-			if (!initData.environment.enableProposedApi) {
+			if (!initData.environment.enableProposedApi && !extension.isBuiltin) {
 				extension.enableProposedApi = false;
 				console.warn('PROPOSED API is only available when developing an extension');
 
@@ -306,8 +306,11 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
 			},
-			createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
-				return extHostTerminalService.createTerminal(name, shellPath, shellArgs);
+			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+				if (typeof nameOrOptions === 'object') {
+					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
+				}
+				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {

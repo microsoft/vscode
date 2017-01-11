@@ -115,7 +115,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(id);
+		super(id, { hasTitle: false });
 
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorsMoved = new Emitter<void>();

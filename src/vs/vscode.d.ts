@@ -2397,6 +2397,13 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
+		 * An optional set of characters that when pressed while this completion is active will accept it first and
+		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+		 * characters will be ignored.
+		 */
+		commitCharacters?: string[];
+
+		/**
 		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
 		 *
 		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
@@ -2814,7 +2821,7 @@ declare module 'vscode' {
 		/**
 		 * Readable dictionary that backs this configuration.
 		 */
-		readonly [key: string]: any;
+		readonly[key: string]: any;
 	}
 
 	/**
@@ -3669,6 +3676,40 @@ declare module 'vscode' {
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): Terminal;
+
+		/**
+		 * Creates a [Terminal](#Terminal). The cwd of the terminal will be the workspace directory
+		 * if it exists, regardless of whether an explicit customStartPath setting exists.
+		 *
+		 * @param options A TerminalOptions object describing the characteristics of the new terminal.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(options: TerminalOptions): Terminal;
+	}
+
+	/**
+	 * Value-object describing what options formatting should use.
+	 */
+	export interface TerminalOptions {
+		/**
+		 * A human-readable string which will be used to represent the terminal in the UI.
+		 */
+		name?: string;
+
+		/**
+		 * A path to a custom shell executable to be used in the terminal.
+		 */
+		shellPath?: string;
+
+		/**
+		 * Args for the custom shell executable, this does not work on Windows (see #8429)
+		 */
+		shellArgs?: string[];
+
+		/**
+		 * Whether the terminal should wait on exit for a keypress before closing the instance.
+		 */
+		waitOnExit?: boolean;
 	}
 
 	/**

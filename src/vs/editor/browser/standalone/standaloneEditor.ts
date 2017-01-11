@@ -344,6 +344,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,
 		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
+		FindMatch: <any>editorCommon.FindMatch,
 
 		// vars
 		EditorType: editorCommon.EditorType,

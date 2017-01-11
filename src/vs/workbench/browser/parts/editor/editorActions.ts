@@ -824,7 +824,7 @@ export class MaximizeGroupAction extends Action {
 	public run(): TPromise<any> {
 		if (this.editorService.getActiveEditor()) {
 			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
-			this.partService.setSideBarHidden(true);
+			return this.partService.setSideBarHidden(true);
 		}
 
 		return TPromise.as(false);

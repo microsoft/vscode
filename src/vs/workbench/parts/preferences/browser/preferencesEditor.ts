@@ -120,20 +120,20 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
-	public createEditorControl(parent: Builder): editorCommon.IEditor {
+	public createEditorControl(parent: Builder, configuration: editorCommon.IEditorOptions): editorCommon.IEditor {
 		const parentContainer = parent.getHTMLElement();
 
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
 		this._register(this.defaultSettingHeaderWidget.onEnter(value => this.focusNextPreference()));
 
-		const defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions());
+		const defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, configuration);
 
 		return defaultPreferencesEditor;
 	}
 
-	protected getCodeEditorOptions(): editorCommon.IEditorOptions {
-		const options = super.getCodeEditorOptions();
+	protected getConfigurationOverrides(): editorCommon.IEditorOptions {
+		const options = super.getConfigurationOverrides();
 		options.readOnly = true;
 		if (this.input) {
 			options.lineNumbers = 'off';

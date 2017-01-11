@@ -23,7 +23,6 @@ export enum Position {
 }
 
 export interface ILayoutOptions {
-	forceStyleRecompute?: boolean;
 	toggleMaximizedPanel?: boolean;
 }
 
@@ -80,12 +79,12 @@ export interface IPartService {
 	/**
 	 * Set sidebar hidden or not
 	 */
-	setSideBarHidden(hidden: boolean): void;
+	setSideBarHidden(hidden: boolean): TPromise<void>;
 
 	/**
 	 * Set panel part hidden or not
 	 */
-	setPanelHidden(hidden: boolean): void;
+	setPanelHidden(hidden: boolean): TPromise<void>;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.

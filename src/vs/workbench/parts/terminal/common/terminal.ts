@@ -100,7 +100,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomCwd?: boolean): ITerminalInstance;
+	createInstance(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean, ignoreCustomCwd?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;

@@ -373,12 +373,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._isExiting = true;
 		let exitCodeMessage: string;
-		if (exitCode !== 0) {
+		if (exitCode) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
 		if (this._shellLaunchConfig.waitOnExit) {
-			if (exitCode !== 0) {
+			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
@@ -389,7 +389,7 @@ export class TerminalInstance implements ITerminalInstance {
 			});
 		} else {
 			this.dispose();
-			if (exitCode !== 0) {
+			if (exitCode) {
 				if (this._isLaunching) {
 					let args = '';
 					if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
