@@ -58,8 +58,6 @@ export class SyncStatusBar {
 
 	constructor(private model: Model) {
 		this.raw = window.createStatusBarItem(StatusBarAlignment.Left);
-
-
 		this.disposables.push(this.raw);
 		model.onDidChange(this.update, this, this.disposables);
 		this.update();

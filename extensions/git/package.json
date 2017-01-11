@@ -93,6 +93,11 @@
           "light": "resources/icons/light/clean.svg",
           "dark": "resources/icons/dark/clean.svg"
         }
+      },
+      {
+        "command": "git.publish",
+        "title": "Publish",
+        "category": "Git"
       }
     ],
     "menus": {
