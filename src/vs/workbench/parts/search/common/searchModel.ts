@@ -18,7 +18,7 @@ import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPa
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions, FindMatch } from 'vs/editor/common/editorCommon';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -180,7 +180,7 @@ export class FileMatch extends Disposable {
 		}
 		this._matches = new LinkedMap<string, Match>();
 		let matches = this._model
-			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
+			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
 
 		this.updateMatches(matches);
 	}
@@ -195,13 +195,13 @@ export class FileMatch extends Disposable {
 		const oldMatches = this._matches.values().filter(match => match.range().startLineNumber === lineNumber);
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
-		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
+		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
 		this.updateMatches(matches);
 	}
 
-	private updateMatches(matches: Range[]) {
-		matches.forEach(range => {
-			let match = new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
+	private updateMatches(matches: FindMatch[]) {
+		matches.forEach(m => {
+			let match = new Match(this, this._model.getLineContent(m.range.startLineNumber), m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endColumn - m.range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
 				this.add(match);
 				if (this.isMatchSelected(match)) {
