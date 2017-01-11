@@ -1306,11 +1306,12 @@ export class BreakpointsAccessibilityProvider implements IAccessibilityProvider 
 export class BreakpointsController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
-		if (element instanceof FunctionBreakpoint && event.detail === 2) {
+		const isDoubleClick = event.detail === 2;
+		if (element instanceof FunctionBreakpoint && isDoubleClick) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
-		if (element instanceof Breakpoint) {
+		if (element instanceof Breakpoint && (this.isInSingleClickOpenMode() || isDoubleClick)) {
 			this.openBreakpointSource(element, event, true);
 		}
 
