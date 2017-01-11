@@ -11,7 +11,9 @@ import { findGit, Git } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { registerCommands } from './commands';
+import { anyEvent, throttle } from './util';
 import * as nls from 'vscode-nls';
+import { decorate, debounce } from 'core-decorators';
 
 nls.config();
 
@@ -36,6 +38,37 @@ class TextDocumentContentProvider {
 	}
 }
 
+class Watcher {
+
+	private disposables: Disposable[];
+
+	constructor(private model: Model) {
+		const fsWatcher = workspace.createFileSystemWatcher('**');
+		const onFSChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+
+		this.disposables = [
+			fsWatcher,
+			onFSChange(this.eventuallyUpdateModel, this)
+		];
+	}
+
+	@debounce(1000)
+	private eventuallyUpdateModel(): void {
+		this.updateModelAndWait();
+	}
+
+	@decorate(throttle)
+	private async updateModelAndWait(): Promise<void> {
+		console.log('UPDATE');
+		await this.model.update();
+		await new Promise(c => setTimeout(c, 8000));
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+	}
+}
+
 async function init(disposables: Disposable[]): Promise<void> {
 	const rootPath = workspace.rootPath;
 
@@ -55,11 +88,14 @@ async function init(disposables: Disposable[]): Promise<void> {
 	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
+	const watcher = new Watcher(model);
+
 	disposables.push(
 		registerCommands(model),
 		scm.registerSCMProvider('git', provider),
 		workspace.registerTextDocumentContentProvider('git-index', new TextDocumentContentProvider(git, rootPath)),
-		outputChannel
+		outputChannel,
+		watcher
 	);
 }
 
