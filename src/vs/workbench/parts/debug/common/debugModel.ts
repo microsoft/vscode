@@ -432,10 +432,10 @@ export class Thread implements debug.IThread {
 
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), null, null);
+					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
 
-				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true), rsf.name, rsf.line, rsf.column);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -560,7 +560,7 @@ export class Process implements debug.IProcess {
 		this.threads.forEach(thread => {
 			thread.getCallStack().forEach(stackFrame => {
 				if (stackFrame.source.uri.toString() === uri.toString()) {
-					stackFrame.source.available = false;
+					stackFrame.source.deemphasize = true;
 				}
 			});
 		});
