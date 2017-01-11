@@ -269,10 +269,12 @@ class ThreadAndProcessIds implements debug.ITreeElement {
 export class CallStackController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+		const isDoubleClick = event.detail === 2;
+
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		if (element instanceof StackFrame) {
+		if (element instanceof StackFrame && (this.isInSingleClickOpenMode() || isDoubleClick)) {
 			this.focusStackFrame(element, event, true);
 		}
 
