@@ -20,7 +20,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultDragAndDrop, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +35,8 @@ import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction, StopAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyValueAction, CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TreeControllerBase } from 'vs/workbench/browser/treeController';
 
 
 const $ = dom.$;
@@ -179,7 +181,7 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService)
 	return getPathLabel(paths.basename(source.uri.fsPath), contextService);
 }
 
-export class BaseDebugController extends DefaultController {
+export class BaseDebugController extends TreeControllerBase {
 
 	private contributedContextMenu: IMenu;
 
@@ -190,9 +192,10 @@ export class BaseDebugController extends DefaultController {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super();
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP }, configurationService);
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 		if (isMacintosh) {
@@ -759,6 +762,11 @@ export class VariablesController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
 			const expression = <debug.IExpression>element;
+			if (expression.hasChildren && !this.isInSingleClickOpenMode()) {
+				// is in doubleClick openMode, toggle expand/collapse
+				return super.onLeftClick(tree, element, event);
+			}
+
 			if (!expression.hasChildren) {
 				this.debugService.getViewModel().setSelectedExpression(expression);
 			}
