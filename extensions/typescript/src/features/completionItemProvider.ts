@@ -27,7 +27,7 @@ class MyCompletionItem extends CompletionItem {
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(entry.kind);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(document, entry.kind);
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
@@ -86,7 +86,7 @@ class MyCompletionItem extends CompletionItem {
 		return CompletionItemKind.Property;
 	}
 
-	private static getCommitCharacters(kind: string): string[] | undefined {
+	private static getCommitCharacters(document: TextDocument, kind: string): string[] | undefined {
 		switch (kind) {
 			case PConst.Kind.externalModuleName:
 			case PConst.Kind.file:
@@ -108,6 +108,9 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.interface:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
+				if (!document || (document.languageId !== 'typescript' && document.languageId !== 'typescriptreact')) {
+					return undefined;
+				}
 				return ['.'];
 		}
 
@@ -125,11 +128,12 @@ namespace Configuration {
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
 
-	private client: ITypescriptServiceClient;
-	private typingsStatus: TypingsStatus;
 	private config: Configuration;
 
-	constructor(client: ITypescriptServiceClient, typingsStatus: TypingsStatus) {
+	constructor(
+		private client: ITypescriptServiceClient,
+		private typingsStatus: TypingsStatus
+	) {
 		this.client = client;
 		this.typingsStatus = typingsStatus;
 		this.config = { useCodeSnippetsOnMethodSuggest: false };
