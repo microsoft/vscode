@@ -89,6 +89,8 @@ class MyCompletionItem extends CompletionItem {
 	private static getCommitCharacters(document: TextDocument, kind: string): string[] | undefined {
 		switch (kind) {
 			case PConst.Kind.externalModuleName:
+				return ['"', '\''];
+
 			case PConst.Kind.file:
 			case PConst.Kind.directory:
 				return ['/', '"', '\''];
