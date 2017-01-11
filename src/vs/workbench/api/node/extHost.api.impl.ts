@@ -281,7 +281,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 				if (typeof nameOrOptions === 'object') {
 					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
 				}
-				return extHostTerminalService.createTerminal(name, shellPath, shellArgs);
+				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
