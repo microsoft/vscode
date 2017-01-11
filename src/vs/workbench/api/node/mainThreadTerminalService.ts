@@ -30,8 +30,8 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): TPromise<number> {
-		return TPromise.as(this.terminalService.createInstance(name, shellPath, shellArgs, true).id);
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean): TPromise<number> {
+		return TPromise.as(this.terminalService.createInstance(name, shellPath, shellArgs, waitOnExit, true).id);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
