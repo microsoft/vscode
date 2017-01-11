@@ -90,7 +90,8 @@ class CommandCenter {
 			commands.registerCommand('git.unstageAll', this.unstageAll, this),
 			commands.registerCommand('git.clean', this.clean, this),
 			commands.registerCommand('git.cleanAll', this.cleanAll, this),
-			commands.registerCommand('git.checkout', this.checkout, this)
+			commands.registerCommand('git.checkout', this.checkout, this),
+			commands.registerCommand('git.publish', this.publish, this),
 		);
 	}
 
@@ -192,15 +193,29 @@ class CommandCenter {
 		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
-		const choice = await window.showQuickPick<CheckoutItem>([...heads, ...tags, ...remoteHeads], {
-			placeHolder: 'Select a ref to checkout'
-		});
+		const picks = [...heads, ...tags, ...remoteHeads];
+		const placeHolder = 'Select a ref to checkout';
+		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
 
 		if (!choice) {
 			return;
 		}
 
 		await choice.run(this.model);
+	}
+
+	@decorate(catchErrors)
+	async publish(): Promise<void> {
+		const branchName = this.model.HEAD && this.model.HEAD.name || '';
+		const picks = this.model.remotes.map(r => r.name);
+		const placeHolder = `Pick a remote to publish the branch '${branchName}' to:`;
+		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await this.model.push(choice, branchName, { setUpstream: true });
 	}
 
 	dispose(): void {

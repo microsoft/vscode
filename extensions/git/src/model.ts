@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup } from 'vscode';
-import { Repository, IRef, IBranch, IRemote } from './git';
+import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
 import { throttle } from './util';
 import { decorate } from 'core-decorators';
 import * as path from 'path';
@@ -193,12 +193,12 @@ export class Model {
 		return this._HEAD;
 	}
 
-	private _refs: IRef[];
+	private _refs: IRef[] = [];
 	get refs(): IRef[] {
 		return this._refs;
 	}
 
-	private _remotes: IRemote[];
+	private _remotes: IRemote[] = [];
 	get remotes(): IRemote[] {
 		return this._remotes;
 	}
@@ -324,6 +324,11 @@ export class Model {
 
 	async checkout(treeish: string): Promise<void> {
 		await this.repository.checkout(treeish, []);
+		await this.update();
+	}
+
+	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
+		await this.repository.push(remote, name, options);
 		await this.update();
 	}
 }
