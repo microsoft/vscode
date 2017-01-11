@@ -67,6 +67,10 @@ async function cleanAll(model: Model): Promise<void> {
 	return await model.clean(...model.workingTreeGroup.resources);
 }
 
+function checkout(model: Model): void {
+	console.log('checkout');
+}
+
 function resolveURI<R>(command: (t: SCMResource | SCMResourceGroup | undefined) => R): (uri: Uri) => R | undefined {
 	return uri => {
 		if (uri.authority !== 'git') {
@@ -105,6 +109,7 @@ export function registerCommands(model: Model): Disposable {
 		commands.registerCommand('git.unstageAll', compose(unstageAll, catchErrors, bindModel)),
 		commands.registerCommand('git.clean', compose(clean, catchErrors, bindModel, resolveURI)),
 		commands.registerCommand('git.cleanAll', compose(cleanAll, catchErrors, bindModel)),
+		commands.registerCommand('git.checkout', compose(checkout, bindModel)),
 	];
 
 	return Disposable.from(...disposables);
