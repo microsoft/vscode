@@ -987,6 +987,11 @@ export class WatchExpressionsController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
+			if (expression.hasChildren && !this.isInSingleClickOpenMode()) {
+				// is in doubleClick openMode, toggle expand/collapse
+				return super.onLeftClick(tree, element, event);
+			}
+
 			if (!expression.hasChildren) {
 				this.debugService.getViewModel().setSelectedExpression(expression);
 			}
