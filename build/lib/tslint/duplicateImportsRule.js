@@ -9,7 +9,7 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var path_1 = require('path');
-var Lint = require('tslint/lib/lint');
+var Lint = require('tslint');
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
