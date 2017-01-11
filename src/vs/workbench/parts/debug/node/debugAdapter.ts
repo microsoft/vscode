@@ -76,6 +76,14 @@ export class Adapter {
 		return this.rawAdapter.configurationSnippets;
 	}
 
+	public get languages(): string[] {
+		return this.rawAdapter.languages;
+	}
+
+	public get startSessionCommand(): string {
+		return this.rawAdapter.startSessionCommand;
+	}
+
 	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
 		// Give priority to built in debug adapters
 		if (extensionDescription.isBuiltin) {

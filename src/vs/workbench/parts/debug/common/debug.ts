@@ -319,6 +319,8 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
 	initialConfigurations?: any[] | string;
+	startSessionCommand?: string;
+	languages?: string[];
 	variables?: { [key: string]: string };
 	aiKey?: string;
 	win?: IRawEnvAdapter;
@@ -357,6 +359,13 @@ export interface IConfigurationManager {
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
 	 */
 	canSetBreakpointsIn(model: EditorIModel): boolean;
+
+	/**
+	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
+	 * If no type is specified will try to automatically pick an adapter by looking at
+	 * the active editor language and matching it against the "languages" contribution of an adapter.
+	 */
+	getStartSessionCommand(type?: string): string;
 }
 
 // Debug service interfaces
