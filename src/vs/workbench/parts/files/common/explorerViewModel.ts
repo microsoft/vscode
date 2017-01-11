@@ -130,26 +130,6 @@ export class FileStat implements IFileStat {
 	}
 
 	/**
-	 * Returns a deep copy of this model object.
-	 */
-	public clone(): FileStat {
-		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mtime, this.etag);
-		stat.isDirectoryResolved = this.isDirectoryResolved;
-
-		if (this.parent) {
-			stat.parent = this.parent;
-		}
-
-		if (this.isDirectory) {
-			this.children.forEach((child: FileStat) => {
-				stat.addChild(child.clone());
-			});
-		}
-
-		return stat;
-	}
-
-	/**
 	 * Adds a child element to this folder.
 	 */
 	public addChild(child: FileStat): void {
@@ -313,16 +293,6 @@ export class NewStatPlaceholder extends FileStat {
 
 	public isDirectoryPlaceholder(): boolean {
 		return this.directoryPlaceholder;
-	}
-
-	/**
-	 * Returns a deep copy of this model object.
-	 */
-	public clone(): NewStatPlaceholder {
-		const stat = new NewStatPlaceholder(this.isDirectory);
-		stat.parent = this.parent;
-
-		return stat;
 	}
 
 	public addChild(child: NewStatPlaceholder): void {
