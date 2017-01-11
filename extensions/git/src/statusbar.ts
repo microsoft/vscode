@@ -70,7 +70,7 @@ export class SyncStatusBar {
 		}
 
 		const HEAD = this.model.HEAD;
-		let icon = '$(sync)';
+		let icon = '$(sync) ';
 		let text = '';
 
 		if (HEAD && HEAD.name && HEAD.commit) {
@@ -78,11 +78,11 @@ export class SyncStatusBar {
 
 			if (HEAD.upstream) {
 				if (HEAD.ahead || HEAD.behind) {
-					text += `'${HEAD.behind}↓ ${HEAD.ahead}↑'`;
+					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
 				}
 				this.raw.command = 'git.sync';
 			} else {
-				icon = '$(cloud-upload)';
+				icon = '$(cloud-upload) ';
 				this.raw.command = 'git.publish';
 			}
 		} else {
