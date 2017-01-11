@@ -9,7 +9,7 @@ import { window, Disposable, StatusBarItem, StatusBarAlignment } from 'vscode';
 import { RefType } from './git';
 import { Model } from './model';
 
-export class StatusBar {
+export class CheckoutStatusBar {
 
 	private raw: StatusBarItem;
 	private disposables: Disposable[] = [];
@@ -44,6 +44,56 @@ export class StatusBar {
 			(this.model.workingTreeGroup.resources.length > 0 ? '*' : '') +
 			(this.model.indexGroup.resources.length > 0 ? '+' : '') +
 			(this.model.mergeGroup.resources.length > 0 ? '!' : '');
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+	}
+}
+
+export class SyncStatusBar {
+
+	private raw: StatusBarItem;
+	private disposables: Disposable[] = [];
+
+	constructor(private model: Model) {
+		this.raw = window.createStatusBarItem(StatusBarAlignment.Left);
+
+
+		this.disposables.push(this.raw);
+		model.onDidChange(this.update, this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		if (this.model.remotes.length === 0) {
+			this.raw.hide();
+			return;
+		}
+
+		const HEAD = this.model.HEAD;
+		let icon = '$(sync)';
+		let text = '';
+
+		if (HEAD && HEAD.name && HEAD.commit) {
+			this.raw.color = '';
+
+			if (HEAD.upstream) {
+				if (HEAD.ahead || HEAD.behind) {
+					text += `'${HEAD.behind}↓ ${HEAD.ahead}↑'`;
+				}
+				this.raw.command = 'git.sync';
+			} else {
+				icon = '$(cloud-upload)';
+				this.raw.command = 'git.publish';
+			}
+		} else {
+			this.raw.color = 'rgba(255,255,255,0.7)';
+			this.raw.command = '';
+		}
+
+		this.raw.text = `${icon}${text}`;
+		this.raw.show();
 	}
 
 	dispose(): void {
