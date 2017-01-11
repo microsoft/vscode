@@ -14,7 +14,7 @@ import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
-import { TextModelSearch } from 'vs/editor/common/model/textModelSearch';
+import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
@@ -842,17 +842,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			searchRange = this.getFullModelRange();
 		}
 
-		return TextModelSearch.findMatches(this, searchString, searchRange, isRegex, matchCase, wholeWord, limitResultCount);
+		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, limitResultCount);
 	}
 
 	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		this._assertNotDisposed();
-		return TextModelSearch.findNextMatch(this, searchString, rawSearchStart, isRegex, matchCase, wholeWord);
+		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart);
 	}
 
 	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		this._assertNotDisposed();
-		return TextModelSearch.findPreviousMatch(this, searchString, rawSearchStart, isRegex, matchCase, wholeWord);
+		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart);
 	}
 }
 

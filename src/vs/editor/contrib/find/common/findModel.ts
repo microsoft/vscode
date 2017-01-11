@@ -17,7 +17,7 @@ import { ReplaceAllCommand } from './replaceAllCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { TextModelSearch } from 'vs/editor/common/model/textModelSearch';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -339,7 +339,8 @@ export class FindModelBoundToEditorModel {
 
 	private getReplaceString(matchRange: Range): string {
 		if (this._state.isRegex) {
-			let regExp = TextModelSearch.parseSearchRequest(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+			let searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+			let regExp = searchParams.parseSearchRequest();
 			let replacePattern = new ReplacePattern(this._state.replaceString, true, regExp);
 			let model = this._editor.getModel();
 			let matchedString = model.getValueInRange(matchRange);

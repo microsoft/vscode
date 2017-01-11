@@ -2089,6 +2089,11 @@ declare module monaco.editor {
         findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
     }
 
+    export class FindMatch {
+        readonly captures: Range[];
+        constructor(captures: Range[]);
+    }
+
     export interface IReadOnlyModel extends ITextModel {
         /**
          * Gets the resource associated with this editor model.

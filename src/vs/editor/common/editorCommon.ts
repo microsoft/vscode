@@ -1811,6 +1811,19 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
 }
 
+export class FindMatch {
+	_findMatchBrand: void;
+
+	public readonly captures: Range[];
+
+	/**
+	 * @internal
+	 */
+	constructor(captures: Range[]) {
+		this.captures = captures;
+	}
+}
+
 export interface IReadOnlyModel extends ITextModel {
 	/**
 	 * Gets the resource associated with this editor model.
