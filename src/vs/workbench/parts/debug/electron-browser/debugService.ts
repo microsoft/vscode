@@ -738,7 +738,7 @@ export class DebugService implements debug.IDebugService {
 
 				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 				const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
-				return TPromise.wrapError(errors.create(error.message, { actions }));
+				this.messageService.show(severity.Error, { message: errorMessage, actions });
 			});
 		});
 	}
