@@ -1,0 +1,110 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .part.editor > .content .monaco-workbench > .part.editor > .content .welcomePage {
+	font-family: "Lucida Grande", sans-serif;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .splash {
+	position: absolute;
+	top: 50%;
+	left: 25%;
+	transform: translate(-50%, -50%);
+	width: 35%;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .splash h1,
+.monaco-workbench > .part.editor > .content .welcomePage .splash h2 {
+	text-align: center;
+	padding: 0;
+	margin: 0;
+	border: none;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .splash .vscode-icon {
+	width: 1.5em;
+	height: 1.5em;
+	vertical-align: middle;
+	padding-right: 0.5em;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .splash .title {
+	margin-bottom: 2em;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .splash p {
+	margin-top: 17px;
+	margin-bottom: 5px;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .splash ul {
+	margin: 0;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .splash ul {
+	list-style: none;
+	padding: 0;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .splash .recent li {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
+	padding-left: 1em;
+	opacity: 0.7;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .splash .title,
+.monaco-workbench > .part.editor > .content .welcomePage .splash .showOnStartup {
+	white-space: nowrap;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .commands {
+	position: absolute;
+	top: 50%;
+	left: 75%;
+	transform: translate(-50%, -50%);
+	width: 35%;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .commands h3 {
+	text-align: center;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .commands ul {
+	list-style: none;
+	padding: 0;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .commands li {
+	margin: 15px 0px;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button {
+	margin: 0;
+	padding: 10px 20px;
+	border: 2px solid;
+	border-radius: 10px;
+	height: 46px;
+	width: 100%;
+	font-size: 15px;
+	text-align: left;
+	outline: none;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button {
+	color: #6c6c6c;
+	background: #eee;
+	border-color: #ccc;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
+	color: #ccc;
+	background: #333;
+	border-color: black;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
+	color: white;
+	background: black;
+	border-color: #f38518;
+	border-width: 1px;
+}
