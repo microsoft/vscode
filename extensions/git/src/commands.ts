@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window } from 'vscode';
+import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem } from 'vscode';
+import { IRef, RefType } from './git';
 import { Model, Resource } from './model';
 import { log } from './util';
 import { decorate } from 'core-decorators';
@@ -14,7 +15,7 @@ import * as path from 'path';
 type Command = (...args: any[]) => any;
 
 function catchErrors(fn: (...args) => Promise<any>): (...args) => void {
-	return (...args) => fn.call(this, ...args).catch(err => console.error(err));
+	return (...args) => fn.call(this, ...args).catch(err => console.log(err));
 }
 
 function resolveGitURI(uri: Uri): SCMResource | SCMResourceGroup | undefined {
@@ -33,6 +34,45 @@ function resolveGitResource(uri: Uri): Resource | undefined {
 	}
 
 	return resource;
+}
+
+class CheckoutItem implements QuickPickItem {
+
+	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	protected get treeish(): string | undefined { return this.ref.name; }
+	get label(): string { return this.ref.name || this.shortCommit; }
+	get description(): string { return this.shortCommit; }
+
+	constructor(protected ref: IRef) { }
+
+	async run(model: Model): Promise<void> {
+		const ref = this.treeish;
+
+		if (!ref) {
+			return;
+		}
+
+		await model.checkout(ref);
+	}
+}
+
+class CheckoutTagItem extends CheckoutItem {
+
+	get description(): string { return `Tag at ${this.shortCommit}`; }
+}
+
+class CheckoutRemoteHeadItem extends CheckoutItem {
+
+	get description(): string { return `Remote branch at ${this.shortCommit}`; }
+
+	protected get treeish(): string | undefined {
+		if (!this.ref.name) {
+			return;
+		}
+
+		const match = /^[^/]+\/(.*)$/.exec(this.ref.name);
+		return match ? match[1] : this.ref.name;
+	}
 }
 
 class CommandCenter {
@@ -136,8 +176,31 @@ class CommandCenter {
 		return await this.model.clean(...this.model.workingTreeGroup.resources);
 	}
 
-	checkout(model: Model): void {
-		console.log('checkout');
+	@decorate(catchErrors)
+	async checkout(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType');
+		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+			.map(ref => new CheckoutItem(ref));
+
+		const tags = (includeTags ? this.model.refs.filter(ref => ref.type === RefType.Tag) : [])
+			.map(ref => new CheckoutTagItem(ref));
+
+		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.map(ref => new CheckoutRemoteHeadItem(ref));
+
+		const choice = await window.showQuickPick<CheckoutItem>([...heads, ...tags, ...remoteHeads], {
+			placeHolder: 'Select a ref to checkout'
+		});
+
+		if (!choice) {
+			return;
+		}
+
+		await choice.run(this.model);
 	}
 
 	dispose(): void {

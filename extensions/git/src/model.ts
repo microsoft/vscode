@@ -321,4 +321,9 @@ export class Model {
 		await Promise.all(promises);
 		await this.update();
 	}
+
+	async checkout(treeish: string): Promise<void> {
+		await this.repository.checkout(treeish, []);
+		await this.update();
+	}
 }
