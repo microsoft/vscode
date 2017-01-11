@@ -8,109 +8,143 @@
 import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window } from 'vscode';
 import { Model, Resource } from './model';
 import { log } from './util';
+import { decorate } from 'core-decorators';
 import * as path from 'path';
 
 type Command = (...args: any[]) => any;
 
-async function refresh(model: Model): Promise<void> {
-	return await model.update();
+function catchErrors(fn: (...args) => Promise<any>): (...args) => void {
+	return (...args) => fn.call(this, ...args).catch(err => console.error(err));
 }
 
-function openChange(model: Model, resource: Resource): void {
-	log('open change', resource);
-}
-
-function openFile(model: Model, resource: Resource): void {
-	log('open file', resource);
-}
-
-async function stage(model: Model, resource: Resource): Promise<void> {
-	return await model.stage(resource);
-}
-
-async function stageAll(model: Model): Promise<void> {
-	return await model.stage();
-}
-
-async function unstage(model: Model, resource: Resource): Promise<void> {
-	return await model.unstage(resource);
-}
-
-async function unstageAll(model: Model): Promise<void> {
-	return await model.unstage();
-}
-
-async function clean(model: Model, resource: Resource): Promise<void> {
-	const basename = path.basename(resource.uri.fsPath);
-	const message = `Are you sure you want to clean changes in ${basename}?`;
-	const yes = 'Yes';
-	const no = 'No, keep them';
-	const pick = await window.showQuickPick([no, yes], { placeHolder: message });
-
-	if (pick !== yes) {
+function resolveGitURI(uri: Uri): SCMResource | SCMResourceGroup | undefined {
+	if (uri.authority !== 'git') {
 		return;
 	}
 
-	return await model.clean(resource);
+	return scm.getResourceFromURI(uri);
 }
 
-async function cleanAll(model: Model): Promise<void> {
-	const message = `Are you sure you want to clean all changes?`;
-	const yes = 'Yes';
-	const no = 'No, keep them';
-	const pick = await window.showQuickPick([no, yes], { placeHolder: message });
+function resolveGitResource(uri: Uri): Resource | undefined {
+	const resource = resolveGitURI(uri);
 
-	if (pick !== yes) {
+	if (!(resource instanceof Resource)) {
 		return;
 	}
 
-	return await model.clean(...model.workingTreeGroup.resources);
+	return resource;
 }
 
-function checkout(model: Model): void {
-	console.log('checkout');
-}
+class CommandCenter {
 
-function resolveURI<R>(command: (t: SCMResource | SCMResourceGroup | undefined) => R): (uri: Uri) => R | undefined {
-	return uri => {
-		if (uri.authority !== 'git') {
+	private disposables: Disposable[] = [];
+
+	constructor(private model: Model) {
+		this.disposables.push(
+			commands.registerCommand('git.refresh', this.refresh, this),
+			commands.registerCommand('git.openChange', this.openChange, this),
+			commands.registerCommand('git.openFile', this.openFile, this),
+			commands.registerCommand('git.stage', this.stage, this),
+			commands.registerCommand('git.stageAll', this.stageAll, this),
+			commands.registerCommand('git.unstage', this.unstage, this),
+			commands.registerCommand('git.unstageAll', this.unstageAll, this),
+			commands.registerCommand('git.clean', this.clean, this),
+			commands.registerCommand('git.cleanAll', this.cleanAll, this),
+			commands.registerCommand('git.checkout', this.checkout, this)
+		);
+	}
+
+	@decorate(catchErrors)
+	async refresh(): Promise<void> {
+		return await this.model.update();
+	}
+
+	openChange(uri: Uri): void {
+		const resource = resolveGitResource(uri);
+		log('open change', resource);
+	}
+
+	openFile(uri: Uri): void {
+		const resource = resolveGitResource(uri);
+		log('open file', resource);
+	}
+
+	@decorate(catchErrors)
+	async stage(uri: Uri): Promise<void> {
+		const resource = resolveGitResource(uri);
+
+		if (!resource) {
 			return;
 		}
 
-		const result = scm.getResourceFromURI(uri);
+		return await this.model.stage(resource);
+	}
 
-		if (!result) {
+	@decorate(catchErrors)
+	async stageAll(): Promise<void> {
+		return await this.model.stage();
+	}
+
+	@decorate(catchErrors)
+	async unstage(uri: Uri): Promise<void> {
+		const resource = resolveGitResource(uri);
+
+		if (!resource) {
 			return;
 		}
 
-		return command(result);
-	};
-}
+		return await this.model.unstage(resource);
+	}
 
-// TODO: do more with these errors
-function catchErrors<T, R>(command: (...args: any[]) => Promise<R>): (...args: any[]) => void {
-	return (...args) => command(...args).catch(err => console.error(err));
-}
+	@decorate(catchErrors)
+	async unstageAll(): Promise<void> {
+		return await this.model.unstage();
+	}
 
-function compose(command: Command, ...args: Function[]): Command {
-	return args.reduce((r, fn) => fn(r), command) as Command;
+	@decorate(catchErrors)
+	async clean(uri: Uri): Promise<void> {
+		const resource = resolveGitResource(uri);
+
+		if (!resource) {
+			return;
+		}
+
+		const basename = path.basename(resource.uri.fsPath);
+		const message = `Are you sure you want to clean changes in ${basename}?`;
+		const yes = 'Yes';
+		const no = 'No, keep them';
+		const pick = await window.showQuickPick([no, yes], { placeHolder: message });
+
+		if (pick !== yes) {
+			return;
+		}
+
+		return await this.model.clean(resource);
+	}
+
+	@decorate(catchErrors)
+	async cleanAll(): Promise<void> {
+		const message = `Are you sure you want to clean all changes?`;
+		const yes = 'Yes';
+		const no = 'No, keep them';
+		const pick = await window.showQuickPick([no, yes], { placeHolder: message });
+
+		if (pick !== yes) {
+			return;
+		}
+
+		return await this.model.clean(...this.model.workingTreeGroup.resources);
+	}
+
+	checkout(model: Model): void {
+		console.log('checkout');
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+	}
 }
 
 export function registerCommands(model: Model): Disposable {
-	const bindModel = command => (...args: any[]) => command(model, ...args);
-
-	const disposables = [
-		commands.registerCommand('git.refresh', compose(refresh, catchErrors, bindModel)),
-		commands.registerCommand('git.openChange', compose(openChange, bindModel, resolveURI)),
-		commands.registerCommand('git.openFile', compose(openFile, bindModel, resolveURI)),
-		commands.registerCommand('git.stage', compose(stage, catchErrors, bindModel, resolveURI)),
-		commands.registerCommand('git.stageAll', compose(stageAll, catchErrors, bindModel)),
-		commands.registerCommand('git.unstage', compose(unstage, catchErrors, bindModel, resolveURI)),
-		commands.registerCommand('git.unstageAll', compose(unstageAll, catchErrors, bindModel)),
-		commands.registerCommand('git.clean', compose(clean, catchErrors, bindModel, resolveURI)),
-		commands.registerCommand('git.cleanAll', compose(cleanAll, catchErrors, bindModel)),
-		commands.registerCommand('git.checkout', compose(checkout, bindModel)),
-	];
-
-	return Disposable.from(...disposables);
+	return new CommandCenter(model);
 }
