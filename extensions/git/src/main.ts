@@ -76,7 +76,6 @@ class Watcher {
 
 	@decorate(throttle)
 	private async updateModelAndWait(): Promise<void> {
-		console.log('UPDATE');
 		await this.model.update();
 		await new Promise(c => setTimeout(c, 8000));
 	}
