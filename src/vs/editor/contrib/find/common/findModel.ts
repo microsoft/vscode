@@ -6,7 +6,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ReplacePattern } from 'vs/platform/search/common/replace';
+import { ReplacePattern, parseReplaceString } from 'vs/editor/contrib/find/common/replacePattern';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -337,32 +337,11 @@ export class FindModelBoundToEditorModel {
 		this._moveToNextMatch(this._editor.getSelection().getEndPosition());
 	}
 
-	private getReplaceString(matchRange: Range): string {
+	private _getReplacePattern(): ReplacePattern {
 		if (this._state.isRegex) {
-			let searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
-			let regExp = searchParams.parseSearchRequest();
-			let replacePattern = new ReplacePattern(this._state.replaceString, true, regExp);
-			let model = this._editor.getModel();
-			let matchedString = model.getValueInRange(matchRange);
-			let replacedString = replacePattern.getReplaceString(matchedString);
-			// If matched string is not matching then regex pattern has a lookahead expression
-			if (replacedString === null) {
-				replacedString = replacePattern.getReplaceString(this._getTextToMatch(matchRange, regExp));
-			}
-			return replacedString;
+			return parseReplaceString(this._state.replaceString);
 		}
-		return this._state.replaceString;
-	}
-
-	private _getTextToMatch(matchRange: Range, regExp: RegExp): string {
-		let model = this._editor.getModel();
-		// If regex is multiline, then return the text from starting of the matching range till end of the model.
-		if (regExp.multiline) {
-			let lineCount = model.getLineCount();
-			return model.getValueInRange(new Range(matchRange.startLineNumber, matchRange.startColumn, lineCount, model.getLineMaxColumn(lineCount)));
-		}
-		// If regex is not multiline, then return the text from starting of the matching range till end of the line.
-		return model.getValueInRange(new Range(matchRange.startLineNumber, matchRange.startColumn, matchRange.endLineNumber, model.getLineMaxColumn(matchRange.endLineNumber)));
+		return ReplacePattern.fromStaticValue(this._state.replaceString);
 	}
 
 	public replace(): void {
@@ -370,13 +349,13 @@ export class FindModelBoundToEditorModel {
 			return;
 		}
 
+		let replacePattern = this._getReplacePattern();
 		let selection = this._editor.getSelection();
-		let nextMatch = this._getNextMatch(selection.getStartPosition(), true);
+		let nextMatch = this._getNextMatch(selection.getStartPosition(), replacePattern.hasReplacementPatterns);
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!
-				// TODO@Alex: use captured matches here
-				let replaceString = this.getReplaceString(selection);
+				let replaceString = replacePattern.buildReplaceString(nextMatch.matches);
 
 				let command = new ReplaceCommand(selection, replaceString);
 
@@ -402,14 +381,13 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let findScope = this._decorations.getFindScope();
-
+		let replacePattern = this._getReplacePattern();
 		// Get all the ranges (even more than the highlighted ones)
-		let matches = this._findMatches(findScope, true, Number.MAX_VALUE);
+		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Number.MAX_VALUE);
 
 		let replaceStrings: string[] = [];
 		for (let i = 0, len = matches.length; i < len; i++) {
-			// TODO@Alex: use captured matches here
-			replaceStrings.push(this.getReplaceString(matches[i].range));
+			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches);
 		}
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);
