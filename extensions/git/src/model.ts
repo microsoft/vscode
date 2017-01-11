@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup } from 'vscode';
-import { Repository, IRef, IRemote } from './git';
+import { Repository, IRef, IBranch, IRemote } from './git';
 import { throttle } from './util';
 import { decorate } from 'core-decorators';
 import * as path from 'path';
@@ -188,8 +188,8 @@ export class Model {
 		return this._repositoryRoot;
 	}
 
-	private _HEAD: IRef | undefined;
-	get HEAD(): IRef | undefined {
+	private _HEAD: IBranch | undefined;
+	get HEAD(): IBranch | undefined {
 		return this._HEAD;
 	}
 
@@ -206,7 +206,7 @@ export class Model {
 	@decorate(throttle)
 	async update(): Promise<void> {
 		const status = await this.repository.getStatus();
-		let HEAD: IRef | undefined;
+		let HEAD: IBranch | undefined;
 
 		try {
 			HEAD = await this.repository.getHEAD();
