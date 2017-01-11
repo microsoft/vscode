@@ -234,4 +234,11 @@ export interface ITerminalInstance {
 	 * @param visible Whether the element is visible.
 	 */
 	setVisible(visible: boolean): void;
+
+	/**
+	 * Attach a listener to the data stream from the terminal's pty process.
+	 *
+	 * @param listener The listener function.
+	 */
+	onData(listener: (data: string) => void): void;
 }

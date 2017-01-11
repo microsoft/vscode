@@ -426,6 +426,14 @@ export class TerminalInstance implements ITerminalInstance {
 		return env;
 	}
 
+	public onData(listener: (data: string) => void): void {
+		this._process.on('message', (message) => {
+			if (message.type === 'data') {
+				listener(message.content);
+			}
+		});
+	}
+
 	private static _sanitizeCwd(cwd: string) {
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
