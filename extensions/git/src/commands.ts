@@ -91,6 +91,7 @@ class CommandCenter {
 			commands.registerCommand('git.clean', this.clean, this),
 			commands.registerCommand('git.cleanAll', this.cleanAll, this),
 			commands.registerCommand('git.checkout', this.checkout, this),
+			commands.registerCommand('git.sync', this.sync, this),
 			commands.registerCommand('git.publish', this.publish, this),
 		);
 	}
@@ -202,6 +203,11 @@ class CommandCenter {
 		}
 
 		await choice.run(this.model);
+	}
+
+	@decorate(catchErrors)
+	async sync(): Promise<void> {
+		await this.model.sync();
 	}
 
 	@decorate(catchErrors)
