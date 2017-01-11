@@ -191,6 +191,26 @@ export class ExtHostApiCommands {
 				]
 			});
 
+		this._register('vscode.htmlPreview.postMessage', (uri: URI, message: any) => {
+			return this._commands.executeCommand('_workbench.htmlPreview.postMessage', uri, message);
+		}, {
+				description: `
+				Posts a message to a visible html preview.
+
+				The message is posted to the html preview as a \`message\` event:
+				~~~js
+				window.addEventListener('message', event => {
+					console.log(event.data);
+					...
+				}, false);
+				~~~
+			`,
+				args: [
+					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
+					{ name: 'message', description: 'Message contents' }
+				]
+			});
+
 		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
 			if (!uri) {
 				return this._commands.executeCommand('_files.openFolderPicker', forceNewWindow);
