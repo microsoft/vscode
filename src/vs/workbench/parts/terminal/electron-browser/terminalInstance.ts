@@ -434,6 +434,10 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 	}
 
+	public onExit(listener: (exitCode: number) => void): void {
+		this._process.on('exit', listener);
+	}
+
 	private static _sanitizeCwd(cwd: string) {
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
