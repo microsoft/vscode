@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
+import { FindMatch } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
@@ -13,36 +14,38 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 // --------- Find
 suite('TextModelSearch', () => {
 
-	function toArrRange(r: Range): [number, number, number, number] {
-		return [r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn];
+	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] = null): void {
+		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 
-	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: [number, number, number, number][]): void {
+	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, _expected: [number, number, number, number][]): void {
+		let expectedRanges = _expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3]));
+		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
 		let model = new TextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS));
 
-		let actualRanges = model.findMatches(searchString, false, isRegex, matchCase, wholeWord);
-		let actual = actualRanges.map(toArrRange);
+		let searchParams = new SearchParams(searchString, isRegex, matchCase, wholeWord);
 
-		assert.deepEqual(actual, expected, 'findMatches OK');
+		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), false, 1000);
+		assert.deepEqual(actual, expectedMatches, 'findMatches OK');
 
 		// test `findNextMatch`
 		let startPos = new Position(1, 1);
-		let match = TextModelSearch.findNextMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
-		assert.deepEqual(toArrRange(match), expected[0], `findNextMatch ${startPos}`);
-		for (let i = 0; i < expected.length; i++) {
-			startPos = new Position(expected[i][0], expected[i][1]);
-			match = TextModelSearch.findNextMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
-			assert.deepEqual(toArrRange(match), expected[i], `findNextMatch ${startPos}`);
+		let match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
+		assert.deepEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
+		for (let i = 0; i < expectedMatches.length; i++) {
+			startPos = expectedMatches[i].range.getStartPosition();;
+			match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
+			assert.deepEqual(match, expectedMatches[i], `findNextMatch ${startPos}`);
 		}
 
 		// test `findPrevMatch`
 		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
-		match = TextModelSearch.findPreviousMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
-		assert.deepEqual(toArrRange(match), expected[expected.length - 1], `findPrevMatch ${startPos}`);
-		for (let i = 0; i < expected.length; i++) {
-			startPos = new Position(expected[i][2], expected[i][3]);
-			match = TextModelSearch.findPreviousMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
-			assert.deepEqual(toArrRange(match), expected[i], `findPrevMatch ${startPos}`);
+		match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
+		assert.deepEqual(match, expectedMatches[expectedMatches.length - 1], `findPrevMatch ${startPos}`);
+		for (let i = 0; i < expectedMatches.length; i++) {
+			startPos = expectedMatches[i].range.getEndPosition();
+			match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
+			assert.deepEqual(match, expectedMatches[i], `findPrevMatch ${startPos}`);
 		}
 
 		model.dispose();
@@ -327,20 +330,20 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('line', false, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
-		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 6, 1, 10));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 });
-		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 }, false);
+		assertFindMatch(actual, new Range(1, 6, 1, 10));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		model.dispose();
 	});
@@ -350,17 +353,17 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('^line', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
-		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 });
-		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 }, false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		model.dispose();
 	});
@@ -370,17 +373,17 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('^line', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
-		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 });
-		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 }, false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		model.dispose();
 	});
@@ -390,14 +393,14 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('^line.*\\nline', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
-		assert.equal(new Range(1, 1, 2, 5).toString(), actual.toString());
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		assertFindMatch(actual, new Range(1, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(3, 1, 4, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(3, 1, 4, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 2, column: 1 });
-		assert.equal(new Range(2, 1, 3, 5).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 2, column: 1 }, false);
+		assertFindMatch(actual, new Range(2, 1, 3, 5));
 
 		model.dispose();
 	});
@@ -407,17 +410,90 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('line$', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
-		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		assertFindMatch(actual, new Range(1, 10, 1, 14));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 4 });
-		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 4 }, false);
+		assertFindMatch(actual, new Range(1, 10, 1, 14));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(2, 5, 2, 9).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 5, 2, 9));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
-		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 10, 1, 14));
+
+		model.dispose();
+	});
+
+	test('findMatches with capturing matches', () => {
+		let model = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let searchParams = new SearchParams('(l(in)e)', true, false, false);
+
+		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
+		assert.deepEqual(actual, [
+			new FindMatch(new Range(1, 5, 1, 9), ['line', 'line', 'in']),
+			new FindMatch(new Range(1, 10, 1, 14), ['line', 'line', 'in']),
+			new FindMatch(new Range(2, 5, 2, 9), ['line', 'line', 'in']),
+		]);
+
+		model.dispose();
+	});
+
+	test('findMatches multiline with capturing matches', () => {
+		let model = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let searchParams = new SearchParams('(l(in)e)\\n', true, false, false);
+
+		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
+		assert.deepEqual(actual, [
+			new FindMatch(new Range(1, 10, 2, 1), ['line\n', 'line', 'in']),
+			new FindMatch(new Range(2, 5, 3, 1), ['line\n', 'line', 'in']),
+		]);
+
+		model.dispose();
+	});
+
+	test('findNextMatch with capturing matches', () => {
+		let model = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let searchParams = new SearchParams('(l(in)e)', true, false, false);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(1, 5, 1, 9), ['line', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('findNextMatch multiline with capturing matches', () => {
+		let model = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let searchParams = new SearchParams('(l(in)e)\\n', true, false, false);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(1, 10, 2, 1), ['line\n', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('findPreviousMatch with capturing matches', () => {
+		let model = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let searchParams = new SearchParams('(l(in)e)', true, false, false);
+
+		let actual = TextModelSearch.findPreviousMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(2, 5, 2, 9), ['line', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('findPreviousMatch multiline with capturing matches', () => {
+		let model = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let searchParams = new SearchParams('(l(in)e)\\n', true, false, false);
+
+		let actual = TextModelSearch.findPreviousMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(2, 5, 3, 1), ['line\n', 'line', 'in']);
 
 		model.dispose();
 	});

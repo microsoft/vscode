@@ -1814,13 +1814,15 @@ export interface ITextModel {
 export class FindMatch {
 	_findMatchBrand: void;
 
-	public readonly captures: Range[];
+	public readonly range: Range;
+	public readonly matches: string[];
 
 	/**
 	 * @internal
 	 */
-	constructor(captures: Range[]) {
-		this.captures = captures;
+	constructor(range: Range, matches: string[]) {
+		this.range = range;
+		this.matches = matches;
 	}
 }
 

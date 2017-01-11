@@ -842,17 +842,19 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			searchRange = this.getFullModelRange();
 		}
 
-		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, limitResultCount);
+		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, false, limitResultCount).map(e => e.range);
 	}
 
 	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		this._assertNotDisposed();
-		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart);
+		let r = TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart, false);
+		return r ? r.range : null;
 	}
 
 	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		this._assertNotDisposed();
-		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart);
+		let r = TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart, false);
+		return r ? r.range : null;
 	}
 }
 

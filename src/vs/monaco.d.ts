@@ -2090,8 +2090,9 @@ declare module monaco.editor {
     }
 
     export class FindMatch {
-        readonly captures: Range[];
-        constructor(captures: Range[]);
+        _findMatchBrand: void;
+        readonly range: Range;
+        readonly matches: string[];
     }
 
     export interface IReadOnlyModel extends ITextModel {
