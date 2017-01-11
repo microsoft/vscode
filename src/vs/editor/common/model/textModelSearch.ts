@@ -13,7 +13,18 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 
 const LIMIT_FIND_COUNT = 999;
 
-export class TextModelSearch {
+export class SearchParams {
+	public readonly searchString: string;
+	public readonly isRegex: boolean;
+	public readonly matchCase: boolean;
+	public readonly wholeWord: boolean;
+
+	constructor(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean) {
+		this.searchString = searchString;
+		this.isRegex = isRegex;
+		this.matchCase = matchCase;
+		this.wholeWord = wholeWord;
+	}
 
 	private static _isMultilineRegexSource(searchString: string): boolean {
 		if (!searchString || searchString.length === 0) {
@@ -43,22 +54,27 @@ export class TextModelSearch {
 		return false;
 	}
 
-	public static parseSearchRequest(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean): RegExp {
-		if (searchString === '') {
+	public parseSearchRequest(): RegExp {
+		if (this.searchString === '') {
 			return null;
 		}
 
 		// Try to create a RegExp out of the params
 		let multiline: boolean;
-		if (isRegex) {
-			multiline = this._isMultilineRegexSource(searchString);
+		if (this.isRegex) {
+			multiline = SearchParams._isMultilineRegexSource(this.searchString);
 		} else {
-			multiline = (searchString.indexOf('\n') >= 0);
+			multiline = (this.searchString.indexOf('\n') >= 0);
 		}
 
 		let regex: RegExp = null;
 		try {
-			regex = strings.createRegExp(searchString, isRegex, { matchCase, wholeWord, multiline, global: true });
+			regex = strings.createRegExp(this.searchString, this.isRegex, {
+				matchCase: this.matchCase,
+				wholeWord: this.wholeWord,
+				multiline,
+				global: true
+			});
 		} catch (err) {
 			return null;
 		}
@@ -69,9 +85,12 @@ export class TextModelSearch {
 
 		return regex;
 	}
+}
 
-	public static findMatches(model: TextModel, searchString: string, searchRange: Range, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount: number): Range[] {
-		const regex = this.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+export class TextModelSearch {
+
+	public static findMatches(model: TextModel, searchParams: SearchParams, searchRange: Range, limitResultCount: number): Range[] {
+		const regex = searchParams.parseSearchRequest();
 		if (!regex) {
 			return [];
 		}
@@ -145,8 +164,8 @@ export class TextModelSearch {
 		return result;
 	}
 
-	public static findNextMatch(model: TextModel, searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
-		const regex = this.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+	public static findNextMatch(model: TextModel, searchParams: SearchParams, rawSearchStart: IPosition): Range {
+		const regex = searchParams.parseSearchRequest();
 		if (!regex) {
 			return null;
 		}
@@ -205,8 +224,8 @@ export class TextModelSearch {
 		return null;
 	}
 
-	public static findPreviousMatch(model: TextModel, searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
-		const regex = this.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+	public static findPreviousMatch(model: TextModel, searchParams: SearchParams, rawSearchStart: IPosition): Range {
+		const regex = searchParams.parseSearchRequest();
 		if (!regex) {
 			return null;
 		}

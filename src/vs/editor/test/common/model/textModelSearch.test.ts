@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelSearch } from 'vs/editor/common/model/textModelSearch';
+import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 // --------- Find
 suite('TextModelSearch', () => {
@@ -27,21 +27,21 @@ suite('TextModelSearch', () => {
 
 		// test `findNextMatch`
 		let startPos = new Position(1, 1);
-		let match = model.findNextMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+		let match = TextModelSearch.findNextMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
 		assert.deepEqual(toArrRange(match), expected[0], `findNextMatch ${startPos}`);
 		for (let i = 0; i < expected.length; i++) {
 			startPos = new Position(expected[i][0], expected[i][1]);
-			match = model.findNextMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+			match = TextModelSearch.findNextMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
 			assert.deepEqual(toArrRange(match), expected[i], `findNextMatch ${startPos}`);
 		}
 
 		// test `findPrevMatch`
 		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
-		match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+		match = TextModelSearch.findPreviousMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
 		assert.deepEqual(toArrRange(match), expected[expected.length - 1], `findPrevMatch ${startPos}`);
 		for (let i = 0; i < expected.length; i++) {
 			startPos = new Position(expected[i][2], expected[i][3]);
-			match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+			match = TextModelSearch.findPreviousMatch(model, new SearchParams(searchString, isRegex, matchCase, wholeWord), startPos);
 			assert.deepEqual(toArrRange(match), expected[i], `findPrevMatch ${startPos}`);
 		}
 
@@ -323,97 +323,108 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch without regex', () => {
-		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
 
-		let actual = testObject.findNextMatch('line', { lineNumber: 1, column: 1 }, false, false, false);
+		let searchParams = new SearchParams('line', false, false, false);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
 		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line', { lineNumber: 1, column: 3 }, false, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 });
 		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
 
-		testObject.dispose();
+		model.dispose();
 	});
 
 	test('findNextMatch with beginning boundary regex', () => {
-		var testObject = new TextModel([], TextModel.toRawText('line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModel.toRawText('line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
 
-		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		let searchParams = new SearchParams('^line', true, false, false);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
 		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 });
 		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
 
-		testObject.dispose();
+		model.dispose();
 	});
 
 	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
-		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
 
-		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		let searchParams = new SearchParams('^line', true, false, false);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
 		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 });
 		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
 
-		testObject.dispose();
+		model.dispose();
 	});
 
 	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
-		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nline three\nline four', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModel.toRawText('line line one\nline two\nline three\nline four', TextModel.DEFAULT_CREATION_OPTIONS));
 
-		let actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 1, column: 1 }, true, false, false);
+		let searchParams = new SearchParams('^line.*\\nline', true, false, false);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
 		assert.equal(new Range(1, 1, 2, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line.*\\nline', actual.getEndPosition(), true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(3, 1, 4, 5).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 2, column: 1 }, true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 2, column: 1 });
 		assert.equal(new Range(2, 1, 3, 5).toString(), actual.toString());
 
-		testObject.dispose();
+		model.dispose();
 	});
 
 	test('findNextMatch with ending boundary regex', () => {
-		var testObject = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
 
-		let actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 1 }, true, false, false);
+		let searchParams = new SearchParams('line$', true, false, false);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 });
 		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 4 }, true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 4 });
 		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(2, 5, 2, 9).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.getEndPosition());
 		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
 
-		testObject.dispose();
+		model.dispose();
 	});
 
 	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: RegExp): void {
-		let actual = TextModelSearch.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+		let searchParams = new SearchParams(searchString, isRegex, matchCase, wholeWord);
+		let actual = searchParams.parseSearchRequest();
 		assert.deepEqual(actual, expected);
 	}
 
