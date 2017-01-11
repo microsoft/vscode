@@ -127,7 +127,7 @@ export class StartAction extends AbstractDebugAction {
 		return configurationPromise.then(configuration => {
 			const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
 			if (command) {
-				return this.commandService.executeCommand(command, configuration || { request: 'launch' });
+				return this.commandService.executeCommand(command, configuration || {});
 			}
 
 			return this.commandService.executeCommand('_workbench.startDebug', configName);
@@ -726,10 +726,7 @@ export class RunAction extends AbstractDebugAction {
 		return configurationPromise.then(configuration => {
 			const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
 			if (command) {
-				return this.commandService.executeCommand(command, configuration || {
-					request: 'launch',
-					noDebug: true
-				});
+				return this.commandService.executeCommand(command, configuration || { noDebug: true });
 			}
 
 			if (configuration) {
