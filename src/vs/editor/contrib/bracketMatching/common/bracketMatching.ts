@@ -10,6 +10,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 
@@ -64,6 +65,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _lastBracketsData: BracketsData[];
 	private _lastVersionId: number;
 	private _decorations: string[];
+	private _updateBracketsSoon: RunOnceScheduler;
 
 	constructor(editor: editorCommon.ICommonCodeEditor) {
 		super();
@@ -71,10 +73,11 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._lastBracketsData = [];
 		this._lastVersionId = 0;
 		this._decorations = [];
+		this._updateBracketsSoon = this._register(new RunOnceScheduler(() => this._updateBrackets(), 50));
 
-		this._updateBrackets();
-		this._register(editor.onDidChangeCursorPosition((e) => this._updateBrackets()));
-		this._register(editor.onDidChangeModel((e) => { this._decorations = []; this._updateBrackets(); }));
+		this._updateBracketsSoon.schedule();
+		this._register(editor.onDidChangeCursorPosition((e) => this._updateBracketsSoon.schedule()));
+		this._register(editor.onDidChangeModel((e) => { this._decorations = []; this._updateBracketsSoon.schedule(); }));
 	}
 
 	public getId(): string {
