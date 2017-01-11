@@ -269,6 +269,11 @@ export class SCMViewlet extends Viewlet {
 		return 400;
 	}
 
+	focus(): void {
+		super.focus();
+		this.inputBox.focus();
+	}
+
 	private acceptThrottler = new Throttler();
 	private accept(): void {
 		this.acceptThrottler
