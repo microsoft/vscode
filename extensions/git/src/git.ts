@@ -331,7 +331,7 @@ export class Git {
 			}
 
 			if (options.log !== false) {
-				this.log(`ERROR: ${result.stderr}`);
+				this.log(`ERROR: ${result.stderr}\n`);
 			}
 
 			return Promise.reject<IExecutionResult>(new GitError({
