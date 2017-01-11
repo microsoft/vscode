@@ -62,7 +62,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			hoverProvider: true,
 			documentHighlightProvider: true,
 			documentRangeFormattingProvider: initializationOptions && initializationOptions['format.enable'],
-			documentLinkProvider: true,
+			documentLinkProvider: { resolveProvider: false },
 			documentSymbolProvider: true,
 			definitionProvider: true,
 			signatureHelpProvider: { triggerCharacters: ['('] },

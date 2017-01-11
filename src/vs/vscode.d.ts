@@ -2397,6 +2397,13 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
+		 * An optional set of characters that when pressed while this completion is active will accept it first and
+		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+		 * characters will be ignored.
+		 */
+		commitCharacters?: string[];
+
+		/**
 		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
 		 *
 		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
@@ -2814,7 +2821,7 @@ declare module 'vscode' {
 		/**
 		 * Readable dictionary that backs this configuration.
 		 */
-		readonly [key: string]: any;
+		readonly[key: string]: any;
 	}
 
 	/**

@@ -21,6 +21,7 @@ import { ICommonCodeEditor, ICursorSelectionChangedEvent, IConfigurationChangedE
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 
 const $ = dom.$;
 
@@ -117,22 +118,21 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		const allTriggerCharacters: string[] = [];
+		const triggerChars = new CharacterSet();
 		for (const support of SignatureHelpProviderRegistry.ordered(model)) {
 			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
-				allTriggerCharacters.push(...support.signatureHelpTriggerCharacters);
+				for (const ch of support.signatureHelpTriggerCharacters) {
+					triggerChars.add(ch.charCodeAt(0));
+				}
 			}
 		}
 
-		allTriggerCharacters.sort();
-		this.triggerCharactersListeners.length = 0;
-		let lastCh: string;
-		for (const ch of allTriggerCharacters) {
-			if (ch !== lastCh) {
-				lastCh = ch;
-				this.triggerCharactersListeners.push(this.editor.addTypingListener(ch, () => this.trigger()));
+		this.triggerCharactersListeners.push(this.editor.onDidType((text: string) => {
+			let lastCharCode = text.charCodeAt(text.length - 1);
+			if (triggerChars.has(lastCharCode)) {
+				this.trigger();
 			}
-		}
+		}));
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {

@@ -111,9 +111,6 @@ export class TextResourceEditor extends BaseTextEditor {
 			if (!optionsGotApplied) {
 				this.restoreViewState(input);
 			}
-
-			// Apply options again because input has changed
-			textEditor.updateOptions(this.getCodeEditorOptions());
 		});
 	}
 
@@ -126,8 +123,8 @@ export class TextResourceEditor extends BaseTextEditor {
 		}
 	}
 
-	protected getCodeEditorOptions(): IEditorOptions {
-		const options = super.getCodeEditorOptions();
+	protected getConfigurationOverrides(): IEditorOptions {
+		const options = super.getConfigurationOverrides();
 
 		const input = this.input;
 		const isUntitled = input instanceof UntitledEditorInput;

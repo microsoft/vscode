@@ -6,7 +6,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { forEach } from 'vs/base/common/collections';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -87,7 +86,7 @@ export class SuggestModel implements IDisposable {
 
 	private toDispose: IDisposable[] = [];
 	private quickSuggestDelay: number;
-	private triggerCharacterListeners: IDisposable[] = [];
+	private triggerCharacterListener: IDisposable;
 
 	private triggerAutoSuggestPromise: TPromise<void>;
 	private state: State;
@@ -139,9 +138,8 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger]);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this.triggerCharacterListener]);
 		this.toDispose = dispose(this.toDispose);
-		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
 		this.cancel();
 	}
 
@@ -157,7 +155,7 @@ export class SuggestModel implements IDisposable {
 
 	private updateTriggerCharacters(): void {
 
-		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
+		dispose(this.triggerCharacterListener);
 
 		if (this.editor.getConfiguration().readOnly
 			|| !this.editor.getModel()
@@ -181,10 +179,12 @@ export class SuggestModel implements IDisposable {
 			}
 		}
 
-		forEach(supportsByTriggerCharacter, entry => {
-			this.triggerCharacterListeners.push(this.editor.addTypingListener(entry.key, () => {
-				this.trigger(true, false, entry.value);
-			}));
+		this.triggerCharacterListener = this.editor.onDidType((text: string) => {
+			let lastChar = text.charAt(text.length - 1);
+			let supports = supportsByTriggerCharacter[lastChar];
+			if (supports) {
+				this.trigger(true, false, supports);
+			}
 		});
 	}
 
