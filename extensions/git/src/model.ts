@@ -327,6 +327,11 @@ export class Model {
 		await this.update();
 	}
 
+	async sync(): Promise<void> {
+		await this.repository.sync();
+		await this.update();
+	}
+
 	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
 		await this.repository.push(remote, name, options);
 		await this.update();
