@@ -5,13 +5,13 @@
 
 'use strict';
 
-import { scm, ExtensionContext, workspace, Uri, window, Disposable } from 'vscode';
+import { scm, ExtensionContext, workspace, Uri, window, Disposable, Event, EventEmitter } from 'vscode';
 import * as path from 'path';
 import { findGit, Git } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { registerCommands } from './commands';
-import { anyEvent, throttle } from './util';
+import { filterEvent, anyEvent, throttle } from './util';
 import * as nls from 'vscode-nls';
 import { decorate, debounce } from 'core-decorators';
 
@@ -19,7 +19,22 @@ nls.config();
 
 class TextDocumentContentProvider {
 
-	constructor(private git: Git, private rootPath: string) { }
+	private listener: Disposable;
+
+	private onDidChangeEmitter = new EventEmitter<Uri>();
+	get onDidChange(): Event<Uri> { return this.onDidChangeEmitter.event; }
+
+	private uris = new Set<Uri>();
+
+	constructor(private git: Git, private rootPath: string, onGitChange: Event<Uri>) {
+		this.listener = onGitChange(this.fireChangeEvents, this);
+	}
+
+	private fireChangeEvents(): void {
+		for (let uri of this.uris) {
+			this.onDidChangeEmitter.fire(uri);
+		}
+	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
 		const relativePath = path.relative(this.rootPath, uri.fsPath);
@@ -28,28 +43,29 @@ class TextDocumentContentProvider {
 			const result = await this.git.exec(this.rootPath, ['show', `HEAD:${relativePath}`]);
 
 			if (result.exitCode !== 0) {
+				this.uris.delete(uri);
 				return '';
 			}
 
+			this.uris.add(uri);
 			return result.stdout;
 		} catch (err) {
+			this.uris.delete(uri);
 			return '';
 		}
+	}
+
+	dispose(): void {
+		this.listener.dispose();
 	}
 }
 
 class Watcher {
 
-	private disposables: Disposable[];
+	private listener: Disposable;
 
-	constructor(private model: Model) {
-		const fsWatcher = workspace.createFileSystemWatcher('**');
-		const onFSChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
-
-		this.disposables = [
-			fsWatcher,
-			onFSChange(this.eventuallyUpdateModel, this)
-		];
+	constructor(private model: Model, onWorkspaceChange: Event<Uri>) {
+		this.listener = onWorkspaceChange(this.eventuallyUpdateModel, this);
 	}
 
 	@debounce(1000)
@@ -65,7 +81,7 @@ class Watcher {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.listener.dispose();
 	}
 }
 
@@ -88,13 +104,20 @@ async function init(disposables: Disposable[]): Promise<void> {
 	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
-	const watcher = new Watcher(model);
+	const fsWatcher = workspace.createFileSystemWatcher('**');
+	const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+	const onGitChange = filterEvent(onWorkspaceChange, uri => /^\.git\//.test(workspace.asRelativePath(uri)));
+
+	const watcher = new Watcher(model, onWorkspaceChange);
+	const textDocumentContentProvider = new TextDocumentContentProvider(git, rootPath, onGitChange);
 
 	disposables.push(
 		registerCommands(model),
 		scm.registerSCMProvider('git', provider),
-		workspace.registerTextDocumentContentProvider('git-index', new TextDocumentContentProvider(git, rootPath)),
+		workspace.registerTextDocumentContentProvider('git-index', textDocumentContentProvider),
+		textDocumentContentProvider,
 		outputChannel,
+		fsWatcher,
 		watcher
 	);
 }
