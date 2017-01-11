@@ -4403,8 +4403,6 @@ export var Handler = {
 	CreateCursor: 'createCursor',
 	LastCursorMoveToSelect: 'lastCursorMoveToSelect',
 
-	JumpToBracket: 'jumpToBracket',
-
 	Type: 'type',
 	ReplacePreviousChar: 'replacePreviousChar',
 	CompositionStart: 'compositionStart',

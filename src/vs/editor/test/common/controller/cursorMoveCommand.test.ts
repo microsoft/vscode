@@ -456,7 +456,7 @@ suite('Cursor move command test', () => {
 	});
 
 	function aCursor(viewModelHelper?: IViewModelHelper): Cursor {
-		return new Cursor(1, thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
+		return new Cursor(thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
 	}
 
 });
