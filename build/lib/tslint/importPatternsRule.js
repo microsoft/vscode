@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-var Lint = require('tslint/lib/lint');
+var Lint = require('tslint');
 var minimatch = require('minimatch');
 var Rule = (function (_super) {
     __extends(Rule, _super);

@@ -9,7 +9,7 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var ts = require('typescript');
-var Lint = require('tslint/lib/lint');
+var Lint = require('tslint');
 /**
  * Implementation of the no-unexternalized-strings rule.
  */
