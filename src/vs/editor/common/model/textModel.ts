@@ -832,7 +832,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount: number = LIMIT_FIND_COUNT): Range[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): editorCommon.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRange: Range;
@@ -842,19 +842,19 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			searchRange = this.getFullModelRange();
 		}
 
-		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, false, limitResultCount).map(e => e.range);
+		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, captureMatches, limitResultCount);
 	}
 
-	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
+	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
-		let r = TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart, false);
-		return r ? r.range : null;
+		const searchStart = this.validatePosition(rawSearchStart);
+		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);
 	}
 
-	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
+	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
-		let r = TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), rawSearchStart, false);
-		return r ? r.range : null;
+		const searchStart = this.validatePosition(rawSearchStart);
+		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);
 	}
 }
 
