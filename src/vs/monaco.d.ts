@@ -522,6 +522,10 @@ declare module monaco {
          */
         static isBeforeOrEqual(a: IPosition, b: IPosition): boolean;
         /**
+         * A function that compares positions, useful for sorting
+         */
+        static compare(a: IPosition, b: IPosition): number;
+        /**
          * Clone this position.
          */
         clone(): Position;
@@ -3391,7 +3395,6 @@ declare module monaco.editor {
         ColumnSelect: string;
         CreateCursor: string;
         LastCursorMoveToSelect: string;
-        JumpToBracket: string;
         Type: string;
         ReplacePreviousChar: string;
         CompositionStart: string;

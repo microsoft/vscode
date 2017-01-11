@@ -8,6 +8,8 @@
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
 
+import 'vs/editor/contrib/bracketMatching/common/bracketMatching';
+import 'vs/css!vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codelens/browser/codelens';
 import 'vs/editor/contrib/comment/common/comment';
@@ -31,7 +33,6 @@ import 'vs/editor/contrib/quickFix/browser/quickFix';
 import 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/smartSelect/common/smartSelect';
-import 'vs/editor/contrib/smartSelect/common/jumpToBracket';
 import 'vs/editor/contrib/snippet/common/snippet';
 import 'vs/editor/contrib/snippet/browser/snippet';
 import 'vs/editor/contrib/suggest/common/snippetCompletion';
