@@ -226,12 +226,19 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGulp(list: boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
-		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
+		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'gulp', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
-		}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
-			return null;
+		}
+		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
+			return run();
+		}, (err: any) => {
+			return this.fileService.resolveFile(this.contextService.toResource('gulpfile.babel.js')).then((stat) => {
+				return run();
+			}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
+				return null;
+			});
 		});
 	}
 
