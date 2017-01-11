@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -21,7 +21,7 @@ class ToggleWordWrapAction extends EditorAction {
 			alias: 'View: Toggle Word Wrap',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: null,
 				primary: KeyMod.Alt | KeyCode.KEY_Z
 			}
 		});
