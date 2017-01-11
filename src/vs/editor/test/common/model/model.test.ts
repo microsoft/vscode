@@ -14,6 +14,7 @@ import {
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 
 // --------- utils
 
@@ -798,7 +799,7 @@ suite('Editor Model - Find', () => {
 	});
 
 	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: RegExp): void {
-		let actual = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+		let actual = TextModelSearch.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		assert.deepEqual(actual, expected);
 	}
 

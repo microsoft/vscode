@@ -11,13 +11,13 @@ import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { FindDecorations } from './findDecorations';
 import { FindReplaceState, FindReplaceStateChangedEvent } from './findState';
 import { ReplaceAllCommand } from './replaceAllCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -323,7 +323,7 @@ export class FindModelBoundToEditorModel {
 
 		if (!nextMatch) {
 			// there is precisely one match and selection is on top of it
-			return;
+			return null;
 		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch)) {
@@ -339,7 +339,7 @@ export class FindModelBoundToEditorModel {
 
 	private getReplaceString(matchRange: Range): string {
 		if (this._state.isRegex) {
-			let regExp = TextModel.parseSearchRequest(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+			let regExp = TextModelSearch.parseSearchRequest(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 			let replacePattern = new ReplacePattern(this._state.replaceString, true, regExp);
 			let model = this._editor.getModel();
 			let matchedString = model.getValueInRange(matchRange);
