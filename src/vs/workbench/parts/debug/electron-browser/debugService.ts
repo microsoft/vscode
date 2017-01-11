@@ -131,7 +131,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			if (event.sourceConfig.launch) {
+			if (event.sourceConfig) {
 				const names = this.configurationManager.getConfigurationNames();
 				if (names.every(name => name !== this.viewModel.selectedConfigurationName)) {
 					// Current selected configuration no longer exists - take the first configuration instead.
@@ -610,6 +610,10 @@ export class DebugService implements debug.IDebugService {
 								});
 							});
 						}, err => {
+							if (!this.contextService.getWorkspace()) {
+								return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+							}
+
 							return this.configurationManager.openConfigFile(false).then(openend => {
 								if (openend) {
 									this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));

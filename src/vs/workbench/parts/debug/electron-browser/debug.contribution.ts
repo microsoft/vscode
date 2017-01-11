@@ -134,12 +134,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(IDebugService);
 		if (!configurationOrName) {
-			const viewModel = debugService.getViewModel();
-			if (!viewModel.selectedConfigurationName) {
-				const name = debugService.getConfigurationManager().getConfigurationNames().shift();
-				viewModel.setSelectedConfigurationName(name);
-			}
-			configurationOrName = viewModel.selectedConfigurationName;
+			configurationOrName = debugService.getViewModel().selectedConfigurationName;
 		}
 
 		return debugService.createProcess(configurationOrName);

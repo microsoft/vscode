@@ -11,7 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IProcess, SessionRequestType, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
+import { IDebugService, State, IProcess, SessionRequestType, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, IConfig }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -92,11 +92,11 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = this.debugService.getViewModel().selectedConfigurationName ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
-	protected isEnabled(): boolean {
-		return !!this.contextService.getWorkspace();
-	}
-
 	public run(event?: any): TPromise<any> {
+		if (!this.contextService.getWorkspace()) {
+			return TPromise.as(null);
+		}
+
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		return this.debugService.getConfigurationManager().openConfigFile(sideBySide);
 	}
@@ -106,7 +106,12 @@ export class StartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService, @ICommandService private commandService: ICommandService) {
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 		this.debugService.getViewModel().onDidSelectConfiguration(() => {
 			this.updateEnablement();
@@ -114,7 +119,19 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand('_workbench.startDebug', this.debugService.getViewModel().selectedConfigurationName);
+		const manager = this.debugService.getConfigurationManager();
+		const configName = this.debugService.getViewModel().selectedConfigurationName;
+		const configurationPromise: TPromise<IConfig> = configName && this.contextService.getWorkspace() ?
+			manager.getConfiguration(configName) : TPromise.as(null);
+
+		return configurationPromise.then(configuration => {
+			const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
+			if (command) {
+				return this.commandService.executeCommand(command, configuration || { request: 'launch' });
+			}
+
+			return this.commandService.executeCommand('_workbench.startDebug', configName);
+		});
 	}
 
 	// Disabled if the launch drop down shows the launch config that is already running.
@@ -691,15 +708,33 @@ export class RunAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.run';
 	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.getConfigurationManager().getConfiguration(this.debugService.getViewModel().selectedConfigurationName).then(configuration => {
+		const manager = this.debugService.getConfigurationManager();
+		const configName = this.debugService.getViewModel().selectedConfigurationName;
+		const configurationPromise: TPromise<IConfig> = configName && this.contextService.getWorkspace() ?
+			manager.getConfiguration(configName) : TPromise.as(null);
+
+		return configurationPromise.then(configuration => {
+			const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
+			if (command) {
+				return this.commandService.executeCommand(command, configuration || {
+					request: 'launch',
+					noDebug: true
+				});
+			}
+
 			if (configuration) {
 				configuration.noDebug = true;
-				return this.debugService.createProcess(configuration);
+				return this.commandService.executeCommand('_workbench.startDebug', configuration);
 			}
 		});
 	}
