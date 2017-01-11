@@ -235,7 +235,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					this.onModelTokensChanged(<editorCommon.IModelTokensChangedEvent>data);
 					break;
 
-				case editorCommon.EventType.ModelModeChanged:
+				case editorCommon.EventType.ModelLanguageChanged:
 					// That's ok, a model tokens changed event will follow shortly
 					break;
 

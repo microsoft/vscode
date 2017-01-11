@@ -19,7 +19,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent } from 'vs/editor/browser/editorDom';
 import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EditorZoom } from 'vs/editor/common/config/commonEditorConfig';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
 /**

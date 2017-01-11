@@ -64,7 +64,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService
 	) {
-		super(id);
+		super(id, { hasTitle: false });
 
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
@@ -350,7 +350,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Case: we closed the last visible viewlet
 		// Solv: we hide the sidebar
 		else if (visibleViewlets.length === 1) {
-			unpinPromise = TPromise.as(this.partService.setSideBarHidden(true));
+			unpinPromise = this.partService.setSideBarHidden(true);
 		}
 
 		// Case: we closed the default viewlet

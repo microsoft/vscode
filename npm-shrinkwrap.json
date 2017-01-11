@@ -410,9 +410,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.15.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.3.2",
-      "from": "vscode-textmate@2.3.2",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.3.2.tgz"
+      "version": "3.1.0",
+      "from": "vscode-textmate@3.1.0",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.0.tgz"
     },
     "windows-foreground-love": {
       "version": "0.1.0",
@@ -432,7 +432,7 @@
     "xterm": {
       "version": "2.2.3",
       "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.9",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#01dd436a56ee2370fa9b5aa5bc2e138b22799eda"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#7fcf6d1bcdaa0df9905673251f5f9336798932e5"
     },
     "yauzl": {
       "version": "2.3.1",

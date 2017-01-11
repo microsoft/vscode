@@ -4,45 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Arrays } from 'vs/editor/common/core/arrays';
+import { IState } from 'vs/editor/common/modes';
 
 export class Token {
 	_tokenBrand: void;
 
-	public readonly startIndex: number;
+	public readonly offset: number;
 	public readonly type: string;
+	public readonly language: string;
 
-	constructor(startIndex: number, type: string) {
-		this.startIndex = startIndex | 0;// @perf
+	constructor(offset: number, type: string, language: string) {
+		this.offset = offset | 0;// @perf
 		this.type = type;
+		this.language = language;
 	}
 
 	public toString(): string {
-		return '(' + this.startIndex + ', ' + this.type + ')';
+		return '(' + this.offset + ', ' + this.type + ')';
 	}
+}
 
-	public equals(other: Token): boolean {
-		return (
-			this.startIndex === other.startIndex
-			&& this.type === other.type
-		);
+export class TokenizationResult {
+	_tokenizationResultBrand: void;
+
+	public readonly tokens: Token[];
+	public readonly endState: IState;
+
+	constructor(tokens: Token[], endState: IState) {
+		this.tokens = tokens;
+		this.endState = endState;
 	}
+}
 
-	public static findIndexInSegmentsArray(arr: Token[], desiredIndex: number): number {
-		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
-	}
+export class TokenizationResult2 {
+	_tokenizationResult2Brand: void;
 
-	public static equalsArray(a: Token[], b: Token[]): boolean {
-		let aLen = a.length;
-		let bLen = b.length;
-		if (aLen !== bLen) {
-			return false;
-		}
-		for (let i = 0; i < aLen; i++) {
-			if (!a[i].equals(b[i])) {
-				return false;
-			}
-		}
-		return true;
+	/**
+	 * The tokens in binary format. Each token occupies two array indices. For token i:
+	 *  - at offset 2*i => startIndex
+	 *  - at offset 2*i + 1 => metadata
+	 *
+	 */
+	public readonly tokens: Uint32Array;
+	public readonly endState: IState;
+
+	constructor(tokens: Uint32Array, endState: IState) {
+		this.tokens = tokens;
+		this.endState = endState;
 	}
 }

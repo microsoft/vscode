@@ -83,7 +83,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	/**
 	 * Called to create the editor in the parent builder.
 	 */
-	public abstract createEditor(parent: Builder): void;
+	protected abstract createEditor(parent: Builder): void;
 
 	/**
 	 * Overload this function to allow for passing in a position argument.
@@ -99,7 +99,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return promise;
 	}
 
-	public setEditorVisible(visible: boolean, position: Position = null): void {
+	protected setEditorVisible(visible: boolean, position: Position = null): void {
 		this._position = position;
 	}
 

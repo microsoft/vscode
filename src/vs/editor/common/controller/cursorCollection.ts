@@ -330,7 +330,7 @@ export class CursorCollection {
 
 		let electricChars: string[] = null;
 		try {
-			electricChars = LanguageConfigurationRegistry.getElectricCharacters(this.model.getMode().getId());
+			electricChars = LanguageConfigurationRegistry.getElectricCharacters(this.model.getLanguageIdentifier().id);
 		} catch (e) {
 			onUnexpectedError(e);
 			electricChars = null;
@@ -343,7 +343,7 @@ export class CursorCollection {
 
 		let autoClosingPairs: IAutoClosingPair[];
 		try {
-			autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(this.model.getMode().getId());
+			autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(this.model.getLanguageIdentifier().id);
 		} catch (e) {
 			onUnexpectedError(e);
 			autoClosingPairs = null;
@@ -357,7 +357,7 @@ export class CursorCollection {
 
 		let surroundingPairs: IAutoClosingPair[];
 		try {
-			surroundingPairs = LanguageConfigurationRegistry.getSurroundingPairs(this.model.getMode().getId());
+			surroundingPairs = LanguageConfigurationRegistry.getSurroundingPairs(this.model.getLanguageIdentifier().id);
 		} catch (e) {
 			onUnexpectedError(e);
 			surroundingPairs = null;

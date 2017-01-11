@@ -9,7 +9,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IDimension, FontInfo, BareFontInfo } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/editorCommon';
+import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FastDomNode } from 'vs/base/browser/styleMutator';
 
@@ -39,6 +40,10 @@ class CSSBasedConfigurationCache {
 	public getKeys(): BareFontInfo[] {
 		return Object.keys(this._keys).map(id => this._keys[id]);
 	}
+}
+
+export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
+	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 }
 
 class CSSBasedConfiguration extends Disposable {

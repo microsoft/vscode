@@ -39,7 +39,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
 	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent2> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged2);
-	public readonly onDidChangeModelMode: Event<editorCommon.IModelModeChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelModeChanged);
+	public readonly onDidChangeModelLanguage: Event<editorCommon.IModelLanguageChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelLanguageChanged);
 	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelOptionsChanged);
 	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelDecorationsChanged);
 	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ConfigurationChanged);
@@ -51,6 +51,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public readonly onDidFocusEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorFocus);
 	public readonly onDidBlurEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorBlur);
 	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
+	public readonly onWillType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.WillType);
+	public readonly onDidType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.DidType);
 
 	protected domElement: IContextKeyServiceTarget;
 
@@ -569,6 +571,23 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public trigger(source: string, handlerId: string, payload: any): void {
 		payload = payload || {};
+
+		// Special case for typing
+		if (handlerId === editorCommon.Handler.Type) {
+			if (!this.cursor || typeof payload.text !== 'string' || payload.text.length === 0) {
+				// nothing to do
+				return;
+			}
+			if (source === 'keyboard') {
+				this.emit(editorCommon.EventType.WillType, payload.text);
+			}
+			this.cursor.trigger(source, handlerId, payload);
+			if (source === 'keyboard') {
+				this.emit(editorCommon.EventType.DidType, payload.text);
+			}
+			return;
+		}
+
 		let candidate = this.getAction(handlerId);
 		if (candidate !== null) {
 			TPromise.as(candidate.run()).done(null, onUnexpectedError);
@@ -712,24 +731,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 	}
 
-	public addTypingListener(character: string, callback: () => void): IDisposable {
-		if (!this.cursor) {
-			return {
-				dispose: () => {
-					// no-op
-				}
-			};
-		}
-		this.cursor.addTypingListener(character, callback);
-		return {
-			dispose: () => {
-				if (this.cursor) {
-					this.cursor.removeTypingListener(character, callback);
-				}
-			}
-		};
-	}
-
 	public getLayoutInfo(): editorCommon.EditorLayoutInfo {
 		return this._configuration.editor.layoutInfo;
 	}
@@ -741,7 +742,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this.cursor = null;
 
 		if (this.model) {
-			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
+			this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
 
 			this.model.onBeforeAttached();
@@ -877,9 +878,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
 							break;
 
-						case editorCommon.EventType.ModelModeChanged:
-							this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
-							this.emit(editorCommon.EventType.ModelModeChanged, e);
+						case editorCommon.EventType.ModelLanguageChanged:
+							this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
+							this.emit(editorCommon.EventType.ModelLanguageChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelRawContentChanged:

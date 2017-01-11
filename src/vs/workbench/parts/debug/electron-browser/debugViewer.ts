@@ -174,7 +174,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 }
 
 function getSourceName(source: Source, contextService: IWorkspaceContextService): string {
-	if (source.inMemory) {
+	if (source.name) {
 		return source.name;
 	}
 

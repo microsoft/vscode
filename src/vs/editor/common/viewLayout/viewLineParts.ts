@@ -59,7 +59,7 @@ export function getColumnOfLinePartOffset(stopRenderingLineAfter: number, linePa
 
 	// invariant: offsetOf(min) <= offset <= offsetOf(max)
 	while (min + 1 < max) {
-		let mid = Math.floor((min + max) / 2);
+		let mid = ((min + max) >>> 1);
 		let midOffset = charOffsetInPart[mid];
 
 		if (midOffset === offset) {

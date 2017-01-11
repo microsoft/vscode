@@ -2,6 +2,12 @@
 	"name": "Dark Visual Studio",
 	"settings": [
 		{
+			"settings": {
+				"foreground": "#D4D4D4",
+				"background": "#1E1E1E"
+			}
+		},
+		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"
@@ -45,7 +51,11 @@
 			}
 		},
 		{
-			"scope": "constant.rgb-value",
+			"scope": [
+				"constant.other.color.rgb-value.css",
+				"constant.numeric.color.rgb-value.scss",
+				"constant.other.rgb-value.css"
+			],
 			"settings": {
 				"foreground": "#d4d4d4"
 			}
@@ -57,7 +67,7 @@
 			}
 		},
 		{
-			"scope": "entity.name.selector",
+			"scope": "entity.name.tag.css",
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -69,7 +79,19 @@
 			}
 		},
 		{
-			"scope": "entity.other.attribute-name.css",
+			"scope": [
+				"entity.other.attribute-name.class.css",
+				"entity.other.attribute-name.class.mixin.css",
+				"entity.other.attribute-name.id.css",
+				"entity.other.attribute-name.parent-selector.css",
+				"entity.other.attribute-name.pseudo-class.css",
+				"entity.other.attribute-name.pseudo-element.css",
+
+				"source.css.less entity.other.attribute-name.id",
+
+				"entity.other.attribute-name.attribute.scss",
+				"entity.other.attribute-name.scss"
+			],
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -125,13 +147,13 @@
 			}
 		},
 		{
-			"scope": "markup.punctuation.quote.beginning",
+			"scope": "beginning.punctuation.definition.quote.markdown",
 			"settings": {
 				"foreground": "#608b4e"
 			}
 		},
 		{
-			"scope": "markup.punctuation.list.beginning",
+			"scope": "beginning.punctuation.definition.list.markdown",
 			"settings": {
 				"foreground": "#6796e6"
 			}
@@ -180,7 +202,7 @@
 			}
 		},
 		{
-			"scope": "meta.header.diff",
+			"scope": "meta.diff.header",
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -229,7 +251,10 @@
 		},
 		{
 			"name": "JavaScript string interpolation ${}",
-			"scope": "string.template-expression",
+			"scope": [
+				"punctuation.definition.template-expression.begin.ts",
+				"punctuation.definition.template-expression.end.ts"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -271,8 +296,10 @@
 			}
 		},
 		{
-			"name": "coloring of the PHP start and end tag (<?php and ?>)",
-			"scope": ["punctuation.section.embedded.begin.metatag.php", "punctuation.section.embedded.end.metatag.php"],
+			"scope": [
+				"punctuation.section.embedded.begin.metatag.php",
+				"punctuation.section.embedded.end.metatag.php"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}

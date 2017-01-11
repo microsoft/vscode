@@ -62,12 +62,10 @@ export interface ProblemPattern {
 
 	loop?: boolean;
 
-	mostSignifikant?: boolean;
-
 	[key: string]: any;
 }
 
-export let problemPatternProperties = ['file', 'message', 'location', 'line', 'column', 'endLine', 'endColumn', 'code', 'severity', 'loop', 'mostSignifikant'];
+export let problemPatternProperties = ['file', 'message', 'location', 'line', 'column', 'endLine', 'endColumn', 'code', 'severity', 'loop'];
 
 export interface WatchingPattern {
 	regexp: RegExp;

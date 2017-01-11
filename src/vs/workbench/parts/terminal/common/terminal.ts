@@ -79,11 +79,13 @@ export interface ITerminalFont {
 	charHeight: number;
 }
 
-export interface IShell {
+export interface IShellLaunchConfig {
 	executable: string;
 	args: string[];
 	/** Whether to ignore a custom cwd (if the shell is being launched by an extension) */
 	ignoreCustomCwd?: boolean;
+	/** Whether to wait for a key press before closing the terminal */
+	waitOnExit?: boolean;
 }
 
 export interface ITerminalService {
@@ -98,7 +100,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomCwd?: boolean): ITerminalInstance;
+	createInstance(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean, ignoreCustomCwd?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
