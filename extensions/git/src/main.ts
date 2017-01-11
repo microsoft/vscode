@@ -11,6 +11,7 @@ import { findGit, Git } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { registerCommands } from './commands';
+import { StatusBar } from './statusbar';
 import { filterEvent, anyEvent, throttle } from './util';
 import * as nls from 'vscode-nls';
 import { decorate, debounce } from 'core-decorators';
@@ -111,6 +112,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const watcher = new Watcher(model, onWorkspaceChange);
 	const textDocumentContentProvider = new TextDocumentContentProvider(git, rootPath, onGitChange);
 
+	const statusBar = new StatusBar(model);
+
 	disposables.push(
 		registerCommands(model),
 		scm.registerSCMProvider('git', provider),
@@ -118,7 +121,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 		textDocumentContentProvider,
 		outputChannel,
 		fsWatcher,
-		watcher
+		watcher,
+		statusBar
 	);
 }
 

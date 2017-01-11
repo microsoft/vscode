@@ -8,7 +8,7 @@
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup } from 'vscode';
 import { Repository, IRef, IRemote } from './git';
 import { throttle } from './util';
-import { decorate, debounce } from 'core-decorators';
+import { decorate } from 'core-decorators';
 import * as path from 'path';
 
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
