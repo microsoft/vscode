@@ -920,7 +920,7 @@ export class DebugService implements debug.IDebugService {
 			return session.setBreakpoints({
 				source: rawSource,
 				lines: breakpointsToSend.map(bp => bp.lineNumber),
-				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition, column: bp.column })),
+				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition })),
 				sourceModified
 			}).then(response => {
 				if (!response || !response.body) {
