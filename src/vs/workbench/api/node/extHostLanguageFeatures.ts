@@ -514,7 +514,8 @@ class SuggestAdapter {
 			//
 			insertText: undefined,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TypeConverters.TextEdit.from),
-			command: this._commands.toInternal(item.command)
+			command: this._commands.toInternal(item.command),
+			commitCharacters: item.commitCharacters
 		};
 
 		// 'insertText'-logic

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, { Emitter } from 'vs/base/common/event';
+import * as errors from 'vs/base/common/errors';
 import platform = require('vs/base/common/platform');
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -190,7 +191,7 @@ export class TerminalService implements ITerminalService {
 	public hidePanel(): void {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true);
+			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
 		}
 	}
 
