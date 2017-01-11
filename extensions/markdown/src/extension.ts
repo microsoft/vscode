@@ -185,6 +185,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const token = tokens[idx];
 			if (token.level === 0 && token.map && token.map.length) {
 				token.attrSet('data-line', token.map[0]);
+				token.attrJoin('class', 'line');
 			}
 			return self.renderToken(tokens, idx, options, env, self);
 		}
