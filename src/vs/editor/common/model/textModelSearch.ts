@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IPosition } from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
@@ -145,7 +145,7 @@ export class TextModelSearch {
 		return result;
 	}
 
-	public static findNextMatch(model: TextModel, searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
+	public static findNextMatch(model: TextModel, searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		const regex = this.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
@@ -160,7 +160,7 @@ export class TextModelSearch {
 	}
 
 	private static _doFindNextMatchMultiline(model: TextModel, searchStart: Position, searchRegex: RegExp): Range {
-		const searchTextStart: editorCommon.IPosition = { lineNumber: searchStart.lineNumber, column: 1 };
+		const searchTextStart: IPosition = { lineNumber: searchStart.lineNumber, column: 1 };
 		const deltaOffset = model.getOffsetAt(searchTextStart);
 		const lineCount = model.getLineCount();
 		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)));
@@ -205,7 +205,7 @@ export class TextModelSearch {
 		return null;
 	}
 
-	public static findPreviousMatch(model: TextModel, searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
+	public static findPreviousMatch(model: TextModel, searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		const regex = this.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
