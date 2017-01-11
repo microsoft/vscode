@@ -238,7 +238,16 @@ export interface ITerminalInstance {
 	/**
 	 * Attach a listener to the data stream from the terminal's pty process.
 	 *
-	 * @param listener The listener function.
+	 * @param listener The listener function which takes the processes' data stream (including
+	 * ANSI escape sequences).
 	 */
 	onData(listener: (data: string) => void): void;
+
+	/**
+	 * Attach a listener that fires when the terminal's pty process exits.
+	 *
+	 * @param listener The listener function which takes the processes' exit code, an exit code of
+	 * null means the process was killed as a result of the ITerminalInstance being disposed.
+	 */
+	onExit(listener: (exitCode: number) => void): void;
 }
