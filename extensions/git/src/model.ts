@@ -296,6 +296,10 @@ export class Model {
 	}
 
 	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+		if (opts.all) {
+			await this.repository.add([]);
+		}
+
 		await this.repository.commit(message, opts);
 		await this.updateNow();
 	}
