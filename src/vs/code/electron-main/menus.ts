@@ -846,9 +846,10 @@ export class VSCodeMenu {
 
 		const keyboardShortcutsUrl = platform.isLinux ? product.keyboardShortcutsUrlLinux : platform.isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
-			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.openUrl(product.documentationUrl, 'openDocumentationUrl') }) : null,
+			new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.welcomePage') }),
+			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openDocumentationUrl') }) : null,
 			product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
-			(product.documentationUrl || product.releaseNotesUrl) ? __separator__() : null,
+			__separator__(),
 			keyboardShortcutsUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.keybindingsReference') }) : null,
 			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.openUrl(product.introductoryVideosUrl, 'openIntroductoryVideosUrl') }) : null,
 			(product.introductoryVideosUrl || keyboardShortcutsUrl) ? __separator__() : null,

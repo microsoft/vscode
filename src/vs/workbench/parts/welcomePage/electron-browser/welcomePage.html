@@ -1,0 +1,43 @@
+<link href="../../parts/welcomePage/electron-browser/welcomePage.css" rel="stylesheet"></link>
+<div class="welcomePage">
+	<div class="splash">
+		<div class="title">
+			<h1><img class="vscode-icon" src="../../parts/welcomePage/electron-browser/code.png" />Visual Studio Code</h1>
+			<h2><a href="https://code.visualstudio.com">Editing Evolved</a></h2>
+		</div>
+		<div class="start">
+			<p>Start:</p>
+			<ul>
+				<li><a href="command:workbench.action.files.openFileFolder">Open Folder...</a></li>
+				<li><a href="command:workbench.action.git.clone">Open from Git Repository...</a></li>
+			</ul>
+		</div>
+		<div class="recent">
+			<p>Recent:</p>
+			<ul>
+				<!-- Filled programmatically -->
+			</ul>
+		</div>
+		<div class="help">
+			<p>Find help:</p>
+			<ul>
+				<li><a href="command:workbench.action.openDocumentationUrl">VSCode docs</a> for guides and videos.</li>
+				<li><a href="https://gitter.im/Microsoft/vscode">Gitter channel</a> for discussions.</li>
+				<li><a href="https://github.com/Microsoft/vscode">GitHub repository</a> for browsing source code and <a href="command:workbench.action.reportIssues">reporting issues</a>.</li>
+				<!-- TODO: Use commands -->
+			</ul>
+		</div>
+		<p class="showOnStartup"><input type="checkbox" id="showOnStartup"> <label for="showOnStartup">Show Welcome Page on Startup</label></p>
+	</div>
+	<div class="commands">
+		<h3>Welcome to Visual Studio Code!</h3>
+		<ul>
+			<li><button data-href="command:workbench.action.weclomeOverlay">What is What?</button></li>
+			<li><button data-href="command:workbench.action.selectTheme">Choose Color Theme</button></li>
+			<li><button data-href="command:workbench.action.keybindingsReference">Keyboard Shortcut Reference</button></li>
+			<li><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions">Choose Keyboard Shortcuts</button></li>
+			<li><button data-href="command:workbench.action.editorWalkThrough">Try Editor Features</button></li>
+			<li><button data-href="command:workbench.action.showCommands">Show All Commands</button></li>
+		</ul>
+	</div>
+</div>

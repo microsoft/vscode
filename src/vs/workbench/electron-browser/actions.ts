@@ -740,6 +740,27 @@ export class KeybindingsReferenceAction extends Action {
 	}
 }
 
+export class OpenDocumentationUrlAction extends Action {
+
+	public static ID = 'workbench.action.openDocumentationUrl';
+	public static LABEL = nls.localize('openDocumentationUrl', "Documentation");
+
+	private static URL = product.documentationUrl;
+	public static AVAILABLE = !!OpenDocumentationUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(OpenDocumentationUrlAction.URL);
+		return null;
+	}
+}
+
 // --- commands
 
 CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string]) {
