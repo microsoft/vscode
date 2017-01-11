@@ -1,0 +1,119 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .welcomeOverlay {
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	height: 100%;
+	width: 100%;
+	z-index: 9999;
+	background: rgba(0,0,0,0.5);
+}
+
+.monaco-workbench > .welcomeOverlay > .key {
+	font-family: "Lucida Grande", sans-serif;
+	font-size: 20px;
+	color: #FFF;
+}
+
+.monaco-workbench > .welcomeOverlay > .key > .label {
+	padding: 0 1ex;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.explorer {
+	position: absolute;
+	top: 13px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.search {
+	position: absolute;
+	top: 63px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.git {
+	position: absolute;
+	top: 113px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.debug {
+	position: absolute;
+	top: 163px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.extensions {
+	position: absolute;
+	top: 213px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.watermark {
+	position: absolute;
+	top: calc(50% + 30px);
+	left: calc(50% + 30px);
+}
+
+.monaco-workbench > .welcomeOverlay > .key.watermark > .label {
+	vertical-align: super;
+}
+
+@media (max-height: 500px) {
+	.monaco-workbench > .welcomeOverlay > .key.watermark {
+		display: none;
+	}
+}
+
+.monaco-workbench > .welcomeOverlay > .key.problems {
+	position: absolute;
+	bottom: 25px;
+	left: 45px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.problems > .label {
+	vertical-align: super;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.openfile {
+	position: absolute;
+	bottom: 25px;
+	right: 45px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.openfile > .label {
+	vertical-align: super;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.commandPalette {
+	position: absolute;
+	top: 42px;
+	left: 50%;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.commandPalette > .label {
+	vertical-align: sub;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.commandPalette > .shortcut {
+	padding-left: 0.5em;
+	vertical-align: sub;
+}
+
+.monaco-workbench.mac > .welcomeOverlay > .key.commandPalette > .shortcut {
+	letter-spacing: 0.15em;
+	font-family: "Lucida Grande", sans-serif;
+}
+
+.monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
+	position: absolute;
+	top: 2px;
+	left: calc(50% - 200px);
+	width: 400px;
+	height: 26px;
+	border: 3px dashed white;
+}
