@@ -14,6 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/platform/editor/common/editor';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -340,7 +341,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
-	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
+	public openConfigFile(sideBySide: boolean): TPromise<IEditor> {
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
 		let configFileCreated = false;
 
@@ -370,7 +371,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				}))
 			.then(errorFree => {
 				if (!errorFree) {
-					return false;
+					return undefined;
 				}
 				this.telemetryService.publicLog('debugConfigure');
 
@@ -381,7 +382,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 						pinned: configFileCreated, // pin only if config file is created #8727
 						revealIfVisible: true
 					},
-				}, sideBySide).then(() => true);
+				}, sideBySide);
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
