@@ -105,6 +105,16 @@
       ],
       "scm/resourceGroup/context": [
         {
+          "command": "git.stageAll",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stageAll",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "inline"
+        },
+        {
           "command": "git.unstageAll",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "1_modification"
@@ -136,6 +146,16 @@
         }
       ],
       "scm/resource/context": [
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "inline"
+        },
         {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == index",
