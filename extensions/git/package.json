@@ -98,6 +98,11 @@
         "command": "git.publish",
         "title": "Publish",
         "category": "Git"
+      },
+      {
+        "command": "git.sync",
+        "title": "Sync",
+        "category": "Git"
       }
     ],
     "menus": {
