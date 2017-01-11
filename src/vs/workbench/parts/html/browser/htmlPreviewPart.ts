@@ -72,7 +72,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.dispose();
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
 		this._container.style.paddingLeft = '20px';
 		parent.getHTMLElement().appendChild(this._container);
@@ -101,7 +101,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.changePosition(position);
 	}
 
-	public setEditorVisible(visible: boolean, position?: Position): void {
+	protected setEditorVisible(visible: boolean, position?: Position): void {
 		this._doSetVisible(visible);
 		super.setEditorVisible(visible, position);
 	}

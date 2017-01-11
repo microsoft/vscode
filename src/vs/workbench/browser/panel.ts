@@ -84,8 +84,7 @@ export abstract class TogglePanelAction extends Action {
 	public run(): TPromise<any> {
 
 		if (this.isPanelShowing()) {
-			this.partService.setPanelHidden(true);
-			return TPromise.as(true);
+			return this.partService.setPanelHidden(true);
 		}
 
 		return this.panelService.openPanel(this.panelId, true);

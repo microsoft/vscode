@@ -184,7 +184,7 @@ export abstract class MainThreadOutputServiceShape {
 }
 
 export abstract class MainThreadTerminalServiceShape {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): TPromise<number> { throw ni(); }
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean): TPromise<number> { throw ni(); }
 	$dispose(terminalId: number): void { throw ni(); }
 	$hide(terminalId: number): void { throw ni(); }
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void { throw ni(); }

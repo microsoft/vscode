@@ -11,13 +11,13 @@ import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { FindDecorations } from './findDecorations';
 import { FindReplaceState, FindReplaceStateChangedEvent } from './findState';
 import { ReplaceAllCommand } from './replaceAllCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -266,12 +266,8 @@ export class FindModelBoundToEditorModel {
 		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
 	}
 
-	private _moveToNextMatch(nextMatch: Range): void
-	private _moveToNextMatch(after: Position): void
-	private _moveToNextMatch(arg: any): void {
-		// @sandeep TS(2.0.2) - Adding cast to keep semantic. Necessary since the test are for interface but the code expects
-		// implemations.
-		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg as Position) : null;
+	private _moveToNextMatch(after: Position): void {
+		let nextMatch = this._getNextMatch(after);
 		if (nextMatch) {
 			this._setCurrentFindMatch(nextMatch as Range);
 		}
@@ -327,7 +323,7 @@ export class FindModelBoundToEditorModel {
 
 		if (!nextMatch) {
 			// there is precisely one match and selection is on top of it
-			return;
+			return null;
 		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch)) {
@@ -343,7 +339,8 @@ export class FindModelBoundToEditorModel {
 
 	private getReplaceString(matchRange: Range): string {
 		if (this._state.isRegex) {
-			let regExp = TextModel.parseSearchRequest(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+			let searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+			let regExp = searchParams.parseSearchRequest();
 			let replacePattern = new ReplacePattern(this._state.replaceString, true, regExp);
 			let model = this._editor.getModel();
 			let matchedString = model.getValueInRange(matchRange);
@@ -388,7 +385,7 @@ export class FindModelBoundToEditorModel {
 				this.research(true);
 			} else {
 				this._decorations.setStartPosition(this._editor.getPosition());
-				this._moveToNextMatch(nextMatch);
+				this._setCurrentFindMatch(nextMatch);
 			}
 		}
 	}

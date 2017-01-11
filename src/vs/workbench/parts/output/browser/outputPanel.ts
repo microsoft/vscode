@@ -75,8 +75,8 @@ export class OutputPanel extends TextResourceEditor {
 		return super.getActionItem(action);
 	}
 
-	protected getCodeEditorOptions(): IEditorOptions {
-		const options = super.getCodeEditorOptions();
+	protected getConfigurationOverrides(): IEditorOptions {
+		const options = super.getConfigurationOverrides();
 		options.wrappingColumn = 0;				// all output editors wrap
 		options.lineNumbers = 'off';			// all output editors hide line numbers
 		options.glyphMargin = false;
@@ -96,7 +96,7 @@ export class OutputPanel extends TextResourceEditor {
 		return super.setInput(input, options).then(() => this.revealLastLine());
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 
 		// First create the scoped instantation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());

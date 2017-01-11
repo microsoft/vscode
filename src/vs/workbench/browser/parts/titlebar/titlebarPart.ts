@@ -35,7 +35,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWindowService private windowService: IWindowService,
 		@IWindowsService private windowsService: IWindowsService
 	) {
-		super(id);
+		super(id, { hasTitle: false });
 
 		this.registerListeners();
 	}

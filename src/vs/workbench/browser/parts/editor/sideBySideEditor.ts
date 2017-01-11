@@ -39,7 +39,7 @@ export class SideBySideEditor extends BaseEditor {
 		super(SideBySideEditor.ID, telemetryService);
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 		const parentElement = parent.getHTMLElement();
 		DOM.addClass(parentElement, 'side-by-side-editor');
 		this.createSash(parentElement);
@@ -51,7 +51,7 @@ export class SideBySideEditor extends BaseEditor {
 			.then(() => this.updateInput(oldInput, newInput, options));
 	}
 
-	public setEditorVisible(visible: boolean, position: Position): void {
+	protected setEditorVisible(visible: boolean, position: Position): void {
 		if (this.masterEditor) {
 			this.masterEditor.setVisible(visible, position);
 		}

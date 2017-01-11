@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-var fs = require('fs');
-var ts = require('typescript');
-var path = require('path');
+var fs = require("fs");
+var ts = require("typescript");
+var path = require("path");
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
