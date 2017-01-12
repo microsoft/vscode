@@ -7,12 +7,9 @@
 
 import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
 import { IRef, RefType } from './git';
-import { Model, Resource } from './model';
-import { log } from './util';
+import { Model, Resource, Status } from './model';
 import { decorate } from 'core-decorators';
 import * as path from 'path';
-
-type Command = (...args: any[]) => any;
 
 function catchErrors(fn: (...args) => Promise<any>): (...args) => void {
 	return (...args) => fn.call(this, ...args).catch(async err => {
@@ -124,14 +121,93 @@ export class CommandCenter {
 		return await this.model.update();
 	}
 
-	openChange(uri: Uri): void {
+	@decorate(catchErrors)
+	async openChange(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
-		log('open change', resource);
+
+		if (!resource) {
+			return;
+		}
+
+		return this.open(resource);
 	}
 
-	openFile(uri: Uri): void {
+	async open(resource: Resource): Promise<void> {
+		const left = this.getLeftResource(resource);
+		const right = this.getRightResource(resource);
+		const title = this.getTitle(resource);
+
+		if (!left) {
+			if (!right) {
+				// TODO
+				console.error('oh no');
+				return;
+			}
+
+			return commands.executeCommand<void>('vscode.open', right);
+		}
+
+		return commands.executeCommand<void>('vscode.diff', left, right, title);
+	}
+
+	private getLeftResource(resource: Resource): Uri | undefined {
+		switch (resource.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.INDEX_RENAMED:
+				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
+
+			case Status.MODIFIED:
+				const uriString = resource.uri.toString();
+				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString);
+				const query = indexStatus ? '~' : 'HEAD';
+				return resource.uri.with({ scheme: 'git', query });
+		}
+	}
+
+	private getRightResource(resource: Resource): Uri | undefined {
+		switch (resource.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.INDEX_ADDED:
+			case Status.INDEX_COPIED:
+			case Status.INDEX_RENAMED:
+				return resource.uri.with({ scheme: 'git' });
+
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
+
+			case Status.MODIFIED:
+			case Status.UNTRACKED:
+			case Status.IGNORED:
+			case Status.BOTH_MODIFIED:
+				return resource.uri;
+		}
+	}
+
+	private getTitle(resource: Resource): string {
+		const basename = path.basename(resource.uri.fsPath);
+
+		switch (resource.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.INDEX_RENAMED:
+				return `${basename} (Index)`;
+
+			case Status.MODIFIED:
+				return `${basename} (Working Tree)`;
+		}
+
+		return '';
+	}
+
+	@decorate(catchErrors)
+	async openFile(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
-		log('open file', resource);
+
+		if (!resource) {
+			return;
+		}
+
+		return commands.executeCommand<void>('vscode.open', resource.uri);
 	}
 
 	@decorate(catchErrors)
