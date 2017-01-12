@@ -7,9 +7,8 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { IScrollEvent } from 'vs/editor/common/editorCommon';
 import { MouseHandler, IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { IViewController } from 'vs/editor/browser/editorBrowser';
+import { IViewController, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
 
@@ -247,8 +246,8 @@ export class PointerHandler implements IDisposable {
 		}
 	}
 
-	public onScrollChanged(e: IScrollEvent): void {
-		this.handler.onScrollChanged(e);
+	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget {
+		return this.handler.getTargetAtClientPoint(clientX, clientY);
 	}
 
 	public dispose(): void {

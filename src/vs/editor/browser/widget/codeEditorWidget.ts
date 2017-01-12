@@ -404,6 +404,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this._view.getCodeEditorHelper().getVerticalOffsetForPosition(lineNumber, column);
 	}
 
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+		if (!this.hasView) {
+			return null;
+		}
+		return this._view.getCodeEditorHelper().getTargetAtClientPoint(clientX, clientY);
+	}
+
 	public getScrolledVisiblePosition(rawPosition: editorCommon.IPosition): { top: number; left: number; height: number; } {
 		if (!this.hasView) {
 			return null;

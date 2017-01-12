@@ -608,7 +608,15 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						return -1;
 					}
 					return visibleRanges[0].left;
+				},
+
+				getTargetAtClientPoint: (clientX: number, clientY: number): editorBrowser.IMouseTarget => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getTargetAtClientPoint: View is disposed');
+					}
+					return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
 				}
+
 			};
 		}
 		return this.codeEditorHelper;

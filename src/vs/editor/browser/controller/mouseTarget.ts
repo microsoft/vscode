@@ -194,9 +194,9 @@ class HitTestContext {
 	private readonly _context: ViewContext;
 	private readonly _viewHelper: IPointerHandlerHelper;
 
-	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, layoutInfo: EditorLayoutInfo, lastViewCursorsRenderData: IViewCursorRenderData[]) {
+	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, lastViewCursorsRenderData: IViewCursorRenderData[]) {
 		this.model = context.model;
-		this.layoutInfo = layoutInfo;
+		this.layoutInfo = context.configuration.editor.layoutInfo;
 		this.viewDomNode = viewHelper.viewDomNode;
 		this.lineHeight = context.configuration.editor.lineHeight;
 		this.typicalHalfwidthCharacterWidth = context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
@@ -317,20 +317,18 @@ class HitTestContext {
 
 abstract class BareHitTestRequest {
 
-	public readonly pos: PageCoordinates;
 	public readonly editorPos: EditorPagePosition;
-
+	public readonly pos: PageCoordinates;
 	public readonly mouseVerticalOffset: number;
-
 	public readonly isInMarginArea: boolean;
 	public readonly isInContentArea: boolean;
 	public readonly mouseContentHorizontalOffset: number;
 
 	protected readonly mouseColumn: number;
 
-	constructor(ctx: HitTestContext, pos: PageCoordinates, editorPos: EditorPagePosition) {
-		this.pos = pos;
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates) {
 		this.editorPos = editorPos;
+		this.pos = pos;
 
 		this.mouseVerticalOffset = Math.max(0, ctx.getScrollTop() + pos.y - editorPos.y);
 		this.mouseContentHorizontalOffset = ctx.getScrollLeft() + pos.x - editorPos.x - ctx.layoutInfo.contentLeft;
@@ -345,8 +343,8 @@ class HitTestRequest extends BareHitTestRequest {
 	public readonly target: Element;
 	public readonly targetPath: Uint8Array;
 
-	constructor(ctx: HitTestContext, pos: PageCoordinates, editorPos: EditorPagePosition, target: Element) {
-		super(ctx, pos, editorPos);
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, target: Element) {
+		super(ctx, editorPos, pos);
 		this._ctx = ctx;
 
 		if (target) {
@@ -367,14 +365,8 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public withTarget(target: Element): HitTestRequest {
-		return new HitTestRequest(this._ctx, this.pos, this.editorPos, this.target);
+		return new HitTestRequest(this._ctx, this.editorPos, this.pos, target);
 	}
-}
-
-export interface ISimplifiedEditorMouseEvent {
-	readonly page: PageCoordinates;
-	readonly editorPos: EditorPagePosition;
-	readonly target: HTMLElement;
 }
 
 export class MouseTargetFactory {
@@ -404,9 +396,9 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(layoutInfo: EditorLayoutInfo, lastViewCursorsRenderData: IViewCursorRenderData[], e: ISimplifiedEditorMouseEvent, testEventTarget: boolean): IMouseTarget {
-		const ctx = new HitTestContext(this._context, this._viewHelper, layoutInfo, lastViewCursorsRenderData);
-		const request = new HitTestRequest(ctx, e.page, e.editorPos, testEventTarget ? e.target : null);
+	public createMouseTarget(lastViewCursorsRenderData: IViewCursorRenderData[], editorPos: EditorPagePosition, pos: PageCoordinates, target: HTMLElement): IMouseTarget {
+		const ctx = new HitTestContext(this._context, this._viewHelper, lastViewCursorsRenderData);
+		const request = new HitTestRequest(ctx, editorPos, pos, target);
 		try {
 			let r = MouseTargetFactory._createMouseTarget(ctx, request, false);
 			// console.log(r.toString());
@@ -600,8 +592,9 @@ export class MouseTargetFactory {
 		return null;
 	}
 
-	public getMouseColumn(layoutInfo: EditorLayoutInfo, e: ISimplifiedEditorMouseEvent): number {
-		let mouseContentHorizontalOffset = this._viewHelper.getScrollLeft() + e.page.x - e.editorPos.x - layoutInfo.contentLeft;
+	public getMouseColumn(editorPos: EditorPagePosition, pos: PageCoordinates): number {
+		let layoutInfo = this._context.configuration.editor.layoutInfo;
+		let mouseContentHorizontalOffset = this._viewHelper.getScrollLeft() + pos.x - editorPos.x - layoutInfo.contentLeft;
 		return MouseTargetFactory._getMouseColumn(mouseContentHorizontalOffset, this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
 	}
 
@@ -758,15 +751,30 @@ export class MouseTargetFactory {
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): IHitTestResult {
 		let hitResult: { offsetNode: Node; offset: number; } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
 
-		let range = document.createRange();
-		range.setStart(hitResult.offsetNode, hitResult.offset);
-		range.collapse(true);
-		let resultPosition = ctx.getPositionFromDOMInfo(<HTMLElement>range.startContainer.parentNode, range.startOffset);
-		range.detach();
+		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
+			// offsetNode is expected to be the token text
+			let parent1 = hitResult.offsetNode.parentNode; // expected to be the token span
+			let parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line container span
+			let parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
+			let parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
+
+			if (parent3ClassName === ClassNames.VIEW_LINE) {
+				let p = ctx.getPositionFromDOMInfo(<HTMLElement>hitResult.offsetNode.parentNode, hitResult.offset);
+				return {
+					position: p,
+					hitTarget: null
+				};
+			} else {
+				return {
+					position: null,
+					hitTarget: <HTMLElement>hitResult.offsetNode.parentNode
+				};
+			}
+		}
 
 		return {
-			position: resultPosition,
-			hitTarget: null
+			position: null,
+			hitTarget: <HTMLElement>hitResult.offsetNode
 		};
 	}
 
