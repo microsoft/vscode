@@ -271,7 +271,7 @@ export class CommandCenter {
 		const message = `Are you sure you want to clean changes in ${basename}?`;
 		const yes = 'Yes';
 		const no = 'No, keep them';
-		const pick = await window.showQuickPick([no, yes], { placeHolder: message });
+		const pick = await window.showQuickPick([yes, no], { placeHolder: message });
 
 		if (pick !== yes) {
 			return;
@@ -286,7 +286,7 @@ export class CommandCenter {
 		const message = `Are you sure you want to clean all changes?`;
 		const yes = 'Yes';
 		const no = 'No, keep them';
-		const pick = await window.showQuickPick([no, yes], { placeHolder: message });
+		const pick = await window.showQuickPick([yes, no], { placeHolder: message });
 
 		if (pick !== yes) {
 			return;
