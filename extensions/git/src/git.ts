@@ -331,7 +331,7 @@ export class Git {
 			}
 
 			if (options.log !== false) {
-				this.log(`ERROR: ${result.stderr}\n`);
+				this.log(`${result.stderr}\n`);
 			}
 
 			return Promise.reject<IExecutionResult>(new GitError({
@@ -363,7 +363,7 @@ export class Git {
 		options.env = _.assign({}, process.env, options.env || {});
 
 		if (options.log !== false) {
-			this.log(`SPAWN: git ${args.join(' ')}\n`);
+			this.log(`git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.gitPath, args, options);

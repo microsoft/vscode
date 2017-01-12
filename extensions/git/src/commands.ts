@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem } from 'vscode';
+import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
 import { IRef, RefType } from './git';
 import { Model, Resource } from './model';
 import { log } from './util';
@@ -15,7 +15,30 @@ import * as path from 'path';
 type Command = (...args: any[]) => any;
 
 function catchErrors(fn: (...args) => Promise<any>): (...args) => void {
-	return (...args) => fn.call(this, ...args).catch(err => console.log(err));
+	return (...args) => fn.call(this, ...args).catch(async err => {
+		if (err.gitErrorCode) {
+			let message: string;
+
+			switch (err.gitErrorCode) {
+				case 'DirtyWorkTree':
+					message = 'Please clean your repository working tree before checkout.';
+					break;
+				default:
+					message = (err.stderr || err.message).replace(/^error: /, '');
+					break;
+			}
+
+			const outputChannel = this.outputChannel as OutputChannel;
+			const openOutputChannelChoice = 'Open Git Log';
+			const choice = await window.showErrorMessage(message, openOutputChannelChoice);
+
+			if (choice === openOutputChannelChoice) {
+				outputChannel.show();
+			}
+		} else {
+			console.error(err);
+		}
+	});
 }
 
 function resolveGitURI(uri: Uri): SCMResource | SCMResourceGroup | undefined {
@@ -79,7 +102,7 @@ class CommandCenter {
 
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
+	constructor(private model: Model, private outputChannel: OutputChannel) {
 		this.disposables.push(
 			commands.registerCommand('git.refresh', this.refresh, this),
 			commands.registerCommand('git.openChange', this.openChange, this),
@@ -229,6 +252,6 @@ class CommandCenter {
 	}
 }
 
-export function registerCommands(model: Model): Disposable {
-	return new CommandCenter(model);
+export function registerCommands(model: Model, outputChannel: OutputChannel): Disposable {
+	return new CommandCenter(model, outputChannel);
 }
