@@ -403,6 +403,14 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 
+		let currentLineScopedLineTokens = this.getScopedLineTokens(model, lineNumber);
+		let lastLineScopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
+
+		if (currentLineScopedLineTokens.languageId !== lastLineScopedLineTokens.languageId) {
+			// The language mode of last valid line is not the same as current line.
+			return null;
+		}
+
 		let lineText = model.getLineContent(lastLineNumber);
 		let oneLineAboveText: string;
 		if (lastLineNumber > 1) {
