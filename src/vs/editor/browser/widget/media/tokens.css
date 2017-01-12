@@ -5,6 +5,7 @@
 
 .monaco-editor .vs-whitespace {
 	display:inline-block;
+	font-weight: normal !important;
 }
 .monaco-editor.hc-black .view-line {
 	mix-blend-mode: difference;
