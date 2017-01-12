@@ -113,6 +113,7 @@ export class CommandCenter {
 			commands.registerCommand('git.checkout', this.checkout, this),
 			commands.registerCommand('git.sync', this.sync, this),
 			commands.registerCommand('git.publish', this.publish, this),
+			commands.registerCommand('git.showOutput', this.showOutput, this),
 		);
 	}
 
@@ -321,6 +322,10 @@ export class CommandCenter {
 		}
 
 		await this.model.push(choice, branchName, { setUpstream: true });
+	}
+
+	showOutput(): void {
+		this.outputChannel.show();
 	}
 
 	dispose(): void {
