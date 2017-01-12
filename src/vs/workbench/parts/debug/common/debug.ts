@@ -9,6 +9,7 @@ import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModel as EditorIModel, IEditorContribution, IRange } from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -263,7 +264,6 @@ export interface IModel extends ITreeElement {
 // Debug enums
 
 export enum State {
-	Disabled,
 	Inactive,
 	Initializing,
 	Stopped,
@@ -320,6 +320,8 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
 	initialConfigurations?: any[] | string;
+	startSessionCommand?: string;
+	languages?: string[];
 	variables?: { [key: string]: string };
 	aiKey?: string;
 	win?: IRawEnvAdapter;
@@ -352,12 +354,19 @@ export interface IConfigurationManager {
 	/**
 	 * Opens the launch.json file
 	 */
-	openConfigFile(sideBySide: boolean): TPromise<boolean>;
+	openConfigFile(sideBySide: boolean): TPromise<IEditor>;
 
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
 	 */
 	canSetBreakpointsIn(model: EditorIModel): boolean;
+
+	/**
+	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
+	 * If no type is specified will try to automatically pick an adapter by looking at
+	 * the active editor language and matching it against the "languages" contribution of an adapter.
+	 */
+	getStartSessionCommand(type?: string): string;
 }
 
 // Debug service interfaces
@@ -483,6 +492,7 @@ export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): TPromise<void>;
 	showBreakpointWidget(lineNumber: number): void;
 	closeBreakpointWidget(): void;
+	addLaunchConfiguration(): TPromise<any>;
 }
 
 // utils

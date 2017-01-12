@@ -69,7 +69,6 @@ interface ICommandsData {
 
 export class Cursor extends EventEmitter {
 
-	private editorId: number;
 	private configuration: editorCommon.IConfiguration;
 	private model: editorCommon.IModel;
 
@@ -87,19 +86,18 @@ export class Cursor extends EventEmitter {
 		[key: string]: (ctx: IMultipleCursorOperationContext) => boolean;
 	};
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper, enableEmptySelectionClipboard: boolean) {
+	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper, enableEmptySelectionClipboard: boolean) {
 		super([
 			editorCommon.EventType.CursorPositionChanged,
 			editorCommon.EventType.CursorSelectionChanged,
 			editorCommon.EventType.CursorRevealRange,
 			editorCommon.EventType.CursorScrollRequest
 		]);
-		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
-		this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
+		this.cursors = new CursorCollection(this.model, this.configuration, this.viewModelHelper);
 		this.cursorUndoStack = [];
 
 		this._isHandling = false;
@@ -207,7 +205,7 @@ export class Cursor extends EventEmitter {
 			// a model.setValue() was called
 			this.cursors.dispose();
 
-			this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
+			this.cursors = new CursorCollection(this.model, this.configuration, this.viewModelHelper);
 
 			this.emitCursorPositionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
 			this.emitCursorSelectionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
@@ -852,8 +850,6 @@ export class Cursor extends EventEmitter {
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
 
-		this._handlers[H.JumpToBracket] = (ctx) => this._jumpToBracket(ctx);
-
 		this._handlers[H.CursorMove] = (ctx) => this._cursorMove(ctx);
 		this._handlers[H.MoveTo] = (ctx) => this._moveTo(false, ctx);
 		this._handlers[H.MoveToSelect] = (ctx) => this._moveTo(true, ctx);
@@ -1023,11 +1019,6 @@ export class Cursor extends EventEmitter {
 		}
 
 		return result;
-	}
-
-	private _jumpToBracket(ctx: IMultipleCursorOperationContext): boolean {
-		this.cursors.killSecondaryCursors();
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.jumpToBracket(oneCursor, oneCtx));
 	}
 
 	private _moveTo(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {

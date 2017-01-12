@@ -105,7 +105,7 @@ const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/fil
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(descriptor);
 
 interface ISerializedFileInput {
-	resource: string;
+	resource: any | string; // TODO@Ben migration
 	encoding?: string;
 }
 
@@ -133,7 +133,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		const fileEditorInput = <FileEditorInput>editorInput;
 
 		const fileInput: ISerializedFileInput = {
-			resource: fileEditorInput.getResource().toString()
+			resource: fileEditorInput.getResource().toJSON()
 		};
 
 		const encoding = fileEditorInput.getPreferredEncoding();
@@ -147,7 +147,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), fileInput.encoding);
+		return instantiationService.createInstance(FileEditorInput, typeof fileInput.resource === 'string' ? URI.parse(fileInput.resource) : URI.revive(fileInput.resource), fileInput.encoding);
 	}
 }
 

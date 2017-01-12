@@ -202,7 +202,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				});
 			}
 		}
-		modelData.dirty = this.debugService.state !== State.Inactive && this.debugService.state !== State.Disabled;
+		modelData.dirty = this.debugService.state !== State.Inactive;
 
 		const toRemove = this.debugService.getModel().getBreakpoints()
 			.filter(bp => bp.uri.toString() === modelUri.toString());

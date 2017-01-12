@@ -131,7 +131,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			if (event.sourceConfig.launch) {
+			if (event.sourceConfig) {
 				const names = this.configurationManager.getConfigurationNames();
 				if (names.every(name => name !== this.viewModel.selectedConfigurationName)) {
 					// Current selected configuration no longer exists - take the first configuration instead.
@@ -278,7 +278,7 @@ export class DebugService implements debug.IDebugService {
 					thread.fetchCallStack().then(callStack => {
 						if (callStack.length > 0 && !this.viewModel.focusedStackFrame) {
 							// focus first stack frame from top that has source location if no other stack frame is focussed
-							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
+							const stackFrameToFocus = first(callStack, sf => sf.source && !sf.source.deemphasize, callStack[0]);
 							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
 							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
@@ -359,7 +359,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.RunningNoDebug) {
+			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.RunningNoDebug && this.contextService.getWorkspace()) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
@@ -426,10 +426,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public get state(): debug.State {
-		if (!this.contextService.hasWorkspace()) {
-			return debug.State.Disabled;
-		}
-
 		const focusedProcess = this.viewModel.focusedProcess;
 		if (focusedProcess) {
 			return this.sessionStates.get(focusedProcess.getId());
@@ -614,6 +610,10 @@ export class DebugService implements debug.IDebugService {
 								});
 							});
 						}, err => {
+							if (!this.contextService.getWorkspace()) {
+								return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+							}
+
 							return this.configurationManager.openConfigFile(false).then(openend => {
 								if (openend) {
 									this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
@@ -694,7 +694,7 @@ export class DebugService implements debug.IDebugService {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				if (!this.viewModel.changedWorkbenchViewState && this.partService.isVisible(Parts.SIDEBAR_PART)) {
+				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || !this.contextService.getWorkspace())) {
 					// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
@@ -738,7 +738,7 @@ export class DebugService implements debug.IDebugService {
 
 				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 				const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
-				return TPromise.wrapError(errors.create(error.message, { actions }));
+				this.messageService.show(severity.Error, { message: errorMessage, actions });
 			});
 		});
 	}
@@ -920,7 +920,7 @@ export class DebugService implements debug.IDebugService {
 			return session.setBreakpoints({
 				source: rawSource,
 				lines: breakpointsToSend.map(bp => bp.lineNumber),
-				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition, column: bp.column })),
+				breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, condition: bp.condition, hitCondition: bp.hitCondition })),
 				sourceModified
 			}).then(response => {
 				if (!response || !response.body) {

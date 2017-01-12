@@ -378,25 +378,36 @@ export default class URI {
 	}
 
 	public toJSON(): any {
-		return <UriState>{
+		const res = <UriState>{
 			scheme: this.scheme,
-			authority: this.authority,
 			path: this.path,
 			fsPath: this.fsPath,
-			query: this.query,
-			fragment: this.fragment,
 			external: this.toString(),
 			$mid: 1
 		};
+
+		if (this.authority) {
+			res.authority = this.authority;
+		}
+
+		if (this.query) {
+			res.query = this.query;
+		}
+
+		if (this.fragment) {
+			res.fragment = this.fragment;
+		}
+
+		return res;
 	}
 
 	static revive(data: any): URI {
 		let result = new URI();
 		result._scheme = (<UriState>data).scheme;
-		result._authority = (<UriState>data).authority;
+		result._authority = (<UriState>data).authority || URI._empty;
 		result._path = (<UriState>data).path;
-		result._query = (<UriState>data).query;
-		result._fragment = (<UriState>data).fragment;
+		result._query = (<UriState>data).query || URI._empty;
+		result._fragment = (<UriState>data).fragment || URI._empty;
 		result._fsPath = (<UriState>data).fsPath;
 		result._formatted = (<UriState>data).external;
 		URI._validate(result);
