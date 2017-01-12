@@ -11,14 +11,14 @@ import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBracke
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { Range } from 'vs/editor/common/core/range';
 import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
 
 /**
  * Interface used to support insertion of mode specific comments.
