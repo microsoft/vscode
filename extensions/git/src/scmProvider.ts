@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Disposable, SCMProvider, SCMResourceGroup, Event, commands } from 'vscode';
+import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, commands } from 'vscode';
 import { Model, Status, Resource, ResourceGroup } from './model';
 import * as path from 'path';
 
@@ -19,6 +19,7 @@ export class GitSCMProvider implements SCMProvider {
 
 	constructor(private model: Model) {
 		model.update();
+		scm.registerSCMProvider('git', this);
 	}
 
 	commit(message: string): Thenable<void> {
@@ -32,9 +33,16 @@ export class GitSCMProvider implements SCMProvider {
 		const indexUri = resource.uri.with({ scheme: 'git-index' });
 
 		switch (resource.type) {
-			case Status.UNTRACKED: return commands.executeCommand<void>('vscode.open', resource.uri);
-			case Status.MODIFIED: return commands.executeCommand<void>('vscode.diff', indexUri, resource.uri, `${fileName} (HEAD) ↔ ${fileName}`);
-			case Status.DELETED: return commands.executeCommand<void>('vscode.open', indexUri);
+			case Status.UNTRACKED:
+				return commands.executeCommand<void>('vscode.open', resource.uri);
+			case Status.MODIFIED:
+				return commands.executeCommand<void>('vscode.diff', indexUri, resource.uri, `${fileName} (HEAD) ↔ ${fileName}`);
+			case Status.DELETED:
+			case Status.INDEX_ADDED:
+			case Status.INDEX_COPIED:
+			case Status.INDEX_DELETED:
+			case Status.INDEX_RENAMED:
+				return commands.executeCommand<void>('vscode.open', indexUri);
 			// TODO@joao: rest!
 		}
 
