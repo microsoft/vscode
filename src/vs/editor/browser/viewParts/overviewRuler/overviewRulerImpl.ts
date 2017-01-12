@@ -9,6 +9,7 @@ import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
 export class OverviewRulerImpl {
 
@@ -24,6 +25,8 @@ export class OverviewRulerImpl {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
+		PartFingerprints.write(this._domNode, PartFingerprint.OverviewRuler);
+
 		this._domNode.className = cssClassName;
 		this._domNode.style.position = 'absolute';
 

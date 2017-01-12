@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
@@ -66,11 +66,13 @@ export class ViewContentWidgets extends ViewPart {
 		this._renderData = {};
 
 		this.domNode = document.createElement('div');
+		PartFingerprints.write(this.domNode, PartFingerprint.ContentWidgets);
 		this.domNode.className = ClassNames.CONTENT_WIDGETS;
 		this.domNode.style.position = 'absolute';
 		this.domNode.style.top = '0';
 
 		this.overflowingContentWidgetsDomNode = document.createElement('div');
+		PartFingerprints.write(this.overflowingContentWidgetsDomNode, PartFingerprint.OverflowingContentWidgets);
 		this.overflowingContentWidgetsDomNode.className = ClassNames.OVERFLOWING_CONTENT_WIDGETS;
 	}
 
