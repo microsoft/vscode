@@ -73,14 +73,13 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				// Exclude original definition from references
 				const locations = response.body.refs
 					.filter(reference =>
-						reference.start.line !== codeLens.range.start.line + 1
-						&& reference.start.offset !== codeLens.range.start.character + 1)
+						!(reference.start.line === codeLens.range.start.line + 1
+						&& reference.start.offset === codeLens.range.start.character + 1))
 					.map(reference =>
 						new Location(Uri.file(reference.file),
 							new Range(
 								new Position(reference.start.line - 1, reference.start.offset - 1),
 								new Position(reference.end.line - 1, reference.end.offset - 1))));
-
 				codeLens.command = {
 					title: locations.length + ' ' + (locations.length === 1 ? localize('oneReferenceLabel', 'reference') : localize('manyReferenceLabel', 'references')),
 					command: 'editor.action.showReferences',
