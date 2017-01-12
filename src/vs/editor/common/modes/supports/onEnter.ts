@@ -74,32 +74,41 @@ export class OnEnterSupport {
 
 		// (3): Indentation Support
 		if (this._indentationRules) {
-			let enterAction: EnterAction = null;
+			let indentOffset: null | number = null;
+			let outdentCurrentLine = false;
+
 			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(beforeEnterText)) {
-				enterAction = { indentAction: IndentAction.Indent };
+				indentOffset = 1;
 			}
 			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(beforeEnterText)) {
-				enterAction = { indentAction: IndentAction.Indent };
-			}
-			if (/^\s/.test(beforeEnterText)) {
-				// No reason to run regular expressions if there is nothing to outdent from
-				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
-					enterAction = { indentAction: IndentAction.Outdent };
-				}
-				if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-					enterAction = { indentAction: IndentAction.Outdent };
-				}
-				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(beforeEnterText)) {
-					if (enterAction === null) {
-						enterAction = { indentAction: IndentAction.None, outdentCurrentLine: true };
-					} else {
-						enterAction = { indentAction: enterAction.indentAction, outdentCurrentLine: true };
-					}
-				}
+				indentOffset = 1;
 			}
 
-			if (enterAction !== null) {
-				return enterAction;
+			/**
+			 * Since the indentation of `beforeEnterText` might not be correct, we still need to provide the correct indent action
+			 * even if there is nothing to outdent from.
+			 */
+			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
+				indentOffset = indentOffset ? indentOffset - 1 :  -1;
+			}
+			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
+				indentOffset = indentOffset ? indentOffset - 1 :  -1;
+			}
+			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(beforeEnterText)) {
+				outdentCurrentLine = true;
+			}
+
+			if (indentOffset !== null || outdentCurrentLine) {
+				// this means at least one indentation rule is matched so we should handle it
+				indentOffset = indentOffset || 0;
+				switch (indentOffset) {
+					case -1:
+						return { indentAction : IndentAction.Outdent, outdentCurrentLine: outdentCurrentLine };
+					case 0:
+						return { indentAction : IndentAction.None, outdentCurrentLine: outdentCurrentLine };
+					case 1:
+						return { indentAction : IndentAction.Indent, outdentCurrentLine: outdentCurrentLine };
+				}
 			}
 		}
 
@@ -116,38 +125,26 @@ export class OnEnterSupport {
 		return null;
 	}
 
-	public getExpectedIndentActionAtPosition(text: string, oneLineAboveText?: string): IndentAction {
-		let offset = 0;
-		if (this._indentationRules) {
-			if (oneLineAboveText && this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-				offset -= 1;
-			}
+	/**
+	 * containNonWhitespace
+	 */
+	public containNonWhitespace(text: string): boolean {
+		let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(text);
 
-			let indentOffset = 0;
-
-			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(text)) {
-				indentOffset = 1;
-			}
-
-			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(text)) {
-				indentOffset = 1;
-			}
-
-			offset += indentOffset;
+		if (nonWhitespaceIdx < 0) {
+			return false;
 		}
 
-		switch (offset) {
-			case 0:
-				return IndentAction.None;
-			case 1:
-				return IndentAction.Indent;
-			case -1:
-				return IndentAction.Outdent;
-			default:
-				break;
+		return true;
+	}
+
+	public shouldIgnore(text: string): boolean {
+		// this line is not empty
+		if (this._indentationRules && this._indentationRules.unIndentedLinePattern && this._indentationRules.unIndentedLinePattern.test(text)) {
+			return true;
 		}
 
-		return null;
+		return false;
 	}
 
 	private static _createOpenBracketRegExp(bracket: string): RegExp {
