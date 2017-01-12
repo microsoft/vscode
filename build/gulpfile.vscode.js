@@ -30,7 +30,7 @@ const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 
-const dependencies = Object.keys(shrinkwrap.dependencies).concat(['vsda']);
+const dependencies = Object.keys(shrinkwrap.dependencies).concat(['vsda' /* vsda can come in from distro build, do not remove */]);
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	.concat(dependencies)
@@ -270,6 +270,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']))
+			// vsda can come in from distro build, do not remove
 			.pipe(util.cleanNodeModule('vsda', ['**'], [(function () {
 				if (process.platform === 'win32') { return 'build/Release/vsda_win32.node'; }
 				if (process.platform === 'darwin') { return 'build/Release/vsda_darwin.node'; }
