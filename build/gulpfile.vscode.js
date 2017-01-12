@@ -271,9 +271,9 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']))
 			.pipe(util.cleanNodeModule('vsda', ['**'], [(function () {
-				if (process.platform === 'win32') { return 'build/Release/vsda_win32'; }
-				if (process.platform === 'darwin') { return 'build/Release/vsda_darwin'; }
-				if (process.platform === 'linux') { return process.arch === 'x64' ? 'build/Release/vsda_linux64' : 'build/Release/vsda_linux32'; }
+				if (process.platform === 'win32') { return 'build/Release/vsda_win32.node'; }
+				if (process.platform === 'darwin') { return 'build/Release/vsda_darwin.node'; }
+				if (process.platform === 'linux') { return process.arch === 'x64' ? 'build/Release/vsda_linux64.node' : 'build/Release/vsda_linux32.node'; }
 			})(), 'index.js']));
 
 		let all = es.merge(
