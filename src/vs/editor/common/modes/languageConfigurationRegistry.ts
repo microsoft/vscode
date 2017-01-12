@@ -286,7 +286,7 @@ export class LanguageConfigurationRegistryImpl {
 		return result;
 	}
 
-	public getEnterActionForSelection(model: ITokenizedModel, range: Range): { enterAction: EnterAction; indentation: string; ignoreCurrentLine: boolean} {
+	public getEnterActionForSelection(model: ITokenizedModel, range: Range): { enterAction: EnterAction; indentation: string; ignoreCurrentLine: boolean } {
 		let lineNumber = range.startLineNumber;
 		let column = range.startColumn;
 		let lineText = model.getLineContent(lineNumber);
@@ -300,7 +300,7 @@ export class LanguageConfigurationRegistryImpl {
 		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
 		if (!onEnterSupport) {
 			return {
-				enterAction:  {
+				enterAction: {
 					indentAction: IndentAction.None,
 					appendText: '',
 				},
@@ -321,7 +321,7 @@ export class LanguageConfigurationRegistryImpl {
 
 			if (lastLineNumber <= 0) {
 				return {
-					enterAction: { indentAction : IndentAction.None, appendText: '' },
+					enterAction: { indentAction: IndentAction.None, appendText: '' },
 					indentation: '',
 					ignoreCurrentLine: true
 				};
