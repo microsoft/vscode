@@ -44,6 +44,10 @@ export class ClientCoordinates {
 		this.clientX = clientX;
 		this.clientY = clientY;
 	}
+
+	public toPageCoordinates(): PageCoordinates {
+		return new PageCoordinates(this.clientX + dom.StandardWindow.scrollX, this.clientY + dom.StandardWindow.scrollY);
+	}
 }
 
 /**
@@ -65,13 +69,18 @@ export class EditorPagePosition {
 	}
 }
 
+export function createEditorPagePosition(editorViewDomNode: HTMLElement): EditorPagePosition {
+	let editorPos = dom.getDomNodePagePosition(editorViewDomNode);
+	return new EditorPagePosition(editorPos.left, editorPos.top, editorPos.width, editorPos.height);
+}
+
 export class EditorMouseEvent extends StandardMouseEvent {
 	_editorMouseEventBrand: void;
 
 	/**
 	 * Coordinates relative to the whole document.
 	 */
-	public readonly page: PageCoordinates;
+	public readonly pos: PageCoordinates;
 
 	/**
 	 * Editor's coordinates relative to the whole document.
@@ -80,10 +89,8 @@ export class EditorMouseEvent extends StandardMouseEvent {
 
 	constructor(e: MouseEvent, editorViewDomNode: HTMLElement) {
 		super(e);
-		this.page = new PageCoordinates(this.posx, this.posy);
-
-		let editorPos = dom.getDomNodePagePosition(editorViewDomNode);
-		this.editorPos = new EditorPagePosition(editorPos.left, editorPos.top, editorPos.width, editorPos.height);
+		this.pos = new PageCoordinates(this.posx, this.posy);
+		this.editorPos = createEditorPagePosition(editorViewDomNode);
 	}
 }
 
