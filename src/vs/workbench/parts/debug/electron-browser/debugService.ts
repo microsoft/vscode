@@ -310,7 +310,7 @@ export class DebugService implements debug.IDebugService {
 		}));
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidContinued(event => {
-			const threadId = event.body.allThreadsContinued ? undefined : event.body.threadId;
+			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			this.model.clearThreads(session.getId(), false, threadId);
 			if (this.viewModel.focusedProcess.getId() === session.getId()) {
 				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
