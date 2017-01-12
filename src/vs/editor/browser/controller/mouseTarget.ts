@@ -14,6 +14,7 @@ import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
 interface IETextRange {
 	boundingHeight: number;
@@ -131,46 +132,102 @@ class MouseTarget implements IMouseTarget {
 	}
 }
 
-
-// e.g. of paths:
-// - overflow-guard/monaco-scrollable-element editor-scrollable vs/lines-content/view-lines/view-line
-// - overflow-guard/monaco-scrollable-element editor-scrollable vs/lines-content/view-lines/view-line/token comment js
-// etc.
-let REGEX = (function () {
-
-	function nodeWithClass(className: string): string {
-		return '[^/]*' + className + '[^/]*';
+class ElementPath {
+	public static isTextAreaCover(path: Uint8Array): boolean {
+		return (
+			path.length === 2
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[1] === PartFingerprint.TextAreaCover
+		);
 	}
 
-	function anyNode(): string {
-		return '[^/]+';
+	public static isTextArea(path: Uint8Array): boolean {
+		return (
+			path.length === 2
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[1] === PartFingerprint.TextArea
+		);
 	}
 
-	let ANCHOR = '^' + ClassNames.OVERFLOW_GUARD + '\\/';
-
-	function createRegExp(...pieces: string[]): RegExp {
-		let forceEndMatch = false;
-		if (pieces[pieces.length - 1] === '$') {
-			forceEndMatch = true;
-			pieces.pop();
-		}
-		return new RegExp(ANCHOR + pieces.join('\\/') + (forceEndMatch ? '$' : ''));
+	public static isViewLines(path: Uint8Array): boolean {
+		return (
+			path.length === 4
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[3] === PartFingerprint.ViewLines
+		);
 	}
 
-	return {
-		IS_TEXTAREA_COVER: createRegExp(nodeWithClass(ClassNames.TEXTAREA_COVER), '$'),
-		IS_TEXTAREA: createRegExp(ClassNames.TEXTAREA, '$'),
-		IS_VIEW_LINES: createRegExp(anyNode(), anyNode(), ClassNames.VIEW_LINES, '$'),
-		IS_CURSORS_LAYER: createRegExp(anyNode(), anyNode(), nodeWithClass(ClassNames.VIEW_CURSORS_LAYER), '$'),
-		IS_CHILD_OF_VIEW_LINES: createRegExp(anyNode(), anyNode(), ClassNames.VIEW_LINES),
-		IS_CHILD_OF_SCROLLABLE_ELEMENT: createRegExp(nodeWithClass(ClassNames.SCROLLABLE_ELEMENT)),
-		IS_CHILD_OF_CONTENT_WIDGETS: createRegExp(anyNode(), anyNode(), ClassNames.CONTENT_WIDGETS),
-		IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS: new RegExp('^' + ClassNames.OVERFLOWING_CONTENT_WIDGETS + '\\/'),
-		IS_CHILD_OF_OVERLAY_WIDGETS: createRegExp(ClassNames.OVERLAY_WIDGETS),
-		IS_CHILD_OF_MARGIN: createRegExp(ClassNames.MARGIN),
-		IS_CHILD_OF_VIEW_ZONES: createRegExp(anyNode(), anyNode(), ClassNames.VIEW_ZONES),
-	};
-})();
+	public static isChildOfViewLines(path: Uint8Array): boolean {
+		return (
+			path.length >= 4
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[3] === PartFingerprint.ViewLines
+		);
+	}
+
+	public static isCursorsLayer(path: Uint8Array): boolean {
+		return (
+			path.length === 4
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[3] === PartFingerprint.ViewCursorsLayer
+		);
+	}
+
+	public static isChildOfScrollableElement(path: Uint8Array): boolean {
+		return (
+			path.length >= 2
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[1] === PartFingerprint.ScrollableElement
+		);
+	}
+
+	public static isChildOfContentWidgets(path: Uint8Array): boolean {
+		return (
+			path.length >= 4
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[3] === PartFingerprint.ContentWidgets
+		);
+	}
+
+	public static isChildOfOverflowingContentWidgets(path: Uint8Array): boolean {
+		return (
+			path.length >= 1
+			&& path[0] === PartFingerprint.OverflowingContentWidgets
+		);
+	}
+
+	public static isChildOfOverlayWidgets(path: Uint8Array): boolean {
+		return (
+			path.length >= 2
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[1] === PartFingerprint.OverlayWidgets
+		);
+	}
+
+	public static isChildOfMargin(path: Uint8Array): boolean {
+		return (
+			path.length >= 2
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[1] === PartFingerprint.Margin
+		);
+	}
+
+	public static isChildOfViewZones(path: Uint8Array): boolean {
+		return (
+			path.length >= 4
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[3] === PartFingerprint.ViewZones
+		);
+	}
+
+	public static isOverviewRuler(path: Uint8Array): boolean {
+		return (
+			path.length === 3
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[2] === PartFingerprint.OverviewRuler
+		);
+	}
+}
 
 export class MouseTargetFactory {
 
@@ -182,37 +239,17 @@ export class MouseTargetFactory {
 		this._viewHelper = viewHelper;
 	}
 
-	private getClassNamePathTo(child: Node, stopAt: Node): string {
-		let path: string[] = [],
-			className: string;
-
-		while (child && child !== document.body) {
-			if (child === stopAt) {
-				break;
-			}
-			if (child.nodeType === child.ELEMENT_NODE) {
-				className = (<HTMLElement>child).className;
-				if (className) {
-					path.unshift(className);
-				}
-			}
-			child = child.parentNode;
-		}
-
-		return path.join('/');
-	}
-
 	public mouseTargetIsWidget(e: EditorMouseEvent): boolean {
 		let t = <Element>e.target;
-		let path = this.getClassNamePathTo(t, this._viewHelper.viewDomNode);
+		let path = PartFingerprints.collect(t, this._viewHelper.viewDomNode);
 
 		// Is it a content widget?
-		if (REGEX.IS_CHILD_OF_CONTENT_WIDGETS.test(path) || REGEX.IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS.test(path)) {
+		if (ElementPath.isChildOfContentWidgets(path) || ElementPath.isChildOfOverflowingContentWidgets(path)) {
 			return true;
 		}
 
 		// Is it an overlay widget?
-		if (REGEX.IS_CHILD_OF_OVERLAY_WIDGETS.test(path)) {
+		if (ElementPath.isChildOfOverlayWidgets(path)) {
 			return true;
 		}
 
@@ -232,6 +269,7 @@ export class MouseTargetFactory {
 		let mouseVerticalOffset = Math.max(0, this._viewHelper.getScrollTop() + (e.posy - e.editorPos.top));
 		let mouseContentHorizontalOffset = this._viewHelper.getScrollLeft() + (e.posx - e.editorPos.left) - layoutInfo.contentLeft;
 		let mouseColumn = this._getMouseColumn(mouseContentHorizontalOffset);
+		// console.log(`mouseVerticalOffset: ${mouseVerticalOffset}, mouseContentHorizontalOffset: ${mouseContentHorizontalOffset}, mouseColumn: ${mouseColumn}`)
 
 		let t = <Element>e.target;
 
@@ -252,15 +290,15 @@ export class MouseTargetFactory {
 			}
 		}
 
-		let path = this.getClassNamePathTo(t, this._viewHelper.viewDomNode);
+		let path = PartFingerprints.collect(t, this._viewHelper.viewDomNode);
 
 		// Is it a content widget?
-		if (REGEX.IS_CHILD_OF_CONTENT_WIDGETS.test(path) || REGEX.IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS.test(path)) {
+		if (ElementPath.isChildOfContentWidgets(path) || ElementPath.isChildOfOverflowingContentWidgets(path)) {
 			return this.createMouseTargetFromContentWidgetsChild(t, mouseColumn);
 		}
 
 		// Is it an overlay widget?
-		if (REGEX.IS_CHILD_OF_OVERLAY_WIDGETS.test(path)) {
+		if (ElementPath.isChildOfOverlayWidgets(path)) {
 			return this.createMouseTargetFromOverlayWidgetsChild(t, mouseColumn);
 		}
 
@@ -272,7 +310,7 @@ export class MouseTargetFactory {
 		}
 
 		// Is it the textarea cover?
-		if (REGEX.IS_TEXTAREA_COVER.test(path)) {
+		if (ElementPath.isTextAreaCover(path)) {
 			if (this._context.configuration.editor.viewInfo.glyphMargin) {
 				return this.createMouseTargetFromGlyphMargin(t, mouseVerticalOffset, mouseColumn);
 			} else if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
@@ -283,12 +321,12 @@ export class MouseTargetFactory {
 		}
 
 		// Is it the textarea?
-		if (REGEX.IS_TEXTAREA.test(path)) {
+		if (ElementPath.isTextArea(path)) {
 			return new MouseTarget(t, MouseTargetType.TEXTAREA);
 		}
 
 		// Is it a view zone?
-		if (REGEX.IS_CHILD_OF_VIEW_ZONES.test(path)) {
+		if (ElementPath.isChildOfViewZones(path)) {
 			// Check if it is at a view zone
 			let viewZoneData = this._getZoneAtCoord(mouseVerticalOffset);
 			if (viewZoneData) {
@@ -298,7 +336,7 @@ export class MouseTargetFactory {
 		}
 
 		// Is it the view lines container?
-		if (REGEX.IS_VIEW_LINES.test(path)) {
+		if (ElementPath.isViewLines(path)) {
 			// Sometimes, IE returns this target when right clicking on top of text
 			// -> See Bug #12990: [F12] Context menu shows incorrect position while doing a resize
 
@@ -324,13 +362,13 @@ export class MouseTargetFactory {
 		}
 
 		// Is it a child of the view lines container?
-		if (!testEventTarget || REGEX.IS_CHILD_OF_VIEW_LINES.test(path)) {
+		if (!testEventTarget || ElementPath.isChildOfViewLines(path)) {
 			let hitTestResult = this._doHitTest(e, mouseVerticalOffset);
 			if (hitTestResult.position) {
 				return this.createMouseTargetFromHitTestPosition(t, hitTestResult.position.lineNumber, hitTestResult.position.column, mouseContentHorizontalOffset, mouseColumn);
 			} else if (hitTestResult.hitTarget) {
 				t = hitTestResult.hitTarget;
-				path = this.getClassNamePathTo(t, this._viewHelper.viewDomNode);
+				path = PartFingerprints.collect(t, this._viewHelper.viewDomNode);
 
 				// TODO@Alex: try again with this different target, but guard against recursion.
 				// Is it a cursor ?
@@ -348,16 +386,16 @@ export class MouseTargetFactory {
 		}
 
 		// Is it the cursors layer?
-		if (REGEX.IS_CURSORS_LAYER.test(path)) {
+		if (ElementPath.isCursorsLayer(path)) {
 			return new MouseTarget(t, MouseTargetType.UNKNOWN);
 		}
 
 		// Is it a child of the scrollable element?
-		if (REGEX.IS_CHILD_OF_SCROLLABLE_ELEMENT.test(path)) {
+		if (ElementPath.isChildOfScrollableElement(path)) {
 			return this.createMouseTargetFromScrollbar(t, mouseVerticalOffset, mouseColumn);
 		}
 
-		if (REGEX.IS_CHILD_OF_MARGIN.test(path)) {
+		if (ElementPath.isChildOfMargin(path)) {
 			let offset = Math.abs(e.posx - e.editorPos.left);
 
 			if (offset <= layoutInfo.glyphMarginWidth) {
@@ -376,7 +414,7 @@ export class MouseTargetFactory {
 			return this.createMouseTargetFromLinesDecorationsChild(t, mouseVerticalOffset, mouseColumn);
 		}
 
-		if (/OverviewRuler/i.test(path)) {
+		if (ElementPath.isOverviewRuler(path)) {
 			return this.createMouseTargetFromScrollbar(t, mouseVerticalOffset, mouseColumn);
 		}
 
