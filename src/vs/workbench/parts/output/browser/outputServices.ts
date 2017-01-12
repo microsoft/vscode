@@ -94,7 +94,7 @@ export class OutputService implements IOutputService {
 	}
 
 	private append(channelId: string, output: string): void {
-
+		
 		// Initialize
 		if (!this.receivedOutput[channelId]) {
 			this.receivedOutput[channelId] = '';
@@ -243,6 +243,7 @@ class OutputContentProvider implements ITextModelContentProvider {
 		}
 
 		const bufferedOutput = this.bufferedOutput[channel];
+		this.bufferedOutput[channel] = '';
 		if (!bufferedOutput) {
 			return; // return if nothing to append
 		}
