@@ -381,7 +381,7 @@ export class Thread implements debug.IThread {
 	}
 
 	public getId(): string {
-		return `thread:${this.process.getId()}:${this.name}:${this.threadId}`;
+		return `thread:${this.process.getId()}:${this.threadId}`;
 	}
 
 	public clearCallStack(): void {
@@ -506,6 +506,9 @@ export class Process implements debug.IProcess {
 		if (data.thread && !this.threads.has(data.threadId)) {
 			// A new thread came in, initialize it.
 			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
+		} else if (data.thread && data.thread.name) {
+			// Just the thread name got updated #18244
+			this.threads.get(data.threadId).name = data.thread.name;
 		}
 
 		if (data.stoppedDetails) {
