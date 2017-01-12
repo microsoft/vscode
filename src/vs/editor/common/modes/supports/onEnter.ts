@@ -89,10 +89,10 @@ export class OnEnterSupport {
 			 * even if there is nothing to outdent from.
 			 */
 			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
-				indentOffset = indentOffset ? indentOffset - 1 :  -1;
+				indentOffset = indentOffset ? indentOffset - 1 : -1;
 			}
 			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-				indentOffset = indentOffset ? indentOffset - 1 :  -1;
+				indentOffset = indentOffset ? indentOffset - 1 : -1;
 			}
 			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(beforeEnterText)) {
 				outdentCurrentLine = true;
@@ -103,11 +103,11 @@ export class OnEnterSupport {
 				indentOffset = indentOffset || 0;
 				switch (indentOffset) {
 					case -1:
-						return { indentAction : IndentAction.Outdent, outdentCurrentLine: outdentCurrentLine };
+						return { indentAction: IndentAction.Outdent, outdentCurrentLine: outdentCurrentLine };
 					case 0:
-						return { indentAction : IndentAction.None, outdentCurrentLine: outdentCurrentLine };
+						return { indentAction: IndentAction.None, outdentCurrentLine: outdentCurrentLine };
 					case 1:
-						return { indentAction : IndentAction.Indent, outdentCurrentLine: outdentCurrentLine };
+						return { indentAction: IndentAction.Indent, outdentCurrentLine: outdentCurrentLine };
 				}
 			}
 		}
