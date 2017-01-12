@@ -103,29 +103,34 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {
-		let expectedIndentAction = LanguageConfigurationRegistry.getInheritedIndentActionAtLine(model, lineNumber);
+		let expectedIndentAction = LanguageConfigurationRegistry.getGoodIndentActionForLine(model, lineNumber);
 
-		if (expectedIndentAction && expectedIndentAction.action) {
-			let indentation = expectedIndentAction.indentation;
+		if (expectedIndentAction) {
+			if (expectedIndentAction.action) {
+				let indentation = expectedIndentAction.indentation;
 
-			if (expectedIndentAction.action === IndentAction.Indent) {
-				indentation = TypeOperations.shiftIndent(config, indentation);
+				if (expectedIndentAction.action === IndentAction.Indent) {
+					indentation = TypeOperations.shiftIndent(config, indentation);
+				}
+
+				if (expectedIndentAction.action === IndentAction.Outdent) {
+					indentation = TypeOperations.unshiftIndent(config, indentation);
+				}
+
+				indentation = config.normalizeIndentation(indentation);
+
+				if (indentation.length === 0) {
+					return '';
+				} else {
+					return indentation;
+				}
 			}
-
-			if (expectedIndentAction.action === IndentAction.Outdent) {
-				indentation = TypeOperations.unshiftIndent(config, indentation);
-			}
-
-			indentation = config.normalizeIndentation(indentation);
-
-			if (indentation.length === 0) {
-				return '\t';
-			} else {
-				return indentation;
+			else {
+				return expectedIndentAction.indentation;
 			}
 		}
 
-		return '\t';
+		return null;
 	}
 
 	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection): ReplaceCommand {
@@ -154,7 +159,9 @@ export class TypeOperations {
 			let lineText = model.getLineContent(selection.startLineNumber);
 
 			if (/^\s*$/.test(lineText)) {
-				let possibleTypeText = config.normalizeIndentation(this._goodIndentForLine(config, model, selection.startLineNumber));
+				let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
+				goodIndent = goodIndent || '\t';
+				let possibleTypeText = config.normalizeIndentation(goodIndent);
 				if (!strings.startsWith(lineText, possibleTypeText)) {
 					let command = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText);
 					return new EditOperationResult(command, {
@@ -213,38 +220,17 @@ export class TypeOperations {
 		let beforeText = '';
 
 		if (!r.ignoreCurrentLine) {
-			let expectedIndentAction = LanguageConfigurationRegistry.getInheritedIndentActionAtLine(model, range.startLineNumber);
+			let goodIndent = this._goodIndentForLine(config, model, range.startLineNumber);
 
-			if (expectedIndentAction) {
-				let expectedIndentationBeforeEnter = indentation;
-				let lineText = model.getLineContent(range.startLineNumber);
-
-				if (expectedIndentAction && expectedIndentAction.action) {
-					expectedIndentationBeforeEnter = expectedIndentAction.indentation;
-
-					if (expectedIndentAction.action === IndentAction.Indent) {
-						expectedIndentationBeforeEnter = TypeOperations.shiftIndent(config, expectedIndentationBeforeEnter);
-					}
-
-					if (expectedIndentAction.action === IndentAction.Outdent) {
-						expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
-					}
-
-					if (enterAction.outdentCurrentLine) {
-						expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
-					}
-				} else {
-					if (enterAction.outdentCurrentLine) {
-						expectedIndentationBeforeEnter = expectedIndentAction.indentation;
-						expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
-					}
+			if (goodIndent !== null) {
+				if (enterAction.outdentCurrentLine) {
+					goodIndent = TypeOperations.unshiftIndent(config, goodIndent);
 				}
 
-				expectedIndentationBeforeEnter = config.normalizeIndentation(expectedIndentationBeforeEnter);
-
-				if (expectedIndentationBeforeEnter !== config.normalizeIndentation(indentation)) {
-					beforeText = expectedIndentationBeforeEnter + lineText.substring(indentation.length, range.startColumn - 1);
-					indentation = expectedIndentationBeforeEnter;
+				let lineText = model.getLineContent(range.startLineNumber);
+				if (goodIndent !== config.normalizeIndentation(indentation)) {
+					beforeText = goodIndent + lineText.substring(indentation.length, range.startColumn - 1);
+					indentation = goodIndent;
 					range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
 				}
 			}

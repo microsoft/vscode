@@ -271,6 +271,7 @@ export class LanguageConfigurationRegistryImpl {
 		let beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		let afterEnterText;
 
+		// selection support
 		if (range.isEmpty()) {
 			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
@@ -280,6 +281,8 @@ export class LanguageConfigurationRegistryImpl {
 
 		let lineNumber = range.startLineNumber;
 
+		// if the text before the cursor/range start position is empty or matches `unIndentedLinePattern`
+		// this line is actually ignored after the enter action
 		if (onEnterSupport.shouldIgnore(beforeEnterText)) {
 			ignoreCurrentLine = true;
 			let lastLineNumber = this.getLastValidLine(model, lineNumber, onEnterSupport);
@@ -323,10 +326,7 @@ export class LanguageConfigurationRegistryImpl {
 		}
 
 		if (!enterResult) {
-			enterResult = {
-				indentAction: IndentAction.None,
-				appendText: '',
-			};
+			enterResult = { indentAction: IndentAction.None, appendText: '' };
 		} else {
 			if (!enterResult.appendText) {
 				enterResult.appendText = '';
@@ -351,7 +351,6 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	private getLastValidLine(model: ITokenizedModel, lineNumber: number, onEnterSupport: OnEnterSupport): number {
-		// TODO Check language id
 		if (lineNumber > 1) {
 			let lastLineNumber = lineNumber - 1;
 
@@ -385,7 +384,7 @@ export class LanguageConfigurationRegistryImpl {
 		return scopedLineTokens;
 	}
 
-	public getInheritedIndentActionAtLine(model: ITokenizedModel, lineNumber: number) {
+	public getGoodIndentActionForLine(model: ITokenizedModel, lineNumber: number) {
 		let onEnterSupport = this._getOnEnterSupport(model.getLanguageIdentifier().id);
 		if (!onEnterSupport) {
 			return null;
@@ -393,7 +392,7 @@ export class LanguageConfigurationRegistryImpl {
 
 		/**
 		 * In order to get correct indentation for current line
-		 * we need to loop backwards all the lines from current line until
+		 * we need to loop backwards the content from current line until
 		 * 1. a line contains non whitespace characters,
 		 * 2. and the line doesn't match `unIndentedLinePattern` pattern
 		 */
