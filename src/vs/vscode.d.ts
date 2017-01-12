@@ -1057,28 +1057,28 @@ declare module 'vscode' {
 		 * Scheme is the `http` part of `http://www.msft.com/some/path?query#fragment`.
 		 * The part before the first colon.
 		 */
-		scheme: string;
+		readonly scheme: string;
 
 		/**
 		 * Authority is the `www.msft.com` part of `http://www.msft.com/some/path?query#fragment`.
 		 * The part between the first double slashes and the next slash.
 		 */
-		authority: string;
+		readonly authority: string;
 
 		/**
 		 * Path is the `/some/path` part of `http://www.msft.com/some/path?query#fragment`.
 		 */
-		path: string;
+		readonly path: string;
 
 		/**
 		 * Query is the `query` part of `http://www.msft.com/some/path?query#fragment`.
 		 */
-		query: string;
+		readonly query: string;
 
 		/**
 		 * Fragment is the `fragment` part of `http://www.msft.com/some/path?query#fragment`.
 		 */
-		fragment: string;
+		readonly fragment: string;
 
 		/**
 		 * The string representing the corresponding file system path of this Uri.
@@ -1087,7 +1087,7 @@ declare module 'vscode' {
 		 * uses the platform specific path separator. Will *not* validate the path for
 		 * invalid characters and semantics. Will *not* look at the scheme of this Uri.
 		 */
-		fsPath: string;
+		readonly fsPath: string;
 
 		/**
 		 * Derive a new Uri from this Uri.
