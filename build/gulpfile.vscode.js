@@ -270,7 +270,11 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']))
-			.pipe(util.cleanNodeModule('vsda', ['**'], ['build/Release/*.node', 'index.js']));
+			.pipe(util.cleanNodeModule('vsda', ['**'], [(function () {
+				if (process.platform === 'win32') { return 'build/Release/vsda_win32'; }
+				if (process.platform === 'darwin') { return 'build/Release/vsda_darwin'; }
+				if (process.platform === 'linux') { return process.arch === 'x64' ? 'build/Release/vsda_linux64' : 'build/Release/vsda_linux32'; }
+			})(), 'index.js']));
 
 		let all = es.merge(
 			packageJsonStream,
