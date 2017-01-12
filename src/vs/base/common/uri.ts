@@ -379,12 +379,18 @@ export default class URI {
 
 	public toJSON(): any {
 		const res = <UriState>{
-			scheme: this.scheme,
-			path: this.path,
 			fsPath: this.fsPath,
 			external: this.toString(),
 			$mid: 1
 		};
+
+		if (this.path) {
+			res.path = this.path;
+		}
+
+		if (this.scheme) {
+			res.scheme = this.scheme;
+		}
 
 		if (this.authority) {
 			res.authority = this.authority;
@@ -403,9 +409,9 @@ export default class URI {
 
 	static revive(data: any): URI {
 		let result = new URI();
-		result._scheme = (<UriState>data).scheme;
+		result._scheme = (<UriState>data).scheme || URI._empty;
 		result._authority = (<UriState>data).authority || URI._empty;
-		result._path = (<UriState>data).path;
+		result._path = (<UriState>data).path || URI._empty;
 		result._query = (<UriState>data).query || URI._empty;
 		result._fragment = (<UriState>data).fragment || URI._empty;
 		result._fsPath = (<UriState>data).fsPath;
