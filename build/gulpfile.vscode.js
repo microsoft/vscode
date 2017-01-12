@@ -30,7 +30,7 @@ const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 
-const dependencies = Object.keys(shrinkwrap.dependencies);
+const dependencies = Object.keys(shrinkwrap.dependencies).concat(['vsda']);
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	.concat(dependencies)
@@ -93,11 +93,11 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 
 
 gulp.task('optimize-index-js', ['optimize-vscode'], () => {
-	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js')
+	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js');
 	const contents = fs.readFileSync(fullpath).toString();
 	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
 	fs.writeFileSync(fullpath, newContents);
-})
+});
 
 const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
@@ -269,7 +269,8 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
-			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
+			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']))
+			.pipe(util.cleanNodeModule('vsda', ['**'], ['build/Release/*.node', 'index.js']));
 
 		let all = es.merge(
 			packageJsonStream,
