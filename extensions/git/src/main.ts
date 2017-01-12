@@ -55,13 +55,13 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const repository = git.open(rootPath);
 	const repositoryRoot = await repository.getRoot();
 	const model = new Model(repositoryRoot, repository);
-	const provider = new GitSCMProvider(model);
 
 	const outputChannel = window.createOutputChannel('git');
 	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
 	const commandCenter = new CommandCenter(model, outputChannel);
+	const provider = new GitSCMProvider(model, commandCenter);
 
 	const fsWatcher = workspace.createFileSystemWatcher('**');
 	const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
