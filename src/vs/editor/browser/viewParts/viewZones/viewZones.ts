@@ -49,7 +49,6 @@ export class ViewZones extends ViewPart {
 		this._whitespaceManager = whitespaceManager;
 
 		this.domNode = document.createElement('div');
-		PartFingerprints.write(this.domNode, PartFingerprint.ViewZones);
 		this.domNode.className = ClassNames.VIEW_ZONES;
 		this.domNode.style.position = 'absolute';
 		this.domNode.setAttribute('role', 'presentation');

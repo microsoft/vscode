@@ -39,7 +39,6 @@ export class Margin extends ViewPart {
 
 	public _createDomNode(): HTMLElement {
 		let domNode = document.createElement('div');
-		PartFingerprints.write(domNode, PartFingerprint.Margin);
 		domNode.className = ClassNames.MARGIN + ' monaco-editor-background';
 		domNode.style.position = 'absolute';
 		domNode.setAttribute('role', 'presentation');

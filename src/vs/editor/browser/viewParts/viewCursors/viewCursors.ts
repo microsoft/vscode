@@ -49,7 +49,6 @@ export class ViewCursors extends ViewPart {
 		this._renderData = [];
 
 		this._domNode = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this._domNode.domNode, PartFingerprint.ViewCursorsLayer);
 		this._updateDomClassName();
 
 		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
