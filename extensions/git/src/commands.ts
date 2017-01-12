@@ -8,35 +8,7 @@
 import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
 import { IRef, RefType } from './git';
 import { Model, Resource, Status } from './model';
-import { decorate } from 'core-decorators';
 import * as path from 'path';
-
-function catchErrors(fn: (...args) => Promise<any>): (...args) => void {
-	return (...args) => fn.call(this, ...args).catch(async err => {
-		if (err.gitErrorCode) {
-			let message: string;
-
-			switch (err.gitErrorCode) {
-				case 'DirtyWorkTree':
-					message = 'Please clean your repository working tree before checkout.';
-					break;
-				default:
-					message = (err.stderr || err.message).replace(/^error: /, '');
-					break;
-			}
-
-			const outputChannel = this.outputChannel as OutputChannel;
-			const openOutputChannelChoice = 'Open Git Log';
-			const choice = await window.showErrorMessage(message, openOutputChannelChoice);
-
-			if (choice === openOutputChannelChoice) {
-				outputChannel.show();
-			}
-		} else {
-			console.error(err);
-		}
-	});
-}
 
 function resolveGitURI(uri: Uri): SCMResource | SCMResourceGroup | undefined {
 	if (uri.authority !== 'git') {
@@ -97,32 +69,71 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 
 export class CommandCenter {
 
-	private disposables: Disposable[] = [];
+	private static readonly Commands: { commandId: string; method: any; }[] = [];
+	private static Command(commandId: string): Function {
+		return (target: any, key: string, descriptor: any) => {
+			if (!(typeof descriptor.value === 'function')) {
+				throw new Error('not supported');
+			}
+
+			CommandCenter.Commands.push({ commandId, method: descriptor.value });
+		};
+	}
+
+	private static CatchErrors(target: any, key: string, descriptor: any): void {
+		if (!(typeof descriptor.value === 'function')) {
+			throw new Error('not supported');
+		}
+
+		const fn = descriptor.value;
+
+		descriptor.value = function (...args: any[]) {
+			fn.apply(this, args).catch(async err => {
+				if (err.gitErrorCode) {
+					let message: string;
+
+					switch (err.gitErrorCode) {
+						case 'DirtyWorkTree':
+							message = 'Please clean your repository working tree before checkout.';
+							break;
+						default:
+							message = (err.stderr || err.message).replace(/^error: /, '');
+							break;
+					}
+
+					const outputChannel = this.outputChannel as OutputChannel;
+					const openOutputChannelChoice = 'Open Git Log';
+					const choice = await window.showErrorMessage(message, openOutputChannelChoice);
+
+					if (choice === openOutputChannelChoice) {
+						outputChannel.show();
+					}
+				} else if (err.message) {
+					window.showErrorMessage(err.message);
+					console.error(err);
+				} else {
+					console.error(err);
+				}
+			});
+		};
+	}
+
+	private disposables: Disposable[];
 
 	constructor(private model: Model, private outputChannel: OutputChannel) {
-		this.disposables.push(
-			commands.registerCommand('git.refresh', this.refresh, this),
-			commands.registerCommand('git.openChange', this.openChange, this),
-			commands.registerCommand('git.openFile', this.openFile, this),
-			commands.registerCommand('git.stage', this.stage, this),
-			commands.registerCommand('git.stageAll', this.stageAll, this),
-			commands.registerCommand('git.unstage', this.unstage, this),
-			commands.registerCommand('git.unstageAll', this.unstageAll, this),
-			commands.registerCommand('git.clean', this.clean, this),
-			commands.registerCommand('git.cleanAll', this.cleanAll, this),
-			commands.registerCommand('git.checkout', this.checkout, this),
-			commands.registerCommand('git.sync', this.sync, this),
-			commands.registerCommand('git.publish', this.publish, this),
-			commands.registerCommand('git.showOutput', this.showOutput, this),
-		);
+		this.disposables = CommandCenter.Commands
+			.map(({ commandId, method }) => commands.registerCommand(commandId, method, this));
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.refresh')
+	@CommandCenter.CatchErrors
 	async refresh(): Promise<void> {
-		return await this.model.update();
+		await this.model.update();
+		throw new Error('OH MY LORD');
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.openChange')
+	@CommandCenter.CatchErrors
 	async openChange(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -200,7 +211,8 @@ export class CommandCenter {
 		return '';
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.openFile')
+	@CommandCenter.CatchErrors
 	async openFile(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -211,7 +223,8 @@ export class CommandCenter {
 		return commands.executeCommand<void>('vscode.open', resource.uri);
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.stage')
+	@CommandCenter.CatchErrors
 	async stage(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -222,12 +235,14 @@ export class CommandCenter {
 		return await this.model.stage(resource);
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.stageAll')
+	@CommandCenter.CatchErrors
 	async stageAll(): Promise<void> {
 		return await this.model.stage();
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.unstage')
+	@CommandCenter.CatchErrors
 	async unstage(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -238,12 +253,14 @@ export class CommandCenter {
 		return await this.model.unstage(resource);
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.unstageAll')
+	@CommandCenter.CatchErrors
 	async unstageAll(): Promise<void> {
 		return await this.model.unstage();
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.clean')
+	@CommandCenter.CatchErrors
 	async clean(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -264,7 +281,8 @@ export class CommandCenter {
 		return await this.model.clean(resource);
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.cleanAll')
+	@CommandCenter.CatchErrors
 	async cleanAll(): Promise<void> {
 		const message = `Are you sure you want to clean all changes?`;
 		const yes = 'Yes';
@@ -278,7 +296,8 @@ export class CommandCenter {
 		return await this.model.clean(...this.model.workingTreeGroup.resources);
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.checkout')
+	@CommandCenter.CatchErrors
 	async checkout(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType');
@@ -305,12 +324,14 @@ export class CommandCenter {
 		await choice.run(this.model);
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.sync')
+	@CommandCenter.CatchErrors
 	async sync(): Promise<void> {
 		await this.model.sync();
 	}
 
-	@decorate(catchErrors)
+	@CommandCenter.Command('git.publish')
+	@CommandCenter.CatchErrors
 	async publish(): Promise<void> {
 		const branchName = this.model.HEAD && this.model.HEAD.name || '';
 		const picks = this.model.remotes.map(r => r.name);
@@ -324,6 +345,7 @@ export class CommandCenter {
 		await this.model.push(choice, branchName, { setUpstream: true });
 	}
 
+	@CommandCenter.Command('git.showOutput')
 	showOutput(): void {
 		this.outputChannel.show();
 	}
