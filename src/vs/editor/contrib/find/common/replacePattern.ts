@@ -40,7 +40,7 @@ export class ReplacePattern {
 		}
 	}
 
-	public buildReplaceString(matches:string[]): string {
+	public buildReplaceString(matches: string[]): string {
 		if (this._staticValue) {
 			return this._staticValue;
 		}
@@ -61,7 +61,7 @@ export class ReplacePattern {
 		return result;
 	}
 
-	private static _substitute(matchIndex: number, matches:string[]): string {
+	private static _substitute(matchIndex: number, matches: string[]): string {
 		if (matchIndex === 0) {
 			return matches[0];
 		}
@@ -83,11 +83,11 @@ export class ReplacePattern {
  */
 export class ReplacePiece {
 
-	public static staticValue(value:string): ReplacePiece {
+	public static staticValue(value: string): ReplacePiece {
 		return new ReplacePiece(value, -1);
 	}
 
-	public static matchIndex(index:number): ReplacePiece {
+	public static matchIndex(index: number): ReplacePiece {
 		return new ReplacePiece(null, index);
 	}
 

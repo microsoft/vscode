@@ -15,7 +15,6 @@ import * as browser from 'vs/base/browser/browser';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 
 interface IETextRange {
 	boundingHeight: number;

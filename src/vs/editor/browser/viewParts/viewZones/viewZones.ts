@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
