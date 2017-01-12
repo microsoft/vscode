@@ -2964,7 +2964,49 @@ suite('Editor Controller - Indentation Rules', () => {
 			assertCursor(cursor, new Selection(5, 1, 5, 1));
 			assert.equal(model.getLineContent(4), '\t}', '001');
 		});
-	})
+	});
+
+	test('Enter supports selection 1', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {',
+				'\t\treturn true;',
+				'\t\t}a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 4, false);
+			moveTo(cursor, 4, 5, true);
+			assertCursor(cursor, new Selection(4, 4, 4, 5));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			assert.equal(model.getLineContent(4), '\t}', '001');
+		});
+	});
+
+	test('Enter supports selection 2', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 12, false);
+			moveTo(cursor, 2, 13, true);
+			assertCursor(cursor, new Selection(2, 12, 2, 13));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(3, 3, 3, 3));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 3, 4, 3));
+		});
+	});
 });
 interface ICursorOpts {
 	text: string[];
