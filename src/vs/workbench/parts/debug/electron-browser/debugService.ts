@@ -801,6 +801,10 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
+	public deemphasizeSource(uri: uri): void {
+		this.model.deemphasizeSource(uri);
+	}
+
 	public restartProcess(process: debug.IProcess): TPromise<any> {
 		if (!process) {
 			return this.createProcess(this.viewModel.selectedConfigurationName);

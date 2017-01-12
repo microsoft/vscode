@@ -556,7 +556,7 @@ export class Process implements debug.IProcess {
 		}
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
+	public deemphasizeSource(uri: uri): void {
 		this.threads.forEach(thread => {
 			thread.getCallStack().forEach(stackFrame => {
 				if (stackFrame.source.uri.toString() === uri.toString()) {
@@ -926,8 +926,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
-		this.processes.forEach(p => p.sourceIsUnavailable(uri));
+	public deemphasizeSource(uri: uri): void {
+		this.processes.forEach(p => p.deemphasizeSource(uri));
 		this._onDidChangeCallStack.fire();
 	}
 
