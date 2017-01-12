@@ -99,7 +99,7 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('get replace string if given text is a complete match', () => {
-		function assertReplace(target:string, search: RegExp, replaceString: string, expected: string): void {
+		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
 			let replacePattern = parseReplaceString(replaceString);
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
@@ -125,7 +125,7 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('get replace string if match is sub-string of the text', () => {
-		function assertReplace(target:string, search: RegExp, replaceString: string, expected: string): void {
+		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
 			let replacePattern = parseReplaceString(replaceString);
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);

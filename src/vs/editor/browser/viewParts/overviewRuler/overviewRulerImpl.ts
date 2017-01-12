@@ -9,7 +9,6 @@ import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
-import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
 export class OverviewRulerImpl {
 
