@@ -280,7 +280,7 @@ export class LanguageConfigurationRegistryImpl {
 
 		let lineNumber = range.startLineNumber;
 
-		if (!onEnterSupport.containNonWhitespace(beforeEnterText) || onEnterSupport.shouldIgnore(beforeEnterText)) {
+		if (onEnterSupport.shouldIgnore(beforeEnterText)) {
 			ignoreCurrentLine = true;
 			let lastLineNumber = this.getLastValidLine(model, lineNumber, onEnterSupport);
 
@@ -357,7 +357,7 @@ export class LanguageConfigurationRegistryImpl {
 
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
 				let lineText = model.getLineContent(lastLineNumber);
-				if (onEnterSupport.containNonWhitespace(lineText) && !onEnterSupport.shouldIgnore(lineText)) {
+				if (!onEnterSupport.shouldIgnore(lineText)) {
 					break;
 				}
 			}
