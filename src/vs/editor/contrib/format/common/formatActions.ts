@@ -19,6 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { Range } from 'vs/editor/common/core/range';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -232,6 +233,33 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces} = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
+	}
+}
+
+@editorAction
+export class FormatOnPasteAction extends AbstractFormatAction {
+	constructor() {
+		super({
+			id: 'editor.action.formatOnPaste',
+			label: nls.localize('formatOnPaste.label', "Format on paste"),
+			alias: 'Format on paste',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+
+	protected _getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+		const originalSelectionStart = editor.getSelection().getStartPosition();
+		editor.focus();
+		document.execCommand('paste');
+
+		// paste doesn't persist selection
+		const currentCursorPosition = editor.getSelection().getStartPosition();
+		const pastedContentRange = new Range(currentCursorPosition.lineNumber, currentCursorPosition.column, originalSelectionStart.lineNumber, originalSelectionStart.column);
+
+		const model = editor.getModel();
+		const { tabSize, insertSpaces} = model.getOptions();
+
+		return getDocumentRangeFormattingEdits(model, pastedContentRange, { tabSize, insertSpaces });
 	}
 }
 
