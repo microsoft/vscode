@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
+	background-image: url('diff.svg');
+	background-size: 20px;
+	background-position: center;
+}
+
 .scm-viewlet > .scm-commit-box {
 	padding: 5px 9px 5px 16px;
 }
