@@ -98,7 +98,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-class CommandCenter {
+export class CommandCenter {
 
 	private disposables: Disposable[] = [];
 
@@ -250,8 +250,4 @@ class CommandCenter {
 	dispose(): void {
 		this.disposables.forEach(d => d.dispose());
 	}
-}
-
-export function registerCommands(model: Model, outputChannel: OutputChannel): Disposable {
-	return new CommandCenter(model, outputChannel);
 }
