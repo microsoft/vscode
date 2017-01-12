@@ -453,23 +453,23 @@ class MouseDownOperation extends Disposable {
 
 		let mouseColumn = this._getMouseColumn(e);
 
-		if (e.posy < editorContent.top) {
-			let aboveLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(Math.max(this._viewHelper.getScrollTop() - (editorContent.top - e.posy), 0));
+		if (e.posy < editorContent.y) {
+			let aboveLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(Math.max(this._viewHelper.getScrollTop() - (editorContent.y - e.posy), 0));
 			return new MousePosition(new Position(aboveLineNumber, 1), mouseColumn);
 		}
 
-		if (e.posy > editorContent.top + editorContent.height) {
-			let belowLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.top));
+		if (e.posy > editorContent.y + editorContent.height) {
+			let belowLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.y));
 			return new MousePosition(new Position(belowLineNumber, this._context.model.getLineMaxColumn(belowLineNumber)), mouseColumn);
 		}
 
-		let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.top));
+		let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.y));
 
-		if (e.posx < editorContent.left) {
+		if (e.posx < editorContent.x) {
 			return new MousePosition(new Position(possibleLineNumber, 1), mouseColumn);
 		}
 
-		if (e.posx > editorContent.left + editorContent.width) {
+		if (e.posx > editorContent.x + editorContent.width) {
 			return new MousePosition(new Position(possibleLineNumber, this._context.model.getLineMaxColumn(possibleLineNumber)), mouseColumn);
 		}
 
