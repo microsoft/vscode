@@ -25,7 +25,6 @@ export class OverviewRulerImpl {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
-		PartFingerprints.write(this._domNode, PartFingerprint.OverviewRuler);
 
 		this._domNode.className = cssClassName;
 		this._domNode.style.position = 'absolute';
