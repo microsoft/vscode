@@ -14,9 +14,11 @@ import { visit } from 'vs/base/common/json';
 import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
+import { IRange, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,9 +31,12 @@ import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpoi
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { getNameValueMapFromScopeChildren, getDecorators, getEditorWordRangeMap } from 'vs/workbench/parts/debug/electron-browser/debugInlineDecorators';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
+const REMOVE_DECORATORS_DEBOUNCE_INTERVAL = 100; // If we receive a break in this interval, don't reset decorators as it causes a UI flash.
+const INLINE_DECORATOR_KEY = 'inlineDecorator';
 
 @editorContribution
 export class DebugEditorContribution implements IDebugEditorContribution {
@@ -45,6 +50,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
+	private removeDecorationsTimeoutId = 0;
+	private editorModelWordRangeMap: IStringDictionary<IRange[]>;
 
 	private configurationWidget: FloatingClickWidget;
 
@@ -55,6 +62,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private commandService: ICommandService,
+		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.breakpointHintDecoration = [];
@@ -65,6 +73,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.updateConfigurationWidgetVisibility();
+		this.codeEditorService.registerDecorationType(INLINE_DECORATOR_KEY, {});
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
@@ -200,6 +209,45 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.editor.updateOptions({ hover: true });
 			this.hideHoverWidget();
 		}
+
+		this.updateInlineDecorators(sf);
+	}
+
+	private updateInlineDecorators(stackFrame: IStackFrame): void {
+		// Since step over, step out is a fast continue + break. Continue clears stack.
+		// This means we'll get a null stackFrame followed quickly by a valid stackFrame.
+		// Removing all decorators and adding them again causes a noticeable UI flash due to relayout and paint.
+		// We want to only remove inline decorations if a null stackFrame isn't followed by a valid stackFrame in a short interval.
+		clearTimeout(this.removeDecorationsTimeoutId);
+		if (!stackFrame) {
+			this.removeDecorationsTimeoutId = setTimeout(() => {
+				this.editor.removeDecorations(INLINE_DECORATOR_KEY);
+				this.editorModelWordRangeMap = null;
+			}, REMOVE_DECORATORS_DEBOUNCE_INTERVAL);
+			return;
+		}
+
+		// URI has changed, invalidate the editorWordRangeMap so its re-computed for the current model
+		if (stackFrame.source.uri.toString() !== this.editor.getModel().uri.toString()) {
+			this.editorModelWordRangeMap = null;
+		}
+
+		stackFrame.getScopes()
+			// Get all top level children in the scope chain
+			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren())))
+			.then(children => {
+				const editorModel = this.editor.getModel();
+				// Compute name-value map for all variables in scope chain
+				const expressions = [].concat.apply([], children);
+				const nameValueMap = getNameValueMapFromScopeChildren(expressions);
+				// Build wordRangeMap if not already computed for the editor model
+				if (!this.editorModelWordRangeMap) {
+					this.editorModelWordRangeMap = getEditorWordRangeMap(editorModel);
+				}
+				// Compute decorators from nameValueMap and wordRangeMap and apply to editor
+				const decorators = getDecorators(nameValueMap, this.editorModelWordRangeMap, editorModel.getLinesContent());
+				this.editor.setDecorations(INLINE_DECORATOR_KEY, decorators);
+			});
 	}
 
 	private hideHoverWidget(): void {
