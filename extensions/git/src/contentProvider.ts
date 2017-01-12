@@ -21,7 +21,7 @@ export class GitContentProvider {
 	constructor(private git: Git, private rootPath: string, onGitChange: Event<Uri>) {
 		this.disposables.push(
 			onGitChange(this.fireChangeEvents, this),
-			workspace.registerTextDocumentContentProvider('git-index', this)
+			workspace.registerTextDocumentContentProvider('git', this)
 		);
 	}
 
@@ -32,10 +32,11 @@ export class GitContentProvider {
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
+		const treeish = uri.query;
 		const relativePath = path.relative(this.rootPath, uri.fsPath).replace(/\\/g, '/');
 
 		try {
-			const result = await this.git.exec(this.rootPath, ['show', `HEAD:${relativePath}`]);
+			const result = await this.git.exec(this.rootPath, ['show', `${treeish}:${relativePath}`]);
 
 			if (result.exitCode !== 0) {
 				this.uris.delete(uri);
