@@ -103,7 +103,7 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {
-		let expectedIndentAction = LanguageConfigurationRegistry.getExpectedIndentActionAtPosition(model, lineNumber);
+		let expectedIndentAction = LanguageConfigurationRegistry.getInheritedIndentActionAtLine(model, lineNumber);
 
 		if (expectedIndentAction && expectedIndentAction.action) {
 			let indentation = expectedIndentAction.indentation;
@@ -206,14 +206,14 @@ export class TypeOperations {
 
 
 	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): EditOperationResult {
-		let r = LanguageConfigurationRegistry.getEnterActionForSelection(model, range);
+		let r = LanguageConfigurationRegistry.getEnterAction(model, range);
 		let enterAction = r.enterAction;
 		let indentation = r.indentation;
 
 		let beforeText = '';
 
 		if (!r.ignoreCurrentLine) {
-			let expectedIndentAction = LanguageConfigurationRegistry.getExpectedIndentActionAtPosition(model, range.startLineNumber);
+			let expectedIndentAction = LanguageConfigurationRegistry.getInheritedIndentActionAtLine(model, range.startLineNumber);
 
 			if (expectedIndentAction) {
 				let expectedIndentationBeforeEnter = indentation;
@@ -250,7 +250,6 @@ export class TypeOperations {
 			}
 		}
 
-		// compute indentation of following lines
 		if (enterAction.removeText) {
 			indentation = indentation.substring(0, indentation.length - enterAction.removeText);
 		}

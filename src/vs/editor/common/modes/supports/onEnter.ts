@@ -85,7 +85,7 @@ export class OnEnterSupport {
 			}
 
 			/**
-			 * Since the indentation of `beforeEnterText` might not be correct, we still need to provide the correct indent action
+			 * Since the indentation of `beforeEnterText` might not be correct, we still provide the correct indent action
 			 * even if there is nothing to outdent from.
 			 */
 			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
