@@ -115,7 +115,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const syncStatusBar = new SyncStatusBar(model);
 
 	disposables.push(
-		registerCommands(model),
+		registerCommands(model, outputChannel),
 		scm.registerSCMProvider('git', provider),
 		workspace.registerTextDocumentContentProvider('git-index', textDocumentContentProvider),
 		textDocumentContentProvider,
