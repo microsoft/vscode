@@ -125,21 +125,13 @@ export class OnEnterSupport {
 		return null;
 	}
 
-	/**
-	 * containNonWhitespace
-	 */
-	public containNonWhitespace(text: string): boolean {
+	public shouldIgnore(text: string): boolean {
 		let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(text);
 
 		if (nonWhitespaceIdx < 0) {
-			return false;
+			return true;
 		}
 
-		return true;
-	}
-
-	public shouldIgnore(text: string): boolean {
-		// this line is not empty
 		if (this._indentationRules && this._indentationRules.unIndentedLinePattern && this._indentationRules.unIndentedLinePattern.test(text)) {
 			return true;
 		}
