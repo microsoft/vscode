@@ -1150,10 +1150,10 @@ class OnEnterMode extends MockMode {
 	}
 }
 
-class OnTabMode extends MockMode {
-	private static _id = new LanguageIdentifier('onTabMode', 4);
+class IndentRulesMode extends MockMode {
+	private static _id = new LanguageIdentifier('indentRulesMode', 4);
 	constructor(indentationRules: IndentationRule) {
-		super(OnTabMode._id);
+		super(IndentRulesMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			indentationRules: indentationRules
 		}));
@@ -2385,57 +2385,6 @@ suite('Editor Controller - Cursor Configuration', () => {
 		mode.dispose();
 	});
 
-	test('Enter honors decreaseIndentRule on current line 1', () => {
-		let mode = new OnEnterMode(IndentAction.Indent, true);
-		usingCursor({
-			text: [
-				'\thello'
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Selection(1, 7, 1, 7));
-
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assert.equal(model.getValue(EndOfLinePreference.CRLF), 'hello\r\n    ');
-		});
-	});
-
-	test('Enter honors decreaseIndentRule on current line 2', () => {
-		let mode = new OnEnterMode(IndentAction.None, true);
-		usingCursor({
-			text: [
-				'\thello'
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Selection(1, 7, 1, 7));
-
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assert.equal(model.getValue(EndOfLinePreference.CRLF), 'hello\r\n');
-		});
-	});
-
-	test('Enter honors decreaseIndentRule on current line 3', () => {
-		let mode = new OnEnterMode(IndentAction.IndentOutdent, true);
-		usingCursor({
-			text: [
-				'\thell()'
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Selection(1, 7, 1, 7));
-
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assert.equal(model.getValue(EndOfLinePreference.CRLF), 'hell(\r\n    \r\n)');
-		});
-	});
-
 	test('Insert line before', () => {
 		let testInsertLineBefore = (lineNumber: number, column: number, callback: (model: Model, cursor: Cursor) => void) => {
 			usingCursor({
@@ -2886,6 +2835,137 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 });
 
+suite('Editor Controller - Indentation Rules', () => {
+	let mode = new IndentRulesMode({
+			decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+			increaseIndentPattern: /(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+			indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
+			unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
+	});
+
+	test('Enter honors increaseIndentPattern', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 12, false);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 2, 2, 2));
+
+			moveTo(cursor, 3, 13, false);
+			assertCursor(cursor, new Selection(3, 13, 3, 13));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 3, 4, 3));
+		});
+	});
+
+	test('Enter honors decreaseIndentPattern', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\t\t}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 4, false);
+			assertCursor(cursor, new Selection(2, 4, 2, 4));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(3, 1, 3, 1));
+			assert.equal(model.getLineContent(2), '}', '001');
+		});
+	});
+
+	test('Enter honors unIndentedLinePattern', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\t\t\treturn true'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 15, false);
+			assertCursor(cursor, new Selection(2, 15, 2, 15));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(3, 2, 3, 2));
+		});
+	});
+
+	test('Enter honors indentNextLinePattern', () => {
+		usingCursor({
+			text: [
+				'if (true)',
+				'\treturn true;',
+				'if (true)',
+				'\t\t\t\treturn true'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 14, false);
+			assertCursor(cursor, new Selection(2, 14, 2, 14));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(3, 1, 3, 1));
+
+			moveTo(cursor, 5, 16, false);
+			assertCursor(cursor, new Selection(5, 16, 5, 16));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(6, 2, 6, 2));
+		});
+	});
+
+	test('Enter adjusts indentation of current line 1', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {',
+				'\t\treturn true;',
+				'\t\t}}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 4, false);
+			assertCursor(cursor, new Selection(4, 4, 4, 4));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			assert.equal(model.getLineContent(4), '\t}', '001');
+		});
+	});
+
+	test('Enter adjusts indentation of current line 2', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {',
+				'\t\treturn true;',
+				'}}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 2, false);
+			assertCursor(cursor, new Selection(4, 2, 4, 2));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			assert.equal(model.getLineContent(4), '\t}', '001');
+		});
+	})
+});
 interface ICursorOpts {
 	text: string[];
 	languageIdentifier?: LanguageIdentifier;

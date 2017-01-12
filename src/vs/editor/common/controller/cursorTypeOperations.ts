@@ -206,39 +206,48 @@ export class TypeOperations {
 
 
 	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): EditOperationResult {
-		let lineText = model.getLineContent(range.startLineNumber);
-		let indentation = strings.getLeadingWhitespace(lineText);
-		if (indentation.length > range.startColumn - 1) {
-			indentation = indentation.substring(0, range.startColumn - 1);
-		}
-
-		let enterAction = LanguageConfigurationRegistry.getEnterActionAtPosition(model, range.startLineNumber, range.startColumn);
-		let expectedIndentAction = LanguageConfigurationRegistry.getExpectedIndentActionAtPosition(model, range.startLineNumber);
-		let expectedIndentationBeforeEnter = indentation;
-
-		if (expectedIndentAction && expectedIndentAction.action) {
-			expectedIndentationBeforeEnter = expectedIndentAction.indentation;
-
-			if (expectedIndentAction.action === IndentAction.Indent) {
-				expectedIndentationBeforeEnter = TypeOperations.shiftIndent(config, expectedIndentationBeforeEnter);
-			}
-
-			if (expectedIndentAction.action === IndentAction.Outdent) {
-				expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
-			}
-		}
-
-		if (enterAction.outdentCurrentLine) {
-			expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
-		}
-
-		expectedIndentationBeforeEnter = config.normalizeIndentation(expectedIndentationBeforeEnter);
+		let r = LanguageConfigurationRegistry.getEnterActionForSelection(model, range);
+		let enterAction = r.enterAction;
+		let indentation = r.indentation;
 
 		let beforeText = '';
-		if (expectedIndentationBeforeEnter !== config.normalizeIndentation(indentation)) {
-			beforeText = expectedIndentationBeforeEnter + lineText.substring(indentation.length, range.startColumn - 1);
-			indentation = expectedIndentationBeforeEnter;
-			range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
+
+		if (!r.ignoreCurrentLine) {
+			let expectedIndentAction = LanguageConfigurationRegistry.getExpectedIndentActionAtPosition(model, range.startLineNumber);
+
+			if (expectedIndentAction) {
+				let expectedIndentationBeforeEnter = indentation;
+				let lineText = model.getLineContent(range.startLineNumber);
+
+				if (expectedIndentAction && expectedIndentAction.action) {
+					expectedIndentationBeforeEnter = expectedIndentAction.indentation;
+
+					if (expectedIndentAction.action === IndentAction.Indent) {
+						expectedIndentationBeforeEnter = TypeOperations.shiftIndent(config, expectedIndentationBeforeEnter);
+					}
+
+					if (expectedIndentAction.action === IndentAction.Outdent) {
+						expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
+					}
+
+					if (enterAction.outdentCurrentLine) {
+						expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
+					}
+				} else {
+					if (enterAction.outdentCurrentLine) {
+						expectedIndentationBeforeEnter = expectedIndentAction.indentation;
+						expectedIndentationBeforeEnter = TypeOperations.unshiftIndent(config, expectedIndentationBeforeEnter);
+					}
+				}
+
+				expectedIndentationBeforeEnter = config.normalizeIndentation(expectedIndentationBeforeEnter);
+
+				if (expectedIndentationBeforeEnter !== config.normalizeIndentation(indentation)) {
+					beforeText = expectedIndentationBeforeEnter + lineText.substring(indentation.length, range.startColumn - 1);
+					indentation = expectedIndentationBeforeEnter;
+					range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
+				}
+			}
 		}
 
 		// compute indentation of following lines
