@@ -129,7 +129,6 @@ export class CommandCenter {
 	@CommandCenter.CatchErrors
 	async refresh(): Promise<void> {
 		await this.model.update();
-		throw new Error('OH MY LORD');
 	}
 
 	@CommandCenter.Command('git.openChange')
