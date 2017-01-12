@@ -18,16 +18,16 @@ import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
-
-	document: TextDocument;
-	position: Position;
-
-	constructor(position: Position, document: TextDocument, entry: CompletionEntry) {
+	constructor(
+		public position: Position,
+		public document: TextDocument,
+		entry: CompletionEntry
+	) {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
-		this.document = document;
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(document, entry.kind);
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
@@ -85,6 +85,39 @@ class MyCompletionItem extends CompletionItem {
 
 		return CompletionItemKind.Property;
 	}
+
+	private static getCommitCharacters(document: TextDocument, kind: string): string[] | undefined {
+		switch (kind) {
+			case PConst.Kind.externalModuleName:
+				return ['"', '\''];
+
+			case PConst.Kind.file:
+			case PConst.Kind.directory:
+				return ['/', '"', '\''];
+
+			case PConst.Kind.alias:
+			case PConst.Kind.variable:
+			case PConst.Kind.localVariable:
+			case PConst.Kind.memberVariable:
+			case PConst.Kind.memberGetAccessor:
+			case PConst.Kind.memberSetAccessor:
+			case PConst.Kind.constructSignature:
+			case PConst.Kind.callSignature:
+			case PConst.Kind.indexSignature:
+			case PConst.Kind.enum:
+			case PConst.Kind.module:
+			case PConst.Kind.class:
+			case PConst.Kind.interface:
+			case PConst.Kind.function:
+			case PConst.Kind.memberFunction:
+				if (!document || (document.languageId !== 'typescript' && document.languageId !== 'typescriptreact')) {
+					return undefined;
+				}
+				return ['.'];
+		}
+
+		return undefined;
+	}
 }
 
 interface Configuration {
@@ -97,15 +130,12 @@ namespace Configuration {
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
 
-	public triggerCharacters = ['.'];
-	public excludeTokens = ['string', 'comment', 'numeric'];
-	public sortBy = [{ type: 'reference', partSeparator: '/' }];
-
-	private client: ITypescriptServiceClient;
-	private typingsStatus: TypingsStatus;
 	private config: Configuration;
 
-	constructor(client: ITypescriptServiceClient, typingsStatus: TypingsStatus) {
+	constructor(
+		private client: ITypescriptServiceClient,
+		private typingsStatus: TypingsStatus
+	) {
 		this.client = client;
 		this.typingsStatus = typingsStatus;
 		this.config = { useCodeSnippetsOnMethodSuggest: false };
