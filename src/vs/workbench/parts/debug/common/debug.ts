@@ -477,6 +477,11 @@ export interface IDebugService {
 	restartProcess(process: IProcess): TPromise<any>;
 
 	/**
+	 * Deemphasizes all sources with the passed uri. Source will appear as grayed out in callstack view.
+	 */
+	deemphasizeSource(uri: uri): void;
+
+	/**
 	 * Gets the current debug model.
 	 */
 	getModel(): IModel;

@@ -1154,10 +1154,9 @@ declare module monaco.editor {
          */
         roundedSelection?: boolean;
         /**
-         * Theme to be used for rendering. Consists of two parts, the UI theme and the syntax theme,
-         * separated by a space.
-         * The current available UI themes are: 'vs' (default), 'vs-dark', 'hc-black'
-         * The syntax themes are contributed. The default is 'default-theme'
+         * Theme to be used for rendering.
+         * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+         * You can create custom themes via `monaco.editor.defineTheme`.
          */
         theme?: string;
         /**
@@ -3804,6 +3803,13 @@ declare module monaco.editor {
          */
         getTopForPosition(lineNumber: number, column: number): number;
         /**
+         * Get the hit test target at coordinates `clientX` and `clientY`.
+         * The coordinates are relative to the top-left of the viewport.
+         *
+         * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
+         */
+        getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
+        /**
          * Get the visible position for `position`.
          * The result position takes scrolling into account and is relative to the top left corner of the editor.
          * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
@@ -3952,6 +3958,11 @@ declare module monaco.languages {
      * Register a definition provider (used by e.g. go to definition).
      */
     export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
+
+    /**
+     * Register a type definition provider (used by e.g. go to implementation).
+     */
+    export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
 
     /**
      * Register a code lens provider (used by e.g. inline code lenses).
@@ -4530,6 +4541,17 @@ declare module monaco.languages {
          * Provide the definition of the symbol at the given position and document.
          */
         provideDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+    }
+
+    /**
+     * The type definition provider interface defines the contract between extensions and
+     * the go to implementation feature.
+     */
+    export interface TypeDefinitionProvider {
+        /**
+         * Provide the implementation of the symbol at the given position and document.
+         */
+        provideTypeDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
     }
 
     /**

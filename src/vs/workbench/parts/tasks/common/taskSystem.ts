@@ -98,9 +98,9 @@ export interface TaskDescription {
 	args?: string[];
 
 	/**
-	 * Whether the task is running in watching mode or not.
+	 * Whether the task is a background task or not.
 	 */
-	isWatching?: boolean;
+	isBackground?: boolean;
 
 	/**
 	 * Whether the task should prompt on close for confirmation if running.
@@ -201,7 +201,7 @@ export interface ITaskExecuteResult {
 	};
 	active?: {
 		same: boolean;
-		watching: boolean;
+		background: boolean;
 	};
 }
 
@@ -242,5 +242,5 @@ export interface TaskConfiguration {
 	/**
 	 * The build system to use. If omitted program is used.
 	 */
-	buildSystem?: string;
+	_runner?: string;
 }

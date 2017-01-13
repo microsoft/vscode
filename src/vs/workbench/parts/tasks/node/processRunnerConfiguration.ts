@@ -451,7 +451,7 @@ class ConfigurationParser {
 				name: globals.command,
 				showOutput: globals.showOutput,
 				suppressTaskName: true,
-				isWatching: isWatching,
+				isBackground: isWatching,
 				promptOnClose: promptOnClose,
 				echoCommand: globals.echoCommand,
 			};
@@ -539,15 +539,15 @@ class ConfigurationParser {
 			if (Types.isStringArray(externalTask.args)) {
 				task.args = externalTask.args.slice();
 			}
-			task.isWatching = false;
+			task.isBackground = false;
 			if (!Types.isUndefined(externalTask.isWatching)) {
-				task.isWatching = !!externalTask.isWatching;
+				task.isBackground = !!externalTask.isWatching;
 			}
 			task.promptOnClose = true;
 			if (!Types.isUndefined(externalTask.promptOnClose)) {
 				task.promptOnClose = !!externalTask.promptOnClose;
 			} else {
-				task.promptOnClose = !task.isWatching;
+				task.promptOnClose = !task.isBackground;
 			}
 			if (Types.isString(externalTask.showOutput)) {
 				task.showOutput = TaskSystem.ShowOutput.fromString(externalTask.showOutput);

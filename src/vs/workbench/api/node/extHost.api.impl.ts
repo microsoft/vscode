@@ -182,6 +182,9 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return languageFeatures.registerDefinitionProvider(selector, provider);
 			},
+			registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
+				return languageFeatures.registerTypeDefinitionProvider(selector, provider);
+			},
 			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
 				return languageFeatures.registerHoverProvider(selector, provider);
 			},

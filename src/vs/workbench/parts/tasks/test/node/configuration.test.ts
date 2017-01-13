@@ -73,7 +73,7 @@ class TaskBuilder {
 			showOutput: TaskSystem.ShowOutput.Always,
 			suppressTaskName: false,
 			echoCommand: false,
-			isWatching: false,
+			isBackground: false,
 			promptOnClose: true,
 			problemMatchers: []
 		};
@@ -99,8 +99,8 @@ class TaskBuilder {
 		return this;
 	}
 
-	public isWatching(value: boolean): TaskBuilder {
-		this.result.isWatching = value;
+	public isBackground(value: boolean): TaskBuilder {
+		this.result.isBackground = value;
 		return this;
 	}
 
@@ -307,7 +307,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.task('tsc').
 			suppressTaskName(true).
-			isWatching(true).
+			isBackground(true).
 			promptOnClose(false);
 		testGobalCommand(
 			{
@@ -627,7 +627,7 @@ suite('Tasks Configuration parsing tests', () => {
 			showOutput(TaskSystem.ShowOutput.Never).
 			echoCommand(true).
 			args(['--p']).
-			isWatching(true).
+			isBackground(true).
 			promptOnClose(false);
 
 		let result = testConfiguration(external, builder);
@@ -833,7 +833,7 @@ suite('Tasks Configuration parsing tests', () => {
 			]
 		};
 		let builder = new ConfiguationBuilder('tsc');
-		builder.task('taskName').isWatching(true).promptOnClose(false);
+		builder.task('taskName').isBackground(true).promptOnClose(false);
 		testConfiguration(external, builder);
 	});
 
@@ -943,7 +943,7 @@ suite('Tasks Configuration parsing tests', () => {
 		assert.strictEqual(actual.showOutput, expected.showOutput, 'showOutput');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
 		assert.strictEqual(actual.echoCommand, expected.echoCommand, 'echoCommand');
-		assert.strictEqual(actual.isWatching, expected.isWatching, 'isWatching');
+		assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
 		assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
 		assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
 		if (actual.problemMatchers && expected.problemMatchers) {

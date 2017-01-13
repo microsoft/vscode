@@ -71,7 +71,8 @@ export class EditorState {
 }
 
 interface ISerializedFileHistoryEntry {
-	resource: any | string; // TODO@Ben migration
+	resource?: string;
+	resourceJSON: any;
 }
 
 export abstract class BaseHistoryService {
@@ -708,7 +709,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				return void 0; // only file resource inputs are serializable currently
 			}
 
-			return { resource: (input as IResourceInput).resource.toJSON() };
+			return { resourceJSON: (input as IResourceInput).resource.toJSON() };
 		}).filter(serialized => !!serialized);
 
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
@@ -724,8 +725,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		this.history = entries.map(entry => {
 			const serializedFileInput = entry as ISerializedFileHistoryEntry;
-			if (serializedFileInput.resource) {
-				return { resource: typeof serializedFileInput.resource === 'string' ? URI.parse(serializedFileInput.resource) : URI.revive(serializedFileInput.resource) } as IResourceInput;
+			if (serializedFileInput.resource || serializedFileInput.resourceJSON) {
+				return { resource: !!serializedFileInput.resourceJSON ? URI.revive(serializedFileInput.resourceJSON) : URI.parse(serializedFileInput.resource) } as IResourceInput;
 			}
 
 			return void 0;
