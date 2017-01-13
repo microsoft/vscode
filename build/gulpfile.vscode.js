@@ -30,12 +30,11 @@ const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 
-const dependencies = Object.keys(shrinkwrap.dependencies);
-const extraDependencies = Array.isArray(product.extraNodeModules) ? product.extraNodeModules : []; // additional dependencies from our product configuration
+const dependencies = Object.keys(shrinkwrap.dependencies)
+	.concat(Array.isArray(product.extraNodeModules) ? product.extraNodeModules : []); // additional dependencies from our product configuration
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	.concat(dependencies)
-	.concat(extraDependencies)
 	.concat(baseModules);
 
 // Build
