@@ -13,14 +13,14 @@ export abstract class V8Protocol {
 
 	private outputStream: stream.Writable;
 	private sequence: number;
-	private pendingRequests: Map<number, (e: DebugProtocol.Response) => void>;
+	private pendingRequests: { [id: number]: (e: DebugProtocol.Response) => void; };
 	private rawData: Buffer;
 	private contentLength: number;
 
 	constructor(private id: string) {
 		this.sequence = 1;
 		this.contentLength = -1;
-		this.pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
+		this.pendingRequests = {};
 		this.rawData = new Buffer(0);
 	}
 
@@ -77,7 +77,7 @@ export abstract class V8Protocol {
 
 		if (clb) {
 			// store callback for this request
-			this.pendingRequests.set(request.seq, clb);
+			this.pendingRequests[request.seq] = clb;
 		}
 	}
 
@@ -130,9 +130,9 @@ export abstract class V8Protocol {
 					break;
 				case 'response':
 					const response = <DebugProtocol.Response>rawData;
-					const clb = this.pendingRequests.get(response.request_seq);
+					const clb = this.pendingRequests[response.request_seq];
 					if (clb) {
-						this.pendingRequests.delete(response.request_seq);
+						delete this.pendingRequests[response.request_seq];
 						clb(response);
 					}
 					break;
