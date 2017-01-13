@@ -13,7 +13,6 @@ import mime = require('vs/base/common/mime');
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
@@ -130,9 +129,6 @@ function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
 
-	private _instantiationService: IInstantiationService;
-	protected _extensionService: IExtensionService;
-
 	private _instantiatedModes: { [modeId: string]: IMode; };
 
 	private _registry: LanguagesRegistry;
@@ -143,17 +139,15 @@ export class ModeServiceImpl implements IModeService {
 	private _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
 	public onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
-	constructor(
-		instantiationService: IInstantiationService,
-		extensionService: IExtensionService
-	) {
-		this._instantiationService = instantiationService;
-		this._extensionService = extensionService;
-
+	constructor() {
 		this._instantiatedModes = {};
 
 		this._registry = new LanguagesRegistry();
 		this._registry.onDidAddModes((modes) => this._onDidAddModes.fire(modes));
+	}
+
+	protected _onReady(): TPromise<boolean> {
+		return TPromise.as(true);
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -186,6 +180,16 @@ export class ModeServiceImpl implements IModeService {
 
 	public getModeIdForLanguageName(alias: string): string {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
+	}
+
+	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
+		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
+
+		if (modeIds.length > 0) {
+			return modeIds[0];
+		}
+
+		return null;
 	}
 
 	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
@@ -245,7 +249,23 @@ export class ModeServiceImpl implements IModeService {
 		}
 	}
 
-	public getModeIdByLanguageName(languageName: string): string {
+	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
+		return this._onReady().then(() => {
+			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
+			// Fall back to plain text if no mode was found
+			return this._getOrCreateMode(modeId || 'plaintext');
+		});
+	}
+
+	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
+		return this._onReady().then(() => {
+			var modeId = this._getModeIdByLanguageName(languageName);
+			// Fall back to plain text if no mode was found
+			return this._getOrCreateMode(modeId || 'plaintext');
+		});
+	}
+
+	private _getModeIdByLanguageName(languageName: string): string {
 		var modeIds = this._registry.getModeIdsFromLanguageName(languageName);
 
 		if (modeIds.length > 0) {
@@ -255,38 +275,8 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
-		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
-	}
-
-	public onReady(): TPromise<boolean> {
-		return this._extensionService.onReady();
-	}
-
-	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
-		return this.onReady().then(() => {
-			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
-			// Fall back to plain text if no mode was found
-			return this._getOrCreateMode(modeId || 'plaintext');
-		});
-	}
-
-	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
-		return this.onReady().then(() => {
-			var modeId = this.getModeIdByLanguageName(languageName);
-			// Fall back to plain text if no mode was found
-			return this._getOrCreateMode(modeId || 'plaintext');
-		});
-	}
-
 	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<IMode> {
-		return this.onReady().then(() => {
+		return this._onReady().then(() => {
 			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -306,15 +296,16 @@ export class ModeServiceImpl implements IModeService {
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
+	private _extensionService: IExtensionService;
 	private _onReadyPromise: TPromise<boolean>;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(instantiationService, extensionService);
+		super();
 		this._configurationService = configurationService;
+		this._extensionService = extensionService;
 
 		languagesExtPoint.setHandler((extensions: IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
 			let allValidLanguages: IValidLanguageExtensionPoint[] = [];
@@ -356,7 +347,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		});
 	}
 
-	public onReady(): TPromise<boolean> {
+	protected _onReady(): TPromise<boolean> {
 		if (!this._onReadyPromise) {
 			const configuration = this._configurationService.getConfiguration<IFilesConfiguration>();
 			this._onReadyPromise = this._extensionService.onReady().then(() => {

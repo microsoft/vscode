@@ -129,7 +129,7 @@ export module StaticServices {
 
 	export const markerService = define(IMarkerService, () => new MarkerService());
 
-	export const modeService = define(IModeService, (o) => new ModeServiceImpl(instantiationService.get(o), extensionService.get(o)));
+	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), messageService.get(o)));
 
