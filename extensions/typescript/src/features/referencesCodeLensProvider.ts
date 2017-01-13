@@ -74,7 +74,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				const locations = response.body.refs
 					.filter(reference =>
 						!(reference.start.line === codeLens.range.start.line + 1
-						&& reference.start.offset === codeLens.range.start.character + 1))
+							&& reference.start.offset === codeLens.range.start.character + 1))
 					.map(reference =>
 						new Location(Uri.file(reference.file),
 							new Range(
