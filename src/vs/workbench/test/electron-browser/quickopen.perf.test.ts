@@ -71,7 +71,7 @@ suite('QuickOpen performance', () => {
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, new SimpleConfigurationService()],
-			[IModelService, new ModelServiceImpl(null, configurationService, null)],
+			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new WorkspaceContextService({ resource: URI.file(testWorkspacePath) })],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],

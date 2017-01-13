@@ -23,7 +23,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 
 function MODEL_ID(resource: URI): string {
@@ -179,7 +178,6 @@ export class ModelServiceImpl implements IModelService {
 
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;
-	private _messageService: IMessageService;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 
@@ -189,8 +187,6 @@ export class ModelServiceImpl implements IModelService {
 
 	private _modelCreationOptions: editorCommon.ITextModelCreationOptions;
 
-	private _hasShownMigrationMessage: boolean;
-
 	/**
 	 * All the models known in the system.
 	 */
@@ -199,7 +195,6 @@ export class ModelServiceImpl implements IModelService {
 	constructor(
 		@IMarkerService markerService: IMarkerService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IMessageService messageService: IMessageService
 	) {
 		this._modelCreationOptions = {
 			tabSize: DEFAULT_INDENTATION.tabSize,
@@ -210,8 +205,6 @@ export class ModelServiceImpl implements IModelService {
 		};
 		this._markerService = markerService;
 		this._configurationService = configurationService;
-		this._messageService = messageService;
-		this._hasShownMigrationMessage = false;
 		this._models = {};
 
 
@@ -225,21 +218,17 @@ export class ModelServiceImpl implements IModelService {
 
 		let readConfig = (config: IRawConfig) => {
 
-			let shouldShowMigrationMessage = false;
-
 			let tabSize = DEFAULT_INDENTATION.tabSize;
 			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 				let parsedTabSize = parseInt(config.editor.tabSize, 10);
 				if (!isNaN(parsedTabSize)) {
 					tabSize = parsedTabSize;
 				}
-				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.tabSize === 'auto');
 			}
 
 			let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
 			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 				insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
-				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.insertSpaces === 'auto');
 			}
 
 			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
@@ -267,12 +256,6 @@ export class ModelServiceImpl implements IModelService {
 				defaultEOL: newDefaultEOL,
 				trimAutoWhitespace: trimAutoWhitespace
 			});
-
-
-			if (shouldShowMigrationMessage && !this._hasShownMigrationMessage) {
-				this._hasShownMigrationMessage = true;
-				this._messageService.show(Severity.Info, nls.localize('indentAutoMigrate', "Please update your settings: `editor.detectIndentation` replaces `editor.tabSize`: \"auto\" or `editor.insertSpaces`: \"auto\""));
-			}
 		};
 
 		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => {

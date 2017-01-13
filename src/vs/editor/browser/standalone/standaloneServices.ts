@@ -10,7 +10,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -33,9 +32,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {
-	SimpleConfigurationService, SimpleMessageService, SimpleExtensionService,
-	StandaloneKeybindingService, StandaloneCommandService, SimpleProgressService,
-	SimpleMenuService
+	SimpleConfigurationService, SimpleMenuService, SimpleMessageService,
+	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -125,13 +123,11 @@ export module StaticServices {
 
 	export const messageService = define(IMessageService, () => new SimpleMessageService());
 
-	export const extensionService = define(IExtensionService, () => new SimpleExtensionService());
-
 	export const markerService = define(IMarkerService, () => new MarkerService());
 
 	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), messageService.get(o)));
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o)));
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o)));
 
