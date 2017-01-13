@@ -6,23 +6,24 @@
 import * as assert from 'assert';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Model as EditorModel } from 'vs/editor/common/model/model';
-import { IRange, IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IExpression } from 'vs/workbench/parts/debug/common/debug';
-import * as inlineDecorators from 'vs/workbench/parts/debug/electron-browser/debugInlineDecorators';
+import * as inlineValues from 'vs/workbench/parts/debug/electron-browser/debugInlineValues';
 
 // Test data
 const testLine = 'function doit(everything, is, awesome, awesome, when, youre, part, of, a, team){}';
+const testNameValueMap = new Map<string, string>();
 
-const testNameValueMap = {
-	everything: '{emmet: true, batman: true, legoUniverse: true}',
-	is: '15',
-	awesome: '"aweeeeeeeeeeeeeeeeeeeeeeeeeeeeeeesome…"',
-	when: 'true',
-	youre: '"Yes I mean you"',
-	part: '"𝄞 ♪ ♫"'
-};
+setup(() => {
+	testNameValueMap.set('everything', '{emmet: true, batman: true, legoUniverse: true}');
+	testNameValueMap.set('is', '15');
+	testNameValueMap.set('awesome', '"aweeeeeeeeeeeeeeeeeeeeeeeeeeeeeeesome…"');
+	testNameValueMap.set('when', 'true');
+	testNameValueMap.set('youre', '"Yes I mean you"');
+	testNameValueMap.set('part', '"𝄞 ♪ ♫"');
+});
 
 suite('Debug - Inline Value Decorators', () => {
 	test('getNameValueMapFromScopeChildren trims long values', () => {
@@ -31,7 +32,7 @@ suite('Debug - Inline Value Decorators', () => {
 			createExpression('blah', createLongString())
 		];
 
-		const nameValueMap = inlineDecorators.getNameValueMapFromScopeChildren(expressions);
+		const nameValueMap = inlineValues.toNameValueMap(expressions);
 
 		// Ensure blah is capped and ellipses added
 		assert.deepEqual(nameValueMap, {
@@ -54,7 +55,7 @@ suite('Debug - Inline Value Decorators', () => {
 				const val = `val${i}.${j}`;
 				expressions[j] = createExpression(name, val);
 
-				if ((i * expressions.length + j) < inlineDecorators.MAX_NUM_INLINE_VALUES) {
+				if ((i * expressions.length + j) < inlineValues.MAX_NUM_INLINE_VALUES) {
 					expectedNameValueMap[name] = val;
 				}
 			}
@@ -63,32 +64,16 @@ suite('Debug - Inline Value Decorators', () => {
 		}
 
 		const expressions = [].concat.apply([], scopeChildren);
-		const nameValueMap = inlineDecorators.getNameValueMapFromScopeChildren(expressions);
+		const nameValueMap = inlineValues.toNameValueMap(expressions);
 
 		assert.deepEqual(nameValueMap, expectedNameValueMap);
-	});
-
-	test('getDecoratorFromNames caps long decorator afterText', () => {
-		const names = Object.keys(testNameValueMap);
-		const lineNumber = 1;
-		const decorator = inlineDecorators.getDecoratorFromNames(lineNumber, names, testNameValueMap, [testLine]);
-
-		const expectedDecoratorText = ' everything = {emmet: true, batman: true, legoUniverse: true}, is = 15, awesome = "aweeeeeeeeeeeeeeeeeeeeeeeeeeeeeeesome…", when = true, youre = "Yes…';
-		assert.equal(decorator.renderOptions.dark.after.contentText, decorator.renderOptions.light.after.contentText);
-		assert.equal(decorator.renderOptions.dark.after.contentText, expectedDecoratorText);
-		assert.deepEqual(decorator.range, {
-			startLineNumber: lineNumber,
-			endLineNumber: lineNumber,
-			startColumn: testLine.length,
-			endColumn: testLine.length + 1
-		});
 	});
 
 	test('getDecorators returns correct decorator afterText', () => {
 		const lineContent = 'console.log(everything, part, part);'; // part shouldn't be duplicated
 		const lineNumber = 1;
-		const wordRangeMap = updateWordRangeMap(Object.create(null), lineNumber, lineContent);
-		const decorators = inlineDecorators.getDecorators(testNameValueMap, wordRangeMap, [lineContent]);
+		const wordToLinesMap = getWordToLineMap(lineNumber, lineContent);
+		const decorators = inlineValues.getDecorations(testNameValueMap, wordToLinesMap);
 		const expectedDecoratorText = ' everything = {emmet: true, batman: true, legoUniverse: true}, part = "𝄞 ♪ ♫" ';
 		assert.equal(decorators[0].renderOptions.dark.after.contentText, expectedDecoratorText);
 	});
@@ -98,7 +83,7 @@ suite('Debug - Inline Value Decorators', () => {
 		const editorModel = EditorModel.createFromString(`/** Copyright comment */\n  \n${testLine}\n// Test comment\n${createLongString()}\n`);
 		mockEditorModelLineTokens(editorModel);
 
-		const wordRangeMap = inlineDecorators.getEditorWordRangeMap(editorModel);
+		const wordRangeMap = inlineValues.getWordToLineNumbersMap(editorModel);
 		const words = Object.keys(wordRangeMap);
 		assert.deepEqual(words, expectedWords);
 	});
@@ -125,8 +110,9 @@ function createLongString(): string {
 }
 
 // Simple word range creator that maches wordRegex throughout string
-function updateWordRangeMap(wordRangeMap: IStringDictionary<IRange[]>, lineNumber: number, lineContent: string): IStringDictionary<IRange[]> {
-	const wordRegexp = inlineDecorators.WORD_REGEXP;
+function getWordToLineMap(lineNumber: number, lineContent: string): Map<string, number[]> {
+	const result = new Map<string, number[]>();
+	const wordRegexp = inlineValues.WORD_REGEXP;
 	wordRegexp.lastIndex = 0; // Reset matching
 
 	while (true) {
@@ -134,26 +120,16 @@ function updateWordRangeMap(wordRangeMap: IStringDictionary<IRange[]>, lineNumbe
 		if (!wordMatch) {
 			break;
 		}
-
 		const word = wordMatch[0];
-		const startOffset = wordMatch.index;
-		const endOffset = startOffset + word.length;
 
-		const range: IRange = {
-			startColumn: startOffset + 1,
-			endColumn: endOffset + 1,
-			startLineNumber: lineNumber,
-			endLineNumber: lineNumber
-		};
-
-		if (!wordRangeMap[word]) {
-			wordRangeMap[word] = [];
+		if (!result.has(word)) {
+			result.set(word, []);
 		}
 
-		wordRangeMap[word].push(range);
+		result.get(word).push(lineNumber);
 	}
 
-	return wordRangeMap;
+	return result;
 }
 
 interface MockToken {
@@ -182,7 +158,7 @@ function mockLineTokens(lineContent: string): LineTokens {
 		});
 	}
 	else {
-		const wordRegexp = inlineDecorators.WORD_REGEXP;
+		const wordRegexp = inlineValues.WORD_REGEXP;
 		wordRegexp.lastIndex = 0;
 
 		while (true) {
