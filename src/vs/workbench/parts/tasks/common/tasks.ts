@@ -14,6 +14,7 @@ import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/comm
 import { Executable, ExecutableParser, Config as ProcessConfig } from 'vs/base/common/processes';
 
 import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser } from 'vs/platform/markers/common/problemMatcher';
+import { ITaskCommand } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 export namespace Config {
 
@@ -69,6 +70,10 @@ export namespace Config {
 		 */
 		problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
 
+		/**
+		 * Command binding for task
+		 */
+		commandBinding?: ITaskCommand;
 	}
 }
 
@@ -149,6 +154,11 @@ export interface Task {
 	 * output.
 	 */
 	problemMatcher: ProblemMatcher[];
+
+	/**
+	 * Command binding for task
+	 */
+	commandBinding?: ITaskCommand;
 }
 
 export interface ParserSettings {

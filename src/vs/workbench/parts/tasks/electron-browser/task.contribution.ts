@@ -28,7 +28,7 @@ import * as strings from 'vs/base/common/strings';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -59,7 +59,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
-import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents, checkValidCommand, IRegisteredTask } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -69,6 +69,10 @@ import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/node/processRunner
 import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { join } from 'vs/base/common/paths';
 
 let $ = Builder.$;
 
@@ -392,7 +396,6 @@ class RunTaskAction extends AbstractTaskAction {
 	}
 }
 
-
 class StatusBarItem implements IStatusbarItem {
 
 	private panelService: IPanelService;
@@ -620,6 +623,8 @@ class TaskService extends EventEmitter implements ITaskService {
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
 
+	private _registeredSpecificTasks: IRegisteredTask[];
+
 	private fileChangesListener: IDisposable;
 
 	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
@@ -651,6 +656,12 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
 		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
+
+		this._registeredSpecificTasks = [];
+		this.addListener2(TaskServiceEvents.ConfigChanged, () => {
+			this.tasks(); //reload tasks for keyboard shortcuts task
+		});
+
 		this.configurationService.onDidUpdateConfiguration(() => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {
@@ -674,6 +685,55 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.fileChangesListener.dispose();
 			this.fileChangesListener = null;
 		}
+	}
+
+	private refreshTaskCommands(tasks: TaskDescription[], taskSystem: ITaskSystem): void {
+		//Remove any existing ones
+		this._registeredSpecificTasks.forEach((rt) => {
+			MenuRegistry.removeCommand(rt.id);
+			rt.command.dispose();
+		});
+		this._registeredSpecificTasks = []; //clear existing
+
+		const ids = new IdGenerator('task-cmd-icon-');
+
+		//Re-add them
+		tasks.forEach(t => {
+			if (t.commandBinding) {
+				let err = checkValidCommand(t.commandBinding);
+				if (err) {
+					this.messageService.show(err.severity, err.message);
+					return;
+				}
+
+				let { icon, category, title, id } = t.commandBinding;
+
+				if (CommandsRegistry.getCommand(id)) {
+					this.messageService.show(Severity.Error, nls.localize('TaskSystem.IdAlreadyExists', 'A command with the id "{0}" already exists. Please use a different id.', id));
+					return;
+				}
+
+				let iconClass: string;
+				if (icon) {
+					iconClass = ids.nextId();
+					if (typeof icon === 'string') {
+						const path = join(this.contextService.getWorkspace().resource.fsPath, icon);
+						Dom.createCSSRule(`.icon.${iconClass}`, `background-image: url("${path}")`);
+					} else {
+						const light = join(this.contextService.getWorkspace().resource.fsPath, icon.light);
+						const dark = join(this.contextService.getWorkspace().resource.fsPath, icon.dark);
+						Dom.createCSSRule(`.icon.${iconClass}`, `background-image: url("${light}")`);
+						Dom.createCSSRule(`.vs-dark .icon.${iconClass}, hc-black .icon.${iconClass}`, `background-image: url("${dark}")`);
+					}
+				}
+
+				MenuRegistry.addCommand({ id: id, title, category, iconClass });
+				let command = CommandsRegistry.registerCommand(id, () => {
+					taskSystem.run(t.id);
+				});
+				this._registeredSpecificTasks.push({ id: id, command: command });
+			}
+		});
 	}
 
 	private get taskSystemPromise(): TPromise<ITaskSystem> {
@@ -739,11 +799,13 @@ class TaskService extends EventEmitter implements ITaskService {
 							this._taskSystemPromise = null;
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
+						let refreshShortcuts = false;
 						let result: ITaskSystem = null;
 						if (config.buildSystem === 'service') {
 							result = new LanguageServiceTaskSystem(<LanguageServiceTaskConfiguration>config, this.telemetryService, this.modeService);
 						} else if (this.isRunnerConfig(config)) {
 							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
+							refreshShortcuts = true;
 						}
 						if (result === null) {
 							this._taskSystemPromise = null;
@@ -752,7 +814,15 @@ class TaskService extends EventEmitter implements ITaskService {
 						this.taskSystemListeners.push(result.addListener2(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
 						this.taskSystemListeners.push(result.addListener2(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
 						this._taskSystem = result;
-						return result;
+						if (refreshShortcuts) {
+							return result.tasks().then(tasks => {
+								this.refreshTaskCommands(tasks, result);
+								return result;
+							});
+						}
+						else {
+							return result;
+						}
 					}, (err: any) => {
 						this.handleError(err);
 						return Promise.wrapError(err);
@@ -1352,6 +1422,29 @@ let schema: IJSONSchema =
 					'problemMatcher': {
 						'$ref': '#/definitions/problemMatcherType',
 						'description': nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+					},
+					'commandBinding': {
+						'type': 'object',
+						'description': nls.localize('JsonSchema.tasks.commandBinding', 'Command binding to use in the menu or as a keyboard shortcut'),
+						'required': ['id', 'title'],
+						'properties': {
+							'id': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.id', 'ID to identify command')
+							},
+							'title': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.title', 'Title of command')
+							},
+							'category': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.category', 'Optional category of command')
+							},
+							'icon': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.icon', 'Optional icon file name of command')
+							},
+						}
 					}
 				},
 				'defaultSnippets': [

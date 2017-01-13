@@ -91,6 +91,11 @@ export interface TaskDescription {
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+
+	/**
+	 * Command binding for task
+	 */
+	commandBinding?: TaskSystem.ITaskCommand;
 }
 
 /**
@@ -565,6 +570,9 @@ class ConfigurationParser {
 			}
 			if (problemMatchers) {
 				task.problemMatchers = problemMatchers;
+			}
+			if (externalTask.commandBinding) {
+				task.commandBinding = externalTask.commandBinding;
 			}
 			// ToDo@dirkb: this is very special for the tsc watch mode. We should find
 			// a exensible solution for this.

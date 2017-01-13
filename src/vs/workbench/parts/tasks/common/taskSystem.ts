@@ -10,6 +10,50 @@ import { TerminateResponse } from 'vs/base/common/processes';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from 'vs/nls';
+
+export interface IRegisteredTask {
+	id: string;
+	command: IDisposable;
+}
+
+export type ITaskIcon = string | { light: string; dark: string; };
+
+export interface ITaskCommand {
+	id: string;
+	title: string;
+	category?: string;
+	icon?: ITaskIcon;
+}
+
+export function checkValidCommand(command: ITaskCommand): TaskError {
+	if (!command) {
+		return new TaskError(Severity.Error, nls.localize('nonempty', "expected non-empty value."), TaskErrors.ConfigValidationError);
+	}
+	if (typeof command.id !== 'string') {
+		return new TaskError(Severity.Error, nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'), TaskErrors.ConfigValidationError);
+	}
+	if (typeof command.title !== 'string') {
+		return new TaskError(Severity.Error, nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'), TaskErrors.ConfigValidationError);
+	}
+	if (command.category && typeof command.category !== 'string') {
+		return new TaskError(Severity.Error, nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'), TaskErrors.ConfigValidationError);
+	}
+	return checkIconValid(command.icon);
+}
+
+function checkIconValid(icon: ITaskIcon): TaskError {
+	if (typeof icon === 'undefined') {
+		return;
+	}
+	if (typeof icon === 'string') {
+		return;
+	} else if (typeof icon.dark === 'string' && typeof icon.light === 'string') {
+		return;
+	}
+	return new TaskError(Severity.Error, nls.localize('opticon', "property `icon` can be omitted or must be either a string or a literal like `{dark, light}`"), TaskErrors.ConfigValidationError);
+}
 
 export enum TaskErrors {
 	NotConfigured,
@@ -122,6 +166,11 @@ export interface TaskDescription {
 	 * The problem watchers to use for this task
 	 */
 	problemMatchers?: ProblemMatcher[];
+
+	/**
+	 * Command binding for task
+	 */
+	commandBinding?: ITaskCommand;
 }
 
 export interface CommandOptions {
