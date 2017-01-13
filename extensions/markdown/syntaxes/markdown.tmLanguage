@@ -256,7 +256,7 @@
 				<key>heading</key>
 				<dict>
 					<key>begin</key>
-					<string>(?:^|\G)(#{1,6})\s*(?=[\S[^#]])</string>
+					<string>(?:^|\G)[ ]{0,3}(#{1,6})\s*(?=[\S[^#]])</string>
 					<key>captures</key>
 					<dict>
 						<key>1</key>
