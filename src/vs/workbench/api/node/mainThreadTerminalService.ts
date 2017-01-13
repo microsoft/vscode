@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape } from './extHost.protocol';
@@ -31,7 +31,14 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 	}
 
 	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean): TPromise<number> {
-		return TPromise.as(this.terminalService.createInstance(name, shellPath, shellArgs, waitOnExit, true).id);
+		const shellLaunchConfig: IShellLaunchConfig = {
+			name,
+			executable: shellPath,
+			args: shellArgs,
+			waitOnExit,
+			ignoreConfigurationCwd: true
+		};
+		return TPromise.as(this.terminalService.createInstance(shellLaunchConfig).id);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
