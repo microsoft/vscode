@@ -183,6 +183,12 @@ export abstract class MainThreadOutputServiceShape {
 	$close(channelId: string): TPromise<void> { throw ni(); }
 }
 
+export abstract class MainThreadProgressShape {
+	$progressStart(handle: number): void { throw ni(); }
+	$progressReport(handle: number, message: string): void { throw ni(); }
+	$progressEnd(handle: number, err?: any): void { throw ni(); }
+}
+
 export abstract class MainThreadTerminalServiceShape {
 	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean): TPromise<number> { throw ni(); }
 	$dispose(terminalId: number): void { throw ni(); }
@@ -370,6 +376,7 @@ export const MainContext = {
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages', MainThreadLanguagesShape),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', MainThreadMessageServiceShape),
 	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService', MainThreadOutputServiceShape),
+	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress', MainThreadProgressShape),
 	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen', MainThreadQuickOpenShape),
 	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar', MainThreadStatusBarShape),
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage', MainThreadStorageShape),

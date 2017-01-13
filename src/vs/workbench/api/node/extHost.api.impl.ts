@@ -20,6 +20,7 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostTreeExplorers } from 'vs/workbench/api/node/extHostTreeExplorers';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
+import { ExtHostProgress } from 'vs/workbench/api/node/extHostProgress';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostStatusBar } from 'vs/workbench/api/node/extHostStatusBar';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -84,6 +85,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 	// Other instances
 	const extHostMessageService = new ExtHostMessageService(threadService);
 	const extHostStatusBar = new ExtHostStatusBar(threadService);
+	const extHostProgress = new ExtHostProgress(threadService.get(MainContext.MainThreadProgress));
 	const extHostOutputService = new ExtHostOutputService(threadService);
 	const workspacePath = contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 	const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
@@ -274,6 +276,9 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
 			},
+			withStatusBarProgress: proposedApiFunction(extension, <R>(task: (progress: vscode.Progress<string>, token: vscode.CancellationToken) => Thenable<R>): Thenable<R> => {
+				return extHostProgress.withStatusBarProgress(task);
+			}),
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
 			},
