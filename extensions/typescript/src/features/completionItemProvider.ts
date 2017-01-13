@@ -198,7 +198,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					const preText = document.getText(new Range(
 						new Position(position.line, 0),
 						new Position(position.line, position.character - 1)));
-					console.log(preText, preText.match(/[a-z_$]\s*$/ig));
 					enableDotCompletions = preText.match(/[a-z_$]\s*$/ig) !== null;
 				}
 
