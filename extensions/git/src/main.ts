@@ -13,6 +13,7 @@ import { CommandCenter } from './commands';
 import { CheckoutStatusBar, SyncStatusBar } from './statusbar';
 import { filterEvent, anyEvent, throttle } from './util';
 import { GitContentProvider } from './contentProvider';
+import { AutoFetcher } from './autofetch';
 import * as nls from 'vscode-nls';
 import { decorate, debounce } from 'core-decorators';
 
@@ -73,6 +74,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const checkoutStatusBar = new CheckoutStatusBar(model);
 	const syncStatusBar = new SyncStatusBar(model);
 
+	const autoFetcher = new AutoFetcher(model);
+
 	disposables.push(
 		commandCenter,
 		provider,
@@ -81,7 +84,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 		fsWatcher,
 		watcher,
 		checkoutStatusBar,
-		syncStatusBar
+		syncStatusBar,
+		autoFetcher
 	);
 }
 

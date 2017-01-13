@@ -332,6 +332,11 @@ export class Model {
 		await this.update();
 	}
 
+	async fetch(): Promise<void> {
+		await this.repository.fetch();
+		await this.update();
+	}
+
 	async sync(): Promise<void> {
 		await this.repository.sync();
 		await this.update();
