@@ -418,6 +418,7 @@ export interface Location {
  * defined.
  */
 export type Definition = Location | Location[];
+
 /**
  * The definition provider interface defines the contract between extensions and
  * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
@@ -430,6 +431,16 @@ export interface DefinitionProvider {
 	provideDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
+/**
+ * The type definition provider interface defines the contract between extensions and
+ * the go to implementation feature.
+ */
+export interface TypeDefinitionProvider {
+	/**
+	 * Provide the implementation of the symbol at the given position and document.
+	 */
+	provideTypeDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+}
 
 /**
  * A symbol kind.
@@ -737,6 +748,11 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
  * @internal
  */
 export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
+
+/**
+ * @internal
+ */
+export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
 
 /**
  * @internal

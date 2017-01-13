@@ -350,6 +350,31 @@ suite('FindController', () => {
 		});
 	});
 
+	test('issue #18111: Regex replace with single space replaces with no space', () => {
+		withMockCodeEditor([
+			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			let startFindAction = new StartFindAction();
+			startFindAction.run(null, editor);
+
+			findController.getState().change({ searchString: '\\b\\s{3}\\b', replaceString: ' ', isRegex: true }, false);
+			findController.moveToNextMatch();
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[1, 39, 1, 42]
+			]);
+
+			findController.replace();
+
+			assert.deepEqual(editor.getValue(), 'HRESULT OnAmbientPropertyChange(DISPID dispid);');
+
+			findController.dispose();
+		});
+	});
+
 	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
 		let result = [];
 		historyNavigator.first();

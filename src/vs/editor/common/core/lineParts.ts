@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Arrays } from 'vs/editor/common/core/arrays';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
 export class LineParts {
@@ -23,9 +22,5 @@ export class LineParts {
 			this.maxLineColumn === other.maxLineColumn
 			&& ViewLineToken.equalsArray(this.parts, other.parts)
 		);
-	}
-
-	public findIndexOfOffset(offset: number): number {
-		return Arrays.findIndexInSegmentsArray(this.parts, offset);
 	}
 }

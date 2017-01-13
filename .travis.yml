@@ -42,8 +42,8 @@ script:
   - gulp electron --silent
   - gulp compile --silent
   - gulp optimize-vscode --silent
-  - if [[ "$TRAVIS_OS_NAME" == "linux_off" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 
 after_success:
-  - if [[ "$TRAVIS_OS_NAME" == "linux_off" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov.info; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov.info; fi

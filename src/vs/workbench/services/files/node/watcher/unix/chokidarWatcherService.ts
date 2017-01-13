@@ -56,26 +56,17 @@ export class ChokidarWatcherService implements IWatcherService {
 
 				// Change
 				if (type === 'change') {
-					event = {
-						type: 0,
-						path: path
-					};
+					event = { type: 0, path };
 				}
 
 				// Add
 				else if (type === 'add' || type === 'addDir') {
-					event = {
-						type: 1,
-						path: path
-					};
+					event = { type: 1, path };
 				}
 
 				// Delete
 				else if (type === 'unlink' || type === 'unlinkDir') {
-					event = {
-						type: 2,
-						path: path
-					};
+					event = { type: 2, path };
 				}
 
 				if (event) {

@@ -134,7 +134,7 @@ function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]):
 suite('Editor Controller - Cursor', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
-	const LINE3 = '    Third Line💩';
+	const LINE3 = '    Third Line🐶';
 	const LINE4 = '';
 	const LINE5 = '1';
 
@@ -152,7 +152,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new MockConfiguration(null);
-		thisCursor = new Cursor(1, thisConfiguration, thisModel, viewModelHelper(thisModel), false);
+		thisCursor = new Cursor(thisConfiguration, thisModel, viewModelHelper(thisModel), false);
 	});
 
 	teardown(() => {
@@ -667,7 +667,7 @@ suite('Editor Controller - Cursor', () => {
 		moveRight(thisCursor, true);
 		moveRight(thisCursor, true);
 		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line💩');
+		assert.equal(thisModel.getLineContent(3), '    Thd Line🐶');
 		assertCursor(thisCursor, new Position(3, 7));
 	});
 
@@ -681,7 +681,7 @@ suite('Editor Controller - Cursor', () => {
 	test('delete word left for caret at end of whitespace', () => {
 		moveTo(thisCursor, 3, 11);
 		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Line💩');
+		assert.equal(thisModel.getLineContent(3), '    Line🐶');
 		assertCursor(thisCursor, new Position(3, 5));
 	});
 
@@ -704,7 +704,7 @@ suite('Editor Controller - Cursor', () => {
 		moveRight(thisCursor, true);
 		moveRight(thisCursor, true);
 		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line💩');
+		assert.equal(thisModel.getLineContent(3), '    Thd Line🐶');
 		assertCursor(thisCursor, new Position(3, 7));
 	});
 
@@ -718,7 +718,7 @@ suite('Editor Controller - Cursor', () => {
 	test('delete word right for caret at beggining of whitespace', () => {
 		moveTo(thisCursor, 3, 1);
 		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), 'Third Line💩');
+		assert.equal(thisModel.getLineContent(3), 'Third Line🐶');
 		assertCursor(thisCursor, new Position(3, 1));
 	});
 
@@ -854,7 +854,7 @@ suite('Editor Controller - Cursor', () => {
 			'\t\t}',
 			'\t}'
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 7, false);
 		assertCursor(cursor, new Position(1, 7));
@@ -888,7 +888,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -920,7 +920,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -1211,46 +1211,7 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
-	test('issue #183: jump to matching bracket position', () => {
-		class BracketMode extends MockMode {
 
-			private static _id = new LanguageIdentifier('bracketMode', 3);
-
-			constructor() {
-				super(BracketMode._id);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					brackets: [
-						['{', '}'],
-						['[', ']'],
-						['(', ')'],
-					]
-				}));
-			}
-		}
-
-		let mode = new BracketMode();
-		usingCursor({
-			text: [
-				'var x = (3 + (5-7));'
-			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			// ensure is tokenized
-			model.getLineTokens(1, false);
-
-			moveTo(cursor, 1, 20);
-
-			cursorCommand(cursor, H.JumpToBracket, null, 'keyboard');
-			assertCursor(cursor, new Position(1, 10));
-
-			cursorCommand(cursor, H.JumpToBracket, null, 'keyboard');
-			assertCursor(cursor, new Position(1, 20));
-
-			cursorCommand(cursor, H.JumpToBracket, null, 'keyboard');
-			assertCursor(cursor, new Position(1, 10));
-		});
-		mode.dispose();
-	});
 
 	test('bug #16543: Tab should indent to correct indentation spot immediately', () => {
 		let mode = new OnEnterMode(IndentAction.Indent);
@@ -1493,7 +1454,7 @@ suite('Editor Controller - Regression tests', () => {
 			'qwerty'
 		];
 		let model = Model.createFromString(text.join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1511,7 +1472,7 @@ suite('Editor Controller - Regression tests', () => {
 			''
 		];
 		model = Model.createFromString(text.join('\n'));
-		cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
+		cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -2835,7 +2796,7 @@ interface ICursorOpts {
 function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	let config = new MockConfiguration(opts.editorOpts);
-	let cursor = new Cursor(1, config, model, viewModelHelper(model), false);
+	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
 	callback(model, cursor);
 

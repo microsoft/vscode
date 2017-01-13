@@ -799,7 +799,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			};
 
 			this.cursor = new Cursor(
-				this.id,
 				this._configuration,
 				this.model,
 				viewModelHelper,

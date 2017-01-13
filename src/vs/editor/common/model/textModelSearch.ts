@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IPosition, FindMatch } from 'vs/editor/common/editorCommon';
+import { FindMatch } from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
@@ -205,13 +205,12 @@ export class TextModelSearch {
 		return counter;
 	}
 
-	public static findNextMatch(model: TextModel, searchParams: SearchParams, rawSearchStart: IPosition, captureMatches: boolean): FindMatch {
+	public static findNextMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch {
 		const regex = searchParams.parseSearchRequest();
 		if (!regex) {
 			return null;
 		}
 
-		const searchStart = model.validatePosition(rawSearchStart);
 		if (regex.multiline) {
 			return this._doFindNextMatchMultiline(model, searchStart, regex, captureMatches);
 		}
@@ -219,7 +218,7 @@ export class TextModelSearch {
 	}
 
 	private static _doFindNextMatchMultiline(model: TextModel, searchStart: Position, searchRegex: RegExp, captureMatches: boolean): FindMatch {
-		const searchTextStart: IPosition = { lineNumber: searchStart.lineNumber, column: 1 };
+		const searchTextStart = new Position(searchStart.lineNumber, 1);
 		const deltaOffset = model.getOffsetAt(searchTextStart);
 		const lineCount = model.getLineCount();
 		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)));
@@ -282,13 +281,12 @@ export class TextModelSearch {
 		return null;
 	}
 
-	public static findPreviousMatch(model: TextModel, searchParams: SearchParams, rawSearchStart: IPosition, captureMatches: boolean): FindMatch {
+	public static findPreviousMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch {
 		const regex = searchParams.parseSearchRequest();
 		if (!regex) {
 			return null;
 		}
 
-		const searchStart = model.validatePosition(rawSearchStart);
 		if (regex.multiline) {
 			return this._doFindPreviousMatchMultiline(model, searchStart, regex, captureMatches);
 		}

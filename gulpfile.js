@@ -58,7 +58,13 @@ var ALL_EDITOR_TASKS = [
 	'tslint',
 	'hygiene',
 ];
+
 var runningEditorTasks = process.argv.length > 2 && process.argv.slice(2).every(function (arg) { return (ALL_EDITOR_TASKS.indexOf(arg) !== -1); });
+
+process.on('unhandledRejection', (reason, p) => {
+	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+	process.exit(1);
+});
 
 if (runningEditorTasks) {
 	require(`./build/gulpfile.editor`);

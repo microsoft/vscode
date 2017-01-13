@@ -330,13 +330,13 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('line', false, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(1, 6, 1, 10));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 }, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
 		assertFindMatch(actual, new Range(1, 6, 1, 10));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
@@ -353,13 +353,13 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('^line', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 }, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
@@ -373,13 +373,13 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('^line', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 3 }, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
@@ -393,13 +393,13 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('^line.*\\nline', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 2, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(3, 1, 4, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 2, column: 1 }, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(2, 1), false);
 		assertFindMatch(actual, new Range(2, 1, 3, 5));
 
 		model.dispose();
@@ -410,10 +410,10 @@ suite('TextModelSearch', () => {
 
 		let searchParams = new SearchParams('line$', true, false, false);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 1 }, false);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 10, 1, 14));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, { lineNumber: 1, column: 4 }, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 4), false);
 		assertFindMatch(actual, new Range(1, 10, 1, 14));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);

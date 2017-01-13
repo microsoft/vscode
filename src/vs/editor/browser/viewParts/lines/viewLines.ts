@@ -18,6 +18,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { VisibleRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
 class LastRenderedData {
 
@@ -80,6 +81,8 @@ export class ViewLines extends ViewLayer<ViewLine> {
 		this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
 		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 		this._layoutProvider = layoutProvider;
+
+		PartFingerprints.write(this.domNode.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName(ClassNames.VIEW_LINES);
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 

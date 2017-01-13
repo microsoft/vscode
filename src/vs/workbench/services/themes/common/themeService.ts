@@ -48,4 +48,5 @@ export interface IThemeSetting {
 
 export interface IThemeSettingStyle {
 	foreground?: string;
+	background?: string;
 }

@@ -134,17 +134,25 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(IDebugService);
 		if (!configurationOrName) {
-			const viewModel = debugService.getViewModel();
-			if (!viewModel.selectedConfigurationName) {
-				const name = debugService.getConfigurationManager().getConfigurationNames().shift();
-				viewModel.setSelectedConfigurationName(name);
-			}
-			configurationOrName = viewModel.selectedConfigurationName;
+			configurationOrName = debugService.getViewModel().selectedConfigurationName;
 		}
 
 		return debugService.createProcess(configurationOrName);
 	},
 	when: CONTEXT_NOT_IN_DEBUG_MODE,
+	primary: undefined
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.customDebugRequest',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
+		const process = accessor.get(IDebugService).getViewModel().focusedProcess;
+		if (process) {
+			return process.session.custom(request, requestArgs);
+		}
+	},
+	when: CONTEXT_IN_DEBUG_MODE,
 	primary: undefined
 });
 
