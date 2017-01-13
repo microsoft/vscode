@@ -30,6 +30,9 @@ import { IDisposable, IReference, ImmortalReference } from 'vs/base/common/lifec
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { values } from 'vs/base/common/collections';
+import { MenuId, MenuRegistry, ICommandAction, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { Menu } from 'vs/platform/actions/common/menu';
 
 export class SimpleEditor implements IEditor {
 
@@ -423,5 +426,24 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public keys(): IConfigurationKeys {
 		return { default: [], user: [] };
+	}
+}
+
+export class SimpleMenuService implements IMenuService {
+
+	_serviceBrand: any;
+
+	private readonly _commandService: ICommandService;
+
+	constructor(commandService: ICommandService) {
+		this._commandService = commandService;
+	}
+
+	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+		return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
+	}
+
+	public getCommandActions(): ICommandAction[] {
+		return values(MenuRegistry.commands);
 	}
 }
