@@ -8,7 +8,6 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { fill } from 'vs/base/common/arrays';
 import { rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { endsWith } from 'vs/base/common/strings';
 
 /**
  * The forward slash path separator.
@@ -394,58 +393,4 @@ export const isAbsoluteRegex = /^((\/|[a-zA-Z]:\\)[^\(\)<>\\'\"\[\]]+)/;
  */
 export function isAbsolute(path: string): boolean {
 	return isAbsoluteRegex.test(path);
-}
-
-/**
- * Shortens the paths but keeps them easy to distinguish.
- * Replaces not important parts with ellipsis.
- * Every shorten path matches only one original path and vice versa.
- */
-export function shorten(paths: string[]): string[] {
-	const ellipsis = '\u2026';
-	let shortenedPaths: string[] = new Array(paths.length);
-	let match = false;
-
-	// for every path
-	for (let path = 0; path < paths.length; path++) {
-		let segments: string[] = paths[path].split(nativeSep);
-		match = true;
-
-		// pick the first shortest subpath found
-		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
-			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
-				match = false;
-				let subpath = segments.slice(start, start + subpathLength).join(nativeSep);
-
-				// that is unique to any other path
-				for (let otherPath = 0; !match && otherPath < paths.length; otherPath++) {
-					if (otherPath !== path && paths[otherPath].indexOf(subpath) > -1) {
-						// suffix subpath treated specially as we consider no match 'x' and 'x/...'
-						let isSubpathEnding: boolean = (start + subpathLength === segments.length);
-						let isOtherPathEnding: boolean = endsWith(paths[otherPath], subpath);
-						match = !isSubpathEnding || isOtherPathEnding;
-					}
-				}
-
-				if (!match) {
-					// found unique subpath
-					let result = subpath;
-					if (start + subpathLength < segments.length) {
-						result = result + nativeSep + ellipsis;
-					}
-					if (start > 0) {
-						result = ellipsis + nativeSep + result;
-					}
-					shortenedPaths[path] = result;
-				}
-			}
-		}
-
-		if (match) {
-			// use full path if no unique subpaths found
-			shortenedPaths[path] = paths[path];
-		}
-	}
-
-	return shortenedPaths;
 }

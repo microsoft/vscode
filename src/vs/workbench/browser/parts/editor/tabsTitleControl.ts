@@ -12,6 +12,7 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
+import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
@@ -37,7 +38,6 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
-import paths = require('vs/base/common/paths');
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -275,7 +275,7 @@ export class TabsTitleControl extends TitleControl {
 		const labelDuplicates = mapLabelToDuplicates.values();
 		labelDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
-				let shortenedDescriptions = paths.shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+				let shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
 				duplicates.forEach((duplicate, i) => {
 					duplicate.description = shortenedDescriptions[i];
 					duplicate.hasAmbiguousName = true;
