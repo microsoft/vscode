@@ -22,7 +22,7 @@ export class MainThreadProgress extends MainThreadProgressShape {
 
 
 	$progressStart(handle: number): void {
-		this._progressService.withStatusBarProgress(progress => {
+		this._progressService.withWindowProgress(progress => {
 			return new TPromise<any>((resolve, reject) => {
 				this.progress.set(handle, { resolve, reject, progress });
 			});
