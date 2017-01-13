@@ -61,10 +61,8 @@ export class WalkThroughPart extends BaseEditor {
 
 	createEditor(parent: Builder): void {
 		const container = parent.getHTMLElement();
-		container.classList.add('walkThroughContainer');
 
 		this.content = document.createElement('div');
-		this.content.classList.add('walkThroughContent');
 
 		this.scrollbar = new DomScrollableElement(this.content, {
 			canUseTranslate3d: false,
@@ -149,6 +147,7 @@ export class WalkThroughPart extends BaseEditor {
 
 					return `<div id=${id} class="walkThroughEditorContainer" ></div>`;
 				};
+				this.content.classList.add('walkThroughContent'); // only for markdown files
 				this.content.innerHTML = marked(content.value, { renderer });
 				this.decorateContent();
 
