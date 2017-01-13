@@ -213,7 +213,7 @@ export class DebugHoverWidget implements IContentWidget {
 				}
 
 				// Find the most specific scope containing the range #16632
-				return [scopes.filter(scope => Range.containsRange(scope.range, expressionRange))
+				return [scopes.filter(scope => scope.range && Range.containsRange(scope.range, expressionRange))
 					.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
 			})
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
