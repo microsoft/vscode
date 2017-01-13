@@ -148,8 +148,8 @@ export class WalkThroughPart extends BaseEditor {
 					return `<div id=${id} class="walkThroughEditorContainer" ></div>`;
 				};
 				this.content.classList.add('walkThroughContent'); // only for markdown files
-				this.content.innerHTML = marked(content.value, { renderer });
-				this.decorateContent();
+				const markdown = this.expandMacros(content.value);
+				this.content.innerHTML = marked(markdown, { renderer });
 
 				// TODO: also create jsconfig.json and tsconfig.json
 				return TPromise.join(files).then(() => {
@@ -202,6 +202,14 @@ export class WalkThroughPart extends BaseEditor {
 			}
 			tryGetMode();
 		});
+	}
+
+	private expandMacros(input: string) {
+		return input.replace(/kb\(([a-z.\d\-]+)\)/gi, (match: string, kb: string) => {
+			const keybinding = this.keybindingService.lookupKeybindings(kb)[0];
+			const shortcut = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
+			return `<span class="shortcut">${shortcut}</span>`;
+		})
 	}
 
 	private decorateContent() {
