@@ -21,7 +21,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -33,7 +33,8 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {
 	SimpleConfigurationService, SimpleMenuService, SimpleMessageService,
-	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService
+	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
+	StandaloneTelemetryService
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -117,7 +118,7 @@ export module StaticServices {
 		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
 	}));
 
-	export const telemetryService = define(ITelemetryService, () => NullTelemetryService);
+	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 
 	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
 

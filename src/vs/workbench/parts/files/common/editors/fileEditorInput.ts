@@ -17,7 +17,7 @@ import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } 
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.

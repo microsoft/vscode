@@ -13,7 +13,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as Platform from 'vs/platform/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 

@@ -31,6 +31,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { values } from 'vs/base/common/collections';
 import { MenuId, MenuRegistry, ICommandAction, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
+import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
 export class SimpleEditor implements IEditor {
 
@@ -411,5 +412,23 @@ export class SimpleMenuService implements IMenuService {
 
 	public getCommandActions(): ICommandAction[] {
 		return values(MenuRegistry.commands);
+	}
+}
+
+export class StandaloneTelemetryService implements ITelemetryService {
+	_serviceBrand: void;
+
+	public isOptedIn = false;
+
+	public publicLog(eventName: string, data?: any): TPromise<void> {
+		return TPromise.as<void>(null);
+	}
+
+	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
+		return null;
+	}
+
+	public getExperiments(): ITelemetryExperiments {
+		return null;
 	}
 }
