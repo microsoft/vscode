@@ -415,7 +415,7 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string): IStringDictionary<string> {
-		const env = TerminalInstance._cloneEnv(parentEnv);
+		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {
