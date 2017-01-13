@@ -229,6 +229,11 @@ gulp.task('hygiene', () => hygiene());
 if (require.main === module) {
 	const cp = require('child_process');
 
+	process.on('unhandledRejection', (reason, p) => {
+		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+		process.exit(1);
+	});
+
 	cp.exec('git config core.autocrlf', (err, out) => {
 		const skipEOL = out.trim() === 'true';
 
