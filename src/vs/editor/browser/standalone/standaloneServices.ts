@@ -34,11 +34,11 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {
 	SimpleConfigurationService, SimpleMessageService, SimpleExtensionService,
-	StandaloneKeybindingService, StandaloneCommandService, SimpleProgressService
+	StandaloneKeybindingService, StandaloneCommandService, SimpleProgressService,
+	SimpleMenuService
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 import { StandaloneColorServiceImpl } from 'vs/editor/browser/services/standaloneColorServiceImpl';
 
@@ -157,7 +157,6 @@ export class DynamicStandaloneServices extends Disposable {
 		this._instantiationService = _instantiationService;
 
 		const configurationService = this.get(IConfigurationService);
-		const extensionService = this.get(IExtensionService);
 		const messageService = this.get(IMessageService);
 		const telemetryService = this.get(ITelemetryService);
 
@@ -183,7 +182,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, messageService, contextViewService)));
 
-		ensure(IMenuService, () => new MenuService(extensionService, commandService));
+		ensure(IMenuService, () => new SimpleMenuService(commandService));
 	}
 
 	public get<T>(serviceId: ServiceIdentifier<T>): T {
