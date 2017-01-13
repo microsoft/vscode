@@ -10,8 +10,6 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
-import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ICommandService, ICommand, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -361,38 +359,6 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _getExtraKeybindings(): IKeybindingItem[] {
 		return this._dynamicKeybindings;
 	}
-}
-
-export class SimpleExtensionService extends AbstractExtensionService<ActivatedExtension> {
-
-	constructor() {
-		super(true);
-	}
-
-	protected _showMessage(severity: Severity, msg: string): void {
-		switch (severity) {
-			case Severity.Error:
-				console.error(msg);
-				break;
-			case Severity.Warning:
-				console.warn(msg);
-				break;
-			case Severity.Info:
-				console.info(msg);
-				break;
-			default:
-				console.log(msg);
-		}
-	}
-
-	protected _createFailedExtension(): ActivatedExtension {
-		throw new Error('unexpected');
-	}
-
-	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
-		throw new Error('unexpected');
-	}
-
 }
 
 export class SimpleConfigurationService implements IConfigurationService {
