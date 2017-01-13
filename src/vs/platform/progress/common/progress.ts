@@ -56,11 +56,11 @@ export class Progress<T> implements IProgress<T> {
 
 export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
 
-
 export interface IProgressService2 {
+
 	_serviceBrand: any;
 
-	withStatusBarProgress(task: (progress: IProgress<string>) => TPromise<any>): void;
+	withWindowProgress(task: (progress: IProgress<string>) => TPromise<any>): void;
 
 	// withViewletProgress(viewletId:string, task)
 }
