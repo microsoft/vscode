@@ -3651,15 +3651,6 @@ declare module 'vscode' {
 		 * status bar [items](#window.createStatusBarItem).
 		 *
 		 * @param text The message to show, support icon subtitution as in status bar [items](#StatusBarItem.text).
-		 * @return A disposable which hides the status bar message.
-		 */
-		export function setStatusBarMessage(text: string): Disposable;
-
-		/**
-		 * Set a message to the status bar. This is a short hand for the more powerful
-		 * status bar [items](#window.createStatusBarItem).
-		 *
-		 * @param text The message to show, support icon subtitution as in status bar [items](#StatusBarItem.text).
 		 * @param hideAfterTimeout Timeout in milliseconds after which the message will be disposed.
 		 * @return A disposable which hides the status bar message.
 		 */
@@ -3674,6 +3665,18 @@ declare module 'vscode' {
 		 * @return A disposable which hides the status bar message.
 		 */
 		export function setStatusBarMessage(text: string, hideWhenDone: Thenable<any>): Disposable;
+
+		/**
+		 * Set a message to the status bar. This is a short hand for the more powerful
+		 * status bar [items](#window.createStatusBarItem).
+		 *
+		 * *Note* that status bar messages stack and that they must be disposed when no
+		 * longer used.
+		 *
+		 * @param text The message to show, support icon subtitution as in status bar [items](#StatusBarItem.text).
+		 * @return A disposable which hides the status bar message.
+		 */
+		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
