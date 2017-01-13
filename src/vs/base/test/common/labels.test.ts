@@ -2,13 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
-// import * as assert from 'assert';
+import * as assert from 'assert';
 // import labels = require('vs/base/common/labels');
 
 suite('Labels', () => {
 	test('shorten', () => {
+		assert.ok(true);
+
 		// nothing to shorten
 		// assert.deepEqual(labels.shorten(['a']), ['a']);
 		// assert.deepEqual(labels.shorten(['a', 'b']), ['a', 'b']);
