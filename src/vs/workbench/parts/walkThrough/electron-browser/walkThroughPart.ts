@@ -79,9 +79,9 @@ export class WalkThroughPart extends BaseEditor {
 		this.content.addEventListener('click', event => {
 			let node = event.target;
 			if (node instanceof HTMLAnchorElement && node.href) {
-				let baseElement = window.document.getElementsByTagName('base')[0];
+				let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 				if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-					let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));
+					let scrollTarget = this.content.querySelector(node.hash);
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}
