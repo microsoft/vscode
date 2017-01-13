@@ -11,6 +11,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import os = require('os');
 import path = require('path');
+import fs = require('fs');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
@@ -309,6 +310,15 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
+	private _isDirSync(aPath : string) {
+		try {
+			return fs.statSync(aPath).isDirectory();
+		}
+		catch(e) {
+			return false;
+		}
+	}
+
 	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
 		let cwd: string;
 
@@ -316,7 +326,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!ignoreCustomCwd) {
 			// Evaluate custom cwd first
 			const customCwd = this._configHelper.getCwd();
-			if (customCwd) {
+			if (customCwd && this._isDirSync(customCwd)) {
 				if (path.isAbsolute(customCwd)) {
 					cwd = customCwd;
 				} else if (workspace) {
