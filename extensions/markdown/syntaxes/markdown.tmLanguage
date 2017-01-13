@@ -128,6 +128,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#fenced_code_block_cpp</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#fenced_code_block_diff</string>
 				</dict>
 				<dict>
@@ -1560,7 +1564,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1573,6 +1576,57 @@
 								<dict>
 									<key>include</key>
 									<string>source.c</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_cpp</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((cpp|c\+\+|cxx)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.cpp</string>
 								</dict>
 							</array>
 						</dict>

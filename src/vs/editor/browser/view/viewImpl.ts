@@ -673,7 +673,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.keyboardHandler.focusTextArea();
 
 		// IE does not trigger the focus event immediately, so we must help it a little bit
-		this._setHasFocus(true);
+		if (document.activeElement === this.textArea) {
+			this._setHasFocus(true);
+		}
 	}
 
 	public isFocused(): boolean {

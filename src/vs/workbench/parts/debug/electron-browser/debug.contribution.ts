@@ -176,6 +176,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer view on the end of a debug session"),
 			default: false
+		},
+		'debug.inlineValues': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
+			default: false
 		}
 	}
 });

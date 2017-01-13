@@ -309,11 +309,15 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
+	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
+		if (shell.cwd) {
+			return shell.cwd;
+		}
+
 		let cwd: string;
 
 		// TODO: Handle non-existent customCwd
-		if (!ignoreCustomCwd) {
+		if (!shell.ignoreConfigurationCwd) {
 			// Evaluate custom cwd first
 			const customCwd = this._configHelper.getCwd();
 			if (customCwd) {
@@ -336,9 +340,9 @@ export class TerminalInstance implements ITerminalInstance {
 	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig) {
 		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
-			shell = this._configHelper.getShell();
+			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -377,7 +381,11 @@ export class TerminalInstance implements ITerminalInstance {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
-		if (this._shellLaunchConfig.waitOnExit) {
+		// Only trigger wait on exit when the exit was triggered by the process, not through the
+		// `workbench.action.terminal.kill` command
+		const triggeredByProcess = exitCode !== null;
+
+		if (triggeredByProcess && this._shellLaunchConfig.waitOnExit) {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
@@ -411,7 +419,7 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string): IStringDictionary<string> {
-		const env = TerminalInstance._cloneEnv(parentEnv);
+		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {

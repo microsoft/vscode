@@ -20,8 +20,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class TestTerminalInstance extends TerminalInstance {
-	public _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
-		return super._getCwd(workspace, ignoreCustomCwd);
+	public _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
+		return super._getCwd(shell, workspace);
 	}
 
 	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig): void { }
@@ -100,39 +100,39 @@ suite('Workbench - TerminalInstance', () => {
 		}
 
 		test('should default to os.homedir() for an empty workspace', () => {
-			assertPathsMatch(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), os.homedir());
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(instance._getCwd({ resource: Uri.file('/foo') }, false), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/foo') }), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
 			configHelper.getCwd = () => '/foo';
-			assertPathsMatch(instance._getCwd(null, false), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), '/foo');
 		});
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
 			configHelper.getCwd = () => 'foo';
-			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
 			configHelper.getCwd = () => './foo';
-			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, false), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
 			configHelper.getCwd = () => '../foo';
-			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, false), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }, ), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
 			configHelper.getCwd = () => 'foo';
-			assertPathsMatch(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), os.homedir());
 			configHelper.getCwd = () => './foo';
-			assertPathsMatch(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), os.homedir());
 			configHelper.getCwd = () => '../foo';
-			assertPathsMatch(instance._getCwd(null, false), os.homedir());
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), os.homedir());
 		});
 
 		test('should ignore custom cwd when told to ignore', () => {
 			configHelper.getCwd = () => '/foo';
-			assertPathsMatch(instance._getCwd({ resource: Uri.file('/bar') }, true), '/bar');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, { resource: Uri.file('/bar') }), '/bar');
 		});
 	});
 });

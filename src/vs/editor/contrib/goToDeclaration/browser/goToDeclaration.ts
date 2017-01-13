@@ -250,6 +250,32 @@ export class GoToImplementationAction extends DefinitionAction {
 	}
 }
 
+@editorAction
+export class PeekImplementationAction extends DefinitionAction {
+
+	public static ID = 'editor.action.peekImplementation';
+
+	constructor() {
+		super(new DefinitionActionConfig(false, true, false), {
+			id: PeekImplementationAction.ID,
+			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
+			alias: 'Peek Implementation',
+			precondition: ModeContextKeys.hasTypeDefinitionProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.3
+			}
+		});
+	}
+
+	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+		return getTypeDefinitionAtPosition(model, position);
+	}
+}
 
 // --- Editor Contribution to goto definition using the mouse and a modifier key
 
