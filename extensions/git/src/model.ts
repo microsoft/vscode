@@ -322,6 +322,11 @@ export class Model {
 		await this.update();
 	}
 
+	async branch(name: string): Promise<void> {
+		await this.repository.branch(name, true);
+		await this.update();
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.repository.checkout(treeish, []);
 		await this.update();
