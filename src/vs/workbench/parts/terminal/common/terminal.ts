@@ -92,6 +92,11 @@ export interface IShellLaunchConfig {
 	 */
 	cwd?: string;
 	/**
+	 * A custom environment for the terminal, if this is not set the environment will be inherited
+	 * from the VS Code process.
+	 */
+	env?: { [key: string]: string };
+	/**
 	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
 	 * shell is being launched by an extension).
 	 */
