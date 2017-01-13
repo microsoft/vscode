@@ -295,34 +295,6 @@ export class CommandCenter {
 		return await this.model.clean(...this.model.workingTreeGroup.resources);
 	}
 
-	@CommandCenter.Command('git.checkout')
-	@CommandCenter.CatchErrors
-	async checkout(): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string>('checkoutType');
-		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
-
-		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
-			.map(ref => new CheckoutItem(ref));
-
-		const tags = (includeTags ? this.model.refs.filter(ref => ref.type === RefType.Tag) : [])
-			.map(ref => new CheckoutTagItem(ref));
-
-		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.map(ref => new CheckoutRemoteHeadItem(ref));
-
-		const picks = [...heads, ...tags, ...remoteHeads];
-		const placeHolder = 'Select a ref to checkout';
-		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
-
-		if (!choice) {
-			return;
-		}
-
-		await choice.run(this.model);
-	}
-
 	@CommandCenter.Command('git.commitStaged')
 	@CommandCenter.CatchErrors
 	async commitStaged(): Promise<void> {
@@ -351,6 +323,50 @@ export class CommandCenter {
 	@CommandCenter.CatchErrors
 	async undoCommit(): Promise<void> {
 		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.checkout')
+	@CommandCenter.CatchErrors
+	async checkout(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType');
+		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+			.map(ref => new CheckoutItem(ref));
+
+		const tags = (includeTags ? this.model.refs.filter(ref => ref.type === RefType.Tag) : [])
+			.map(ref => new CheckoutTagItem(ref));
+
+		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.map(ref => new CheckoutRemoteHeadItem(ref));
+
+		const picks = [...heads, ...tags, ...remoteHeads];
+		const placeHolder = 'Select a ref to checkout';
+		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await choice.run(this.model);
+	}
+
+	@CommandCenter.Command('git.branch')
+	@CommandCenter.CatchErrors
+	async branch(): Promise<void> {
+		const result = await window.showInputBox({
+			placeHolder: 'Branch name',
+			prompt: 'Please provide a branch name'
+		});
+
+		if (!result) {
+			return;
+		}
+
+		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		await this.model.branch(name);
 	}
 
 	@CommandCenter.Command('git.pull')
