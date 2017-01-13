@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
 import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/common/walkThroughInput';
