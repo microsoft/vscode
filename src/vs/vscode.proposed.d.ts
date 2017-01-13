@@ -16,7 +16,7 @@ declare module 'vscode' {
 
 	export namespace window {
 
-		export function withStatusBarProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		export function withWindowProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
 		// export function withApplicationProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 

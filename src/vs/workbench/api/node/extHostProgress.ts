@@ -16,7 +16,7 @@ export class ExtHostProgress {
 		this._proxy = proxy;
 	}
 
-	withStatusBarProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+	withWindowProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
 		const handle = this._handles++;
 
 		this._proxy.$progressStart(handle);

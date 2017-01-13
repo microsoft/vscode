@@ -54,7 +54,7 @@ export class ProgressService2 implements IProgressService2 {
 
 	private _stack: Progress<string>[] = [];
 
-	withStatusBarProgress(task: (progress: IProgress<string>) => TPromise<any>): void {
+	withWindowProgress(task: (progress: IProgress<string>) => TPromise<any>): void {
 
 		const progress = new Progress<string>(() => this._updateProgress());
 		this._stack.unshift(progress);
