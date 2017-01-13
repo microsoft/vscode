@@ -381,7 +381,11 @@ export class TerminalInstance implements ITerminalInstance {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
-		if (this._shellLaunchConfig.waitOnExit) {
+		// Only trigger wait on exit when the exit was triggered by the process, not through the
+		// `workbench.action.terminal.kill` command
+		const triggeredByProcess = exitCode !== null;
+
+		if (triggeredByProcess && this._shellLaunchConfig.waitOnExit) {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}

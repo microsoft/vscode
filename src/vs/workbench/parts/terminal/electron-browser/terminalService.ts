@@ -62,6 +62,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
+		shell.waitOnExit = true;
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
