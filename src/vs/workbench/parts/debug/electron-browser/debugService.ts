@@ -779,7 +779,7 @@ export class DebugService implements debug.IDebugService {
 				this.lastTaskEvent = null;
 			});
 
-			if (filteredTasks[0].isWatching) {
+			if (filteredTasks[0].isBackground) {
 				return new TPromise((c, e) => this.taskService.addOneTimeDisposableListener(TaskServiceEvents.Inactive, () => c(null)));
 			}
 
