@@ -7,7 +7,22 @@
 
 declare module 'vscode' {
 
+	/**
+	 * Reprensents progress
+	 */
+	export interface Progress<T> {
+		report(progress: T): void
+	}
+
 	export namespace window {
+
+		export function withStatusBarProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+
+		// export function withApplicationProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
+
+		// export function withEditorProgress<R>(editor: TextEditor, task: (progress: Progress<number>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+
+		// export function withBusyCursor<R>(task: () => Thenable<R>): Thenable<R>;
 
 		export function sampleFunction(): Thenable<any>;
 	}
