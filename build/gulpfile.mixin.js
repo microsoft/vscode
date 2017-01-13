@@ -53,10 +53,10 @@ gulp.task('mixin', function () {
 
 		const vsdaFilter = (function() {
 			const filter = [];
-			if (process.platform !== 'win32') { filter.push('!build/Release/vsda_win32.node'); }
-			if (process.platform !== 'darwin') { filter.push('!build/Release/vsda_darwin.node'); }
-			if (process.platform !== 'linux' || process.arch !== 'x64') { filter.push('!build/Release/vsda_linux64.node'); }
-			if (process.platform !== 'linux' || process.arch === 'x64') { filter.push('!build/Release/vsda_linux32.node'); }
+			if (process.platform !== 'win32') { filter.push('!**/vsda_win32.node'); }
+			if (process.platform !== 'darwin') { filter.push('!**/vsda_darwin.node'); }
+			if (process.platform !== 'linux' || process.arch !== 'x64') { filter.push('!**/vsda_linux64.node'); }
+			if (process.platform !== 'linux' || process.arch === 'x64') { filter.push('!**/vsda_linux32.node'); }
 
 			return filter;
 		})();
