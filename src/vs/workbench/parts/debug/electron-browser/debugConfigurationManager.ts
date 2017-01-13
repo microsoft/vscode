@@ -13,7 +13,8 @@ import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/platform/editor/common/editor';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -70,6 +71,14 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			initialConfigurations: {
 				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
 				type: ['array', 'string'],
+			},
+			languages: {
+				description: nls.localize('vscode.extension.contributes.debuggers.languages', "List of languages for which the debug extension could be considered the \"default debugger\"."),
+				type: 'array'
+			},
+			startSessionCommand: {
+				description: nls.localize('vscode.extension.contributes.debuggers.startSessionCommand', "If specified VS Code will call this command for the \"debug\" or \"run\" actions targeted for this extension."),
+				type: 'string'
 			},
 			configurationSnippets: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
@@ -307,6 +316,10 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			result = objects.deepClone(filtered[0]);
 		}
 
+		if (!this.contextService.getWorkspace()) {
+			return TPromise.as(result);
+		}
+
 		// Set operating system specific properties #1873
 		const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
 			if (flag && osConfig) {
@@ -328,7 +341,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
-	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
+	public openConfigFile(sideBySide: boolean): TPromise<IEditor> {
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
 		let configFileCreated = false;
 
@@ -358,7 +371,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				}))
 			.then(errorFree => {
 				if (!errorFree) {
-					return false;
+					return undefined;
 				}
 				this.telemetryService.publicLog('debugConfigure');
 
@@ -369,10 +382,31 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 						pinned: configFileCreated, // pin only if config file is created #8727
 						revealIfVisible: true
 					},
-				}, sideBySide).then(() => true);
+				}, sideBySide);
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
+	}
+
+	public getStartSessionCommand(type?: string): string {
+		if (type) {
+			const adapter = this.adapters.filter(a => a.type === type).pop();
+			if (adapter) {
+				return adapter.startSessionCommand;
+			}
+		} else {
+			const editor = this.editorService.getActiveEditor();
+			if (editor) {
+				const model = (<ICommonCodeEditor>editor.getControl()).getModel();
+				const language = model ? model.getLanguageIdentifier().language : undefined;
+				const adapter = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0).pop();
+				if (adapter) {
+					return adapter.startSessionCommand;
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	public canSetBreakpointsIn(model: IModel): boolean {

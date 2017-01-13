@@ -9,14 +9,12 @@ import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 export class Source {
 
 	public uri: uri;
-	public available: boolean;
 
 	private static INTERNAL_URI_PREFIX = `${DEBUG_SCHEME}://internal/`;
 
-	constructor(public raw: DebugProtocol.Source, available = true) {
+	constructor(public raw: DebugProtocol.Source, public deemphasize: boolean) {
 		const path = raw.path || raw.name;
 		this.uri = raw.sourceReference > 0 ? uri.parse(Source.INTERNAL_URI_PREFIX + raw.sourceReference + '/' + path) : uri.file(path);
-		this.available = available;
 	}
 
 	public get name() {

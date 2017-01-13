@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .bracket-match {
+	box-sizing: border-box;
+	background-color: rgba(0, 100, 0, 0.1);
+}
+.monaco-editor.vs		.bracket-match { border: 1px solid #B9B9B9; }
+.monaco-editor.vs-dark	.bracket-match { border: 1px solid #888; }
+.monaco-editor.hc-black .bracket-match { border: 1px solid #fff; }

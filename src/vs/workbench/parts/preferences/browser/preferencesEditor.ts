@@ -43,7 +43,6 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -113,10 +112,9 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@ITextFileService textFileService: ITextFileService
+		@IModeService private modeService: IModeService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 

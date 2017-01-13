@@ -195,7 +195,7 @@ function format(text:string): string {
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
 
-	function getRuleProvider(options: ts.FormatCodeOptions) {
+	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
 		let ruleProvider = new (<any>ts).formatting.RulesProvider();
@@ -215,7 +215,7 @@ function format(text:string): string {
 		return result;
 	}
 
-	function getDefaultOptions(): ts.FormatCodeOptions {
+	function getDefaultOptions(): ts.FormatCodeSettings {
 		return {
 			indentSize: 4,
 			tabSize: 4,

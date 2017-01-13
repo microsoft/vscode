@@ -381,7 +381,7 @@ export class Thread implements debug.IThread {
 	}
 
 	public getId(): string {
-		return `thread:${this.process.getId()}:${this.name}:${this.threadId}`;
+		return `thread:${this.process.getId()}:${this.threadId}`;
 	}
 
 	public clearCallStack(): void {
@@ -432,10 +432,10 @@ export class Thread implements debug.IThread {
 
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), null, null);
+					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
 
-				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true), rsf.name, rsf.line, rsf.column);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -506,6 +506,9 @@ export class Process implements debug.IProcess {
 		if (data.thread && !this.threads.has(data.threadId)) {
 			// A new thread came in, initialize it.
 			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
+		} else if (data.thread && data.thread.name) {
+			// Just the thread name got updated #18244
+			this.threads.get(data.threadId).name = data.thread.name;
 		}
 
 		if (data.stoppedDetails) {
@@ -556,11 +559,11 @@ export class Process implements debug.IProcess {
 		}
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
+	public deemphasizeSource(uri: uri): void {
 		this.threads.forEach(thread => {
 			thread.getCallStack().forEach(stackFrame => {
 				if (stackFrame.source.uri.toString() === uri.toString()) {
-					stackFrame.source.available = false;
+					stackFrame.source.deemphasize = true;
 				}
 			});
 		});
@@ -926,8 +929,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
-		this.processes.forEach(p => p.sourceIsUnavailable(uri));
+	public deemphasizeSource(uri: uri): void {
+		this.processes.forEach(p => p.deemphasizeSource(uri));
 		this._onDidChangeCallStack.fire();
 	}
 

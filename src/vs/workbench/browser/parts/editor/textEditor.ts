@@ -8,21 +8,17 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
-import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor, IEditorOptions } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { Scope } from 'vs/workbench/common/memento';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
@@ -46,7 +42,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 	private editorControl: IEditor;
 	private _editorContainer: Builder;
 	private hasPendingConfigurationChange: boolean;
-	private pendingAutoSave: TPromise<void>;
 
 	constructor(
 		id: string,
@@ -54,8 +49,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService private themeService: IThemeService,
-		@ITextFileService private textFileService: ITextFileService
+		@IThemeService private themeService: IThemeService
 	) {
 		super(id, telemetryService);
 
@@ -116,12 +110,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 		// Editor for Text
 		this._editorContainer = parent;
 		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
-
-		// Application & Editor focus change
-		if (this.editorControl instanceof EventEmitter) {
-			this.toUnbind.push(this.editorControl.addListener2(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
-		}
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
 	}
 
 	/**
@@ -134,39 +122,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
 		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), configuration);
-	}
-
-	private onEditorFocusLost(): void {
-		if (this.pendingAutoSave) {
-			return; // save is already triggered
-		}
-
-		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && this.textFileService.isDirty()) {
-			this.saveAll(SaveReason.FOCUS_CHANGE);
-		}
-	}
-
-	private onWindowFocusLost(): void {
-		if (this.pendingAutoSave) {
-			return; // save is already triggered
-		}
-
-		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && this.textFileService.isDirty()) {
-			this.saveAll(SaveReason.WINDOW_CHANGE);
-		}
-	}
-
-	private saveAll(reason: SaveReason): void {
-		this.pendingAutoSave = this.textFileService.saveAll(void 0, reason).then(() => {
-			this.pendingAutoSave = void 0;
-
-			return void 0;
-		}, error => {
-			this.pendingAutoSave = void 0;
-			errors.onUnexpectedError(error);
-
-			return void 0;
-		});
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {

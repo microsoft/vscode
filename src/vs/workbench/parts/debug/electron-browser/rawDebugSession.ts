@@ -54,6 +54,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	public disconnected: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private capabilities: DebugProtocol.Capabilities;
+	private allThreadsContinued: boolean;
 
 	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -80,6 +81,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		super(id);
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
+		this.allThreadsContinued = false;
 		this.sentPromises = [];
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
@@ -202,6 +204,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
 		} else if (event.event === 'continued') {
+			this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued = false ? false : true;
 			this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
 		} else if (event.event === 'thread') {
 			this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
@@ -270,7 +273,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
 		return this.send('continue', args).then(response => {
-			this.fireFakeContinued(args.threadId);
+			this.fireFakeContinued(args.threadId, this.allThreadsContinued);
 			return response;
 		});
 	}
@@ -402,12 +405,13 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		}
 	}
 
-	private fireFakeContinued(threadId: number): void {
+	private fireFakeContinued(threadId: number, allThreadsContinued = false): void {
 		this._onDidContinued.fire({
 			type: 'event',
 			event: 'continued',
 			body: {
-				threadId
+				threadId,
+				allThreadsContinued
 			},
 			seq: undefined
 		});

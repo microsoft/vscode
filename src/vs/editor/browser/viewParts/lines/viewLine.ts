@@ -7,15 +7,14 @@
 import * as browser from 'vs/base/browser/browser';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
-import { createLineParts, getColumnOfLinePartOffset } from 'vs/editor/common/viewLayout/viewLineParts';
-import { renderLine, RenderLineInput, RenderLineOutput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { createLineParts } from 'vs/editor/common/viewLayout/viewLineParts';
+import { renderLine, RenderLineInput, RenderLineOutput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IVisibleLineData } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { LineParts } from 'vs/editor/common/core/lineParts';
 
 export class ViewLine implements IVisibleLineData {
 
@@ -175,8 +174,7 @@ class RenderedViewLine {
 	public readonly input: RenderLineInput;
 	public readonly html: string;
 
-	protected readonly _charOffsetInPart: number[];
-	private readonly _lastRenderedPartIndex: number;
+	protected readonly _characterMapping: CharacterMapping;
 	private readonly _isWhitespaceOnly: boolean;
 	private _cachedWidth: number;
 
@@ -189,8 +187,7 @@ class RenderedViewLine {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 		this.html = renderLineOutput.output;
-		this._charOffsetInPart = renderLineOutput.charOffsetInPart;
-		this._lastRenderedPartIndex = renderLineOutput.lastRenderedPartIndex;
+		this._characterMapping = renderLineOutput.characterMapping;
 		this._isWhitespaceOnly = renderLineOutput.isWhitespaceOnly;
 		this._cachedWidth = -1;
 
@@ -291,18 +288,19 @@ class RenderedViewLine {
 
 	private _actualReadPixelOffset(column: number, clientRectDeltaLeft: number, endNode: HTMLElement): number {
 
-		if (this._charOffsetInPart.length === 0) {
+		if (this._characterMapping.length === 0) {
 			// This line is empty
 			return 0;
 		}
 
-		if (column === this._charOffsetInPart.length && this._isWhitespaceOnly) {
+		if (column === this._characterMapping.length && this._isWhitespaceOnly) {
 			// This branch helps in the case of whitespace only lines which have a width set
 			return this.getWidth();
 		}
 
-		let partIndex = findIndexInArrayWithMax(this.input.lineParts, column - 1, this._lastRenderedPartIndex);
-		let charOffsetInPart = this._charOffsetInPart[column - 1];
+		let partData = this._characterMapping.charOffsetToPartData(column - 1);
+		let partIndex = CharacterMapping.getPartIndex(partData);
+		let charOffsetInPart = CharacterMapping.getCharIndex(partData);
 
 		let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, endNode);
 		if (!r || r.length === 0) {
@@ -313,16 +311,19 @@ class RenderedViewLine {
 
 	private _readRawVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 
-		if (startColumn === 1 && endColumn === this._charOffsetInPart.length) {
+		if (startColumn === 1 && endColumn === this._characterMapping.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
 
 			return [new HorizontalRange(0, this.getWidth())];
 		}
 
-		let startPartIndex = findIndexInArrayWithMax(this.input.lineParts, startColumn - 1, this._lastRenderedPartIndex);
-		let startCharOffsetInPart = this._charOffsetInPart[startColumn - 1];
-		let endPartIndex = findIndexInArrayWithMax(this.input.lineParts, endColumn - 1, this._lastRenderedPartIndex);
-		let endCharOffsetInPart = this._charOffsetInPart[endColumn - 1];
+		let startPartData = this._characterMapping.charOffsetToPartData(startColumn - 1);
+		let startPartIndex = CharacterMapping.getPartIndex(startPartData);
+		let startCharOffsetInPart = CharacterMapping.getCharIndex(startPartData);
+
+		let endPartData = this._characterMapping.charOffsetToPartData(endColumn - 1);
+		let endPartIndex = CharacterMapping.getPartIndex(endPartData);
+		let endCharOffsetInPart = CharacterMapping.getCharIndex(endPartData);
 
 		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, endNode);
 	}
@@ -338,17 +339,9 @@ class RenderedViewLine {
 			spanNode = <HTMLElement>spanNode.previousSibling;
 			spanIndex++;
 		}
-		let lineParts = this.input.lineParts.parts;
 
-		return getColumnOfLinePartOffset(
-			this.input.stopRenderingLineAfter,
-			lineParts,
-			this.input.lineParts.maxLineColumn,
-			this._charOffsetInPart,
-			spanIndex,
-			spanNodeTextContentLength,
-			offset
-		);
+		let charOffset = this._characterMapping.partDataToCharOffset(spanIndex, spanNodeTextContentLength, offset);
+		return charOffset + 1;
 	}
 }
 
@@ -356,7 +349,7 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 
-		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._charOffsetInPart.length)) {
+		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._characterMapping.length)) {
 			return output;
 		}
 
@@ -381,11 +374,6 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 
 		return output;
 	}
-}
-
-function findIndexInArrayWithMax(lineParts: LineParts, desiredIndex: number, maxResult: number): number {
-	let r = lineParts.findIndexOfOffset(desiredIndex);
-	return r <= maxResult ? r : maxResult;
 }
 
 const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {

@@ -86,6 +86,8 @@ export class MockDebugService implements debug.IDebugService {
 	public getViewModel(): debug.IViewModel {
 		return null;
 	}
+
+	public deemphasizeSource(uri: uri): void { }
 }
 
 export class MockSession implements debug.ISession {
