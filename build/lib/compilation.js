@@ -48,7 +48,7 @@ function createCompile(build, emitError) {
             .pipe(sourcemaps.write('.', {
             addComment: false,
             includeContent: !!build,
-            sourceRoot: smSourceRoot
+            sourceRoot: options.sourceRoot
         }))
             .pipe(tsFilter.restore)
             .pipe(reporter.end(emitError));
