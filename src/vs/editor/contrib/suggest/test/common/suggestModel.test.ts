@@ -18,7 +18,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createMockEditor(model: Model): MockCodeEditor {
 	const contextKeyService = new MockKeybindingService();
