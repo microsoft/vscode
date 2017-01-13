@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part.editor > .content .monaco-workbench > .part.editor > .content .welcomePage {
+.monaco-workbench > .part.editor > .content .welcomePage {
 	font-family: "Lucida Grande", sans-serif;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage a {
+	color: #4080D0;
+	text-decoration: none;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .splash {
