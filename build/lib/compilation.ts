@@ -28,9 +28,6 @@ options.sourceMap = true;
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
 
-const smSourceRootPath = path.resolve(path.dirname(rootDir));
-const smSourceRoot = util.toFileUri(smSourceRootPath);
-
 function createCompile(build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
 	const opts = _.clone(options);
 	opts.inlineSources = !!build;
@@ -57,7 +54,7 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 			.pipe(sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
-				sourceRoot: smSourceRoot
+				sourceRoot: options.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
 			.pipe(reporter.end(emitError));
