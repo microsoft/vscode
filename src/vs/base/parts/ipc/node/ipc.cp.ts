@@ -10,6 +10,7 @@ import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
+import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
@@ -152,7 +153,8 @@ export class Client implements IChannelClient, IDisposable {
 				}
 			});
 
-			const send = r => this.child && this.child.connected && this.child.send(r);
+			const queuedSender = createQueuedSender(this.child);
+			const send = r => this.child && this.child.connected && queuedSender.send(r);
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 
