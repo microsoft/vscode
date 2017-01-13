@@ -17,7 +17,7 @@ Use <span class="shortcut mac-only">⇧⌥</span><span class="shortcut windows-o
 
 Visual Studio Code comes with powerful IntelliSense for JavaScript and TypeScript preinstalled. Other languages can be upgraded with better IntelliSense through one of the many [extensions](command:workbench.extensions.action.showPopularExtensions).
 
-In the below example, position the text cursor in front of the error underline, right after the dot and press <span class="shortcut" data-command="editor.action.triggerSuggest"></span> to invoke IntelliSense.
+In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.
 
 ```js
 var express = require('express');
