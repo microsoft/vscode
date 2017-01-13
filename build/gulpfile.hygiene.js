@@ -190,10 +190,11 @@ const hygiene = exports.hygiene = (some, options) => {
 
 	const tsl = es.through(function (file) {
 		const configuration = tslint.Configuration.findConfiguration(null, '.');
-		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint(file.relative, contents, options);
-		const result = linter.lint();
+		const linter = new tslint.Linter(options);
+		linter.lint(file.relative, contents, configuration.results);
+		const result = linter.getResult();
 
 		if (result.failureCount > 0) {
 			reportFailures(result.failures);
