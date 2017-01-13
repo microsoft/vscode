@@ -120,6 +120,16 @@
         "category": "Git"
       },
       {
+        "command": "git.checkout",
+        "title": "Checkout to...",
+        "category": "Git"
+      },
+      {
+        "command": "git.branch",
+        "title": "Create Branch...",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "Pull",
         "category": "Git"
