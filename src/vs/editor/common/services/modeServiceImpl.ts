@@ -299,8 +299,6 @@ export class ModeServiceImpl implements IModeService {
 			this._instantiatedModes[modeId] = new FrankensteinMode(languageIdentifier);
 
 			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);
-
-			this._extensionService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
 		}
 		return this._instantiatedModes[modeId];
 	}
@@ -352,6 +350,10 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		});
 
 		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
+
+		this.onDidCreateMode((mode) => {
+			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`).done(null, onUnexpectedError);
+		});
 	}
 
 	public onReady(): TPromise<boolean> {
