@@ -323,6 +323,54 @@ export class CommandCenter {
 		await choice.run(this.model);
 	}
 
+	@CommandCenter.Command('git.commitStaged')
+	@CommandCenter.CatchErrors
+	async commitStaged(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.commitStagedSigned')
+	@CommandCenter.CatchErrors
+	async commitStagedSigned(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.commitAll')
+	@CommandCenter.CatchErrors
+	async commitAll(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.commitAllSigned')
+	@CommandCenter.CatchErrors
+	async commitAllSigned(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.undoCommit')
+	@CommandCenter.CatchErrors
+	async undoCommit(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.pull')
+	@CommandCenter.CatchErrors
+	async pull(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.pullRebase')
+	@CommandCenter.CatchErrors
+	async pullRebase(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
+	@CommandCenter.Command('git.pushTo')
+	@CommandCenter.CatchErrors
+	async pushTo(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
 	@CommandCenter.Command('git.sync')
 	@CommandCenter.CatchErrors
 	async sync(): Promise<void> {
