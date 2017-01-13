@@ -175,7 +175,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
-		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService, extensionService));
+		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 
 		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, messageService, domElement)));
 

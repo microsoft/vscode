@@ -11,8 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IExtensionDescription, IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { ICommandService, ICommand, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ICommandService, ICommand, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
@@ -23,7 +23,6 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
-import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -263,16 +262,14 @@ export class SimpleMessageService implements IMessageService {
 	}
 }
 
-export class StandaloneCommandService extends CommandService {
+export class StandaloneCommandService implements ICommandService {
+	_serviceBrand: any;
 
+	private readonly _instantiationService: IInstantiationService;
 	private _dynamicCommands: { [id: string]: ICommand; };
 
-	constructor(
-		instantiationService: IInstantiationService,
-		extensionService: IExtensionService
-	) {
-		super(instantiationService, extensionService);
-
+	constructor(instantiationService: IInstantiationService) {
+		this._instantiationService = instantiationService;
 		this._dynamicCommands = Object.create(null);
 	}
 
@@ -280,8 +277,18 @@ export class StandaloneCommandService extends CommandService {
 		this._dynamicCommands[id] = command;
 	}
 
-	protected _getCommand(id: string): ICommand {
-		return super._getCommand(id) || this._dynamicCommands[id];
+	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
+		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
+		if (!command) {
+			return TPromise.wrapError(new Error(`command '${id}' not found`));
+		}
+
+		try {
+			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
+			return TPromise.as(result);
+		} catch (err) {
+			return TPromise.wrapError(err);
+		}
 	}
 }
 
