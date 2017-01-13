@@ -23,7 +23,7 @@ declare module 'vscode' {
 
 		/**
 		 * Show window-wide progress, e.g. in the status bar, for the provided task. The task is
-		 * considering running as long as the promise it returned isn't revolved or rejected.
+		 * considering running as long as the promise it returned isn't resolved or rejected.
 		 *
 		 * @param task A function callback that represents a long running operation.
 		 */
