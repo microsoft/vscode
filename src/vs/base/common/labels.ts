@@ -83,47 +83,50 @@ function getPath(arg1: URI | string | IWorkspaceProvider): string {
  */
 export function shorten(paths: string[]): string[] {
 	const ellipsis = '\u2026';
-	let shortenedPaths: string[] = new Array(paths.length);
-	let match = false;
+	const shortenedPaths: string[] = new Array(paths.length);
 
 	// for every path
-	for (let path = 0; path < paths.length; path++) {
-		let segments: string[] = paths[path].split(nativeSep);
+	let match = false;
+	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
+		const segments: string[] = paths[pathIndex].split(nativeSep);
 		match = true;
 
 		// pick the first shortest subpath found
 		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
 			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
 				match = false;
-				let subpath = segments.slice(start, start + subpathLength).join(nativeSep);
+				const subpath = segments.slice(start, start + subpathLength).join(nativeSep);
 
 				// that is unique to any other path
-				for (let otherPath = 0; !match && otherPath < paths.length; otherPath++) {
-					if (otherPath !== path && paths[otherPath].indexOf(subpath) > -1) {
-						// suffix subpath treated specially as we consider no match 'x' and 'x/...'
-						let isSubpathEnding: boolean = (start + subpathLength === segments.length);
-						let isOtherPathEnding: boolean = endsWith(paths[otherPath], subpath);
+				for (let otherPathIndex = 0; !match && otherPathIndex < paths.length; otherPathIndex++) {
+
+					// suffix subpath treated specially as we consider no match 'x' and 'x/...'
+					if (otherPathIndex !== pathIndex && paths[otherPathIndex].indexOf(subpath) > -1) {
+						const isSubpathEnding: boolean = (start + subpathLength === segments.length);
+						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpath);
+
 						match = !isSubpathEnding || isOtherPathEnding;
 					}
 				}
 
+				// found unique subpath
 				if (!match) {
-					// found unique subpath
 					let result = subpath;
 					if (start + subpathLength < segments.length) {
 						result = result + nativeSep + ellipsis;
 					}
+
 					if (start > 0) {
 						result = ellipsis + nativeSep + result;
 					}
-					shortenedPaths[path] = result;
+
+					shortenedPaths[pathIndex] = result;
 				}
 			}
 		}
 
 		if (match) {
-			// use full path if no unique subpaths found
-			shortenedPaths[path] = paths[path];
+			shortenedPaths[pathIndex] = paths[pathIndex]; // use full path if no unique subpaths found
 		}
 	}
 
