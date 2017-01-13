@@ -189,7 +189,7 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const tsl = es.through(function (file) {
-		const configuration = tslint.findConfiguration(null, '.');
+		const configuration = tslint.Configuration.findConfiguration(null, '.');
 		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
 		const linter = new tslint(file.relative, contents, options);
