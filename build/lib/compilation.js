@@ -23,8 +23,6 @@ options.verbose = false;
 options.sourceMap = true;
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
-var smSourceRootPath = path.resolve(path.dirname(rootDir));
-var smSourceRoot = util.toFileUri(smSourceRootPath);
 function createCompile(build, emitError) {
     var opts = _.clone(options);
     opts.inlineSources = !!build;
@@ -48,7 +46,7 @@ function createCompile(build, emitError) {
             .pipe(sourcemaps.write('.', {
             addComment: false,
             includeContent: !!build,
-            sourceRoot: smSourceRoot
+            sourceRoot: options.sourceRoot
         }))
             .pipe(tsFilter.restore)
             .pipe(reporter.end(emitError));
