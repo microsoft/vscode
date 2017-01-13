@@ -999,7 +999,7 @@ export class SearchViewlet extends Viewlet {
 
 			// Fake progress up to 90%, or when actual progress beats it
 			const fakeMax = 900;
-			const fakeMultiplier = 15;
+			const fakeMultiplier = 12;
 			if (fakeProgress && progressWorked < fakeMax) {
 				// Linearly decrease the rate of fake progress.
 				// 1 is the smallest allowed amount of progress.

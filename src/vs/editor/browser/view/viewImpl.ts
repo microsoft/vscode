@@ -197,7 +197,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// (there have been reports of tiny blinking cursors)
 		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
 		this.textAreaCover = document.createElement('div');
-		PartFingerprints.write(this.textAreaCover, PartFingerprint.TextAreaCover);
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
 			this.textAreaCover.className = 'monaco-editor-background ' + editorBrowser.ClassNames.GLYPH_MARGIN + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER;
 		} else {
@@ -609,7 +608,15 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						return -1;
 					}
 					return visibleRanges[0].left;
+				},
+
+				getTargetAtClientPoint: (clientX: number, clientY: number): editorBrowser.IMouseTarget => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getTargetAtClientPoint: View is disposed');
+					}
+					return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
 				}
+
 			};
 		}
 		return this.codeEditorHelper;
@@ -666,7 +673,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.keyboardHandler.focusTextArea();
 
 		// IE does not trigger the focus event immediately, so we must help it a little bit
-		this._setHasFocus(true);
+		if (document.activeElement === this.textArea) {
+			this._setHasFocus(true);
+		}
 	}
 
 	public isFocused(): boolean {

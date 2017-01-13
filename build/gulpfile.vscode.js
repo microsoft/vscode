@@ -30,7 +30,8 @@ const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 
-const dependencies = Object.keys(shrinkwrap.dependencies);
+const dependencies = Object.keys(shrinkwrap.dependencies)
+	.concat(Array.isArray(product.extraNodeModules) ? product.extraNodeModules : []); // additional dependencies from our product configuration
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	.concat(dependencies)
@@ -39,8 +40,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.9.5' },
-	{ name: 'ms-vscode.node-debug2', version: '1.9.2' }
+	{ name: 'ms-vscode.node-debug', version: '1.9.6' },
+	{ name: 'ms-vscode.node-debug2', version: '1.9.4' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -93,11 +94,11 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 
 
 gulp.task('optimize-index-js', ['optimize-vscode'], () => {
-	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js')
+	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js');
 	const contents = fs.readFileSync(fullpath).toString();
 	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
 	fs.writeFileSync(fullpath, newContents);
-})
+});
 
 const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));

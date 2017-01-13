@@ -22,6 +22,7 @@ const $ = dom.$;
 export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 	private static ADD_CONFIGURATION = nls.localize('addConfiguration', "Add Configuration...");
+	private static SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
@@ -132,8 +133,9 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		} else {
 			this.setEnabled(true);
 			const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
+			options.push(StartDebugActionItem.SEPARATOR);
 			options.push(StartDebugActionItem.ADD_CONFIGURATION);
-			this.selectBox.setOptions(options, selected);
+			this.selectBox.setOptions(options, selected, options.length - 2);
 		}
 	}
 }

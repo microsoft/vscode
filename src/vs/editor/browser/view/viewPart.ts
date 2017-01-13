@@ -30,17 +30,12 @@ export abstract class ViewPart extends ViewEventHandler {
 export const enum PartFingerprint {
 	None,
 	ContentWidgets,
-	Margin,
 	OverflowingContentWidgets,
 	OverflowGuard,
 	OverlayWidgets,
-	OverviewRuler,
 	ScrollableElement,
 	TextArea,
-	TextAreaCover,
-	ViewCursorsLayer,
 	ViewLines,
-	ViewZones
 }
 
 export class PartFingerprints {

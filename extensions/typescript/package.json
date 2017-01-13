@@ -256,11 +256,6 @@
 				}
 			}
 		},
-		"keybindings": {
-			"key": ".",
-			"command": "^acceptSelectedSuggestion",
-			"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'typescript' && suggestionSupportsAcceptOnKey"
-		},
 		"commands": [
 			{
 				"command": "typescript.reloadProjects",

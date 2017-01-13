@@ -8,7 +8,7 @@
 import { StyleMutator, FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
-import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
@@ -39,7 +39,6 @@ export class Margin extends ViewPart {
 
 	public _createDomNode(): HTMLElement {
 		let domNode = document.createElement('div');
-		PartFingerprints.write(domNode, PartFingerprint.Margin);
 		domNode.className = ClassNames.MARGIN + ' monaco-editor-background';
 		domNode.style.position = 'absolute';
 		domNode.setAttribute('role', 'presentation');
