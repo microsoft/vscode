@@ -21,13 +21,14 @@ class MyCompletionItem extends CompletionItem {
 	constructor(
 		public position: Position,
 		public document: TextDocument,
-		entry: CompletionEntry
+		entry: CompletionEntry,
+		enableDotCompletions: boolean
 	) {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(document, entry.kind);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, entry.kind);
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
@@ -86,7 +87,7 @@ class MyCompletionItem extends CompletionItem {
 		return CompletionItemKind.Property;
 	}
 
-	private static getCommitCharacters(document: TextDocument, kind: string): string[] | undefined {
+	private static getCommitCharacters(enableDotCompletions: boolean, kind: string): string[] | undefined {
 		switch (kind) {
 			case PConst.Kind.externalModuleName:
 				return ['"', '\''];
@@ -95,25 +96,24 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.directory:
 				return ['/', '"', '\''];
 
-			case PConst.Kind.alias:
-			case PConst.Kind.variable:
-			case PConst.Kind.localVariable:
-			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructSignature:
 			case PConst.Kind.callSignature:
 			case PConst.Kind.indexSignature:
 			case PConst.Kind.enum:
-			case PConst.Kind.module:
-			case PConst.Kind.class:
 			case PConst.Kind.interface:
+				return enableDotCompletions ? ['.'] : undefined;
+
+			case PConst.Kind.module:
+			case PConst.Kind.alias:
+			case PConst.Kind.variable:
+			case PConst.Kind.localVariable:
+			case PConst.Kind.memberVariable:
+			case PConst.Kind.class:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
-				if (!document || (document.languageId !== 'typescript' && document.languageId !== 'typescriptreact')) {
-					return undefined;
-				}
-				return ['.'];
+				return enableDotCompletions ? ['.', '('] : undefined;
 		}
 
 		return undefined;
@@ -188,9 +188,23 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			let completionItems: CompletionItem[] = [];
 			let body = msg.body;
 			if (body) {
+				// Only enable dot completions in TS files for now
+				let enableDotCompletions = document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact');
+
+				// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
+				// Only enable dot completions when previous character is an identifier.
+				// Prevents incorrectly completing while typing spread operators.
+				if (position.character > 0) {
+					const preText = document.getText(new Range(
+						new Position(position.line, 0),
+						new Position(position.line, position.character - 1)));
+					console.log(preText, preText.match(/[a-z_$]\s*$/ig));
+					enableDotCompletions = preText.match(/[a-z_$]\s*$/ig) !== null;
+				}
+
 				for (let i = 0; i < body.length; i++) {
 					let element = body[i];
-					let item = new MyCompletionItem(position, document, element);
+					let item = new MyCompletionItem(position, document, element, enableDotCompletions);
 					completionItems.push(item);
 				}
 			}
