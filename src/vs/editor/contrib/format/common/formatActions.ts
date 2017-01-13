@@ -237,13 +237,21 @@ export class FormatSelectionAction extends AbstractFormatAction {
 }
 
 @editorAction
-export class FormatOnPasteAction extends AbstractFormatAction {
+export class PasteAndFormatAction extends AbstractFormatAction {
 	constructor() {
 		super({
-			id: 'editor.action.formatOnPaste',
-			label: nls.localize('formatOnPaste.label', "Format on paste"),
-			alias: 'Format on paste',
-			precondition: EditorContextKeys.Writable
+			id: 'editor.action.pasteAndFormat',
+			label: nls.localize('pasteAndFormat.label', "Paste and Format"),
+			alias: 'Paste and Format',
+			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentSelectionFormattingProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_V)
+			},
+			menuOpts: {
+				group: '1_modification',
+				order: 1.32
+			}
 		});
 	}
 
