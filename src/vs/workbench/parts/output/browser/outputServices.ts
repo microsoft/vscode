@@ -94,7 +94,7 @@ export class OutputService implements IOutputService {
 	}
 
 	private append(channelId: string, output: string): void {
-		
+
 		// Initialize
 		if (!this.receivedOutput[channelId]) {
 			this.receivedOutput[channelId] = '';
