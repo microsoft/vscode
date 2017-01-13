@@ -276,6 +276,7 @@ export enum State {
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openExplorerOnEnd: boolean;
+	inlineValues: boolean;
 }
 
 export interface IGlobalConfig {
