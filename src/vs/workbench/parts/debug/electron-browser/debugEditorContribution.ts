@@ -14,10 +14,9 @@ import { visit } from 'vs/base/common/json';
 import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IRange, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -32,7 +31,7 @@ import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpoi
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { getNameValueMapFromScopeChildren, getDecorators, getEditorWordRangeMap } from 'vs/workbench/parts/debug/electron-browser/debugInlineDecorators';
+import { toNameValueMap, getDecorations, getWordToLineNumbersMap } from 'vs/workbench/parts/debug/electron-browser/debugInlineValues';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -52,7 +51,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private removeDecorationsTimeoutId = 0;
-	private editorModelWordRangeMap: IStringDictionary<IRange[]>;
+	private wordToLineNumbersMap: Map<string, number[]>;
 
 	private configurationWidget: FloatingClickWidget;
 
@@ -226,14 +225,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (!stackFrame) {
 			this.removeDecorationsTimeoutId = setTimeout(() => {
 				this.editor.removeDecorations(INLINE_DECORATOR_KEY);
-				this.editorModelWordRangeMap = null;
+				this.wordToLineNumbersMap = null;
 			}, REMOVE_DECORATORS_DEBOUNCE_INTERVAL);
 			return;
 		}
 
 		// URI has changed, invalidate the editorWordRangeMap so its re-computed for the current model
 		if (stackFrame.source.uri.toString() !== this.editor.getModel().uri.toString()) {
-			this.editorModelWordRangeMap = null;
+			this.wordToLineNumbersMap = null;
 		}
 
 		stackFrame.getScopes()
@@ -243,13 +242,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				const editorModel = this.editor.getModel();
 				// Compute name-value map for all variables in scope chain
 				const expressions = [].concat.apply([], children);
-				const nameValueMap = getNameValueMapFromScopeChildren(expressions);
+				const nameValueMap = toNameValueMap(expressions);
 				// Build wordRangeMap if not already computed for the editor model
-				if (!this.editorModelWordRangeMap) {
-					this.editorModelWordRangeMap = getEditorWordRangeMap(editorModel);
+				if (!this.wordToLineNumbersMap) {
+					this.wordToLineNumbersMap = getWordToLineNumbersMap(editorModel);
 				}
 				// Compute decorators from nameValueMap and wordRangeMap and apply to editor
-				const decorators = getDecorators(nameValueMap, this.editorModelWordRangeMap, editorModel.getLinesContent());
+				const decorators = getDecorations(nameValueMap, this.wordToLineNumbersMap);
 				this.editor.setDecorations(INLINE_DECORATOR_KEY, decorators);
 			});
 	}
