@@ -28,7 +28,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
@@ -129,7 +129,7 @@ export module StaticServices {
 
 	export const markerService = define(IMarkerService, () => new MarkerService());
 
-	export const modeService = define(IModeService, (o) => new MainThreadModeServiceImpl(instantiationService.get(o), extensionService.get(o), configurationService.get(o)));
+	export const modeService = define(IModeService, (o) => new ModeServiceImpl(instantiationService.get(o), extensionService.get(o)));
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), messageService.get(o)));
 
