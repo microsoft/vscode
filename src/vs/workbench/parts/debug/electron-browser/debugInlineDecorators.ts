@@ -136,7 +136,7 @@ export function getEditorWordRangeMap(editorModel: IModel): IStringDictionary<IR
 			const tokenStr = lineContent.substring(startOffset, endOffset);
 
 			// Token is a word and not a comment
-			if (lineTokens.getStandardTokenType(j) !== StandardTokenType.Comment) {
+			if (lineTokens.getStandardTokenType(j) === StandardTokenType.Other) {
 				WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
 				const wordMatch = WORD_REGEXP.exec(tokenStr);
 
