@@ -8,21 +8,26 @@
 declare module 'vscode' {
 
 	/**
-	 * Reprensents progress
+	 * Defines a generalized way of reporing progress updates.
 	 */
 	export interface Progress<T> {
-		report(progress: T): void
+
+		/**
+		 * Report a progress update.
+		 * @param value A progress item, like a message or an updated percentage value
+		 */
+		report(value: T): void
 	}
 
 	export namespace window {
 
-		export function withWindowProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
-
-		// export function withApplicationProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
-
-		// export function withEditorProgress<R>(editor: TextEditor, task: (progress: Progress<number>, token: CancellationToken) => Thenable<R>): Thenable<R>;
-
-		// export function withBusyCursor<R>(task: () => Thenable<R>): Thenable<R>;
+		/**
+		 * Show window-wide progress, e.g. in the status bar, for the provided task. The task is
+		 * considering running as long as the promise it returned isn't revolved or rejected.
+		 *
+		 * @param task A function callback that represents a long running operation.
+		 */
+		export function withWindowProgress(task: (progress: Progress<string>, token: CancellationToken) => Thenable<any>): void;
 
 		export function sampleFunction(): Thenable<any>;
 	}
