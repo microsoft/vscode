@@ -68,7 +68,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CrashReporter } from 'vs/workbench/electron-browser/crashReporter';
@@ -346,7 +346,7 @@ export class WorkbenchShell {
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
-		serviceCollection.set(IModeService, new SyncDescriptor(MainThreadModeServiceImpl));
+		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
 		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
 
