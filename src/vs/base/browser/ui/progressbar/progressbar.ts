@@ -8,10 +8,8 @@
 import 'vs/css!./progressbar';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import assert = require('vs/base/common/assert');
-import browser = require('vs/base/browser/browser');
 import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import uuid = require('vs/base/common/uuid');
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const css_done = 'done';
@@ -33,7 +31,6 @@ export class ProgressBar {
 	private bit: HTMLElement;
 	private totalWork: number;
 	private animationStopToken: ValueCallback;
-	private currentProgressToken: string;
 
 	constructor(builder: Builder) {
 		this.toUnbind = [];
@@ -130,53 +127,7 @@ export class ProgressBar {
 		this.element.addClass(css_active);
 		this.element.addClass(css_infinite);
 
-		if (!browser.hasCSSAnimationSupport()) {
-
-			// Use a generated token to avoid race conditions from reentrant calls to this function
-			let currentProgressToken = uuid.v4().asHex();
-			this.currentProgressToken = currentProgressToken;
-
-			this.manualInfinite(currentProgressToken);
-		}
-
 		return this;
-	}
-
-	private manualInfinite(currentProgressToken: string): void {
-		this.bit.style.width = '5%';
-		this.bit.style.display = 'inherit';
-
-		let counter = 0;
-		let animationFn: () => void = () => {
-			TPromise.timeout(50).then(() => {
-
-				// Return if another manualInfinite() call was made
-				if (currentProgressToken !== this.currentProgressToken) {
-					return;
-				}
-
-				// Animation done
-				else if (this.element.hasClass(css_done)) {
-					this.bit.style.display = 'none';
-					this.bit.style.left = '0';
-				}
-
-				// Wait until progress bar becomes visible
-				else if (this.element.isHidden()) {
-					animationFn();
-				}
-
-				// Continue Animation until done
-				else {
-					counter = (counter + 1) % 95;
-					this.bit.style.left = counter + '%';
-					animationFn();
-				}
-			});
-		};
-
-		// Start Animation
-		animationFn();
 	}
 
 	/**
