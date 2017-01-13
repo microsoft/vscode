@@ -132,15 +132,18 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public rebuild(): ITaskExecuteResult {
-		return null;
+		throw new Error('Task - Rebuild: not implemented yet');
 	}
 
 	public clean(): ITaskExecuteResult {
-		return null;
+		throw new Error('Task - Clean: not implemented yet');
 	}
 
 	public runTest(): ITaskExecuteResult {
-		return null;
+		if (!this.testTaskIdentifier) {
+			throw new TaskError(Severity.Info, nls.localize('TerminalTaskSystem.noTestTask', 'No test task defined in tasks.json'), TaskErrors.NoTestTask);
+		}
+		return this.run(this.testTaskIdentifier, Triggers.shortcut);
 	}
 
 	public run(taskIdentifier: string, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -180,19 +183,24 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public isActive(): TPromise<boolean> {
-		return TPromise.as(false);
+		return TPromise.as(this.isActiveSync());
 	}
 
 	public isActiveSync(): boolean {
-		return false;
+		return Object.keys(this.activeTasks).length > 0;
 	}
 
 	public canAutoTerminate(): boolean {
-		return false;
+		return Object.keys(this.activeTasks).every(key => this.configuration.tasks[key].isBackground);
 	}
 
 	public terminate(): TPromise<TerminateResponse> {
-		return null;
+		Object.keys(this.activeTasks).forEach((key) => {
+			let data = this.activeTasks[key];
+			data.terminal.dispose();
+		});
+		this.activeTasks = Object.create(null);
+		return TPromise.as<TerminateResponse>({ success: true });
 	}
 
 	public tasks(): TPromise<TaskDescription[]> {
@@ -297,6 +305,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private createTerminal(task: TaskDescription): ITerminalInstance {
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
+		let waitOnExit = task.showOutput !== ShowOutput.Never || !task.isBackground;
 		if (this.configuration.isShellCommand) {
 			let shellConfig = (this.terminalService.configHelper as TerminalConfigHelper).getShell();
 			let shellArgs = shellConfig.args.slice(0);
@@ -340,9 +349,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			return this.terminalService.createInstance(terminalName, shellConfig.executable, shellArgs, true);
+			return this.terminalService.createInstance(terminalName, shellConfig.executable, shellArgs, waitOnExit);
 		} else {
-			return this.terminalService.createInstance(terminalName, command, args, true);
+			return this.terminalService.createInstance(terminalName, command, args, waitOnExit);
 		}
 	}
 
