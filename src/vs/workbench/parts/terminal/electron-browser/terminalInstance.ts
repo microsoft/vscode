@@ -309,11 +309,15 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
+	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
+		if (shell.cwd) {
+			return shell.cwd;
+		}
+
 		let cwd: string;
 
 		// TODO: Handle non-existent customCwd
-		if (!ignoreCustomCwd) {
+		if (!shell.ignoreConfigurationCwd) {
 			// Evaluate custom cwd first
 			const customCwd = this._configHelper.getCwd();
 			if (customCwd) {
@@ -336,9 +340,9 @@ export class TerminalInstance implements ITerminalInstance {
 	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig) {
 		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
-			shell = this._configHelper.getShell();
+			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,

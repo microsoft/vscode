@@ -25,7 +25,7 @@ import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
@@ -307,7 +307,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
 		let waitOnExit = task.showOutput !== ShowOutput.Never || !task.isBackground;
 		if (this.configuration.isShellCommand) {
-			let shellConfig = (this.terminalService.configHelper as TerminalConfigHelper).getShell();
+			// TODO@dirk: don't we want to use cmd.exe (32- or 64-bit) all the time? Also you can now
+			//   not set IShellLaunchConfig.executable which will grab it from settings.
+			let shellConfig: IShellLaunchConfig = { executable: null, args: null };
+			(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellConfig);
 			let shellArgs = shellConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine: string;
@@ -349,9 +352,21 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			return this.terminalService.createInstance(terminalName, shellConfig.executable, shellArgs, waitOnExit);
+			const shellLaunchConfig: IShellLaunchConfig = {
+				name: terminalName,
+				executable: shellConfig.executable,
+				args: shellArgs,
+				waitOnExit
+			};
+			return this.terminalService.createInstance(shellLaunchConfig);
 		} else {
-			return this.terminalService.createInstance(terminalName, command, args, waitOnExit);
+			const shellLaunchConfig: IShellLaunchConfig = {
+				name: terminalName,
+				executable: command,
+				args,
+				waitOnExit
+			};
+			return this.terminalService.createInstance(shellLaunchConfig);
 		}
 	}
 
