@@ -123,12 +123,17 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 					}
 				// fallthrough
 
+				case PConst.Kind.class:
+					if (item.text === '<class>') {
+						break;
+					}
+				// fallthrough
+
 				case PConst.Kind.memberFunction:
 				case PConst.Kind.memberVariable:
 				case PConst.Kind.memberGetAccessor:
 				case PConst.Kind.memberSetAccessor:
 				case PConst.Kind.constructorImplementation:
-				case PConst.Kind.class:
 				case PConst.Kind.interface:
 				case PConst.Kind.type:
 				case PConst.Kind.enum:
