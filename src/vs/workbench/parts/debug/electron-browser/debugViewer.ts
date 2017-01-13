@@ -51,6 +51,11 @@ export interface IRenderValueOptions {
 	showHover?: boolean;
 }
 
+function replaceWhitespace(value: string): string {
+	const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	return value.replace(/[\n\r\t]/g, char => map[char]);
+}
+
 export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
@@ -79,8 +84,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
-		const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
-		container.textContent = value.replace(/[\n\r\t]/g, char => map[char]);
+		container.textContent = replaceWhitespace(value);
 	} else {
 		container.textContent = value;
 	}
@@ -91,7 +95,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 
 export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = variable.name;
+		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : '';
 	}
 

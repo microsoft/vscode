@@ -11,6 +11,7 @@ import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/
 import { EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
 function addPropertyIfPresent(src: any, dst: any, prop: string): void {
 	if (src.hasOwnProperty(prop)) {
@@ -56,6 +57,8 @@ export class ScrollManager implements IDisposable {
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'mouseWheelScrollSensitivity');
 
 		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions);
+		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
+
 		this.onLayoutInfoChanged();
 		this.toDispose.push(this.scrollbar);
 		this.toDispose.push(this.scrollbar.onScroll((e: IScrollEvent) => {

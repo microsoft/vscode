@@ -170,7 +170,24 @@ export class ThemeService implements IThemeService {
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.knownColorThemes = [];
-		this.currentColorThemeDocument = null;
+
+		// In order to avoid paint flashing for tokens, because
+		// themes are loaded asynchronously, we need to initialize
+		// a color theme document with good defaults until the theme is loaded
+		let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
+		let foreground = isLightTheme ? '#000000' : '#D4D4D4';
+		let background = isLightTheme ? '#ffffff' : '#1E1E1E';
+		this.currentColorThemeDocument = {
+			name: null,
+			include: null,
+			settings: [{
+				settings: {
+					foreground: foreground,
+					background: background
+				}
+			}]
+		};
+
 		this.onColorThemeChange = new Emitter<string>();
 		this.knownIconThemes = [];
 		this.currentIconTheme = '';

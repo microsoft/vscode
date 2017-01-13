@@ -20,6 +20,7 @@ import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, Tracke
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -55,7 +56,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private commandService: ICommandService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService, this.configurationService);
@@ -283,6 +285,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	public addLaunchConfiguration(): TPromise<any> {
+		this.telemetryService.publicLog('debug/addLaunchConfiguration');
 		let configurationsPosition: IPosition;
 		const model = this.editor.getModel();
 		let depthInArray = 0;

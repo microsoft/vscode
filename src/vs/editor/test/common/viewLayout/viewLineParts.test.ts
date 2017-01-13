@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { DecorationSegment, LineDecorationsNormalizer, getColumnOfLinePartOffset, createLineParts } from 'vs/editor/common/viewLayout/viewLineParts';
+import { DecorationSegment, LineDecorationsNormalizer, createLineParts } from 'vs/editor/common/viewLayout/viewLineParts';
 import { Range } from 'vs/editor/common/core/range';
 import { RenderLineInput, renderLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
@@ -342,7 +342,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, 'none', false, new LineParts(parts, lineContent.length + 1)));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
-			let actual = getColumnOfLinePartOffset(-1, parts, lineContent.length + 1, renderLineOutput.charOffsetInPart, partIndex, partLength, offset);
+			let charOffset = renderLineOutput.characterMapping.partDataToCharOffset(partIndex, partLength, offset);
+			let actual = charOffset + 1;
 			assert.equal(actual, expected, 'getColumnOfLinePartOffset for ' + partIndex + ' @ ' + offset);
 		};
 	}

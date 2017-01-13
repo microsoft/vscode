@@ -143,6 +143,19 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: undefined
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.customDebugRequest',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
+		const process = accessor.get(IDebugService).getViewModel().focusedProcess;
+		if (process) {
+			return process.session.custom(request, requestArgs);
+		}
+	},
+	when: CONTEXT_IN_DEBUG_MODE,
+	primary: undefined
+});
+
 // register service
 registerSingleton(IDebugService, service.DebugService);
 

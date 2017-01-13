@@ -243,6 +243,7 @@ class OutputContentProvider implements ITextModelContentProvider {
 		}
 
 		const bufferedOutput = this.bufferedOutput[channel];
+		this.bufferedOutput[channel] = '';
 		if (!bufferedOutput) {
 			return; // return if nothing to append
 		}

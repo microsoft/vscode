@@ -6,14 +6,13 @@
 import * as lifecycle from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { guessMimeTypes } from 'vs/base/common/mime';
+import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
-import { Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
@@ -52,9 +51,12 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			this.modelsToDispose.push(model);
 
 			return model;
-		}, err => {
-			(<Model>this.debugService.getModel()).sourceIsUnavailable(resource);
-			return err;
+		}, (err: DebugProtocol.ErrorResponse) => {
+			this.debugService.deemphasizeSource(resource);
+			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
+			const model = this.modelService.createModel(err.message, modePromise, resource);
+
+			return model;
 		});
 	}
 }

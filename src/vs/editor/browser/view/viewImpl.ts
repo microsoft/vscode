@@ -42,7 +42,7 @@ import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDeco
 import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext, IViewEventHandler } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -118,6 +118,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.domNode.className = configuration.editor.viewInfo.editorClassName;
 
 		this.overflowGuardContainer = document.createElement('div');
+		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
 		this.overflowGuardContainer.className = editorBrowser.ClassNames.OVERFLOW_GUARD;
 
 		// The layout provider has such responsibilities as:
@@ -174,6 +175,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private createTextArea(): void {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = <HTMLTextAreaElement>document.createElement('textarea');
+		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.className = editorBrowser.ClassNames.TEXTAREA;
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
@@ -606,7 +608,15 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						return -1;
 					}
 					return visibleRanges[0].left;
+				},
+
+				getTargetAtClientPoint: (clientX: number, clientY: number): editorBrowser.IMouseTarget => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getTargetAtClientPoint: View is disposed');
+					}
+					return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
 				}
+
 			};
 		}
 		return this.codeEditorHelper;
