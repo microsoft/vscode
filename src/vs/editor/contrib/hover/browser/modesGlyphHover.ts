@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelDecoration, IRange } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { GlyphHoverWidget } from './hoverWidgets';
@@ -16,11 +15,10 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { MarkedString } from 'vs/base/common/htmlContent';
 
 export interface IHoverMessage {
-	value?: string;
-	range?: IRange;
-	className?: string;
+	value: MarkedString;
 }
 
 class MarginComputer implements IHoverComputer<IHoverMessage[]> {
@@ -44,19 +42,35 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	}
 
 	public computeSync(): IHoverMessage[] {
-		var result: IHoverMessage[] = [],
-			lineDecorations = this._editor.getLineDecorations(this._lineNumber),
-			i: number,
-			len: number,
-			d: IModelDecoration;
+		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
+			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
+		};
+		const toHoverMessage = (contents: MarkedString): IHoverMessage => {
+			return {
+				value: contents
+			};
+		};
 
-		for (i = 0, len = lineDecorations.length; i < len; i++) {
-			d = lineDecorations[i];
+		let lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
-			if (d.options.glyphMarginClassName && d.options.glyphMarginHoverMessage) {
-				result.push({
-					value: d.options.glyphMarginHoverMessage
-				});
+		let result: IHoverMessage[] = [];
+		for (let i = 0, len = lineDecorations.length; i < len; i++) {
+			let d = lineDecorations[i];
+
+			if (!d.options.glyphMarginClassName) {
+				continue;
+			}
+
+			let hoverMessage = d.options.glyphMarginHoverMessage;
+
+			if (!hasHoverContent(hoverMessage)) {
+				continue;
+			}
+
+			if (Array.isArray(hoverMessage)) {
+				result = result.concat(hoverMessage.map(toHoverMessage));
+			} else {
+				result.push(toHoverMessage(hoverMessage));
 			}
 		}
 
