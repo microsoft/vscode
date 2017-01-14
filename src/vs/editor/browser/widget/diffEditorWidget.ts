@@ -19,7 +19,7 @@ import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { createLineParts } from 'vs/editor/common/viewLayout/viewLineParts';
+import { createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
@@ -1886,7 +1886,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
 		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
-		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.viewInfo.renderWhitespace);
+		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
+		let parts = createLineParts(lineContent, tabSize, lineTokens, actualDecorations, config.viewInfo.renderWhitespace);
 
 		let r = renderLine(new RenderLineInput(
 			lineContent,

@@ -5,34 +5,86 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineParts } from 'vs/editor/common/core/lineParts';
+import { Constants } from 'vs/editor/common/core/uint';
 
-function cmpLineDecorations(a: InlineDecoration, b: InlineDecoration): number {
-	let r = Range.compareRangesUsingStarts(a.range, b.range);
-	if (r === 0) {
-		if (a.inlineClassName < b.inlineClassName) {
-			return -1;
-		}
-		if (a.inlineClassName > b.inlineClassName) {
-			return 1;
-		}
-		return 0;
+export class Decoration {
+	_decorationBrand: void;
+
+	public readonly startColumn: number;
+	public readonly endColumn: number;
+	public readonly className: string;
+
+	constructor(startColumn: number, endColumn: number, className: string) {
+		this.startColumn = startColumn;
+		this.endColumn = endColumn;
+		this.className = className;
 	}
-	return r;
+
+	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): Decoration[] {
+		if (lineDecorations.length === 0) {
+			return [];
+		}
+
+		let result: Decoration[] = [], resultLen = 0;
+
+		for (let i = 0, len = lineDecorations.length; i < len; i++) {
+			let d = lineDecorations[i];
+			let range = d.range;
+			let className = d.inlineClassName;
+
+			if (range.endLineNumber < lineNumber || range.startLineNumber > lineNumber) {
+				// Ignore decorations that sit outside this line
+				continue;
+			}
+
+			if (range.isEmpty()) {
+				// Ignore empty range decorations
+				continue;
+			}
+
+			let startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
+			let endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
+
+			if (endColumn <= 1) {
+				// An empty decoration (endColumn === 1)
+				continue;
+			}
+
+			result[resultLen++] = new Decoration(startColumn, endColumn, className);
+		}
+
+		return result;
+	}
+
+	public static compare(a: Decoration, b: Decoration): number {
+		if (a.startColumn === b.startColumn) {
+			if (a.endColumn === b.endColumn) {
+				if (a.className < b.className) {
+					return -1;
+				}
+				if (a.className > b.className) {
+					return 1;
+				}
+				return 0;
+			}
+			return a.endColumn - b.endColumn;
+		}
+		return a.startColumn - b.startColumn;
+	}
 }
 
-export function createLineParts(lineNumber: number, minLineColumn: number, lineContent: string, tabSize: number, lineTokens: ViewLineTokens, rawLineDecorations: InlineDecoration[], renderWhitespace: 'none' | 'boundary' | 'all'): LineParts {
+export function createLineParts(lineContent: string, tabSize: number, lineTokens: ViewLineTokens, lineDecorations: Decoration[], renderWhitespace: 'none' | 'boundary' | 'all'): LineParts {
 	if (renderWhitespace !== 'none') {
-		rawLineDecorations = insertWhitespaceLineDecorations(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), renderWhitespace, rawLineDecorations);
+		insertWhitespaceLineDecorations(lineContent, tabSize, lineTokens.getFauxIndentLength(), renderWhitespace, lineDecorations);
 	}
 
-	if (rawLineDecorations.length > 0) {
-		rawLineDecorations.sort(cmpLineDecorations);
-		return createViewLineParts(lineNumber, minLineColumn, lineTokens, lineContent, rawLineDecorations);
+	if (lineDecorations.length > 0) {
+		lineDecorations.sort(Decoration.compare);
+		return createViewLineParts(lineTokens, lineContent, lineDecorations);
 	} else {
 		return createFastViewLineParts(lineTokens, lineContent);
 	}
@@ -51,14 +103,14 @@ function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): Vie
 	return parts.slice(0, parts.length - 1);
 }
 
-function insertOneCustomLineDecoration(dest: InlineDecoration[], lineNumber: number, startColumn: number, endColumn: number, className: string): void {
-	dest.push(new InlineDecoration(new Range(lineNumber, startColumn, lineNumber, endColumn), className));
+function insertOneCustomLineDecoration(dest: Decoration[], startColumn: number, endColumn: number, className: string): void {
+	dest.push(new Decoration(startColumn, endColumn, className));
 }
 
-function insertWhitespaceLineDecorations(lineNumber: number, lineContent: string, tabSize: number, fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
+function insertWhitespaceLineDecorations(lineContent: string, tabSize: number, fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', result: Decoration[]): void {
 	let lineLength = lineContent.length;
 	if (lineLength === fauxIndentLength) {
-		return rawLineDecorations;
+		return;
 	}
 
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
@@ -124,16 +176,15 @@ function insertWhitespaceLineDecorations(lineNumber: number, lineContent: string
 	sm_endIndex.push(lineLength);
 	sm_decoration.push(null);
 
-	return insertCustomLineDecorationsWithStateMachine(lineNumber, lineContent, tabSize, rawLineDecorations, sm_endIndex, sm_decoration);
+	insertCustomLineDecorationsWithStateMachine(lineContent, tabSize, result, sm_endIndex, sm_decoration);
 }
 
-function insertCustomLineDecorationsWithStateMachine(lineNumber: number, lineContent: string, tabSize: number, rawLineDecorations: InlineDecoration[], sm_endIndex: number[], sm_decoration: string[]): InlineDecoration[] {
+function insertCustomLineDecorationsWithStateMachine(lineContent: string, tabSize: number, result: Decoration[], sm_endIndex: number[], sm_decoration: string[]): void {
 	let lineLength = lineContent.length;
 	let currentStateIndex = 0;
 	let stateEndIndex = sm_endIndex[currentStateIndex];
 	let stateDecoration = sm_decoration[currentStateIndex];
 
-	let result = rawLineDecorations.slice(0);
 	let tmpIndent = 0;
 	let whitespaceStartColumn = 1;
 
@@ -148,7 +199,7 @@ function insertCustomLineDecorationsWithStateMachine(lineNumber: number, lineCon
 
 		if (index === stateEndIndex) {
 			if (stateDecoration !== null) {
-				insertOneCustomLineDecoration(result, lineNumber, whitespaceStartColumn, index + 2, stateDecoration);
+				insertOneCustomLineDecoration(result, whitespaceStartColumn, index + 2, stateDecoration);
 			}
 			whitespaceStartColumn = index + 2;
 			tmpIndent = tmpIndent % tabSize;
@@ -158,14 +209,12 @@ function insertCustomLineDecorationsWithStateMachine(lineNumber: number, lineCon
 			stateDecoration = sm_decoration[currentStateIndex];
 		} else {
 			if (stateDecoration !== null && tmpIndent >= tabSize) {
-				insertOneCustomLineDecoration(result, lineNumber, whitespaceStartColumn, index + 2, stateDecoration);
+				insertOneCustomLineDecoration(result, whitespaceStartColumn, index + 2, stateDecoration);
 				whitespaceStartColumn = index + 2;
 				tmpIndent = tmpIndent % tabSize;
 			}
 		}
 	}
-
-	return result;
 }
 
 function createFastViewLineParts(lineTokens: ViewLineTokens, lineContent: string): LineParts {
@@ -174,9 +223,9 @@ function createFastViewLineParts(lineTokens: ViewLineTokens, lineContent: string
 	return new LineParts(parts, lineContent.length + 1);
 }
 
-function createViewLineParts(lineNumber: number, minLineColumn: number, lineTokens: ViewLineTokens, lineContent: string, rawLineDecorations: InlineDecoration[]): LineParts {
+function createViewLineParts(lineTokens: ViewLineTokens, lineContent: string, _lineDecorations: Decoration[]): LineParts {
 	// lineDecorations might overlap on top of each other, so they need to be normalized
-	var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, minLineColumn, rawLineDecorations),
+	var lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations),
 		lineDecorationsIndex = 0,
 		lineDecorationsLength = lineDecorations.length;
 
@@ -293,62 +342,35 @@ class Stack {
 
 export class LineDecorationsNormalizer {
 	/**
-	 * A number that is guaranteed to be larger than the maximum line column
-	 */
-	private static MAX_LINE_LENGTH = 10000000;
-
-	/**
 	 * Normalize line decorations. Overlapping decorations will generate multiple segments
 	 */
-	public static normalize(lineNumber: number, minLineColumn: number, lineDecorations: InlineDecoration[]): DecorationSegment[] {
-
-		var result: DecorationSegment[] = [];
-
+	public static normalize(lineDecorations: Decoration[]): DecorationSegment[] {
 		if (lineDecorations.length === 0) {
-			return result;
+			return [];
 		}
 
-		var stack = new Stack(),
-			nextStartOffset = 0,
-			d: InlineDecoration,
-			currentStartOffset: number,
-			currentEndOffset: number,
-			i: number,
-			len: number;
+		let result: DecorationSegment[] = [];
 
-		for (i = 0, len = lineDecorations.length; i < len; i++) {
-			d = lineDecorations[i];
+		let stack = new Stack();
+		let nextStartOffset = 0;
 
-			if (d.range.endLineNumber < lineNumber || d.range.startLineNumber > lineNumber) {
-				// Ignore decorations that sit outside this line
-				continue;
-			}
+		for (let i = 0, len = lineDecorations.length; i < len; i++) {
+			let d = lineDecorations[i];
 
-			if (d.range.startLineNumber === d.range.endLineNumber && d.range.startColumn === d.range.endColumn) {
-				// Ignore empty range decorations
-				continue;
-			}
-
-			currentStartOffset = (d.range.startLineNumber === lineNumber ? d.range.startColumn - 1 : minLineColumn - 1);
-			currentEndOffset = (d.range.endLineNumber === lineNumber ? d.range.endColumn - 2 : LineDecorationsNormalizer.MAX_LINE_LENGTH - 1);
-
-			if (currentEndOffset < 0) {
-				// An empty decoration (endColumn === 1)
-				continue;
-			}
+			let currentStartOffset = d.startColumn - 1;
+			let currentEndOffset = d.endColumn - 2;
 
 			nextStartOffset = stack.consumeLowerThan(currentStartOffset, nextStartOffset, result);
 
 			if (stack.count === 0) {
 				nextStartOffset = currentStartOffset;
 			}
-			stack.insert(currentEndOffset, d.inlineClassName);
+			stack.insert(currentEndOffset, d.className);
 		}
 
-		stack.consumeLowerThan(LineDecorationsNormalizer.MAX_LINE_LENGTH, nextStartOffset, result);
+		stack.consumeLowerThan(Constants.MAX_SAFE_SMALL_INTEGER, nextStartOffset, result);
 
 		return result;
 	}
 
 }
-
