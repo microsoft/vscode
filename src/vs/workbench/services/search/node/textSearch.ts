@@ -15,7 +15,7 @@ import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEng
 import { ISearchWorker } from './worker/searchWorkerIpc';
 import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
-export class Engine implements ISearchEngine<ISerializedFileMatch> {
+export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
 	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
@@ -60,7 +60,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		});
 	}
 
-	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		this.workers = this.workerProvider.getWorkers();
 		this.initializeWorkers();
 
@@ -100,10 +100,8 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				}
 
 				const matches = result.matches;
+				onResult(matches);
 				this.numResults += result.numMatches;
-				matches.forEach(m => {
-					onResult(m);
-				});
 
 				if (this.config.maxResults && this.numResults >= this.config.maxResults) {
 					// It's possible to go over maxResults like this, but it's much simpler than trying to extract the exact number
