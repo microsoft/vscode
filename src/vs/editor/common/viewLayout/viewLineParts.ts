@@ -24,6 +24,28 @@ export class Decoration {
 		this.className = className;
 	}
 
+	private static _equals(a: Decoration, b: Decoration): boolean {
+		return (
+			a.startColumn === b.startColumn
+			&& a.endColumn === b.endColumn
+			&& a.className === b.className
+		);
+	}
+
+	public static equalsArr(a: Decoration[], b: Decoration[]): boolean {
+		let aLen = a.length;
+		let bLen = b.length;
+		if (aLen !== bLen) {
+			return false;
+		}
+		for (let i = 0; i < aLen; i++) {
+			if (!Decoration._equals(a[i], b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): Decoration[] {
 		if (lineDecorations.length === 0) {
 			return [];

@@ -5,10 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import { renderLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { render2, RenderLineInput2, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
-import { LineParts } from 'vs/editor/common/core/lineParts';
 
 suite('viewLineRenderer.renderLine', () => {
 
@@ -17,14 +16,15 @@ suite('viewLineRenderer.renderLine', () => {
 	}
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[][]): void {
-		let _actual = renderLine(new RenderLineInput(
+		let _actual = render2(new RenderLineInput2(
 			lineContent,
+			new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length),
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts([createPart(0, '')], lineContent.length + 1)
+			false
 		));
 
 		assert.equal(_actual.output, '<span><span class="">' + expected + '</span></span>');
@@ -59,14 +59,15 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[][]): void {
-		let _actual = renderLine(new RenderLineInput(
+		let _actual = render2(new RenderLineInput2(
 			lineContent,
+			new ViewLineTokens(parts, 0, lineContent.length),
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts(parts, lineContent.length + 1)
+			false
 		));
 
 		assert.equal(_actual.output, '<span>' + expected + '</span>');
@@ -90,30 +91,28 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('overflow', () => {
-		let _actual = renderLine(new RenderLineInput(
+		let _actual = render2(new RenderLineInput2(
 			'Hello world!',
+			new ViewLineTokens([
+				createPart(0, '0'),
+				createPart(1, '1'),
+				createPart(2, '2'),
+				createPart(3, '3'),
+				createPart(4, '4'),
+				createPart(5, '5'),
+				createPart(6, '6'),
+				createPart(7, '7'),
+				createPart(8, '8'),
+				createPart(9, '9'),
+				createPart(10, '10'),
+				createPart(11, '11'),
+			], 0, 'Hello world!'.length),
+			[],
 			4,
 			10,
 			6,
 			'boundary',
-			false,
-			new LineParts(
-				[
-					createPart(0, '0'),
-					createPart(1, '1'),
-					createPart(2, '2'),
-					createPart(3, '3'),
-					createPart(4, '4'),
-					createPart(5, '5'),
-					createPart(6, '6'),
-					createPart(7, '7'),
-					createPart(8, '8'),
-					createPart(9, '9'),
-					createPart(10, '10'),
-					createPart(11, '11'),
-				],
-				'Hello world!'.length + 1
-			)
+			false
 		));
 
 		let expectedOutput = [
@@ -139,7 +138,7 @@ suite('viewLineRenderer.renderLine', () => {
 	test('typical line', () => {
 		let lineText = '\t    export class Game { // http://test.com     ';
 		let lineParts = [
-			createPart(0, 'block meta ts vs-whitespace'),
+			createPart(0, 'block meta ts'),
 			createPart(5, 'block declaration meta modifier object storage ts'),
 			createPart(11, 'block declaration meta object ts'),
 			createPart(12, 'block declaration meta object storage type ts'),
@@ -150,10 +149,11 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(24, 'block body declaration meta object ts'),
 			createPart(25, 'block body comment declaration line meta object ts'),
 			createPart(28, 'block body comment declaration line meta object ts detected-link'),
-			createPart(43, 'block body comment declaration line meta object ts vs-whitespace'),
+			createPart(43, 'block body comment declaration line meta object ts'),
 		];
 		let expectedOutput = [
-			'<span class="block meta ts vs-whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
+			'<span class="block meta ts vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="block meta ts vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
 			'<span class="block declaration meta modifier object storage ts">export</span>',
 			'<span class="block declaration meta object ts">&nbsp;</span>',
 			'<span class="block declaration meta object storage type ts">class</span>',
@@ -164,10 +164,12 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="block body declaration meta object ts">&nbsp;</span>',
 			'<span class="block body comment declaration line meta object ts">//&nbsp;</span>',
 			'<span class="block body comment declaration line meta object ts detected-link">http://test.com</span>',
-			'<span class="block body comment declaration line meta object ts vs-whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
+			'<span class="block body comment declaration line meta object ts vs-whitespace" style="width:20px">&middot;&middot;</span>',
+			'<span class="block body comment declaration line meta object ts vs-whitespace" style="width:30px">&middot;&middot;&middot;</span>'
 		].join('');
 		let expectedOffsetsArr = [
-			[0, 4, 5, 6, 7],
+			[0],
+			[0, 1, 2, 3],
 			[0, 1, 2, 3, 4, 5],
 			[0],
 			[0, 1, 2, 3, 4],
@@ -178,17 +180,19 @@ suite('viewLineRenderer.renderLine', () => {
 			[0],
 			[0, 1, 2],
 			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-			[0, 1, 2, 3, 4, 5],
+			[0, 1],
+			[0, 1, 2, 3],
 		];
 
-		let _actual = renderLine(new RenderLineInput(
+		let _actual = render2(new RenderLineInput2(
 			lineText,
+			new ViewLineTokens(lineParts, 0, lineText.length),
+			[],
 			4,
 			10,
 			-1,
 			'boundary',
-			false,
-			new LineParts(lineParts, lineText.length + 1)
+			false
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -235,14 +239,15 @@ suite('viewLineRenderer.renderLine', () => {
 			[0, 1] // 2 chars
 		];
 
-		let _actual = renderLine(new RenderLineInput(
+		let _actual = render2(new RenderLineInput2(
 			lineText,
+			new ViewLineTokens(lineParts, 0, lineText.length),
+			[],
 			4,
 			10,
 			-1,
 			'none',
-			false,
-			new LineParts(lineParts, lineText.length + 1)
+			false
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -289,14 +294,15 @@ suite('viewLineRenderer.renderLine', () => {
 			[0, 1] // 2 chars
 		];
 
-		let _actual = renderLine(new RenderLineInput(
+		let _actual = render2(new RenderLineInput2(
 			lineText,
+			new ViewLineTokens(lineParts, 0, lineText.length),
+			[],
 			4,
 			10,
 			-1,
 			'none',
-			false,
-			new LineParts(lineParts, lineText.length + 1)
+			false
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');

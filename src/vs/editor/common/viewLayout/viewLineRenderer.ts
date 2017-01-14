@@ -4,11 +4,79 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineParts } from 'vs/editor/common/core/lineParts';
+import { createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 
-export class RenderLineInput {
+export class RenderLineInput2 {
+
+	public readonly lineContent: string;
+	public readonly lineTokens: ViewLineTokens;
+	public readonly lineDecorations: Decoration[];
+	public readonly tabSize: number;
+	public readonly spaceWidth: number;
+	public readonly stopRenderingLineAfter: number;
+	public readonly renderWhitespace: 'none' | 'boundary' | 'all';
+	public readonly renderControlCharacters: boolean;
+
+	constructor(
+		lineContent: string,
+		lineTokens: ViewLineTokens,
+		lineDecorations: Decoration[],
+		tabSize: number,
+		spaceWidth: number,
+		stopRenderingLineAfter: number,
+		renderWhitespace: 'none' | 'boundary' | 'all',
+		renderControlCharacters: boolean,
+	) {
+		this.lineContent = lineContent;
+		this.lineTokens = lineTokens;
+		this.lineDecorations = lineDecorations;
+		this.tabSize = tabSize;
+		this.spaceWidth = spaceWidth;
+		this.stopRenderingLineAfter = stopRenderingLineAfter;
+		this.renderWhitespace = renderWhitespace;
+		this.renderControlCharacters = renderControlCharacters;
+	}
+
+	public equals(other: RenderLineInput2): boolean {
+		return (
+			this.lineContent === other.lineContent
+			&& this.tabSize === other.tabSize
+			&& this.spaceWidth === other.spaceWidth
+			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.renderWhitespace === other.renderWhitespace
+			&& this.renderControlCharacters === other.renderControlCharacters
+			&& Decoration.equalsArr(this.lineDecorations, other.lineDecorations)
+			&& this.lineTokens.equals(other.lineTokens)
+		);
+	}
+}
+
+export function render2(input: RenderLineInput2): RenderLineOutput {
+	let newLineParts = createLineParts(
+		input.lineContent,
+		input.tabSize,
+		input.lineTokens,
+		input.lineDecorations,
+		input.renderWhitespace
+	);
+
+	let renderLineInput = new RenderLineInput(
+		input.lineContent,
+		input.tabSize,
+		input.spaceWidth,
+		input.stopRenderingLineAfter,
+		input.renderWhitespace,
+		input.renderControlCharacters,
+		newLineParts
+	);
+
+	return renderLine(renderLineInput);
+}
+
+class RenderLineInput {
 	_renderLineInputBrand: void;
 
 	lineContent: string;
@@ -35,18 +103,6 @@ export class RenderLineInput {
 		this.renderWhitespace = renderWhitespace;
 		this.renderControlCharacters = renderControlCharacters;
 		this.lineParts = lineParts;
-	}
-
-	public equals(other: RenderLineInput): boolean {
-		return (
-			this.lineContent === other.lineContent
-			&& this.tabSize === other.tabSize
-			&& this.spaceWidth === other.spaceWidth
-			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
-			&& this.renderWhitespace === other.renderWhitespace
-			&& this.renderControlCharacters === other.renderControlCharacters
-			&& this.lineParts.equals(other.lineParts)
-		);
 	}
 }
 
@@ -173,7 +229,7 @@ export class RenderLineOutput {
 	}
 }
 
-export function renderLine(input: RenderLineInput): RenderLineOutput {
+function renderLine(input: RenderLineInput): RenderLineOutput {
 	const lineText = input.lineContent;
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
