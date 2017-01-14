@@ -17,7 +17,6 @@ export const TERMINAL_SERVICE_ID = 'terminalService';
 
 export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
-/**    const TERMINAL_DEFAULT_SHELL_WINDOWS moved to ../electron-browser/terminal.ts */
 
 export const TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE = platform.isWindows;
 
