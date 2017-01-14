@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { DecorationSegment, LineDecorationsNormalizer, createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { DecorationSegment, LineDecorationsNormalizer, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { Range } from 'vs/editor/common/core/range';
 import { RenderLineInput2, render2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
@@ -55,11 +55,19 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
-	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: ViewLineToken[]): void {
-		let lineParts = createLineParts(lineContent, 4, new ViewLineTokens(tokens, fauxIndentLength, lineContent.length), [], renderWhitespace);
-		let actual = lineParts.parts;
+	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
+		let actual = render2(new RenderLineInput2(
+			lineContent,
+			new ViewLineTokens(tokens, fauxIndentLength, lineContent.length),
+			[],
+			4,
+			10,
+			-1,
+			renderWhitespace,
+			false
+		));
 
-		assert.deepEqual(actual, expected);
+		assert.deepEqual(actual.output.split(/></g), expected.split(/></g));
 	}
 
 	test('createLineParts simple', () => {
@@ -71,8 +79,10 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'none',
 			[
-				new ViewLineToken(0, '')
-			]
+				'<span>',
+				'<span class="">Hello&nbsp;world!</span>',
+				'</span>',
+			].join('')
 		);
 	});
 	test('createLineParts simple two tokens', () => {
@@ -85,9 +95,11 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'none',
 			[
-				new ViewLineToken(0, 'a'),
-				new ViewLineToken(6, 'b')
-			]
+				'<span>',
+				'<span class="a">Hello&nbsp;</span>',
+				'<span class="b">world!</span>',
+				'</span>',
+			].join('')
 		);
 	});
 	test('createLineParts render whitespace - 4 leading spaces', () => {
@@ -101,11 +113,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' vs-whitespace'),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b'),
-				new ViewLineToken(16, 'b vs-whitespace')
-			]
+				'<span>',
+				'<span class=" vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'<span class="a">He</span>',
+				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'</span>',
+			].join('')
 		);
 	});
 	test('createLineParts render whitespace - 8 leading spaces', () => {
@@ -119,13 +133,15 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' vs-whitespace'),
-				new ViewLineToken(4, ' vs-whitespace'),
-				new ViewLineToken(8, 'a'),
-				new ViewLineToken(10, 'b'),
-				new ViewLineToken(20, 'b vs-whitespace'),
-				new ViewLineToken(24, 'b vs-whitespace'),
-			]
+				'<span>',
+				'<span class=" vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'<span class=" vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'<span class="a">He</span>',
+				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'</span>',
+			].join('')
 		);
 	});
 	test('createLineParts render whitespace - 2 leading tabs', () => {
@@ -139,12 +155,14 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' vs-whitespace'),
-				new ViewLineToken(1, ' vs-whitespace'),
-				new ViewLineToken(2, 'a'),
-				new ViewLineToken(4, 'b'),
-				new ViewLineToken(14, 'b vs-whitespace'),
-			]
+				'<span>',
+				'<span class=" vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
+				'<span class=" vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
+				'<span class="a">He</span>',
+				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="b vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
+				'</span>',
+			].join('')
 		);
 	});
 	test('createLineParts render whitespace - mixed leading spaces and tabs', () => {
@@ -158,16 +176,18 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' vs-whitespace'),
-				new ViewLineToken(3, ' vs-whitespace'),
-				new ViewLineToken(4, ' vs-whitespace'),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b'),
-				new ViewLineToken(18, 'b vs-whitespace'),
-				new ViewLineToken(20, 'b vs-whitespace'),
-				new ViewLineToken(23, 'b vs-whitespace'),
-				new ViewLineToken(27, 'b vs-whitespace'),
-			]
+				'<span>',
+				'<span class=" vs-whitespace" style="width:40px">&middot;&middot;&rarr;&nbsp;</span>',
+				'<span class=" vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
+				'<span class=" vs-whitespace" style="width:20px">&middot;&middot;</span>',
+				'<span class="a">He</span>',
+				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="b vs-whitespace" style="width:20px">&middot;&rarr;</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&rarr;&nbsp;</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&middot;&rarr;</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'</span>',
+			].join('')
 		);
 	});
 
@@ -182,15 +202,17 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			2,
 			'boundary',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(2, ' vs-whitespace'),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b'),
-				new ViewLineToken(16, 'b vs-whitespace'),
-				new ViewLineToken(18, 'b vs-whitespace'),
-				new ViewLineToken(21, 'b vs-whitespace'),
-				new ViewLineToken(25, 'b vs-whitespace'),
-			]
+				'<span>',
+				'<span class="">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+				'<span class=" vs-whitespace" style="width:20px">&middot;&middot;</span>',
+				'<span class="a">He</span>',
+				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="b vs-whitespace" style="width:20px">&middot;&rarr;</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&rarr;&nbsp;</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&middot;&rarr;</span>',
+				'<span class="b vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+				'</span>',
+			].join('')
 		);
 	});
 
@@ -205,14 +227,16 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(2, ' vs-whitespace'),
-				new ViewLineToken(4, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(7, 'b'),
-				new ViewLineToken(9, 'b vs-whitespace'),
-				new ViewLineToken(11, 'b'),
-			]
+				'<span>',
+				'<span class="">it</span>',
+				'<span class=" vs-whitespace" style="width:20px">&middot;&middot;</span>',
+				'<span class="">it</span>',
+				'<span class="a">&nbsp;</span>',
+				'<span class="b">it</span>',
+				'<span class="b vs-whitespace" style="width:20px">&middot;&middot;</span>',
+				'<span class="b">it</span>',
+				'</span>',
+			].join('')
 		);
 	});
 
@@ -227,28 +251,33 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'all',
 			[
-				new ViewLineToken(0, ' vs-whitespace'),
-				new ViewLineToken(1, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b vs-whitespace'),
-				new ViewLineToken(7, 'b'),
-				new ViewLineToken(13, 'b vs-whitespace'),
-			]
+				'<span>',
+				'<span class=" vs-whitespace" style="width:10px">&middot;</span>',
+				'<span class="">Hel</span>',
+				'<span class="a">lo</span>',
+				'<span class="b vs-whitespace" style="width:10px">&middot;</span>',
+				'<span class="b">world!</span>',
+				'<span class="b vs-whitespace" style="width:30px">&rarr;&nbsp;&nbsp;</span>',
+				'</span>',
+			].join('')
 		);
 	});
 
 	test('createLineParts can handle unsorted inline decorations', () => {
-		let lineParts = createLineParts(
+		let actual = render2(new RenderLineInput2(
 			'Hello world',
-			4,
 			new ViewLineTokens([new ViewLineToken(0, '')], 0, 'Hello world'.length),
 			[
 				new Decoration(5, 7, 'a'),
 				new Decoration(1, 3, 'b'),
 				new Decoration(2, 8, 'c'),
 			],
-			'none'
-		);
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
 
 		// 01234567890
 		// Hello world
@@ -256,14 +285,16 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		// bb---------
 		// -cccccc----
 
-		assert.deepEqual(lineParts.parts, [
-			new ViewLineToken(0, ' b'),
-			new ViewLineToken(1, ' b c'),
-			new ViewLineToken(2, ' c'),
-			new ViewLineToken(4, ' a c'),
-			new ViewLineToken(6, ' c'),
-			new ViewLineToken(7, ''),
-		]);
+		assert.deepEqual(actual.output, [
+			'<span>',
+			'<span class=" b">H</span>',
+			'<span class=" b c">e</span>',
+			'<span class=" c">ll</span>',
+			'<span class=" a c">o&nbsp;</span>',
+			'<span class=" c">w</span>',
+			'<span class="">orld</span>',
+			'</span>',
+		].join(''));
 	});
 
 	test('ViewLineParts', () => {

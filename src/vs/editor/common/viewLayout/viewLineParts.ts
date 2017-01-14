@@ -99,7 +99,7 @@ export class Decoration {
 	}
 }
 
-export function createLineParts(lineContent: string, tabSize: number, lineTokens: ViewLineTokens, lineDecorations: Decoration[], renderWhitespace: 'none' | 'boundary' | 'all'): LineParts {
+export function _createLineParts(lineContent: string, tabSize: number, lineTokens: ViewLineTokens, lineDecorations: Decoration[], renderWhitespace: 'none' | 'boundary' | 'all'): LineParts {
 	if (renderWhitespace !== 'none') {
 		insertWhitespaceLineDecorations(lineContent, tabSize, lineTokens.getFauxIndentLength(), renderWhitespace, lineDecorations);
 	}

@@ -7,7 +7,7 @@
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineParts } from 'vs/editor/common/core/lineParts';
-import { createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { _createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 
 export class RenderLineInput2 {
 
@@ -55,7 +55,7 @@ export class RenderLineInput2 {
 }
 
 export function render2(input: RenderLineInput2): RenderLineOutput {
-	let newLineParts = createLineParts(
+	let newLineParts = _createLineParts(
 		input.lineContent,
 		input.tabSize,
 		input.lineTokens,
