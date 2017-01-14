@@ -105,7 +105,9 @@ export class TerminalInstance implements ITerminalInstance {
 		DOM.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
-		this._xterm = xterm();
+		this._xterm = xterm({
+			scrollback: this._configHelper.getScrollback()
+		});
 		this._xterm.open(this._xtermElement);
 
 		this._process.on('message', (message) => {
@@ -490,6 +492,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
+			console.log('set scrollback to: ' + lineCount);
 			this._xterm.setOption('scrollback', lineCount);
 		}
 	}
