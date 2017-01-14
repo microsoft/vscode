@@ -166,12 +166,10 @@ export class RenderLineOutput {
 
 	readonly characterMapping: CharacterMapping;
 	readonly output: string;
-	readonly isWhitespaceOnly: boolean;
 
-	constructor(characterMapping: CharacterMapping, output: string, isWhitespaceOnly: boolean) {
+	constructor(characterMapping: CharacterMapping, output: string) {
 		this.characterMapping = characterMapping;
 		this.output = output;
-		this.isWhitespaceOnly = isWhitespaceOnly;
 	}
 }
 
@@ -189,8 +187,7 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 		return new RenderLineOutput(
 			new CharacterMapping(0),
 			// This is basically for IE's hit test to work
-			'<span><span>&nbsp;</span></span>',
-			true
+			'<span><span>&nbsp;</span></span>'
 		);
 	}
 
@@ -198,7 +195,10 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
+	let viewParts = toViewParts(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
+	return renderViewParts(viewParts);
+
+	// return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
 }
 
 function isWhitespace(type: string): boolean {
@@ -214,20 +214,40 @@ function controlCharacterToPrintable(characterCode: number): string {
 	return String.fromCharCode(_controlCharacterSequenceConversionStart + characterCode);
 }
 
-function renderLineActual(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: 'none' | 'boundary' | 'all', renderControlCharacters: boolean, charBreakIndex: number): RenderLineOutput {
+class ViewPart2 {
+	public readonly className: string;
+	public readonly htmlContent: string;
+	public readonly forceWidth: number;
+
+	constructor(className: string, htmlContent: string, forceWidth: number) {
+		this.className = className;
+		this.htmlContent = htmlContent;
+		this.forceWidth = forceWidth;
+	}
+}
+
+class ViewParts2 {
+	public readonly parts: ViewPart2[];
+	public readonly characterMapping: CharacterMapping;
+
+	constructor(parts: ViewPart2[], characterMapping: CharacterMapping) {
+		this.parts = parts;
+		this.characterMapping = characterMapping;
+	}
+}
+
+function toViewParts(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: 'none' | 'boundary' | 'all', renderControlCharacters: boolean, charBreakIndex: number): ViewParts2 {
 	lineTextLength = +lineTextLength;
 	tabSize = +tabSize;
 	charBreakIndex = +charBreakIndex;
 
 	let charIndex = 0;
-	let out = '';
 	let charOffsetInPart = 0;
 	let tabsCharDelta = 0;
-	let isWhitespaceOnly = /^\s*$/.test(lineText);
 
 	let characterMapping = new CharacterMapping(Math.min(lineTextLength, charBreakIndex) + 1);
 
-	out += '<span>';
+	let result: ViewPart2[] = [], resultLen = 0;
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
 		let part = actualLineParts[partIndex];
 
@@ -271,18 +291,14 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 				charOffsetInPart++;
 
 				if (charIndex >= charBreakIndex) {
-					out += `<span class="${part.type}" style="width:${(spaceWidth * partContentCnt)}px">${partContent}&hellip;</span></span>`;
+					result[resultLen++] = new ViewPart2(part.type, partContent + '&hellip;', 0);
 					characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
-					return new RenderLineOutput(
-						characterMapping,
-						out,
-						isWhitespaceOnly
-					);
+					return new ViewParts2(result, characterMapping);
 				}
 			}
-			out += `<span class="${part.type}" style="width:${(spaceWidth * partContentCnt)}px">${partContent}</span>`;
+			result[resultLen++] = new ViewPart2(part.type, partContent, (spaceWidth * partContentCnt));
 		} else {
-			out += `<span class="${part.type}">`;
+			let partContent = '';
 
 			for (; charIndex < toCharIndex; charIndex++) {
 				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
@@ -294,75 +310,81 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 						tabsCharDelta += insertSpacesCount - 1;
 						charOffsetInPart += insertSpacesCount - 1;
 						while (insertSpacesCount > 0) {
-							out += '&nbsp;';
+							partContent += '&nbsp;';
 							insertSpacesCount--;
 						}
 						break;
 
 					case CharCode.Space:
-						out += '&nbsp;';
+						partContent += '&nbsp;';
 						break;
 
 					case CharCode.LessThan:
-						out += '&lt;';
+						partContent += '&lt;';
 						break;
 
 					case CharCode.GreaterThan:
-						out += '&gt;';
+						partContent += '&gt;';
 						break;
 
 					case CharCode.Ampersand:
-						out += '&amp;';
+						partContent += '&amp;';
 						break;
 
 					case CharCode.Null:
-						out += '&#00;';
+						partContent += '&#00;';
 						break;
 
 					case CharCode.UTF8_BOM:
 					case CharCode.LINE_SEPARATOR_2028:
-						out += '\ufffd';
+						partContent += '\ufffd';
 						break;
 
 					case CharCode.CarriageReturn:
 						// zero width space, because carriage return would introduce a line break
-						out += '&#8203';
+						partContent += '&#8203';
 						break;
 
 					default:
 						if (renderControlCharacters && isControlCharacter(charCode)) {
-							out += controlCharacterToPrintable(charCode);
+							partContent += controlCharacterToPrintable(charCode);
 						} else {
-							out += lineText.charAt(charIndex);
+							partContent += lineText.charAt(charIndex);
 						}
 				}
 
 				charOffsetInPart++;
 
 				if (charIndex >= charBreakIndex) {
-					out += '&hellip;</span></span>';
+					result[resultLen++] = new ViewPart2(part.type, partContent + '&hellip;', 0);
 					characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
-					return new RenderLineOutput(
-						characterMapping,
-						out,
-						isWhitespaceOnly
-					);
+					return new ViewParts2(result, characterMapping);
 				}
 			}
-
-			out += '</span>';
+			result[resultLen++] = new ViewPart2(part.type, partContent, 0);
 		}
-
 	}
-	out += '</span>';
 
 	// When getting client rects for the last character, we will position the
 	// text range at the end of the span, insteaf of at the beginning of next span
 	characterMapping.setPartData(lineTextLength, actualLineParts.length - 1, charOffsetInPart);
 
-	return new RenderLineOutput(
-		characterMapping,
-		out,
-		isWhitespaceOnly
-	);
+	return new ViewParts2(result, characterMapping);
+}
+
+function renderViewParts(viewParts: ViewParts2): RenderLineOutput {
+	const parts = viewParts.parts;
+
+	let out = '<span>';
+	for (let i = 0, len = parts.length; i < len; i++) {
+		let part = parts[i];
+		if (part.forceWidth) {
+			out += `<span class="${part.className}" style="width:${part.forceWidth}px">${part.htmlContent}</span>`;
+		} else {
+			out += `<span class="${part.className}">${part.htmlContent}</span>`;
+		}
+	}
+	out += '</span>';
+
+	return new RenderLineOutput(viewParts.characterMapping, out);
 }
