@@ -7,8 +7,10 @@
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 
+const FileNameComparer = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
 export function compareFileNames(one: string, other: string): number {
-	return (one || '').localeCompare((other || ''), undefined, { numeric: true, sensitivity: 'base' });
+	return FileNameComparer.compare(one || '', other || '');
 }
 
 export function compareAnything(one: string, other: string, lookFor: string): number {
