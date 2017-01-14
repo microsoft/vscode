@@ -563,7 +563,7 @@
 						</dict>
 					</array>
 					<key>while</key>
-					<string>(^|\G)[ ]{4,}(?=\S)</string>
+					<string>(^|\G)((?=\s*[-=]{3,}\s*$)|[ ]{4,}(?=\S))</string>
 				</dict>
 				<key>fenced_code_block_css</key>
 				<dict>
