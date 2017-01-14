@@ -7,10 +7,9 @@
 import * as assert from 'assert';
 import { DecorationSegment, LineDecorationsNormalizer, createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { Range } from 'vs/editor/common/core/range';
-import { RenderLineInput, renderLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { RenderLineInput2, render2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { LineParts } from 'vs/editor/common/core/lineParts';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
@@ -337,7 +336,16 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
-		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, 'none', false, new LineParts(parts, lineContent.length + 1)));
+		let renderLineOutput = render2(new RenderLineInput2(
+			lineContent,
+			new ViewLineTokens(parts, 0, lineContent.length),
+			[],
+			tabSize,
+			10,
+			-1,
+			'none',
+			false
+		));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
 			let charOffset = renderLineOutput.characterMapping.partDataToCharOffset(partIndex, partLength, offset);

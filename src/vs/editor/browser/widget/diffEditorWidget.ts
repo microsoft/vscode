@@ -19,8 +19,8 @@ import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
-import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { render2, RenderLineInput2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
@@ -1887,16 +1887,16 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
-		let parts = createLineParts(lineContent, tabSize, lineTokens, actualDecorations, config.viewInfo.renderWhitespace);
 
-		let r = renderLine(new RenderLineInput(
+		let r = render2(new RenderLineInput2(
 			lineContent,
+			lineTokens,
+			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,
 			config.viewInfo.stopRenderingLineAfter,
 			config.viewInfo.renderWhitespace,
-			config.viewInfo.renderControlCharacters,
-			parts
+			config.viewInfo.renderControlCharacters
 		));
 
 		let myResult: string[] = [];

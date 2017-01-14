@@ -7,8 +7,8 @@
 import * as browser from 'vs/base/browser/browser';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
-import { createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
-import { renderLine, RenderLineInput, RenderLineOutput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { render2, RenderLineInput2, RenderLineOutput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IVisibleLineData } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
@@ -97,24 +97,18 @@ export class ViewLine implements IVisibleLineData {
 		}
 		this._isMaybeInvalid = false;
 
-		let actualInlineDecorations = Decoration.filter(inlineDecorations, lineNumber, this._context.model.getLineMinColumn(lineNumber), this._context.model.getLineMaxColumn(lineNumber));
+		const model = this._context.model;
+		const actualInlineDecorations = Decoration.filter(inlineDecorations, lineNumber, model.getLineMinColumn(lineNumber), model.getLineMaxColumn(lineNumber));
 
-		let newLineParts = createLineParts(
-			this._context.model.getLineContent(lineNumber),
-			this._context.model.getTabSize(),
-			this._context.model.getLineTokens(lineNumber),
+		let renderLineInput = new RenderLineInput2(
+			model.getLineContent(lineNumber),
+			model.getLineTokens(lineNumber),
 			actualInlineDecorations,
-			this._renderWhitespace
-		);
-
-		let renderLineInput = new RenderLineInput(
-			this._context.model.getLineContent(lineNumber),
-			this._context.model.getTabSize(),
+			model.getTabSize(),
 			this._spaceWidth,
 			this._stopRenderingLineAfter,
 			this._renderWhitespace,
-			this._renderControlCharacters,
-			newLineParts
+			this._renderControlCharacters
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -129,7 +123,7 @@ export class ViewLine implements IVisibleLineData {
 			renderLineInput,
 			this._context.model.mightContainRTL(),
 			isWhitespaceOnly,
-			renderLine(renderLineInput)
+			render2(renderLineInput)
 		);
 		return true;
 	}
@@ -174,7 +168,7 @@ export class ViewLine implements IVisibleLineData {
 class RenderedViewLine {
 
 	public domNode: FastDomNode;
-	public readonly input: RenderLineInput;
+	public readonly input: RenderLineInput2;
 	public readonly html: string;
 
 	protected readonly _characterMapping: CharacterMapping;
@@ -186,7 +180,7 @@ class RenderedViewLine {
 	 */
 	private _pixelOffsetCache: number[];
 
-	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) {
+	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput2, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 		this.html = renderLineOutput.output;
@@ -197,7 +191,7 @@ class RenderedViewLine {
 		this._pixelOffsetCache = null;
 		if (!modelContainsRTL) {
 			this._pixelOffsetCache = [];
-			for (let column = 0, maxLineColumn = this.input.lineParts.maxLineColumn; column <= maxLineColumn; column++) {
+			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
 			}
 		}
@@ -379,17 +373,17 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 	}
 }
 
-const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
+const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput2, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
 	if (browser.isWebKit) {
 		return createWebKitRenderedLine;
 	}
 	return createNormalRenderedLine;
 })();
 
-function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput2, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
 	return new WebKitRenderedViewLine(domNode, renderLineInput, modelContainsRTL, isWhitespaceOnly, renderLineOutput);
 }
 
-function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput2, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
 	return new RenderedViewLine(domNode, renderLineInput, modelContainsRTL, isWhitespaceOnly, renderLineOutput);
 }
