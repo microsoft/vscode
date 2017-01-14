@@ -7,7 +7,7 @@
 import * as browser from 'vs/base/browser/browser';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
-import { createLineParts } from 'vs/editor/common/viewLayout/viewLineParts';
+import { createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { renderLine, RenderLineInput, RenderLineOutput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IVisibleLineData } from 'vs/editor/browser/view/viewLayer';
@@ -97,13 +97,13 @@ export class ViewLine implements IVisibleLineData {
 		}
 		this._isMaybeInvalid = false;
 
+		let actualInlineDecorations = Decoration.filter(inlineDecorations, lineNumber, this._context.model.getLineMinColumn(lineNumber), this._context.model.getLineMaxColumn(lineNumber));
+
 		let newLineParts = createLineParts(
-			lineNumber,
-			this._context.model.getLineMinColumn(lineNumber),
 			this._context.model.getLineContent(lineNumber),
 			this._context.model.getTabSize(),
 			this._context.model.getLineTokens(lineNumber),
-			inlineDecorations,
+			actualInlineDecorations,
 			this._renderWhitespace
 		);
 
