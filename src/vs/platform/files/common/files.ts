@@ -490,6 +490,12 @@ export const AutoSaveConfiguration = {
 	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
+export const HotExitConfiguration = {
+	OFF: 'off',
+	APP_EXIT: 'appExit',
+	APP_EXIT_AND_WINDOW_CLOSE: 'appExitAndWindowClose'
+};
+
 export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
 
 export interface IFilesConfiguration {
@@ -502,7 +508,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
-		hotExit: boolean;
+		hotExit: string;
 	};
 }
 

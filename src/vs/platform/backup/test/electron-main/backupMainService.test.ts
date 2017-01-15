@@ -20,7 +20,7 @@ import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 
 class TestBackupMainService extends BackupMainService {
 	constructor(backupHome: string, backupWorkspacesPath: string) {
-		super(new EnvironmentService(parseArgs(process.argv), process.execPath));
+		super(new EnvironmentService(parseArgs(process.argv), process.execPath), null);
 
 		this.backupHome = backupHome;
 		this.workspacesJsonPath = backupWorkspacesPath;
