@@ -362,13 +362,13 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
 		DOM.addClass(tabContainer, 'tab monaco-editor-background');
 
-		if (!this.tabOptions.showTabCloseButton) {
+		if (!this.tabOptions.showTabCloseButton || this.tabOptions.tabCloseButton === 'off') {
 			DOM.addClass(tabContainer, 'no-close-button');
 		} else {
 			DOM.removeClass(tabContainer, 'no-close-button');
 		}
 
-		if (this.tabOptions.tabCloseButtonOnLeft) {
+		if (this.tabOptions.tabCloseButton === 'left') {
 			DOM.addClass(tabContainer, 'close-position-left');
 		} else {
 			DOM.removeClass(tabContainer, 'close-position-left');
