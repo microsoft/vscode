@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createMap, Map } from 'vs/editor/common/core/map';
 import { toUint8 } from 'vs/editor/common/core/uint';
 
 /**
@@ -28,7 +27,7 @@ export class CharacterClassifier<T extends number> {
 
 		this._defaultValue = defaultValue;
 		this._asciiMap = CharacterClassifier._createAsciiMap(defaultValue);
-		this._map = createMap<number, number>();
+		this._map = new Map<number, number>();
 	}
 
 	private static _createAsciiMap(defaultValue: number): Uint8Array {
@@ -55,5 +54,27 @@ export class CharacterClassifier<T extends number> {
 		} else {
 			return <T>(this._map.get(charCode) || this._defaultValue);
 		}
+	}
+}
+
+const enum Boolean {
+	False = 0,
+	True = 1
+}
+
+export class CharacterSet {
+
+	private _actual: CharacterClassifier<Boolean>;
+
+	constructor() {
+		this._actual = new CharacterClassifier<Boolean>(Boolean.False);
+	}
+
+	public add(charCode: number): void {
+		this._actual.set(charCode, Boolean.True);
+	}
+
+	public has(charCode: number): boolean {
+		return (this._actual.get(charCode) === Boolean.True);
 	}
 }

@@ -31,8 +31,8 @@ const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	public _serviceBrand: any;
 
-	private _workerManager: WorkerManager;
-	private _registrations: IDisposable[];
+	private readonly _workerManager: WorkerManager;
+	private readonly _registrations: IDisposable[];
 
 	constructor(
 		@IModelService modelService: IModelService,
@@ -187,14 +187,12 @@ class EditorModelManager extends Disposable {
 	}
 
 	private _beginModelSync(resource: URI): void {
-		let modelUrl = resource.toString();
 		let model = this._modelService.getModel(resource);
 		if (!model) {
 			return;
 		}
-		if (model.isTooLargeForHavingARichMode()) {
-			return;
-		}
+
+		let modelUrl = resource.toString();
 
 		this._proxy.acceptNewModel({
 			url: model.uri.toString(),
@@ -344,7 +342,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getModeId());
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
@@ -357,7 +355,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getModeId());
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);

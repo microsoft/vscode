@@ -49,6 +49,8 @@ import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -723,7 +725,9 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		this.toDispose = [];
 
@@ -868,70 +872,87 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 			promise = tree.expand(target).then(() => {
 
-				// Reuse action if user copies
+				// Reuse duplicate action if user copies
 				if (isCopy) {
-					const copyAction = this.instantiationService.createInstance(DuplicateFileAction, tree, source, target);
-					return copyAction.run();
+					return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();
 				}
 
-				// Handle dirty (in file or inside the folder if any)
-				let revertPromise: TPromise<any> = TPromise.as(null);
+				const dirtyMoved: URI[] = [];
+
+				// Success: load all files that are dirty again to restore their dirty contents
+				// Error: discard any backups created during the process
+				const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textModelResolverService.createModelReference(t)));
+				const onError = (error?: Error, showError?: boolean) => {
+					if (showError) {
+						this.messageService.show(Severity.Error, error);
+					}
+
+					return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));
+				};
+
+				// 1. check for dirty files that are being moved and backup to new target
 				const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath));
-				if (dirty.length) {
-					let message: string;
-					if (source.isDirectory) {
-						if (dirty.length === 1) {
-							message = nls.localize('dirtyMessageFolderOne', "You are moving a folder with unsaved changes in 1 file. Do you want to continue?");
-						} else {
-							message = nls.localize('dirtyMessageFolder', "You are moving a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
-						}
-					} else {
-						message = nls.localize('dirtyMessageFile', "You are moving a file with unsaved changes. Do you want to continue?");
+				return TPromise.join(dirty.map(d => {
+					let moved: URI;
+
+					// If the dirty file itself got moved, just reparent it to the target folder
+					if (source.resource.fsPath === d.fsPath) {
+						moved = URI.file(paths.join(target.resource.fsPath, source.name));
 					}
 
-					const res = this.messageService.confirm({
-						message,
-						type: 'warning',
-						detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
-						primaryButton: nls.localize({ key: 'moveLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
-					});
-
-					if (!res) {
-						return TPromise.as(null);
+					// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
+					else {
+						moved = URI.file(paths.join(target.resource.fsPath, d.fsPath.substr(source.parent.resource.fsPath.length + 1)));
 					}
 
-					revertPromise = this.textFileService.revertAll(dirty);
-				}
+					dirtyMoved.push(moved);
 
-				return revertPromise.then(() => {
-					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
-					let didHandleConflict = false;
+					const model = this.textFileService.models.get(d);
 
-					// Move File/Folder
-					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
+					return this.backupFileService.backupResource(moved, model.getValue(), model.getVersionId());
+				}))
 
-						// Conflict
-						if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-							didHandleConflict = true;
+					// 2. soft revert all dirty since we have backed up their contents
+					.then(() => this.textFileService.revertAll(dirty, { soft: true /* do not attempt to load content from disk */ }))
 
-							const confirm: IConfirmation = {
-								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-								detail: nls.localize('irreversible', "This action is irreversible!"),
-								primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
-							};
+					// 3.) run the move operation
+					.then(() => {
+						const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
+						let didHandleConflict = false;
 
-							if (this.messageService.confirm(confirm)) {
-								return this.fileService.moveFile(source.resource, targetResource, true).then(null, (error) => {
-									this.messageService.show(Severity.Error, error);
-								});
+						return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
+
+							// Conflict
+							if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+								didHandleConflict = true;
+
+								const confirm: IConfirmation = {
+									message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
+									detail: nls.localize('irreversible', "This action is irreversible!"),
+									primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+								};
+
+								// Move with overwrite if the user confirms
+								if (this.messageService.confirm(confirm)) {
+									const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath));
+
+									// Make sure to revert all dirty in target first to be able to overwrite properly
+									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+
+										// Then continue to do the move operation
+										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+									});
+								}
+
+								return onError();
 							}
 
-							return;
-						}
+							return onError(error, true);
+						});
+					})
 
-						this.messageService.show(Severity.Error, error);
-					});
-				});
+					// 4.) resolve those that were dirty to load their previous dirty contents from disk
+					.then(onSuccess, onError);
 			}, errors.onUnexpectedError);
 		}
 

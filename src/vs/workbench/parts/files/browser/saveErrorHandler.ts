@@ -183,7 +183,6 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		model: ITextFileEditorModel,
 		message: string,
 		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
@@ -202,7 +201,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					const name = paths.basename(resource.fsPath);
 					const editorLabel = nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.environmentService.appNameLong);
 
-					return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel }).then(() => {
+					return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel, options: { pinned: true } }).then(() => {
 
 						// We have to bring the model into conflict resolution mode to prevent subsequent save erros when the user makes edits
 						this.model.setConflictResolutionMode();

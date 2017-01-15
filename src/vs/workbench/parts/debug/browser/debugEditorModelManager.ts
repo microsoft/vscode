@@ -18,7 +18,7 @@ interface IDebugEditorModelData {
 	toDispose: lifecycle.IDisposable[];
 	breakpointDecorationIds: string[];
 	breakpointLines: number[];
-	breakpointDecorationsAsMap: { [decorationId: string]: boolean; };
+	breakpointDecorationsAsMap: Map<string, boolean>;
 	currentStackDecorations: string[];
 	topStackFrameRange: IRange;
 	dirty: boolean;
@@ -29,16 +29,14 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 export class DebugEditorModelManager implements IWorkbenchContribution {
 	static ID = 'breakpointManager';
 
-	private modelData: {
-		[modelUrl: string]: IDebugEditorModelData;
-	};
+	private modelDataMap: Map<string, IDebugEditorModelData>;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IDebugService private debugService: IDebugService
 	) {
-		this.modelData = Object.create(null);
+		this.modelDataMap = new Map<string, IDebugEditorModelData>();
 		this.toDispose = [];
 		this.registerListeners();
 	}
@@ -48,14 +46,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		Object.keys(this.modelData).forEach(modelUriStr => {
-			lifecycle.dispose(this.modelData[modelUriStr].toDispose);
-			this.modelData[modelUriStr].model.deltaDecorations(this.modelData[modelUriStr].breakpointDecorationIds, []);
-			this.modelData[modelUriStr].model.deltaDecorations(this.modelData[modelUriStr].currentStackDecorations, []);
+		this.modelDataMap.forEach(modelData => {
+			lifecycle.dispose(modelData.toDispose);
+			modelData.model.deltaDecorations(modelData.breakpointDecorationIds, []);
+			modelData.model.deltaDecorations(modelData.currentStackDecorations, []);
 		});
 		this.toDispose = lifecycle.dispose(this.toDispose);
 
-		this.modelData = null;
+		this.modelDataMap.clear();
 	}
 
 	private registerListeners(): void {
@@ -67,7 +65,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			if (this.debugService.state === State.Inactive) {
-				Object.keys(this.modelData).forEach(key => this.modelData[key].dirty = false);
+				this.modelDataMap.forEach(modelData => modelData.dirty = false);
 			}
 		}));
 	}
@@ -80,40 +78,41 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const breakPointDecorations = model.deltaDecorations([], this.createBreakpointDecorations(breakpoints));
 
 		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUrlStr, e))];
+		const breakpointDecorationsAsMap = new Map<string, boolean>();
+		breakPointDecorations.forEach(bpd => breakpointDecorationsAsMap.set(bpd, true));
 
-		this.modelData[modelUrlStr] = {
+		this.modelDataMap.set(modelUrlStr, {
 			model: model,
 			toDispose: toDispose,
 			breakpointDecorationIds: breakPointDecorations,
 			breakpointLines: breakpoints.map(bp => bp.lineNumber),
-			breakpointDecorationsAsMap: objects.toObject(breakPointDecorations, key => key, key => true),
+			breakpointDecorationsAsMap,
 			currentStackDecorations: currentStackDecorations,
 			topStackFrameRange: null,
 			dirty: false
-		};
+		});
 	}
 
 	private onModelRemoved(model: IModel): void {
 		const modelUriStr = model.uri.toString();
-		if (this.modelData[modelUriStr]) {
-			lifecycle.dispose(this.modelData[modelUriStr].toDispose);
-			delete this.modelData[modelUriStr];
+		if (this.modelDataMap.has(modelUriStr)) {
+			lifecycle.dispose(this.modelDataMap.get(modelUriStr).toDispose);
+			this.modelDataMap.delete(modelUriStr);
 		}
 	}
 
 	// call stack management. Represent data coming from the debug service.
 
 	private onFocusStackFrame(): void {
-		Object.keys(this.modelData).forEach(modelUrlStr => {
-			const modelData = this.modelData[modelUrlStr];
-			modelData.currentStackDecorations = modelData.model.deltaDecorations(modelData.currentStackDecorations, this.createCallStackDecorations(modelUrlStr));
+		this.modelDataMap.forEach((modelData, uri) => {
+			modelData.currentStackDecorations = modelData.model.deltaDecorations(modelData.currentStackDecorations, this.createCallStackDecorations(uri));
 		});
 	}
 
-	private createCallStackDecorations(modelUrlStr: string): IModelDeltaDecoration[] {
+	private createCallStackDecorations(modelUriStr: string): IModelDeltaDecoration[] {
 		const result: IModelDeltaDecoration[] = [];
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!stackFrame || stackFrame.source.uri.toString() !== modelUrlStr) {
+		if (!stackFrame || stackFrame.source.uri.toString() !== modelUriStr) {
 			return result;
 		}
 
@@ -140,15 +139,16 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					range: wholeLineRange
 				});
 
-				if (this.modelData[modelUrlStr]) {
-					if (this.modelData[modelUrlStr].topStackFrameRange && this.modelData[modelUrlStr].topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
-						this.modelData[modelUrlStr].topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
+				if (this.modelDataMap.has(modelUriStr)) {
+					const modelData = this.modelDataMap.get(modelUriStr);
+					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
+						modelData.topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
 						result.push({
 							options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
 							range: wholeLineRange
 						});
 					}
-					this.modelData[modelUrlStr].topStackFrameRange = wholeLineRange;
+					modelData.topStackFrameRange = wholeLineRange;
 				}
 			}
 		} else {
@@ -168,22 +168,21 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	// breakpoints management. Represent data coming from the debug service and also send data back.
 	private onModelDecorationsChanged(modelUrlStr: string, e: IModelDecorationsChangedEvent): void {
-		const modelData = this.modelData[modelUrlStr];
-		let myDecorationsCount = Object.keys(modelData.breakpointDecorationsAsMap).length;
-		if (myDecorationsCount === 0) {
+		const modelData = this.modelDataMap.get(modelUrlStr);
+		if (modelData.breakpointDecorationsAsMap.size === 0) {
 			// I have no decorations
 			return;
 		}
-		if (!e.changedDecorations.some(decorationId => modelData.breakpointDecorationsAsMap[decorationId])) {
+		if (!e.changedDecorations.some(decorationId => modelData.breakpointDecorationsAsMap.has(decorationId))) {
 			// nothing to do, my decorations did not change.
 			return;
 		}
 
 		const data: IRawBreakpoint[] = [];
 
-		const lineToBreakpointDataMap: { [key: number]: IBreakpoint } = {};
+		const lineToBreakpointDataMap = new Map<number, IBreakpoint>();
 		this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr).forEach(bp => {
-			lineToBreakpointDataMap[bp.lineNumber] = bp;
+			lineToBreakpointDataMap.set(bp.lineNumber, bp);
 		});
 
 		const modelUri = modelData.model.uri;
@@ -192,17 +191,18 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			const lineNumber = modelData.breakpointLines[i];
 			// check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
+				const breakpoint = lineToBreakpointDataMap.get(lineNumber);
 				// since we know it is collapsed, it cannot grow to multiple lines
 				data.push({
 					lineNumber: decorationRange.startLineNumber,
-					enabled: lineToBreakpointDataMap[lineNumber].enabled,
-					condition: lineToBreakpointDataMap[lineNumber].condition,
-					hitCondition: lineToBreakpointDataMap[lineNumber].hitCondition,
-					column: lineToBreakpointDataMap[lineNumber].column
+					enabled: breakpoint.enabled,
+					condition: breakpoint.condition,
+					hitCondition: breakpoint.hitCondition,
+					column: breakpoint.column
 				});
 			}
 		}
-		modelData.dirty = this.debugService.state !== State.Inactive && this.debugService.state !== State.Disabled;
+		modelData.dirty = this.debugService.state !== State.Inactive;
 
 		const toRemove = this.debugService.getModel().getBreakpoints()
 			.filter(bp => bp.uri.toString() === modelUri.toString());
@@ -213,31 +213,32 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onBreakpointsChange(): void {
-		const breakpointsMap: { [key: string]: IBreakpoint[] } = Object.create(null);
+		const breakpointsMap = new Map<string, IBreakpoint[]>();
 		this.debugService.getModel().getBreakpoints().forEach(bp => {
 			const uriStr = bp.uri.toString();
-			if (breakpointsMap[uriStr]) {
-				breakpointsMap[uriStr].push(bp);
+			if (breakpointsMap.has(uriStr)) {
+				breakpointsMap.get(uriStr).push(bp);
 			} else {
-				breakpointsMap[uriStr] = [bp];
+				breakpointsMap.set(uriStr, [bp]);
 			}
 		});
 
-		Object.keys(breakpointsMap).forEach(modelUriStr => {
-			if (this.modelData[modelUriStr]) {
-				this.updateBreakpoints(this.modelData[modelUriStr], breakpointsMap[modelUriStr]);
+		breakpointsMap.forEach((bps, uri) => {
+			if (this.modelDataMap.has(uri)) {
+				this.updateBreakpoints(this.modelDataMap.get(uri), breakpointsMap.get(uri));
 			}
 		});
-		Object.keys(this.modelData).forEach(modelUriStr => {
-			if (!breakpointsMap[modelUriStr]) {
-				this.updateBreakpoints(this.modelData[modelUriStr], []);
+		this.modelDataMap.forEach((modelData, uri) => {
+			if (!breakpointsMap.has(uri)) {
+				this.updateBreakpoints(modelData, []);
 			}
 		});
 	}
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
 		modelData.breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorationIds, this.createBreakpointDecorations(newBreakpoints));
-		modelData.breakpointDecorationsAsMap = objects.toObject(modelData.breakpointDecorationIds, key => key, (key) => true);
+		modelData.breakpointDecorationsAsMap.clear();
+		modelData.breakpointDecorationIds.forEach(id => modelData.breakpointDecorationsAsMap.set(id, true));
 		modelData.breakpointLines = newBreakpoints.map(bp => bp.lineNumber);
 	}
 
@@ -254,7 +255,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
 		const state = this.debugService.state;
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
-		const modelData = this.modelData[breakpoint.uri.toString()];
+		const modelData = this.modelDataMap.get(breakpoint.uri.toString());
 
 		let result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
 			debugActive && modelData && modelData.dirty && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :
@@ -275,8 +276,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 		}
 
-		const mode = modelData ? modelData.model.getMode() : null;
-		const modeId = mode ? mode.getId() : '';
+		const modeId = modelData ? modelData.model.getLanguageIdentifier().language : '';
 		let condition: string;
 		if (breakpoint.condition && breakpoint.hitCondition) {
 			condition = `Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`;

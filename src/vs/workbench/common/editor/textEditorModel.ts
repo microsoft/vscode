@@ -24,8 +24,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	private modelDisposeListener: IDisposable;
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@IModelService protected modelService: IModelService,
+		@IModeService protected modeService: IModeService,
 		textEditorModelHandle?: URI
 	) {
 		super();
@@ -100,7 +100,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	private getFirstLineText(value: string | IRawText): string {
+	protected getFirstLineText(value: string | IRawText): string {
 		if (typeof value === 'string') {
 			const firstLineText = value.substr(0, 100);
 
@@ -154,20 +154,6 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	/**
-	 * Updates the text editor model mode based on the settings and configuration.
-	 */
-	protected updateTextEditorModelMode(modeId?: string): void {
-		if (!this.textEditorModel) {
-			return;
-		}
-
-		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
-		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
-
-		this.modelService.setMode(this.textEditorModel, mode);
-	}
-
-	/**
 	 * Returns the textual value of this editor model or null if it has not yet been created.
 	 */
 	public getValue(): string {
@@ -177,6 +163,10 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		}
 
 		return null;
+	}
+
+	public isResolved(): boolean {
+		return !!this.textEditorModelHandle;
 	}
 
 	public dispose(): void {
@@ -193,9 +183,5 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.createdEditorModel = false;
 
 		super.dispose();
-	}
-
-	public isResolved(): boolean {
-		return !!this.textEditorModelHandle;
 	}
 }

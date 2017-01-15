@@ -25,7 +25,6 @@ import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,6 +36,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -56,15 +56,15 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService, editorGroupService);
 	}
 
 	public isDirty(resource?: URI): boolean {

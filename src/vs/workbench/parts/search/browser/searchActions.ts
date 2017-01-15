@@ -31,8 +31,8 @@ export function isSearchViewletFocussed(viewletService: IViewletService): boolea
 	return activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID && activeElement && DOM.isAncestor(activeElement, (<SearchViewlet>activeViewlet).getContainer().getHTMLElement());
 }
 
-export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, keyBindingService2: IKeybindingService): string
-export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService2: IKeybindingService): string
+export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, keyBindingService2: IKeybindingService): string;
+export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService2: IKeybindingService): string;
 export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService2: IKeybindingService): string {
 	keyBinding = typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
 	return keyBinding ? label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')' : label;
@@ -263,6 +263,36 @@ export class ClearSearchResultsAction extends Action {
 		this.viewlet.clearSearchResults();
 
 		return TPromise.as(null);
+	}
+}
+
+export class FocusNextSearchResultAction extends Action {
+	public static ID = 'search.action.focusNextSearchResult';
+	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus next search result");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
+			searchViewlet.selectNextResult();
+		});
+	}
+}
+
+export class FocusPreviousSearchResultAction extends Action {
+	public static ID = 'search.action.focusPreviousSearchResult';
+	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus previous search result");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
+			searchViewlet.selectPreviousResult();
+		});
 	}
 }
 

@@ -83,8 +83,8 @@ export function compareByPrefix(one: string, other: string, lookFor: string): nu
 }
 
 export interface IScorableResourceAccessor<T> {
-	getLabel(T): string;
-	getResourcePath(T): string;
+	getLabel(t: T): string;
+	getResourcePath(t: T): string;
 }
 
 export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableResourceAccessor<T>, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {

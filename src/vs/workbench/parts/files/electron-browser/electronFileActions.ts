@@ -132,12 +132,7 @@ export class OpenFileAction extends Action {
 	run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-		// Handle in browser process
-		if (fileResource) {
-			return this.windowService.openFilePicker(false, paths.dirname(fileResource.fsPath));
-		}
-
-		return this.windowService.openFilePicker();
+		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
 	}
 }
 
@@ -159,7 +154,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		if (fileResource) {
-			this.windowsService.windowOpen([fileResource.fsPath], true);
+			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true });
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to open in new window"));
 		}

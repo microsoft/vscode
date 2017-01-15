@@ -607,8 +607,8 @@ export function safeBtoa(str: string): string {
 }
 
 export function repeat(s: string, count: number): string {
-	var result = '';
-	for (var i = 0; i < count; i++) {
+	let result = '';
+	for (let i = 0; i < count; i++) {
 		result += s;
 	}
 	return result;

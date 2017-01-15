@@ -9,7 +9,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IDimension, FontInfo, BareFontInfo } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/editorCommon';
+import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FastDomNode } from 'vs/base/browser/styleMutator';
 
@@ -41,39 +42,8 @@ class CSSBasedConfigurationCache {
 	}
 }
 
-class CharWidthReader {
-
-	private _chr: string;
-	private _width: number;
-
-	public get width(): number { return this._width; }
-
-	constructor(chr: string) {
-		this._chr = chr;
-		this._width = 0;
-	}
-
-	public render(out: HTMLSpanElement): void {
-		if (this._chr === ' ') {
-			let htmlString = '&nbsp;';
-			// Repeat character 256 (2^8) times
-			for (let i = 0; i < 8; i++) {
-				htmlString += htmlString;
-			}
-			out.innerHTML = htmlString;
-		} else {
-			let testString = this._chr;
-			// Repeat character 256 (2^8) times
-			for (let i = 0; i < 8; i++) {
-				testString += testString;
-			}
-			out.textContent = testString;
-		}
-	}
-
-	public read(out: HTMLSpanElement): void {
-		this._width = out.offsetWidth / 256;
-	}
+export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
+	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 }
 
 class CSSBasedConfiguration extends Disposable {
@@ -154,59 +124,15 @@ class CSSBasedConfiguration extends Disposable {
 		}
 	}
 
-	private static _testElementId(index: number): string {
-		return 'editorSizeProvider' + index;
-	}
-
-	private static _createTestElements(bareFontInfo: BareFontInfo, readers: CharWidthReader[]): HTMLElement {
-		let container = document.createElement('div');
-		Configuration.applyFontInfoSlow(container, bareFontInfo);
-		container.style.position = 'absolute';
-		container.style.top = '-50000px';
-		container.style.width = '50000px';
-
-		for (let i = 0, len = readers.length; i < len; i++) {
-			container.appendChild(document.createElement('br'));
-
-			let testElement = document.createElement('span');
-			testElement.id = this._testElementId(i);
-			readers[i].render(testElement);
-
-			container.appendChild(testElement);
-		}
-
-		container.appendChild(document.createElement('br'));
-
-		return container;
-	}
-
-	private static _readFromTestElements(readers: CharWidthReader[]): void {
-		for (let i = 0, len = readers.length; i < len; i++) {
-			readers[i].read(document.getElementById(this._testElementId(i)));
-		}
-	}
-
-	private static _runReaders(bareFontInfo: BareFontInfo, readers: CharWidthReader[]): void {
-		// Create a test container with all these test elements
-		let testContainer = this._createTestElements(bareFontInfo, readers);
-
-		// Add the container to the DOM
-		document.body.appendChild(testContainer);
-
-		// Read various properties
-		this._readFromTestElements(readers);
-
-		// Remove the container from the DOM
-		document.body.removeChild(testContainer);
-	}
-
 	private static _actualReadConfiguration(bareFontInfo: BareFontInfo): FontInfo {
-		let typicalHalfwidthCharacter = new CharWidthReader('n');
-		let typicalFullwidthCharacter = new CharWidthReader('\uff4d');
-		let space = new CharWidthReader(' ');
-		let digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(chr => new CharWidthReader(chr));
+		let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
+		let context = canvasElem.getContext('2d');
+		context.font = `normal normal normal normal ${bareFontInfo.fontSize}px / ${bareFontInfo.lineHeight}px ${bareFontInfo.fontFamily}`;
 
-		this._runReaders(bareFontInfo, digits.concat([typicalHalfwidthCharacter, typicalFullwidthCharacter, space]));
+		let typicalHalfwidthCharacter = context.measureText('n');
+		let typicalFullwidthCharacter = context.measureText('\uff4d');
+		let space = context.measureText(' ');
+		let digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(chr => context.measureText(chr));
 
 		let maxDigitWidth = 0;
 		for (let i = 0, len = digits.length; i < len; i++) {

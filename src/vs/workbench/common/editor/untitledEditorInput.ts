@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 
 /**
  * An editor input to be used for untitled text buffers.

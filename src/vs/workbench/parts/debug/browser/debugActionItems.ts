@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -12,12 +13,16 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugService, NO_CONFIGURATIONS_LABEL } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 
 const $ = dom.$;
 
 export class StartDebugActionItem extends EventEmitter implements IActionItem {
+
+	private static ADD_CONFIGURATION = nls.localize('addConfiguration', "Add Configuration...");
+	private static SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
@@ -44,7 +49,18 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			}
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
-			this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
+			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
+				const manager = this.debugService.getConfigurationManager();
+				this.selectBox.select(manager.getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
+				manager.openConfigFile(false).then(editor => {
+					if (editor) {
+						const codeEditor = <ICommonCodeEditor>editor.getControl();
+						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+					}
+				});
+			} else {
+				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
+			}
 		}));
 	}
 
@@ -106,7 +122,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private setEnabled(enabled: boolean): void {
 		this.selectBox.enabled = enabled;
 		if (!enabled) {
-			this.selectBox.setOptions([NO_CONFIGURATIONS_LABEL], 0);
+			this.selectBox.setOptions([nls.localize('noConfigurations', "No Configurations")], 0);
 		}
 	}
 
@@ -117,7 +133,9 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		} else {
 			this.setEnabled(true);
 			const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
-			this.selectBox.setOptions(options, selected);
+			options.push(StartDebugActionItem.SEPARATOR);
+			options.push(StartDebugActionItem.ADD_CONFIGURATION);
+			this.selectBox.setOptions(options, selected, options.length - 2);
 		}
 	}
 }

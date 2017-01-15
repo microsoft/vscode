@@ -21,7 +21,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions } from 'vs/workbench/services/group/common/groupService';
@@ -37,6 +37,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { EditorStacksModel, EditorGroup, EditorIdentifier, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class ProgressMonitor {
 
@@ -93,6 +94,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private _onGroupOrientationChanged: Emitter<void>;
 	private _onTabOptionsChanged: Emitter<ITabOptions>;
 
+	private textCompareEditorVisible: IContextKey<boolean>;
+
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
 	private instantiatedEditors: BaseEditor[][];
@@ -109,9 +112,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		@IStorageService private storageService: IStorageService,
 		@IPartService private partService: IPartService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(id);
+		super(id, { hasTitle: false });
 
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorsMoved = new Emitter<void>();
@@ -131,6 +135,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.pendingEditorInputCloseTimeout = null;
 
 		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
+
+		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
 
 		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
@@ -353,6 +359,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Indicate to editor that it is now visible
 			editor.setVisible(true, position);
 
+			// Update text compare editor visible context
+			this.updateTextCompareEditorVisible();
+
 			// Make sure the editor is layed out
 			this.editorGroupsControl.layout(position);
 
@@ -440,7 +449,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
 
 		// Emit Input-Changed Event as appropiate
-		const previousInput = editor.getInput();
+		const previousInput = editor.input;
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
 
 		// Call into Editor
@@ -598,6 +607,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		editor.clearInput();
 		editor.setVisible(false);
 
+		// Update text compare editor visible context
+		this.updateTextCompareEditorVisible();
+
 		// Clear active editor
 		this.visibleEditors[position] = null;
 
@@ -608,6 +620,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (rochade !== Rochade.NONE) {
 			this._onEditorsMoved.fire();
 		}
+	}
+
+	private updateTextCompareEditorVisible(): void {
+		this.textCompareEditorVisible.set(this.visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
 	}
 
 	public closeAllEditors(except?: Position): TPromise<void> {

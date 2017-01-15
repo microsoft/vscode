@@ -23,6 +23,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export interface ITemplateData {
+	root: HTMLElement;
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
@@ -92,7 +93,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar];
 
 		return {
-			element, icon, name, installCount, ratings, author, description, disposables,
+			root, element, icon, name, installCount, ratings, author, description, disposables,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				versionWidget.extension = extension;
@@ -110,6 +111,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	renderPlaceholder(index: number, data: ITemplateData): void {
 		addClass(data.element, 'loading');
 
+		data.root.removeAttribute('aria-label');
 		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
@@ -142,6 +144,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.style.visibility = 'inherit';
 		}
 
+		data.root.setAttribute('aria-label', extension.displayName);
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;

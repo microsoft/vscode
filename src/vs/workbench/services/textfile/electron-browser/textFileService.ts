@@ -22,9 +22,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,16 +46,16 @@ export class TextFileService extends AbstractTextFileService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IStorageService private storageService: IStorageService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, editorGroupService, windowsService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

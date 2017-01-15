@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, Position } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -46,7 +46,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Thenable<Command[]> {
 		const file = this.client.asAbsolutePath(document.uri);
 		if (!file) {
-			return Promise.resolve(null);
+			return Promise.resolve<Command[]>([]);
 		}
 
 		const source: Source = {
@@ -99,11 +99,29 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	private onCodeAction(source: Source, workspaceEdit: WorkspaceEdit) {
 		workspace.applyEdit(workspaceEdit).then(success => {
 			if (!success) {
-				return Promise.reject(null);
+				return Promise.reject<boolean>(false);
 			}
+
+			let firstEdit: TextEdit | null = null;
+			for (const [uri, edits] of workspaceEdit.entries()) {
+				if (uri.fsPath === source.uri.fsPath) {
+					firstEdit = edits[0];
+					break;
+				}
+			}
+
+			if (!firstEdit) {
+				return true;
+			}
+
+			const newLines = firstEdit.newText.match(/\n/g);
+			const editedRange = new Range(
+				new Position(firstEdit.range.start.line, 0),
+				new Position(firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0));
+
 			// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
 			// apply formatting to the source range until TS returns formatted results
-			return commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, source.range, {}).then((edits: TextEdit[]) => {
+			return commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, editedRange, {}).then((edits: TextEdit[]) => {
 				if (!edits || !edits.length) {
 					return false;
 				}

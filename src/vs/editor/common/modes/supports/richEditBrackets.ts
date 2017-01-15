@@ -7,6 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 interface ISimpleInternalBracket {
 	open: string;
@@ -16,14 +17,14 @@ interface ISimpleInternalBracket {
 export class RichEditBracket {
 	_richEditBracketBrand: void;
 
-	readonly modeId: string;
+	readonly languageIdentifier: LanguageIdentifier;
 	readonly open: string;
 	readonly close: string;
 	readonly forwardRegex: RegExp;
 	readonly reversedRegex: RegExp;
 
-	constructor(modeId: string, open: string, close: string, forwardRegex: RegExp, reversedRegex: RegExp) {
-		this.modeId = modeId;
+	constructor(languageIdentifier: LanguageIdentifier, open: string, close: string, forwardRegex: RegExp, reversedRegex: RegExp) {
+		this.languageIdentifier = languageIdentifier;
 		this.open = open;
 		this.close = close;
 		this.forwardRegex = forwardRegex;
@@ -41,10 +42,10 @@ export class RichEditBrackets {
 	public readonly textIsBracket: { [text: string]: RichEditBracket; };
 	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
-	constructor(modeId: string, brackets: CharacterPair[]) {
+	constructor(languageIdentifier: LanguageIdentifier, brackets: CharacterPair[]) {
 		this.brackets = brackets.map((b) => {
 			return new RichEditBracket(
-				modeId,
+				languageIdentifier,
 				b[0],
 				b[1],
 				getRegexForBracketPair({ open: b[0], close: b[1] }),

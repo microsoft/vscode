@@ -8,11 +8,11 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorCommon';
-import { TextCompareEditorVisible, TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
@@ -210,7 +210,6 @@ function handleCommandDeprecations(): void {
 		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
 		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
 		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
-		'workbench.action.terminal.focus': 'workbench.action.focusPanel',
 		'workbench.action.showEditorsInLeftGroup': 'workbench.action.showEditorsInFirstGroup',
 		'workbench.action.showEditorsInCenterGroup': 'workbench.action.showEditorsInSecondGroup',
 		'workbench.action.showEditorsInRightGroup': 'workbench.action.showEditorsInThirdGroup',

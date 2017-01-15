@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			'	while (node) {',
 			'		if (node.tagName === "A" && node.href) {',
 			'			let baseElement = window.document.getElementsByTagName("base")[0];',
-			'			if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {',
+			'			if (node.hash && (node.getAttribute("href") === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {',
 			'				let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));',
 			'				if (scrollTarget) {',
 			'					scrollTarget.scrollIntoView();',

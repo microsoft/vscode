@@ -150,7 +150,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		let model = this._editor.getModel();
 		let regex = KeybindingLabels.getUserSettingsKeybindingRegex();
 
-		var m = model.findMatches(regex, false, true, false, false);
+		var m = model.findMatches(regex, false, true, false, false, false).map(m => m.range);
 
 		let data = m.map((range) => {
 			let text = model.getValueInRange(range);

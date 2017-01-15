@@ -223,7 +223,7 @@ export class FileChangesEvent extends events.Event {
 			return false;
 		}
 
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			if (change.type !== type) {
 				return false;
 			}
@@ -280,11 +280,11 @@ export class FileChangesEvent extends events.Event {
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this._changes.filter((change) => change.type === type);
+		return this._changes.filter(change => change.type === type);
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			return change.type === type;
 		});
 	}

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { merge } from 'vs/base/common/arrays';
+import { flatten } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -34,7 +34,7 @@ class ChangeRecorder {
 
 	private _fileService: IFileService;
 
-	constructor(fileService: IFileService) {
+	constructor(fileService?: IFileService) {
 		this._fileService = fileService;
 	}
 
@@ -42,24 +42,27 @@ class ChangeRecorder {
 
 		const changes: IStringDictionary<IFileChange[]> = Object.create(null);
 
-		const stop = this._fileService.onFileChanges((event) => {
-			event.changes.forEach(change => {
+		let stop: IDisposable;
+		if (this._fileService) {
+			stop = this._fileService.onFileChanges((event) => {
+				event.changes.forEach(change => {
 
-				const key = String(change.resource);
-				let array = changes[key];
+					const key = String(change.resource);
+					let array = changes[key];
 
-				if (!array) {
-					changes[key] = array = [];
-				}
+					if (!array) {
+						changes[key] = array = [];
+					}
 
-				array.push(change);
+					array.push(change);
+				});
 			});
-		});
+		}
 
 		return {
-			stop: () => { stop.dispose(); },
+			stop: () => { return stop && stop.dispose(); },
 			hasChanged: (resource: URI) => !!changes[resource.toString()],
-			allChanges: () => merge(values(changes))
+			allChanges: () => flatten(values(changes))
 		};
 	}
 }
@@ -273,14 +276,14 @@ export interface BulkEdit {
 	finish(): TPromise<ISelection>;
 }
 
-export function bulkEdit(fileService: IFileService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
-	let bulk = createBulkEdit(fileService, textModelResolverService, editor);
+export function bulkEdit(textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
+	let bulk = createBulkEdit(textModelResolverService, editor, fileService);
 	bulk.add(edits);
 	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(fileService: IFileService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor): BulkEdit {
+export function createBulkEdit(textModelResolverService: ITextModelResolverService, editor?: ICommonCodeEditor, fileService?: IFileService): BulkEdit {
 
 	let all: IResourceEdit[] = [];
 	let recording = new ChangeRecorder(fileService).start();
