@@ -411,6 +411,12 @@ export class GitService extends EventEmitter
 		}
 	}
 
+	public _defaultCloneLocation: string;
+	get defaultCloneLocation(): string { return this._defaultCloneLocation; }
+	set defaultCloneLocation(value: string) {
+		this._defaultCloneLocation = value;
+	}
+
 	get onOutput(): Event<string> { return this.raw.onOutput; }
 
 	constructor(
@@ -496,6 +502,7 @@ export class GitService extends EventEmitter
 
 			const config = this.configurationService.getConfiguration<IGitConfiguration>('git');
 			this._allowHugeRepositories = config.allowLargeRepositories;
+			this._defaultCloneLocation = config.defaultCloneLocation;
 
 			if (this._allowHugeRepositories) {
 				this.triggerAutoStatus();

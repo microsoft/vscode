@@ -243,6 +243,7 @@ export interface IGitConfiguration {
 	confirmSync: boolean;
 	countBadge: string;
 	checkoutType: string;
+	defaultCloneLocation: string;
 }
 
 // Service interfaces
@@ -306,6 +307,7 @@ export const IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
 export interface IGitService extends IEventEmitter {
 	_serviceBrand: any;
 	allowHugeRepositories: boolean;
+	defaultCloneLocation: string;
 	onOutput: Event<string>;
 	status(): TPromise<IModel>;
 	init(): TPromise<IModel>;
