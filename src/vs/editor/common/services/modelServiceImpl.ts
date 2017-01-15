@@ -14,17 +14,15 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
-import { anonymize } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IMode } from 'vs/editor/common/modes';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -179,7 +177,6 @@ export class ModelServiceImpl implements IModelService {
 
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;
-	private _messageService: IMessageService;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 
@@ -189,8 +186,6 @@ export class ModelServiceImpl implements IModelService {
 
 	private _modelCreationOptions: editorCommon.ITextModelCreationOptions;
 
-	private _hasShownMigrationMessage: boolean;
-
 	/**
 	 * All the models known in the system.
 	 */
@@ -199,7 +194,6 @@ export class ModelServiceImpl implements IModelService {
 	constructor(
 		@IMarkerService markerService: IMarkerService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IMessageService messageService: IMessageService
 	) {
 		this._modelCreationOptions = {
 			tabSize: DEFAULT_INDENTATION.tabSize,
@@ -210,8 +204,6 @@ export class ModelServiceImpl implements IModelService {
 		};
 		this._markerService = markerService;
 		this._configurationService = configurationService;
-		this._messageService = messageService;
-		this._hasShownMigrationMessage = false;
 		this._models = {};
 
 
@@ -225,21 +217,17 @@ export class ModelServiceImpl implements IModelService {
 
 		let readConfig = (config: IRawConfig) => {
 
-			let shouldShowMigrationMessage = false;
-
 			let tabSize = DEFAULT_INDENTATION.tabSize;
 			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 				let parsedTabSize = parseInt(config.editor.tabSize, 10);
 				if (!isNaN(parsedTabSize)) {
 					tabSize = parsedTabSize;
 				}
-				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.tabSize === 'auto');
 			}
 
 			let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
 			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 				insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
-				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.insertSpaces === 'auto');
 			}
 
 			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
@@ -267,12 +255,6 @@ export class ModelServiceImpl implements IModelService {
 				defaultEOL: newDefaultEOL,
 				trimAutoWhitespace: trimAutoWhitespace
 			});
-
-
-			if (shouldShowMigrationMessage && !this._hasShownMigrationMessage) {
-				this._hasShownMigrationMessage = true;
-				this._messageService.show(Severity.Info, nls.localize('indentAutoMigrate', "Please update your settings: `editor.detectIndentation` replaces `editor.tabSize`: \"auto\" or `editor.insertSpaces`: \"auto\""));
-			}
 		};
 
 		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => {
@@ -350,19 +332,19 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | editorCommon.IRawText, languageId: string, resource: URI): ModelData {
+	private _createModelData(value: string | editorCommon.IRawText, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
 		let model: Model;
 		if (typeof value === 'string') {
-			model = Model.createFromString(value, this._modelCreationOptions, languageId, resource);
+			model = Model.createFromString(value, this._modelCreationOptions, languageIdentifier, resource);
 		} else {
-			model = new Model(value, languageId, resource);
+			model = new Model(value, languageIdentifier, resource);
 		}
 		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
-			throw new Error('ModelService: Cannot add model ' + anonymize(modelId) + ' because it already exists!');
+			throw new Error('ModelService: Cannot add model because it already exists!');
 		}
 
 		let modelData = new ModelData(model, (modelData, events) => this._onModelEvents(modelData, events));
@@ -375,10 +357,10 @@ export class ModelServiceImpl implements IModelService {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
-			modelData = this._createModelData(value, PLAINTEXT_MODE_ID, resource);
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource);
 			this.setMode(modelData.model, modeOrPromise);
 		} else {
-			modelData = this._createModelData(value, modeOrPromise.getId(), resource);
+			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource);
 		}
 
 		// handle markers (marker service => model)
@@ -398,11 +380,11 @@ export class ModelServiceImpl implements IModelService {
 		if (TPromise.is(modeOrPromise)) {
 			modeOrPromise.then((mode) => {
 				if (!model.isDisposed()) {
-					model.setMode(mode.getId());
+					model.setMode(mode.getLanguageIdentifier());
 				}
 			});
 		} else {
-			model.setMode(modeOrPromise.getId());
+			model.setMode(modeOrPromise.getLanguageIdentifier());
 		}
 	}
 
@@ -476,10 +458,10 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelModeChanged) {
+			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
 				this._onModelModeChanged.fire({
 					model: modelData.model,
-					oldModeId: (<editorCommon.IModelModeChangedEvent>e.getData()).oldMode.getId()
+					oldModeId: (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguage
 				});
 			}
 		}

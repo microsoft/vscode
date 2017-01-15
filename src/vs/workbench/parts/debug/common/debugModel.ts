@@ -19,6 +19,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
@@ -71,7 +72,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements deb
 	}
 
 	public get hasChildren(): boolean {
-		return isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0;
+		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
 	}
 
 	public getChildren(): TPromise<debug.IExpression[]> {
@@ -90,7 +91,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements deb
 
 export class ExpressionContainer implements debug.IExpressionContainer {
 
-	public static allValues: { [id: string]: string } = {};
+	public static allValues: Map<string, string> = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static BASE_CHUNK_SIZE = 100;
 
@@ -173,9 +174,9 @@ export class ExpressionContainer implements debug.IExpressionContainer {
 
 	public set value(value: string) {
 		this._value = value;
-		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
-			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
-		ExpressionContainer.allValues[this.getId()] = value;
+		this.valueChanged = ExpressionContainer.allValues.get(this.getId()) &&
+			ExpressionContainer.allValues.get(this.getId()) !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues.get(this.getId()) !== value;
+		ExpressionContainer.allValues.set(this.getId(), value);
 	}
 }
 
@@ -349,7 +350,20 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public toString(): string {
-		return `${this.name} (${this.source.name}:${this.lineNumber})`;
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
+	}
+
+	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
+		return editorService.openEditor({
+			resource: this.source.uri,
+			description: this.source.origin,
+			options: {
+				preserveFocus,
+				selection: { startLineNumber: this.lineNumber, startColumn: 1 },
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true
+			}
+		}, sideBySide);
 	}
 }
 
@@ -367,7 +381,7 @@ export class Thread implements debug.IThread {
 	}
 
 	public getId(): string {
-		return `thread:${this.process.getId()}:${this.name}:${this.threadId}`;
+		return `thread:${this.process.getId()}:${this.threadId}`;
 	}
 
 	public clearCallStack(): void {
@@ -418,10 +432,10 @@ export class Thread implements debug.IThread {
 
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), null, null);
+					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
 
-				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true), rsf.name, rsf.line, rsf.column);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -463,10 +477,10 @@ export class Thread implements debug.IThread {
 
 export class Process implements debug.IProcess {
 
-	private threads: { [reference: number]: Thread; };
+	private threads: Map<number, Thread>;
 
 	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
-		this.threads = {};
+		this.threads = new Map<number, Thread>();
 	}
 
 	public get session(): debug.ISession {
@@ -474,11 +488,13 @@ export class Process implements debug.IProcess {
 	}
 
 	public getThread(threadId: number): Thread {
-		return this.threads[threadId];
+		return this.threads.get(threadId);
 	}
 
 	public getAllThreads(): debug.IThread[] {
-		return Object.keys(this.threads).map(key => this.threads[key]);
+		const result = [];
+		this.threads.forEach(t => result.push(t));
+		return result;
 	}
 
 	public getId(): string {
@@ -487,66 +503,69 @@ export class Process implements debug.IProcess {
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
 
-		if (data.thread && !this.threads[data.threadId]) {
+		if (data.thread && !this.threads.has(data.threadId)) {
 			// A new thread came in, initialize it.
-			this.threads[data.threadId] = new Thread(this, data.thread.name, data.thread.id);
+			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
+		} else if (data.thread && data.thread.name) {
+			// Just the thread name got updated #18244
+			this.threads.get(data.threadId).name = data.thread.name;
 		}
 
 		if (data.stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
 			if (data.allThreadsStopped) {
-				Object.keys(this.threads).forEach(ref => {
+				this.threads.forEach(thread => {
 					// Only update the details if all the threads are stopped
 					// because we don't want to overwrite the details of other
 					// threads that have stopped for a different reason
-					this.threads[ref].stoppedDetails = clone(data.stoppedDetails);
-					this.threads[ref].stopped = true;
-					this.threads[ref].clearCallStack();
+					thread.stoppedDetails = clone(data.stoppedDetails);
+					thread.stopped = true;
+					thread.clearCallStack();
 				});
-			} else {
+			} else if (this.threads.has(data.threadId)) {
 				// One thread is stopped, only update that thread.
-				this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
-				this.threads[data.threadId].clearCallStack();
-				this.threads[data.threadId].stopped = true;
+				const thread = this.threads.get(data.threadId);
+				thread.stoppedDetails = data.stoppedDetails;
+				thread.clearCallStack();
+				thread.stopped = true;
 			}
 		}
 	}
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
 		if (reference) {
-			if (this.threads[reference]) {
-				this.threads[reference].clearCallStack();
-				this.threads[reference].stoppedDetails = undefined;
-				this.threads[reference].stopped = false;
+			if (this.threads.has(reference)) {
+				const thread = this.threads.get(reference);
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
 
 				if (removeThreads) {
-					delete this.threads[reference];
+					this.threads.delete(reference);
 				}
 			}
 		} else {
-			Object.keys(this.threads).forEach(ref => {
-				this.threads[ref].clearCallStack();
-				this.threads[ref].stoppedDetails = undefined;
-				this.threads[ref].stopped = false;
+			this.threads.forEach(thread => {
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
 			});
 
 			if (removeThreads) {
-				this.threads = {};
-				ExpressionContainer.allValues = {};
+				this.threads.clear();
+				ExpressionContainer.allValues.clear();
 			}
 		}
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
-		Object.keys(this.threads).forEach(key => {
-			if (this.threads[key].getCachedCallStack()) {
-				this.threads[key].getCachedCallStack().forEach(stackFrame => {
-					if (stackFrame.source.uri.toString() === uri.toString()) {
-						stackFrame.source.available = false;
-					}
-				});
-			}
+	public deemphasizeSource(uri: uri): void {
+		this.threads.forEach(thread => {
+			thread.getCallStack().forEach(stackFrame => {
+				if (stackFrame.source.uri.toString() === uri.toString()) {
+					stackFrame.source.deemphasize = true;
+				}
+			});
 		});
 	}
 
@@ -910,8 +929,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
-		this.processes.forEach(p => p.sourceIsUnavailable(uri));
+	public deemphasizeSource(uri: uri): void {
+		this.processes.forEach(p => p.deemphasizeSource(uri));
 		this._onDidChangeCallStack.fire();
 	}
 

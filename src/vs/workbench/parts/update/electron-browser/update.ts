@@ -119,13 +119,12 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 export abstract class AbstractShowReleaseNotesAction extends Action {
 
 	constructor(
-		id,
-		label,
+		id: string,
+		label: string,
 		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, null, true);
 	}
@@ -138,7 +137,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return this.instantiationService.invokeFunction(loadReleaseNotes, this.version)
-			.then(text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text)))
+			.then(text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text), { pinned: true }))
 			.then(() => true)
 			.then(null, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
@@ -153,10 +152,9 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 		returnValue: boolean,
 		version: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService, openerService);
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService);
 	}
 }
 
@@ -169,10 +167,9 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 		id = ShowCurrentReleaseNotesAction.ID,
 		label = ShowCurrentReleaseNotesAction.LABEL,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, true, pkg.version, editorService, instantiationService, openerService);
+		super(id, label, true, pkg.version, editorService, instantiationService);
 	}
 }
 
@@ -210,7 +207,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			instantiationService.invokeFunction(loadReleaseNotes, pkg.version)
 				.then(
-				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text)),
+				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
 				() => {
 					messageService.show(Severity.Info, {
 						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),

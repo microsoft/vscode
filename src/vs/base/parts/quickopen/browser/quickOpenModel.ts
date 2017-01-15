@@ -689,15 +689,15 @@ export class QuickOpenModel implements
 		return this._entries;
 	}
 
-	getId(entry: QuickOpenEntry): string {
+	public getId(entry: QuickOpenEntry): string {
 		return entry.getId();
 	}
 
-	getLabel(entry: QuickOpenEntry): string {
+	public getLabel(entry: QuickOpenEntry): string {
 		return entry.getLabel();
 	}
 
-	getAriaLabel(entry: QuickOpenEntry): string {
+	public getAriaLabel(entry: QuickOpenEntry): string {
 		const ariaLabel = entry.getAriaLabel();
 		if (ariaLabel) {
 			return nls.localize('quickOpenAriaLabelEntry', "{0}, picker", entry.getAriaLabel());
@@ -706,11 +706,11 @@ export class QuickOpenModel implements
 		return nls.localize('quickOpenAriaLabel', "picker");
 	}
 
-	isVisible(entry: QuickOpenEntry): boolean {
+	public isVisible(entry: QuickOpenEntry): boolean {
 		return !entry.isHidden();
 	}
 
-	run(entry: QuickOpenEntry, mode: Mode, context: IContext): boolean {
+	public run(entry: QuickOpenEntry, mode: Mode, context: IContext): boolean {
 		return entry.run(mode, context);
 	}
 }

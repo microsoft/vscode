@@ -17,9 +17,9 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
-import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent } from 'vs/editor/browser/editorDom';
+import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent, createEditorPagePosition, ClientCoordinates } from 'vs/editor/browser/editorDom';
 import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EditorZoom } from 'vs/editor/common/config/commonEditorConfig';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
 /**
@@ -204,9 +204,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 
 	// --- begin event handlers
-	_layoutInfo: editorCommon.EditorLayoutInfo;
 	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._layoutInfo = layoutInfo;
 		return false;
 	}
 	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
@@ -224,13 +222,26 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 	// --- end event handlers
 
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+		let clientPos = new ClientCoordinates(clientX, clientY);
+		let pos = clientPos.toPageCoordinates();
+		let editorPos = createEditorPagePosition(this.viewHelper.viewDomNode);
+
+		if (pos.y < editorPos.y || pos.y > editorPos.y + editorPos.height || pos.x < editorPos.x || pos.x > editorPos.x + editorPos.width) {
+			return null;
+		}
+
+		let lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
+		return this.mouseTargetFactory.createMouseTarget(lastViewCursorsRenderData, editorPos, pos, null);
+	}
+
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): editorBrowser.IMouseTarget {
 		let lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
-		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, lastViewCursorsRenderData, e, testEventTarget);
+		return this.mouseTargetFactory.createMouseTarget(lastViewCursorsRenderData, e.editorPos, e.pos, testEventTarget ? e.target : null);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
-		return this.mouseTargetFactory.getMouseColumn(this._layoutInfo, e);
+		return this.mouseTargetFactory.getMouseColumn(e.editorPos, e.pos);
 	}
 
 	protected _onContextMenu(e: EditorMouseEvent, testEventTarget: boolean): void {
@@ -453,23 +464,23 @@ class MouseDownOperation extends Disposable {
 
 		let mouseColumn = this._getMouseColumn(e);
 
-		if (e.posy < editorContent.top) {
-			let aboveLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(Math.max(this._viewHelper.getScrollTop() - (editorContent.top - e.posy), 0));
+		if (e.posy < editorContent.y) {
+			let aboveLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(Math.max(this._viewHelper.getScrollTop() - (editorContent.y - e.posy), 0));
 			return new MousePosition(new Position(aboveLineNumber, 1), mouseColumn);
 		}
 
-		if (e.posy > editorContent.top + editorContent.height) {
-			let belowLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.top));
+		if (e.posy > editorContent.y + editorContent.height) {
+			let belowLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.y));
 			return new MousePosition(new Position(belowLineNumber, this._context.model.getLineMaxColumn(belowLineNumber)), mouseColumn);
 		}
 
-		let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.top));
+		let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.y));
 
-		if (e.posx < editorContent.left) {
+		if (e.posx < editorContent.x) {
 			return new MousePosition(new Position(possibleLineNumber, 1), mouseColumn);
 		}
 
-		if (e.posx > editorContent.left + editorContent.width) {
+		if (e.posx > editorContent.x + editorContent.width) {
 			return new MousePosition(new Position(possibleLineNumber, this._context.model.getLineMaxColumn(possibleLineNumber)), mouseColumn);
 		}
 

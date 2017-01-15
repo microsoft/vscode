@@ -12,7 +12,7 @@ import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoi
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IThemeService, IThemeData, IThemeSetting, IThemeDocument, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/themeService';
-import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -103,6 +103,7 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 
 interface IInternalThemeData extends IThemeData {
 	styleSheetContent?: string;
+	document?: IThemeDocument;
 	extensionId: string;
 	extensionPublisher: string;
 	extensionName: string;
@@ -155,6 +156,7 @@ export class ThemeService implements IThemeService {
 
 	private knownColorThemes: IInternalThemeData[];
 	private currentColorTheme: string;
+	private currentColorThemeDocument: IThemeDocument;
 	private container: HTMLElement;
 	private onColorThemeChange: Emitter<string>;
 
@@ -168,6 +170,24 @@ export class ThemeService implements IThemeService {
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.knownColorThemes = [];
+
+		// In order to avoid paint flashing for tokens, because
+		// themes are loaded asynchronously, we need to initialize
+		// a color theme document with good defaults until the theme is loaded
+		let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
+		let foreground = isLightTheme ? '#000000' : '#D4D4D4';
+		let background = isLightTheme ? '#ffffff' : '#1E1E1E';
+		this.currentColorThemeDocument = {
+			name: null,
+			include: null,
+			settings: [{
+				settings: {
+					foreground: foreground,
+					background: background
+				}
+			}]
+		};
+
 		this.onColorThemeChange = new Emitter<string>();
 		this.knownIconThemes = [];
 		this.currentIconTheme = '';
@@ -258,6 +278,7 @@ export class ThemeService implements IThemeService {
 			} else {
 				this.sendTelemetry(newTheme);
 			}
+			this.currentColorThemeDocument = newTheme.document;
 			this.onColorThemeChange.fire(newThemeId);
 		};
 
@@ -266,6 +287,10 @@ export class ThemeService implements IThemeService {
 
 	public getColorTheme() {
 		return this.currentColorTheme || this.storageService.get(COLOR_THEME_PREF, StorageScope.GLOBAL, DEFAULT_THEME_ID);
+	}
+
+	public getColorThemeDocument(): IThemeDocument {
+		return this.currentColorThemeDocument;
 	}
 
 	private findThemeData(themeId: string, defaultId?: string): TPromise<IInternalThemeData> {
@@ -434,7 +459,7 @@ export class ThemeService implements IThemeService {
 
 	private _updateIconTheme(onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 		return this.getFileIconThemes().then(allIconSets => {
-			let iconSetData;
+			let iconSetData: IInternalThemeData;
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === this.currentIconTheme) {
 					iconSetData = <IInternalThemeData>iconSet;
@@ -481,6 +506,10 @@ function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument
 }
 
 function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument): string {
+
+	let hasFolderIcons = false;
+	let hasIconAssociations = false;
+
 	if (!iconThemeDocument.iconDefinitions) {
 		return '';
 	}
@@ -498,6 +527,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 					list = selectorByDefinitionId[defId] = [];
 				}
 				list.push(selector);
+				hasIconAssociations = true;
 			}
 		}
 		if (associations) {
@@ -512,18 +542,25 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			addSelector(`${qualifier} ${expanded} .folder-icon::before`, associations.folderExpanded);
 			addSelector(`${qualifier} .file-icon::before`, associations.file);
 
+			if (associations.folder || associations.folderExpanded) {
+				hasFolderIcons = true;
+			}
+
 			let folderNames = associations.folderNames;
 			if (folderNames) {
 				for (let folderName in folderNames) {
 					addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+					hasFolderIcons = true;
 				}
 			}
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
 					addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
+					hasFolderIcons = true;
 				}
 			}
+
 			let languageIds = associations.languageIds;
 			if (languageIds) {
 				for (let languageId in languageIds) {
@@ -533,7 +570,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let fileExtensions = associations.fileExtensions;
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
-					let selectors = [];
+					let selectors: string[] = [];
 					let segments = fileExtension.toLowerCase().split('.');
 					for (let i = 0; i < segments.length; i++) {
 						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
@@ -544,11 +581,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let fileNames = associations.fileNames;
 			if (fileNames) {
 				for (let fileName in fileNames) {
-					let selectors = [];
-					let segments = fileName.toLowerCase().split('.');
-					if (segments[0]) {
-						selectors.push(`.${escapeCSS(segments[0])}-name-file-icon`);
-					}
+					let selectors: string[] = [];
+					fileName = fileName.toLowerCase();
+					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
+					let segments = fileName.split('.');
 					for (let i = 1; i < segments.length; i++) {
 						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 					}
@@ -561,7 +597,16 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 	collectSelectors(iconThemeDocument.light, '.vs');
 	collectSelectors(iconThemeDocument.highContrast, '.hc-black');
 
+	if (!hasIconAssociations) {
+		return '';
+	}
+
 	let cssRules: string[] = [];
+
+	if (!hasFolderIcons) {
+		// as we only show file icons, unindent rows representing files
+		cssRules.push(`.explorer-folders-view .monaco-tree-row::before { display: none; }`);
+	}
 
 	let fonts = iconThemeDocument.fonts;
 	if (Array.isArray(fonts)) {
@@ -620,6 +665,7 @@ function applyTheme(theme: IInternalThemeData, onApply: (theme: IInternalThemeDa
 		return TPromise.as(true);
 	}
 	return _loadThemeDocument(theme.path).then(themeDocument => {
+		theme.document = themeDocument;
 		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent, colorThemeRulesClassName);
@@ -659,7 +705,6 @@ function _processThemeObject(themeId: string, themeDocument: IThemeDocument): st
 	let themeSettings: IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
-		new TokenStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new EditorStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new SearchViewStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new TerminalStylesContribution().contributeStyles(themeId, themeDocument, cssRules);

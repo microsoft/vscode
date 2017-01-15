@@ -121,8 +121,8 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var endLineNumber = this._selection.endLineNumber;
 		var endColumn = this._selection.endColumn;
 
-		let modeId = model.getModeIdAtPosition(startLineNumber, startColumn);
-		let config = LanguageConfigurationRegistry.getComments(modeId);
+		let languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
+		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;

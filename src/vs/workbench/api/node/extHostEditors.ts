@@ -30,7 +30,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	public onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent>;
 	private _onDidChangeTextEditorViewColumn: Emitter<vscode.TextEditorViewColumnChangeEvent>;
 
-	private _editors: { [id: string]: ExtHostTextEditor };
+	private _editors: Map<string, ExtHostTextEditor>;
 	private _proxy: MainThreadEditorsShape;
 	private _onDidChangeActiveTextEditor: Emitter<vscode.TextEditor>;
 	private _onDidChangeVisibleTextEditors: Emitter<vscode.TextEditor[]>;
@@ -56,17 +56,17 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		this._proxy = threadService.get(MainContext.MainThreadEditors);
 		this._onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor>();
 		this._onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
-		this._editors = Object.create(null);
+		this._editors = new Map<string, ExtHostTextEditor>();
 
 		this._visibleEditorIds = [];
 	}
 
 	getActiveTextEditor(): vscode.TextEditor {
-		return this._editors[this._activeEditorId];
+		return this._editors.get(this._activeEditorId);
 	}
 
 	getVisibleTextEditors(): vscode.TextEditor[] {
-		return this._visibleEditorIds.map(id => this._editors[id]);
+		return this._visibleEditorIds.map(id => this._editors.get(id));
 	}
 
 	get onDidChangeActiveTextEditor(): Event<vscode.TextEditor> {
@@ -79,7 +79,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 
 	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
 		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
-			let editor = this._editors[id];
+			let editor = this._editors.get(id);
 			if (editor) {
 				return editor;
 			} else {
@@ -97,11 +97,11 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	$acceptTextEditorAdd(data: ITextEditorAddData): void {
 		let document = this._extHostDocuments.getDocumentData(data.document);
 		let newEditor = new ExtHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options, TypeConverters.toViewColumn(data.editorPosition));
-		this._editors[data.id] = newEditor;
+		this._editors.set(data.id, newEditor);
 	}
 
 	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void {
-		let editor = this._editors[id];
+		let editor = this._editors.get(id);
 		editor._acceptOptions(opts);
 		this._onDidChangeTextEditorOptions.fire({
 			textEditor: editor,
@@ -112,7 +112,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void {
 		const kind = TextEditorSelectionChangeKind.fromValue(event.source);
 		const selections = event.selections.map(TypeConverters.toSelection);
-		const textEditor = this._editors[id];
+		const textEditor = this._editors.get(id);
 		textEditor._acceptSelections(selections);
 		this._onDidChangeTextEditorSelection.fire({
 			textEditor,
@@ -145,7 +145,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 
 	$acceptEditorPositionData(data: ITextEditorPositionData): void {
 		for (let id in data) {
-			let textEditor = this._editors[id];
+			let textEditor = this._editors.get(id);
 			let viewColumn = TypeConverters.toViewColumn(data[id]);
 			if (textEditor.viewColumn !== viewColumn) {
 				textEditor._acceptViewColumn(viewColumn);
@@ -165,9 +165,9 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 			this.$acceptActiveEditorAndVisibleEditors(this._activeEditorId, newVisibleEditors);
 		}
 
-		let editor = this._editors[id];
+		let editor = this._editors.get(id);
 		editor.dispose();
-		delete this._editors[id];
+		this._editors.delete(id);
 	}
 }
 

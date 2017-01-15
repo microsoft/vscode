@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Arrays } from 'vs/editor/common/core/arrays';
-
 /**
  * A token on a line.
  */
@@ -17,7 +15,7 @@ export class ViewLineToken {
 
 	constructor(startIndex: number, type: string) {
 		this.startIndex = startIndex | 0;// @perf
-		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
+		this.type = type;
 	}
 
 	public equals(other: ViewLineToken): boolean {
@@ -25,10 +23,6 @@ export class ViewLineToken {
 			this.startIndex === other.startIndex
 			&& this.type === other.type
 		);
-	}
-
-	public static findIndexInSegmentsArray(arr: ViewLineToken[], desiredIndex: number): number {
-		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
 	}
 
 	public static equalsArray(a: ViewLineToken[], b: ViewLineToken[]): boolean {
@@ -77,9 +71,5 @@ export class ViewLineTokens {
 			&& this._textLength === other._textLength
 			&& ViewLineToken.equalsArray(this._lineTokens, other._lineTokens)
 		);
-	}
-
-	public findIndexOfOffset(offset: number): number {
-		return ViewLineToken.findIndexInSegmentsArray(this._lineTokens, offset);
 	}
 }

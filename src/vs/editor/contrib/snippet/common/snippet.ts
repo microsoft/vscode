@@ -122,15 +122,15 @@ export class CodeSnippet implements ICodeSnippet {
 
 			for (let {startLineNumber, startColumn, endLineNumber, endColumn} of originalPlaceHolder.occurences) {
 
-				if (startColumn > 1) {
-					// placeholders that aren't at the beginning of the snippet line
+				if (startColumn > 1 || startLineNumber === 1) {
+					// placeholders that aren't at the beginning of new snippet lines
 					// will be moved by how many characters the indentation has been
 					// adjusted
 					startColumn = startColumn + deltaColumns[startLineNumber];
 					endColumn = endColumn + deltaColumns[endLineNumber];
 
 				} else {
-					// placeholders at the beginning of the snippet line
+					// placeholders at the beginning of new snippet lines
 					// will be indented by the reference indentation
 					startColumn += referenceIndentation.length;
 					endColumn += referenceIndentation.length;
@@ -140,7 +140,7 @@ export class CodeSnippet implements ICodeSnippet {
 					startLineNumber: startLineNumber + deltaLine,
 					startColumn,
 					endLineNumber: endLineNumber + deltaLine,
-					endColumn
+					endColumn,
 				});
 			}
 
@@ -198,7 +198,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 
 		for (i = 0, len = templateLines.length; i < len; i++) {
 			var parsedLine = this.parseLine(templateLines[i], (id: string) => {
-				if (collections.contains(placeHoldersMap, id)) {
+				if (placeHoldersMap[id]) {
 					return placeHoldersMap[id].value;
 				}
 				return '';
@@ -208,7 +208,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 				var occurence = new Range(i + 1, linePlaceHolder.startColumn, i + 1, linePlaceHolder.endColumn);
 				var placeHolder: IPlaceHolder;
 
-				if (collections.contains(placeHoldersMap, linePlaceHolder.id)) {
+				if (placeHoldersMap[linePlaceHolder.id]) {
 					placeHolder = placeHoldersMap[linePlaceHolder.id];
 				} else {
 					placeHolder = {

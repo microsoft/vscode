@@ -19,15 +19,16 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
+/** The amount of time to consider terminal errors to be related to the launch */
+const LAUNCHING_DURATION = 500;
+
 export class TerminalInstance implements ITerminalInstance {
-	/** The amount of time to consider terminal errors to be related to the launch */
-	private static readonly LAUNCHING_DURATION = 500;
 	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
@@ -63,7 +64,7 @@ export class TerminalInstance implements ITerminalInstance {
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		name: string,
-		shell: IShell,
+		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
@@ -83,7 +84,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(this._contextService.getWorkspace(), name, shell);
+		this._createProcess(this._contextService.getWorkspace(), name, this._shellLaunchConfig);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -104,7 +105,9 @@ export class TerminalInstance implements ITerminalInstance {
 		DOM.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
-		this._xterm = xterm();
+		this._xterm = xterm({
+			scrollback: this._configHelper.getScrollback()
+		});
 		this._xterm.open(this._xtermElement);
 
 		this._process.on('message', (message) => {
@@ -123,6 +126,11 @@ export class TerminalInstance implements ITerminalInstance {
 			return false;
 		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
+			// Disable all input if the terminal is exiting
+			if (this._isExiting) {
+				return false;
+			}
+
 			// Skip processing by xterm.js of keyboard events that resolve to commands described
 			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
@@ -155,8 +163,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}, 0);
 		});
 
-		let xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
-		let focusTrap: HTMLElement = document.createElement('div');
+		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
+		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		DOM.addClass(focusTrap, 'focus-trap');
 		focusTrap.addEventListener('focus', function (event: FocusEvent) {
@@ -164,7 +172,7 @@ export class TerminalInstance implements ITerminalInstance {
 			while (!DOM.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement;
 			}
-			let hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
+			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
 			hidePanelElement.focus();
 		});
 		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
@@ -212,8 +220,6 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
-		this._isExiting = true;
-
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
 		}
@@ -239,7 +245,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		let text = window.getSelection().toString();
+		const text = window.getSelection().toString();
 		if (!text || force) {
 			this._xterm.focus();
 		}
@@ -305,11 +311,15 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	protected _getCwd(workspace: IWorkspace, ignoreCustomCwd: boolean): string {
-		let cwd;
+	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
+		if (shell.cwd) {
+			return shell.cwd;
+		}
+
+		let cwd: string;
 
 		// TODO: Handle non-existent customCwd
-		if (!ignoreCustomCwd) {
+		if (!shell.ignoreConfigurationCwd) {
 			// Evaluate custom cwd first
 			const customCwd = this._configHelper.getCwd();
 			if (customCwd) {
@@ -329,12 +339,12 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
-		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig) {
+		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
-			shell = this._configHelper.getShell();
+			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		let env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(workspace, shell.ignoreCustomCwd), locale);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale);
 		this._title = name ? name : '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -355,29 +365,63 @@ export class TerminalInstance implements ITerminalInstance {
 				this._onProcessIdReady.fire(this);
 			}
 		});
-		this._process.on('exit', (exitCode) => {
-			// Prevent dispose functions being triggered multiple times
-			if (!this._isExiting) {
-				this.dispose();
-				if (exitCode) {
-					if (this._isLaunching) {
-						const args = shell.args && shell.args.length ? ' ' + shell.args.map(a => a.indexOf(' ') !== -1 ? `'${a}'` : a).join(' ') : '';
-						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', shell.executable, args, exitCode));
-					} else {
-						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
-					}
-				}
-			}
-		});
+		this._process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 		setTimeout(() => {
 			this._isLaunching = false;
-		}, TerminalInstance.LAUNCHING_DURATION);
+		}, LAUNCHING_DURATION);
+	}
+
+	private _onPtyProcessExit(exitCode: number): void {
+		// Prevent dispose functions being triggered multiple times
+		if (this._isExiting) {
+			return;
+		}
+
+		this._isExiting = true;
+		let exitCodeMessage: string;
+		if (exitCode) {
+			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+		}
+
+		// Only trigger wait on exit when the exit was triggered by the process, not through the
+		// `workbench.action.terminal.kill` command
+		const triggeredByProcess = exitCode !== null;
+
+		if (triggeredByProcess && this._shellLaunchConfig.waitOnExit) {
+			if (exitCode) {
+				this._xterm.writeln(exitCodeMessage);
+			}
+			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
+			// Disable all input if the terminal is exiting and listen for next keypress
+			this._xterm.setOption('disableStdin', true);
+			(<HTMLElement>this._xterm.textarea).addEventListener('keypress', (data) => {
+				this.dispose();
+			});
+		} else {
+			this.dispose();
+			if (exitCode) {
+				if (this._isLaunching) {
+					let args = '';
+					if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+						args = ' ' + this._shellLaunchConfig.args.map(a => {
+							if (a.indexOf(' ') !== -1) {
+								return `'${a}'`;
+							}
+							return a;
+						}).join(' ');
+					}
+					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+				} else {
+					this._messageService.show(Severity.Error, exitCodeMessage);
+				}
+			}
+		}
 	}
 
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, cwd: string, locale?: string): IStringDictionary<string> {
-		let env = TerminalInstance._cloneEnv(parentEnv);
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string): IStringDictionary<string> {
+		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {
@@ -392,6 +436,18 @@ export class TerminalInstance implements ITerminalInstance {
 		return env;
 	}
 
+	public onData(listener: (data: string) => void): void {
+		this._process.on('message', (message) => {
+			if (message.type === 'data') {
+				listener(message.content);
+			}
+		});
+	}
+
+	public onExit(listener: (exitCode: number) => void): void {
+		this._process.on('exit', listener);
+	}
+
 	private static _sanitizeCwd(cwd: string) {
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
@@ -401,7 +457,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private static _cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
-		let newEnv: IStringDictionary<string> = Object.create(null);
+		const newEnv: IStringDictionary<string> = Object.create(null);
 		Object.keys(env).forEach((key) => {
 			newEnv[key] = env[key];
 		});
@@ -436,12 +492,13 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
+			console.log('set scrollback to: ' + lineCount);
 			this._xterm.setOption('scrollback', lineCount);
 		}
 	}
 
 	public layout(dimension: { width: number, height: number }): void {
-		let font = this._configHelper.getFont();
+		const font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;
 		}
@@ -454,10 +511,12 @@ export class TerminalInstance implements ITerminalInstance {
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			this._xterm.emit('scroll', this._xterm.ydisp);
 		}
-		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
-		let innerWidth = dimension.width - leftPadding;
-		let cols = Math.floor(innerWidth / font.charWidth);
-		let rows = Math.floor(dimension.height / font.charHeight);
+		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		// Use left padding as right padding, right padding is not defined in CSS just in case
+		// xterm.js causes an unexpected overflow.
+		const innerWidth = dimension.width - padding * 2;
+		const cols = Math.floor(innerWidth / font.charWidth);
+		const rows = Math.floor(dimension.height / font.charHeight);
 		if (this._xterm) {
 			this._xterm.resize(cols, rows);
 			this._xterm.element.style.width = innerWidth + 'px';

@@ -10,6 +10,7 @@ import { IConfigurationService, getConfigurationValue } from 'vs/platform/config
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 
 
@@ -156,6 +157,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 	test('TerminalConfigHelper - getShell', function () {
 		let configurationService: IConfigurationService;
 		let configHelper: TerminalConfigHelper;
+		let shellConfig: IShellLaunchConfig;
 
 		configurationService = new MockConfigurationService({
 			terminal: {
@@ -171,7 +173,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getShell().executable, 'foo', 'terminal.integrated.shell.linux should be selected on Linux');
+		shellConfig = { executable: null, args: [] };
+		configHelper.mergeDefaultShellPathAndArgs(shellConfig);
+		assert.equal(shellConfig.executable, 'foo', 'terminal.integrated.shell.linux should be selected on Linux');
 
 		configurationService = new MockConfigurationService({
 			terminal: {
@@ -187,7 +191,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Mac, configurationService);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getShell().executable, 'foo', 'terminal.integrated.shell.osx should be selected on OS X');
+		shellConfig = { executable: null, args: [] };
+		configHelper.mergeDefaultShellPathAndArgs(shellConfig);
+		assert.equal(shellConfig.executable, 'foo', 'terminal.integrated.shell.osx should be selected on OS X');
 
 		configurationService = new MockConfigurationService({
 			terminal: {
@@ -203,7 +209,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Windows, configurationService);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getShell().executable, 'foo', 'terminal.integrated.shell.windows should be selected on Windows');
+		shellConfig = { executable: null, args: [] };
+		configHelper.mergeDefaultShellPathAndArgs(shellConfig);
+		assert.equal(shellConfig.executable, 'foo', 'terminal.integrated.shell.windows should be selected on Windows');
 	});
 
 	test('TerminalConfigHelper - getTheme', function () {

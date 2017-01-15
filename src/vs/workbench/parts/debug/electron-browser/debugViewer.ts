@@ -49,6 +49,11 @@ export interface IRenderValueOptions {
 	showHover?: boolean;
 }
 
+function replaceWhitespace(value: string): string {
+	const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	return value.replace(/[\n\r\t]/g, char => map[char]);
+}
+
 export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
@@ -77,8 +82,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
-		const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
-		container.textContent = value.replace(/[\n\r\t]/g, char => map[char]);
+		container.textContent = replaceWhitespace(value);
 	} else {
 		container.textContent = value;
 	}
@@ -89,7 +93,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 
 export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = variable.name;
+		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : '';
 	}
 
@@ -172,7 +176,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 }
 
 function getSourceName(source: Source, contextService: IWorkspaceContextService): string {
-	if (source.inMemory) {
+	if (source.name) {
 		return source.name;
 	}
 
@@ -309,15 +313,7 @@ export class CallStackController extends BaseDebugController {
 	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			return this.editorService.openEditor({
-				resource: stackFrame.source.uri,
-				options: {
-					preserveFocus,
-					selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
-					revealIfVisible: true,
-					revealInCenterIfOutsideViewport: true
-				},
-			}, sideBySide);
+			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
 		}, errors.onUnexpectedError);
 	}
 }
@@ -562,8 +558,11 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		stackFrame.source.available ? dom.removeClass(data.stackFrame, 'disabled') : dom.addClass(data.stackFrame, 'disabled');
-		data.file.title = stackFrame.source.uri.fsPath;
+		stackFrame.source.deemphasize ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
+		if (stackFrame.source.raw.origin) {
+			data.file.title += `\n${stackFrame.source.raw.origin}`;
+		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);

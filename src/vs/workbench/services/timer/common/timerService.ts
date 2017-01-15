@@ -19,6 +19,7 @@ export interface IStartupMetrics {
 	version: number;
 	ellapsed: number;
 	timers: {
+		ellapsedAppReady?: number;
 		ellapsedWindowLoad?: number;
 		ellapsedWindowLoadToRequire: number;
 		ellapsedExtensions: number;
@@ -43,6 +44,8 @@ export interface IStartupMetrics {
 
 export interface IInitData {
 	start: Date;
+
+	appReady: Date;
 
 	windowLoad: Date;
 

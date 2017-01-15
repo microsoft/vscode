@@ -70,23 +70,21 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 }
 
 function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICommonCodeEditor {
+	let candidate: ICommonCodeEditor = null;
+
 	if (model.isAttachedToEditor()) {
-		const allEditors = codeEditorService.listCodeEditors();
-		for (let i = 0, len = allEditors.length; i < len; i++) {
-			const editor = allEditors[i];
-			const editorModel = editor.getModel();
+		for (const editor of codeEditorService.listCodeEditors()) {
+			if (editor.getModel() === model) {
+				if (editor.isFocused()) {
+					return editor; // favour focussed editor if there are multiple
+				}
 
-			if (!editorModel) {
-				continue; // empty editor
-			}
-
-			if (model === editorModel) {
-				return editor;
+				candidate = editor;
 			}
 		}
 	}
 
-	return null;
+	return candidate;
 }
 
 export class FinalNewLineParticipant implements INamedSaveParticpant {
@@ -158,7 +156,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 		}).then(edits => {
 			if (edits && versionNow === model.getVersionId()) {
-				const editor = this._findEditor(model);
+				const editor = findEditor(model, this._editorService);
 				if (editor) {
 					this._editsWithEditor(editor, edits);
 				} else {
@@ -193,24 +191,6 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 			identifier: undefined,
 			forceMoveMarkers: true
 		};
-	}
-
-	private _findEditor(model: IModel) {
-		if (!model.isAttachedToEditor()) {
-			return;
-		}
-
-		let candidate: ICommonCodeEditor;
-		for (const editor of this._editorService.listCodeEditors()) {
-			if (editor.getModel() === model) {
-				if (editor.isFocused()) {
-					return editor;
-				} else {
-					candidate = editor;
-				}
-			}
-		}
-		return candidate;
 	}
 }
 

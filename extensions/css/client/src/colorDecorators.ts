@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, TextEditor } from 'vscode';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -63,31 +63,36 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 		if (triggerUpdate) {
 			pendingUpdateRequests[documentUriStr] = setTimeout(() => {
 				// check if the document is in use by an active editor
-				window.visibleTextEditors.forEach(editor => {
+				for (let editor of window.visibleTextEditors) {
 					if (editor.document && documentUriStr === editor.document.uri.toString()) {
-						updateDecorationForEditor(editor, documentUriStr);
+						updateDecorationForEditor(documentUriStr, editor.document.version);
+						break;
 					}
-				});
+				}
 				delete pendingUpdateRequests[documentUriStr];
 			}, 500);
 		}
 	}
 
-	function updateDecorationForEditor(editor: TextEditor, contentUri: string) {
-		let document = editor.document;
+	function updateDecorationForEditor(contentUri: string, documentVersion: number) {
 		decoratorProvider(contentUri).then(ranges => {
-			let decorations = ranges.slice(0, MAX_DECORATORS).map(range => {
-				let color = document.getText(range);
-				return <DecorationOptions>{
-					range: range,
-					renderOptions: {
-						before: {
-							backgroundColor: color
-						}
-					}
-				};
-			});
-			editor.setDecorations(colorsDecorationType, decorations);
+			for (let editor of window.visibleTextEditors) {
+				let document = editor.document;
+				if (document && document.version === documentVersion && contentUri === document.uri.toString()) {
+					let decorations = ranges.slice(0, MAX_DECORATORS).map(range => {
+						let color = document.getText(range);
+						return <DecorationOptions>{
+							range: range,
+							renderOptions: {
+								before: {
+									backgroundColor: color
+								}
+							}
+						};
+					});
+					editor.setDecorations(colorsDecorationType, decorations);
+				}
+			}
 		});
 	}
 

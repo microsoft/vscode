@@ -58,7 +58,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			'panel',
 			'panel',
 			Scope.PANEL,
-			id
+			id,
+			{ hasTitle: true }
 		);
 	}
 
@@ -80,16 +81,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		// First check if panel is hidden and show if so
+		let promise = TPromise.as(null);
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;
-				this.partService.setPanelHidden(false);
+				promise = this.partService.setPanelHidden(false);
 			} finally {
 				this.blockOpeningPanel = false;
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return promise.then(() => this.openComposite(id, focus));
 	}
 
 	protected getActions(): IAction[] {
@@ -122,9 +124,8 @@ class ClosePanelAction extends Action {
 		super(id, name, 'hide-panel-action');
 	}
 
-	public run(): TPromise<boolean> {
-		this.partService.setPanelHidden(true);
-		return TPromise.as(true);
+	public run(): TPromise<any> {
+		return this.partService.setPanelHidden(true);
 	}
 }
 
@@ -140,9 +141,8 @@ export class TogglePanelAction extends ActivityAction {
 		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	public run(): TPromise<boolean> {
-		this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
-		return TPromise.as(true);
+	public run(): TPromise<any> {
+		return this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
 	}
 }
 
@@ -160,21 +160,18 @@ class FocusPanelAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): TPromise<any> {
 
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			this.partService.setPanelHidden(false);
+			return this.partService.setPanelHidden(false);
 		}
 
 		// Focus into active panel
-		else {
-			let panel = this.panelService.getActivePanel();
-			if (panel) {
-				panel.focus();
-			}
+		let panel = this.panelService.getActivePanel();
+		if (panel) {
+			panel.focus();
 		}
-
 		return TPromise.as(true);
 	}
 }
@@ -192,16 +189,14 @@ class ToggleMaximizedPanelAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): TPromise<any> {
 		// Show panel
-		this.partService.setPanelHidden(false);
-		this.partService.toggleMaximizedPanel();
-
-		return TPromise.as(true);
+		return this.partService.setPanelHidden(false)
+			.then(() => this.partService.toggleMaximizedPanel());
 	}
 }
 
-let actionRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchExtensions.WorkbenchActions);
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel Visibility', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL), 'View: Toggle Maximized Panel', nls.localize('view', "View"));

@@ -156,7 +156,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 	private update(): void {
 		const state = this.debugService.state;
-		if (state === debug.State.Disabled || state === debug.State.Inactive) {
+		if (state === debug.State.Inactive) {
 			return this.hide();
 		}
 

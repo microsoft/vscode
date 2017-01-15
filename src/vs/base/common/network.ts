@@ -12,23 +12,23 @@ export namespace Schemas {
 	 * A schema that is used for models that exist in memory
 	 * only and that have no correspondence on a server or such.
 	 */
-	export var inMemory: string = 'inmemory';
+	export const inMemory: string = 'inmemory';
 
 	/**
 	 * A schema that is used for setting files
 	 */
-	export var vscode: string = 'vscode';
+	export const vscode: string = 'vscode';
 
 	/**
 	 * A schema that is used for internal private files
 	 */
-	export var internal: string = 'private';
+	export const internal: string = 'private';
 
-	export var http: string = 'http';
+	export const http: string = 'http';
 
-	export var https: string = 'https';
+	export const https: string = 'https';
 
-	export var file: string = 'file';
+	export const file: string = 'file';
 }
 
 export interface IXHROptions {

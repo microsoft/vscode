@@ -14,7 +14,7 @@
 		"semver": "4.3.6",
 		"vscode-extension-telemetry": "^0.0.5",
 		"vscode-nls": "^2.0.1",
-		"typescript": "2.1.5-insiders.20161220"
+		"typescript": "2.1.5"
 	},
 	"devDependencies": {
 		"@types/semver": "^5.3.30"
@@ -29,6 +29,7 @@
 		"onLanguage:javascriptreact",
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
+		"onLanguage:jsx-tags",
 		"onCommand:typescript.reloadProjects",
 		"onCommand:javascript.reloadProjects"
 	],
@@ -68,7 +69,11 @@
 			{
 				"language": "typescriptreact",
 				"scopeName": "source.tsx",
-				"path": "./syntaxes/TypeScriptReact.tmLanguage.json"
+				"path": "./syntaxes/TypeScriptReact.tmLanguage.json",
+				"embeddedLanguages": {
+					"meta.tag.tsx": "jsx-tags",
+					"meta.tag.without-attributes.tsx": "jsx-tags"
+				}
 			}
 		],
 		"configuration": {
@@ -98,6 +103,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.check.tscVersion%"
+				},
+				"typescript.referencesCodeLens.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "%typescript.referencesCodeLens.enabled%"
 				},
 				"typescript.tsserver.trace": {
 					"type": "string",
@@ -245,11 +255,6 @@
 					"description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
 				}
 			}
-		},
-		"keybindings": {
-			"key": ".",
-			"command": "^acceptSelectedSuggestion",
-			"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'typescript' && suggestionSupportsAcceptOnKey"
 		},
 		"commands": [
 			{

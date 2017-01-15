@@ -30,6 +30,7 @@ const options: minimist.Opts = {
 		'diff',
 		'goto',
 		'new-window',
+		'new-window-if-not-first',
 		'reuse-window',
 		'performance',
 		'verbose',
@@ -148,7 +149,7 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 }
 
 function wrapText(text: string, columns: number): string[] {
-	let lines = [];
+	let lines: string[] = [];
 	while (text.length) {
 		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
 		let line = text.slice(0, index).trim();
