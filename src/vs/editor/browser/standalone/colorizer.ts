@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { render2, RenderLineInput2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
@@ -95,7 +95,7 @@ export class Colorizer {
 	}
 
 	public static colorizeLine(line: string, tokens: ViewLineToken[], tabSize: number = 4): string {
-		let renderResult = render2(new RenderLineInput2(
+		let renderResult = renderViewLine(new RenderLineInput(
 			line,
 			new ViewLineTokens(tokens, 0, line.length),
 			[],
@@ -126,7 +126,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
 
-		let renderResult = render2(new RenderLineInput2(
+		let renderResult = renderViewLine(new RenderLineInput(
 			line,
 			new ViewLineTokens([], 0, line.length),
 			[],
@@ -153,7 +153,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		let line = lines[i];
 		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
 		let lineTokens = new LineTokens(colorMap, tokenizeResult.tokens, line);
-		let renderResult = render2(new RenderLineInput2(
+		let renderResult = renderViewLine(new RenderLineInput(
 			line,
 			new ViewLineTokens(lineTokens.inflate(), 0, line.length),
 			[],

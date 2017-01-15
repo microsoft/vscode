@@ -4,11 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+export class ViewLineToken2 {
+	_viewLineTokenBrand: void;
+
+	/**
+	 * last char index of this token (not inclusive).
+	 */
+	public readonly endIndex: number;
+	public readonly type: string;
+
+	constructor(endIndex: number, type: string) {
+		this.endIndex = endIndex;
+		this.type = type;
+	}
+}
+
 /**
  * A token on a line.
  */
 export class ViewLineToken {
-	_viewLineTokenBrand: void;
+	_oldViewLineTokenBrand: void;
 
 	public readonly startIndex: number;
 	public readonly type: string;
