@@ -55,10 +55,13 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-position-left:not(.no-close-button) {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-position-left {
 	flex-direction: row-reverse;
-	padding-left: 0;
 	padding-right: 10px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-position-left:not(.no-close-button) {
+	padding-left: 0;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
@@ -223,10 +226,19 @@
 	padding-right: 28px; /* make room for dirty indication when we are running without close button */
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.close-position-left {
+	padding-left: 28px;
+	padding-right: 10px;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
 	background-repeat: no-repeat;
 	background-position-y: center;
 	background-position-x: calc(100% - 6px); /* to the right of the tab label */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.close-position-left.dirty {
+	background-position-x: 6px;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
