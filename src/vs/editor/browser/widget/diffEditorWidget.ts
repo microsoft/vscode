@@ -20,7 +20,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
-import { render2, RenderLineInput2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
@@ -1888,7 +1888,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
-		let r = render2(new RenderLineInput2(
+		let r = renderViewLine(new RenderLineInput(
 			lineContent,
 			lineTokens,
 			actualDecorations,

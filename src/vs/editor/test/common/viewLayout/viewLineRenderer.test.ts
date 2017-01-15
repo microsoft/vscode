@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { render2, RenderLineInput2, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -16,7 +16,7 @@ suite('viewLineRenderer.renderLine', () => {
 	}
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[][]): void {
-		let _actual = render2(new RenderLineInput2(
+		let _actual = renderViewLine(new RenderLineInput(
 			lineContent,
 			new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length),
 			[],
@@ -59,7 +59,7 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[][]): void {
-		let _actual = render2(new RenderLineInput2(
+		let _actual = renderViewLine(new RenderLineInput(
 			lineContent,
 			new ViewLineTokens(parts, 0, lineContent.length),
 			[],
@@ -91,7 +91,7 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('overflow', () => {
-		let _actual = render2(new RenderLineInput2(
+		let _actual = renderViewLine(new RenderLineInput(
 			'Hello world!',
 			new ViewLineTokens([
 				createPart(0, '0'),
@@ -121,7 +121,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="2">l</span>',
 			'<span class="3">l</span>',
 			'<span class="4">o</span>',
-			'<span class="5">&nbsp;&hellip;</span>'
+			'<span class="5">&nbsp;</span>',
+			'<span class="">&hellip;</span>'
 		].join('');
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -131,7 +132,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[0],
 			[0],
 			[0],
-			[1],
+			[0, 1],
 		]);
 	});
 
@@ -152,8 +153,8 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(43, 'block body comment declaration line meta object ts'),
 		];
 		let expectedOutput = [
-			'<span class="block meta ts vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="block meta ts vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
+			'<span class="vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
 			'<span class="block declaration meta modifier object storage ts">export</span>',
 			'<span class="block declaration meta object ts">&nbsp;</span>',
 			'<span class="block declaration meta object storage type ts">class</span>',
@@ -164,8 +165,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="block body declaration meta object ts">&nbsp;</span>',
 			'<span class="block body comment declaration line meta object ts">//&nbsp;</span>',
 			'<span class="block body comment declaration line meta object ts detected-link">http://test.com</span>',
-			'<span class="block body comment declaration line meta object ts vs-whitespace" style="width:20px">&middot;&middot;</span>',
-			'<span class="block body comment declaration line meta object ts vs-whitespace" style="width:30px">&middot;&middot;&middot;</span>'
+			'<span class="vs-whitespace" style="width:20px">&middot;&middot;</span>',
+			'<span class="vs-whitespace" style="width:30px">&middot;&middot;&middot;</span>'
 		].join('');
 		let expectedOffsetsArr = [
 			[0],
@@ -184,7 +185,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[0, 1, 2, 3],
 		];
 
-		let _actual = render2(new RenderLineInput2(
+		let _actual = renderViewLine(new RenderLineInput(
 			lineText,
 			new ViewLineTokens(lineParts, 0, lineText.length),
 			[],
@@ -239,7 +240,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[0, 1] // 2 chars
 		];
 
-		let _actual = render2(new RenderLineInput2(
+		let _actual = renderViewLine(new RenderLineInput(
 			lineText,
 			new ViewLineTokens(lineParts, 0, lineText.length),
 			[],
@@ -294,7 +295,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[0, 1] // 2 chars
 		];
 
-		let _actual = render2(new RenderLineInput2(
+		let _actual = renderViewLine(new RenderLineInput(
 			lineText,
 			new ViewLineTokens(lineParts, 0, lineText.length),
 			[],

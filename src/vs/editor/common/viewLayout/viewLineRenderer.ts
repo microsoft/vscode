@@ -6,10 +6,56 @@
 
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
-import { LineParts } from 'vs/editor/common/core/lineParts';
-import { _createLineParts, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { Decoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/viewLineParts';
+import * as strings from 'vs/base/common/strings';
 
-export class RenderLineInput2 {
+
+
+class ViewLineToken2 {
+	_viewLineTokenBrand: void;
+
+	/**
+	 * last char index of this token (not inclusive).
+	 */
+	public readonly endIndex: number;
+	public readonly type: string;
+
+	constructor(endIndex: number, type: string) {
+		this.endIndex = endIndex;
+		this.type = type;
+	}
+}
+
+/**
+ * TODO@Alex: transform please
+ */
+function transformPlease(tokens: ViewLineToken[], len: number): ViewLineToken2[] {
+	console.log(`input len::: `, len);
+	console.log(`input here::: `, tokens);
+	let result: ViewLineToken2[] = [];
+	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
+		if (tokens[tokenIndex].startIndex > len) {
+			break;
+			// throw new Error('TODO!');
+		}
+		let nextTokenStartIndex = (
+			tokenIndex + 1 < tokensLen
+				? Math.min(len, tokens[tokenIndex + 1].startIndex)
+				: len
+		);
+		result[tokenIndex] = new ViewLineToken2(nextTokenStartIndex, tokens[tokenIndex].type);
+	}
+	console.log(`result here:::: `, result);
+	return result;
+}
+
+export const enum RenderWhitespace {
+	None = 0,
+	Boundary = 1,
+	All = 2
+}
+
+export class RenderLineInput {
 
 	public readonly lineContent: string;
 	public readonly lineTokens: ViewLineTokens;
@@ -17,7 +63,7 @@ export class RenderLineInput2 {
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
 	public readonly stopRenderingLineAfter: number;
-	public readonly renderWhitespace: 'none' | 'boundary' | 'all';
+	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
 
 	constructor(
@@ -36,11 +82,17 @@ export class RenderLineInput2 {
 		this.tabSize = tabSize;
 		this.spaceWidth = spaceWidth;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
-		this.renderWhitespace = renderWhitespace;
+		this.renderWhitespace = (
+			renderWhitespace === 'all'
+				? RenderWhitespace.All
+				: renderWhitespace === 'boundary'
+					? RenderWhitespace.Boundary
+					: RenderWhitespace.None
+		);
 		this.renderControlCharacters = renderControlCharacters;
 	}
 
-	public equals(other: RenderLineInput2): boolean {
+	public equals(other: RenderLineInput): boolean {
 		return (
 			this.lineContent === other.lineContent
 			&& this.tabSize === other.tabSize
@@ -51,58 +103,6 @@ export class RenderLineInput2 {
 			&& Decoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& this.lineTokens.equals(other.lineTokens)
 		);
-	}
-}
-
-export function render2(input: RenderLineInput2): RenderLineOutput {
-	let newLineParts = _createLineParts(
-		input.lineContent,
-		input.tabSize,
-		input.lineTokens,
-		input.lineDecorations,
-		input.renderWhitespace
-	);
-
-	let renderLineInput = new RenderLineInput(
-		input.lineContent,
-		input.tabSize,
-		input.spaceWidth,
-		input.stopRenderingLineAfter,
-		input.renderWhitespace,
-		input.renderControlCharacters,
-		newLineParts
-	);
-
-	return renderLine(renderLineInput);
-}
-
-class RenderLineInput {
-	_renderLineInputBrand: void;
-
-	lineContent: string;
-	tabSize: number;
-	spaceWidth: number;
-	stopRenderingLineAfter: number;
-	renderWhitespace: 'none' | 'boundary' | 'all';
-	renderControlCharacters: boolean;
-	lineParts: LineParts;
-
-	constructor(
-		lineContent: string,
-		tabSize: number,
-		spaceWidth: number,
-		stopRenderingLineAfter: number,
-		renderWhitespace: 'none' | 'boundary' | 'all',
-		renderControlCharacters: boolean,
-		lineParts: LineParts
-	) {
-		this.lineContent = lineContent;
-		this.tabSize = tabSize;
-		this.spaceWidth = spaceWidth;
-		this.stopRenderingLineAfter = stopRenderingLineAfter;
-		this.renderWhitespace = renderWhitespace;
-		this.renderControlCharacters = renderControlCharacters;
-		this.lineParts = lineParts;
 	}
 }
 
@@ -229,17 +229,8 @@ export class RenderLineOutput {
 	}
 }
 
-function renderLine(input: RenderLineInput): RenderLineOutput {
-	const lineText = input.lineContent;
-	const lineTextLength = lineText.length;
-	const tabSize = input.tabSize;
-	const spaceWidth = input.spaceWidth;
-	const actualLineParts = input.lineParts.parts;
-	const renderWhitespace = input.renderWhitespace;
-	const renderControlCharacters = input.renderControlCharacters;
-	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
-
-	if (lineTextLength === 0) {
+export function renderViewLine(input: RenderLineInput): RenderLineOutput {
+	if (input.lineContent.length === 0) {
 		return new RenderLineOutput(
 			new CharacterMapping(0),
 			// This is basically for IE's hit test to work
@@ -247,82 +238,233 @@ function renderLine(input: RenderLineInput): RenderLineOutput {
 		);
 	}
 
-	if (actualLineParts.length === 0) {
-		throw new Error('Cannot render non empty line without line parts!');
-	}
-
-	let viewParts = toViewParts(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
-	return renderViewParts(viewParts);
-
-	// return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
+	return _renderLine(resolveRenderLineInput(input));
 }
 
-function isWhitespace(type: string): boolean {
-	return (type.indexOf('vs-whitespace') >= 0);
-}
-
-function isControlCharacter(characterCode: number): boolean {
-	return characterCode < 32;
-}
-
-const _controlCharacterSequenceConversionStart = 9216;
-function controlCharacterToPrintable(characterCode: number): string {
-	return String.fromCharCode(_controlCharacterSequenceConversionStart + characterCode);
-}
-
-class ViewPart2 {
-	public readonly className: string;
-	public readonly htmlContent: string;
-	public readonly forceWidth: number;
-
-	constructor(className: string, htmlContent: string, forceWidth: number) {
-		this.className = className;
-		this.htmlContent = htmlContent;
-		this.forceWidth = forceWidth;
+class ResolvedRenderLineInput {
+	constructor(
+		public readonly lineContent: string,
+		public readonly len: number,
+		public readonly isOverflowing: boolean,
+		public readonly tokens: ViewLineToken2[],
+		public readonly lineDecorations: Decoration[],
+		public readonly tabSize: number,
+		public readonly spaceWidth: number,
+		public readonly renderWhitespace: RenderWhitespace,
+		public readonly renderControlCharacters: boolean,
+	) {
+		//
 	}
 }
 
-class ViewParts2 {
-	public readonly parts: ViewPart2[];
-	public readonly characterMapping: CharacterMapping;
+function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput {
+	const lineContent = input.lineContent;
 
-	constructor(parts: ViewPart2[], characterMapping: CharacterMapping) {
-		this.parts = parts;
-		this.characterMapping = characterMapping;
+	let isOverflowing: boolean;
+	let len: number;
+
+	if (input.stopRenderingLineAfter !== -1 && input.stopRenderingLineAfter < lineContent.length) {
+		isOverflowing = true;
+		len = input.stopRenderingLineAfter;
+	} else {
+		isOverflowing = false;
+		len = lineContent.length;
 	}
+
+	let tokens: ViewLineToken2[];
+	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
+		tokens = _applyRenderWhitespace(lineContent, len, transformPlease(input.lineTokens.getTokens(), len), input.lineTokens.getFauxIndentLength(), input.tabSize, input.renderWhitespace === RenderWhitespace.Boundary);
+	} else {
+		tokens = transformPlease(input.lineTokens.getTokens(), len);
+	}
+
+	if (input.lineDecorations.length > 0) {
+		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
+	}
+
+	return new ResolvedRenderLineInput(
+		lineContent,
+		len,
+		isOverflowing,
+		tokens,
+		input.lineDecorations,
+		input.tabSize,
+		input.spaceWidth,
+		input.renderWhitespace,
+		input.renderControlCharacters
+	);
 }
 
-function toViewParts(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: 'none' | 'boundary' | 'all', renderControlCharacters: boolean, charBreakIndex: number): ViewParts2 {
-	lineTextLength = +lineTextLength;
-	tabSize = +tabSize;
-	charBreakIndex = +charBreakIndex;
+function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken2[], fauxIndentLength: number, tabSize: number, onlyBoundary: boolean): ViewLineToken2[] {
 
-	let charIndex = 0;
-	let charOffsetInPart = 0;
-	let tabsCharDelta = 0;
+	let result: ViewLineToken2[] = [], resultLen = 0;
+	let tokenIndex = 0;
+	let tokenType = tokens[tokenIndex].type;
+	let tokenEndIndex = tokens[tokenIndex].endIndex;
 
-	let characterMapping = new CharacterMapping(Math.min(lineTextLength, charBreakIndex) + 1);
+	if (fauxIndentLength > 0) {
+		result[resultLen++] = new ViewLineToken2(fauxIndentLength, '');
+	}
 
-	let result: ViewPart2[] = [], resultLen = 0;
-	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
-		let part = actualLineParts[partIndex];
+	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+	let lastNonWhitespaceIndex: number;
+	if (firstNonWhitespaceIndex === -1) {
+		// The entire line is whitespace
+		firstNonWhitespaceIndex = len;
+		lastNonWhitespaceIndex = len;
+	} else {
+		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+	}
 
-		let parsRendersWhitespace = (renderWhitespace !== 'none' && isWhitespace(part.type));
+	let tmpIndent = 0;
+	for (let charIndex = 0; charIndex < fauxIndentLength; charIndex++) {
+		const chCode = lineContent.charCodeAt(charIndex);
+		if (chCode === CharCode.Tab) {
+			tmpIndent = tabSize;
+		} else {
+			tmpIndent++;
+		}
+	}
+	tmpIndent = tmpIndent % tabSize;
 
-		let toCharIndex = lineTextLength;
-		if (partIndex + 1 < partIndexLen) {
-			let nextPart = actualLineParts[partIndex + 1];
-			toCharIndex = Math.min(lineTextLength, nextPart.startIndex);
+	let wasInWhitespace = false;
+	for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
+		const chCode = lineContent.charCodeAt(charIndex);
+
+		let isInWhitespace: boolean;
+		if (charIndex < firstNonWhitespaceIndex || charIndex > lastNonWhitespaceIndex) {
+			// in leading or trailing whitespace
+			isInWhitespace = true;
+		} else if (chCode === CharCode.Tab) {
+			// a tab character is rendered both in all and boundary cases
+			isInWhitespace = true;
+		} else if (chCode === CharCode.Space) {
+			// hit a space character
+			if (onlyBoundary) {
+				// rendering only boundary whitespace
+				if (wasInWhitespace) {
+					isInWhitespace = true;
+				} else {
+					const nextChCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
+					isInWhitespace = (nextChCode === CharCode.Space || nextChCode === CharCode.Tab);
+				}
+			} else {
+				isInWhitespace = true;
+			}
+		} else {
+			isInWhitespace = false;
 		}
 
+		if (wasInWhitespace) {
+			// was in whitespace token
+			if (!isInWhitespace || tmpIndent >= tabSize) {
+				// leaving whitespace token or entering a new indent
+				result[resultLen++] = new ViewLineToken2(charIndex, 'vs-whitespace');
+				tmpIndent = tmpIndent % tabSize;
+			}
+		} else {
+			// was in regular token
+			if (charIndex === tokenEndIndex || (isInWhitespace && charIndex > fauxIndentLength)) {
+				result[resultLen++] = new ViewLineToken2(charIndex, tokenType);
+				tmpIndent = tmpIndent % tabSize;
+			}
+		}
+
+		if (chCode === CharCode.Tab) {
+			tmpIndent = tabSize;
+		} else {
+			tmpIndent++;
+		}
+
+		wasInWhitespace = isInWhitespace;
+
+		if (charIndex === tokenEndIndex) {
+			tokenIndex++;
+			tokenType = tokens[tokenIndex].type;
+			tokenEndIndex = tokens[tokenIndex].endIndex;
+		}
+	}
+
+	if (wasInWhitespace) {
+		// was in whitespace token
+		result[resultLen++] = new ViewLineToken2(len, 'vs-whitespace');
+	} else {
+		// was in regular token
+		result[resultLen++] = new ViewLineToken2(len, tokenType);
+	}
+
+	return result;
+}
+
+function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewLineToken2[], _lineDecorations: Decoration[]): ViewLineToken2[] {
+	_lineDecorations.sort(Decoration.compare);
+	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
+	const lineDecorationsLen = lineDecorations.length;
+
+	let lineDecorationIndex = 0;
+	let result: ViewLineToken2[] = [], resultLen = 0, lastResultEndIndex = 0;
+	for (let tokenIndex = 0, len = tokens.length; tokenIndex < len; tokenIndex++) {
+		const token = tokens[tokenIndex];
+		const tokenEndIndex = token.endIndex;
+		const tokenType = token.type;
+
+		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset < tokenEndIndex) {
+			const lineDecoration = lineDecorations[lineDecorationIndex];
+
+			if (lineDecoration.startOffset > lastResultEndIndex) {
+				lastResultEndIndex = lineDecoration.startOffset;
+				result[resultLen++] = new ViewLineToken2(lastResultEndIndex, tokenType);
+			}
+
+			if (lineDecoration.endOffset + 1 < tokenEndIndex) {
+				lastResultEndIndex = lineDecoration.endOffset + 1;
+				result[resultLen++] = new ViewLineToken2(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
+				lineDecorationIndex++;
+			} else {
+				break;
+			}
+		}
+
+		if (tokenEndIndex > lastResultEndIndex) {
+			lastResultEndIndex = tokenEndIndex;
+			result[resultLen++] = new ViewLineToken2(lastResultEndIndex, tokenType);
+		}
+	}
+
+	return result;
+}
+
+function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
+	const lineContent = input.lineContent;
+	const len = input.len;
+	const isOverflowing = input.isOverflowing;
+	const tokens = input.tokens;
+	const tabSize = input.tabSize;
+	const spaceWidth = input.spaceWidth;
+	const renderWhitespace = input.renderWhitespace;
+	const renderControlCharacters = input.renderControlCharacters;
+
+	const characterMapping = new CharacterMapping(len + 1);
+
+	let charIndex = 0;
+	let tabsCharDelta = 0;
+	let charOffsetInPart = 0;
+
+	let out = '<span>';
+	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
+		const token = tokens[tokenIndex];
+		const tokenEndIndex = token.endIndex;
+		const tokenType = token.type;
+		const tokenRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && (tokenType.indexOf('vs-whitespace') >= 0));
 		charOffsetInPart = 0;
-		if (parsRendersWhitespace) {
+
+		if (tokenRendersWhitespace) {
 
 			let partContentCnt = 0;
 			let partContent = '';
-			for (; charIndex < toCharIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
-				let charCode = lineText.charCodeAt(charIndex);
+			for (; charIndex < tokenEndIndex; charIndex++) {
+				characterMapping.setPartData(charIndex, tokenIndex, charOffsetInPart);
+				const charCode = lineContent.charCodeAt(charIndex);
 
 				if (charCode === CharCode.Tab) {
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
@@ -345,20 +487,16 @@ function toViewParts(lineText: string, lineTextLength: number, tabSize: number, 
 				}
 
 				charOffsetInPart++;
-
-				if (charIndex >= charBreakIndex) {
-					result[resultLen++] = new ViewPart2(part.type, partContent + '&hellip;', 0);
-					characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
-					return new ViewParts2(result, characterMapping);
-				}
 			}
-			result[resultLen++] = new ViewPart2(part.type, partContent, (spaceWidth * partContentCnt));
+
+			out += `<span class="${tokenType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
+
 		} else {
 			let partContent = '';
 
-			for (; charIndex < toCharIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
-				let charCode = lineText.charCodeAt(charIndex);
+			for (; charIndex < tokenEndIndex; charIndex++) {
+				characterMapping.setPartData(charIndex, tokenIndex, charOffsetInPart);
+				const charCode = lineContent.charCodeAt(charIndex);
 
 				switch (charCode) {
 					case CharCode.Tab:
@@ -402,45 +540,30 @@ function toViewParts(lineText: string, lineTextLength: number, tabSize: number, 
 						break;
 
 					default:
-						if (renderControlCharacters && isControlCharacter(charCode)) {
-							partContent += controlCharacterToPrintable(charCode);
+						if (renderControlCharacters && charCode < 32) {
+							partContent += String.fromCharCode(9216 + charCode);
 						} else {
-							partContent += lineText.charAt(charIndex);
+							partContent += String.fromCharCode(charCode);;
 						}
 				}
 
 				charOffsetInPart++;
-
-				if (charIndex >= charBreakIndex) {
-					result[resultLen++] = new ViewPart2(part.type, partContent + '&hellip;', 0);
-					characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
-					return new ViewParts2(result, characterMapping);
-				}
 			}
-			result[resultLen++] = new ViewPart2(part.type, partContent, 0);
+
+			out += `<span class="${tokenType}">${partContent}</span>`;
+
 		}
 	}
 
 	// When getting client rects for the last character, we will position the
 	// text range at the end of the span, insteaf of at the beginning of next span
-	characterMapping.setPartData(lineTextLength, actualLineParts.length - 1, charOffsetInPart);
+	characterMapping.setPartData(len, tokens.length - 1, charOffsetInPart);
 
-	return new ViewParts2(result, characterMapping);
-}
-
-function renderViewParts(viewParts: ViewParts2): RenderLineOutput {
-	const parts = viewParts.parts;
-
-	let out = '<span>';
-	for (let i = 0, len = parts.length; i < len; i++) {
-		let part = parts[i];
-		if (part.forceWidth) {
-			out += `<span class="${part.className}" style="width:${part.forceWidth}px">${part.htmlContent}</span>`;
-		} else {
-			out += `<span class="${part.className}">${part.htmlContent}</span>`;
-		}
+	if (isOverflowing) {
+		out += `<span class="">&hellip;</span>`;
 	}
+
 	out += '</span>';
 
-	return new RenderLineOutput(viewParts.characterMapping, out);
+	return new RenderLineOutput(characterMapping, out);
 }
