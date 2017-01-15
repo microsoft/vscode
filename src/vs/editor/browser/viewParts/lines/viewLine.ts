@@ -102,6 +102,7 @@ export class ViewLine implements IVisibleLineData {
 
 		let renderLineInput = new RenderLineInput(
 			model.getLineContent(lineNumber),
+			model.getLineMinColumn(lineNumber) - 1,
 			model.getLineTokens(lineNumber),
 			actualInlineDecorations,
 			model.getTabSize(),

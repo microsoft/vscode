@@ -4,50 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { Decoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/viewLineParts';
 import * as strings from 'vs/base/common/strings';
-
-
-
-class ViewLineToken2 {
-	_viewLineTokenBrand: void;
-
-	/**
-	 * last char index of this token (not inclusive).
-	 */
-	public readonly endIndex: number;
-	public readonly type: string;
-
-	constructor(endIndex: number, type: string) {
-		this.endIndex = endIndex;
-		this.type = type;
-	}
-}
-
-/**
- * TODO@Alex: transform please
- */
-function transformPlease(tokens: ViewLineToken[], len: number): ViewLineToken2[] {
-	console.log(`input len::: `, len);
-	console.log(`input here::: `, tokens);
-	let result: ViewLineToken2[] = [];
-	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
-		if (tokens[tokenIndex].startIndex > len) {
-			break;
-			// throw new Error('TODO!');
-		}
-		let nextTokenStartIndex = (
-			tokenIndex + 1 < tokensLen
-				? Math.min(len, tokens[tokenIndex + 1].startIndex)
-				: len
-		);
-		result[tokenIndex] = new ViewLineToken2(nextTokenStartIndex, tokens[tokenIndex].type);
-	}
-	console.log(`result here:::: `, result);
-	return result;
-}
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -58,7 +18,8 @@ export const enum RenderWhitespace {
 export class RenderLineInput {
 
 	public readonly lineContent: string;
-	public readonly lineTokens: ViewLineTokens;
+	public readonly fauxIndentLength: number;
+	public readonly lineTokens: ViewLineToken[];
 	public readonly lineDecorations: Decoration[];
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
@@ -68,7 +29,8 @@ export class RenderLineInput {
 
 	constructor(
 		lineContent: string,
-		lineTokens: ViewLineTokens,
+		fauxIndentLength: number,
+		lineTokens: ViewLineToken[],
 		lineDecorations: Decoration[],
 		tabSize: number,
 		spaceWidth: number,
@@ -77,6 +39,7 @@ export class RenderLineInput {
 		renderControlCharacters: boolean,
 	) {
 		this.lineContent = lineContent;
+		this.fauxIndentLength = fauxIndentLength;
 		this.lineTokens = lineTokens;
 		this.lineDecorations = lineDecorations;
 		this.tabSize = tabSize;
@@ -95,13 +58,14 @@ export class RenderLineInput {
 	public equals(other: RenderLineInput): boolean {
 		return (
 			this.lineContent === other.lineContent
+			&& this.fauxIndentLength === other.fauxIndentLength
 			&& this.tabSize === other.tabSize
 			&& this.spaceWidth === other.spaceWidth
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& Decoration.equalsArr(this.lineDecorations, other.lineDecorations)
-			&& this.lineTokens.equals(other.lineTokens)
+			&& ViewLineToken.equalsArr(this.lineTokens, other.lineTokens)
 		);
 	}
 }
@@ -246,7 +210,7 @@ class ResolvedRenderLineInput {
 		public readonly lineContent: string,
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
-		public readonly tokens: ViewLineToken2[],
+		public readonly tokens: ViewLineToken[],
 		public readonly lineDecorations: Decoration[],
 		public readonly tabSize: number,
 		public readonly spaceWidth: number,
@@ -271,13 +235,10 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len = lineContent.length;
 	}
 
-	let tokens: ViewLineToken2[];
+	let tokens = removeOverflowing(input.lineTokens, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
-		tokens = _applyRenderWhitespace(lineContent, len, transformPlease(input.lineTokens.getTokens(), len), input.lineTokens.getFauxIndentLength(), input.tabSize, input.renderWhitespace === RenderWhitespace.Boundary);
-	} else {
-		tokens = transformPlease(input.lineTokens.getTokens(), len);
+		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
-
 	if (input.lineDecorations.length > 0) {
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
@@ -295,15 +256,38 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	);
 }
 
-function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken2[], fauxIndentLength: number, tabSize: number, onlyBoundary: boolean): ViewLineToken2[] {
+function removeOverflowing(tokens: ViewLineToken[], len: number): ViewLineToken[] {
+	if (tokens.length === 0) {
+		return tokens;
+	}
+	if (tokens[tokens.length - 1].endIndex === len) {
+		return tokens;
+	}
+	let result: ViewLineToken[] = [];
+	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
+		const endIndex = tokens[tokenIndex].endIndex;
+		if (endIndex === len) {
+			result[tokenIndex] = tokens[tokenIndex];
+			break;
+		}
+		if (endIndex > len) {
+			result[tokenIndex] = new ViewLineToken(len, tokens[tokenIndex].type);
+			break;
+		}
+		result[tokenIndex] = tokens[tokenIndex];
+	}
+	return result;
+}
 
-	let result: ViewLineToken2[] = [], resultLen = 0;
+function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, onlyBoundary: boolean): ViewLineToken[] {
+
+	let result: ViewLineToken[] = [], resultLen = 0;
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
 
 	if (fauxIndentLength > 0) {
-		result[resultLen++] = new ViewLineToken2(fauxIndentLength, '');
+		result[resultLen++] = new ViewLineToken(fauxIndentLength, '');
 	}
 
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
@@ -359,13 +343,13 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 			// was in whitespace token
 			if (!isInWhitespace || tmpIndent >= tabSize) {
 				// leaving whitespace token or entering a new indent
-				result[resultLen++] = new ViewLineToken2(charIndex, 'vs-whitespace');
+				result[resultLen++] = new ViewLineToken(charIndex, 'vs-whitespace');
 				tmpIndent = tmpIndent % tabSize;
 			}
 		} else {
 			// was in regular token
 			if (charIndex === tokenEndIndex || (isInWhitespace && charIndex > fauxIndentLength)) {
-				result[resultLen++] = new ViewLineToken2(charIndex, tokenType);
+				result[resultLen++] = new ViewLineToken(charIndex, tokenType);
 				tmpIndent = tmpIndent % tabSize;
 			}
 		}
@@ -387,22 +371,22 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 
 	if (wasInWhitespace) {
 		// was in whitespace token
-		result[resultLen++] = new ViewLineToken2(len, 'vs-whitespace');
+		result[resultLen++] = new ViewLineToken(len, 'vs-whitespace');
 	} else {
 		// was in regular token
-		result[resultLen++] = new ViewLineToken2(len, tokenType);
+		result[resultLen++] = new ViewLineToken(len, tokenType);
 	}
 
 	return result;
 }
 
-function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewLineToken2[], _lineDecorations: Decoration[]): ViewLineToken2[] {
+function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewLineToken[], _lineDecorations: Decoration[]): ViewLineToken[] {
 	_lineDecorations.sort(Decoration.compare);
 	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
 	const lineDecorationsLen = lineDecorations.length;
 
 	let lineDecorationIndex = 0;
-	let result: ViewLineToken2[] = [], resultLen = 0, lastResultEndIndex = 0;
+	let result: ViewLineToken[] = [], resultLen = 0, lastResultEndIndex = 0;
 	for (let tokenIndex = 0, len = tokens.length; tokenIndex < len; tokenIndex++) {
 		const token = tokens[tokenIndex];
 		const tokenEndIndex = token.endIndex;
@@ -413,12 +397,12 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 
 			if (lineDecoration.startOffset > lastResultEndIndex) {
 				lastResultEndIndex = lineDecoration.startOffset;
-				result[resultLen++] = new ViewLineToken2(lastResultEndIndex, tokenType);
+				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType);
 			}
 
 			if (lineDecoration.endOffset + 1 < tokenEndIndex) {
 				lastResultEndIndex = lineDecoration.endOffset + 1;
-				result[resultLen++] = new ViewLineToken2(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
+				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				lineDecorationIndex++;
 			} else {
 				break;
@@ -427,7 +411,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 
 		if (tokenEndIndex > lastResultEndIndex) {
 			lastResultEndIndex = tokenEndIndex;
-			result[resultLen++] = new ViewLineToken2(lastResultEndIndex, tokenType);
+			result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType);
 		}
 	}
 
