@@ -10,7 +10,7 @@ import { IModel } from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
@@ -97,7 +97,8 @@ export class Colorizer {
 	public static colorizeLine(line: string, tokens: ViewLineToken[], tabSize: number = 4): string {
 		let renderResult = renderViewLine(new RenderLineInput(
 			line,
-			new ViewLineTokens(tokens, 0, line.length),
+			0,
+			tokens,
 			[],
 			tabSize,
 			0,
@@ -128,7 +129,8 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 
 		let renderResult = renderViewLine(new RenderLineInput(
 			line,
-			new ViewLineTokens([], 0, line.length),
+			0,
+			[new ViewLineToken(line.length, '')],
 			[],
 			tabSize,
 			0,
@@ -155,7 +157,8 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		let lineTokens = new LineTokens(colorMap, tokenizeResult.tokens, line);
 		let renderResult = renderViewLine(new RenderLineInput(
 			line,
-			new ViewLineTokens(lineTokens.inflate(), 0, line.length),
+			0,
+			lineTokens.inflate(),
 			[],
 			tabSize,
 			0,

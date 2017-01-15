@@ -122,6 +122,10 @@ export class LineTokens {
 		return this._text;
 	}
 
+	public getLineLength(): number {
+		return this._textLength;
+	}
+
 	public getTokenStartOffset(tokenIndex: number): number {
 		return this._tokens[(tokenIndex << 1)];
 	}
@@ -190,10 +194,10 @@ export class LineTokens {
 	}
 
 	public inflate(): ViewLineToken[] {
-		return TokenMetadata.inflateArr(this._tokens);
+		return TokenMetadata.inflateArr(this._tokens, this._textLength);
 	}
 
-	public sliceAndInflate(startOffset: number, endOffset: number, deltaStartIndex: number): ViewLineToken[] {
-		return TokenMetadata.sliceAndInflate(this._tokens, startOffset, endOffset, deltaStartIndex);
+	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken[] {
+		return TokenMetadata.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
 	}
 }

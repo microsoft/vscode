@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { DecorationSegment, LineDecorationsNormalizer, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { Range } from 'vs/editor/common/core/range';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
@@ -58,7 +58,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			lineContent,
-			new ViewLineTokens(tokens, fauxIndentLength, lineContent.length),
+			fauxIndentLength,
+			tokens,
 			[],
 			4,
 			10,
@@ -74,7 +75,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'Hello world!',
 			[
-				new ViewLineToken(0, '')
+				new ViewLineToken(12, '')
 			],
 			0,
 			'none',
@@ -89,8 +90,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'Hello world!',
 			[
-				new ViewLineToken(0, 'a'),
-				new ViewLineToken(6, 'b')
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(12, 'b')
 			],
 			0,
 			'none',
@@ -106,9 +107,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'    Hello world!    ',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
+				new ViewLineToken(4, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(20, 'b')
 			],
 			0,
 			'boundary',
@@ -126,9 +127,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'        Hello world!        ',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(8, 'a'),
-				new ViewLineToken(10, 'b')
+				new ViewLineToken(8, ''),
+				new ViewLineToken(10, 'a'),
+				new ViewLineToken(28, 'b')
 			],
 			0,
 			'boundary',
@@ -148,9 +149,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'\t\tHello world!\t',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(2, 'a'),
-				new ViewLineToken(4, 'b')
+				new ViewLineToken(2, ''),
+				new ViewLineToken(4, 'a'),
+				new ViewLineToken(15, 'b')
 			],
 			0,
 			'boundary',
@@ -169,9 +170,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'  \t\t  Hello world! \t  \t   \t    ',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b')
+				new ViewLineToken(6, ''),
+				new ViewLineToken(8, 'a'),
+				new ViewLineToken(31, 'b')
 			],
 			0,
 			'boundary',
@@ -195,9 +196,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'\t\t  Hello world! \t  \t   \t    ',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
+				new ViewLineToken(4, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(29, 'b')
 			],
 			2,
 			'boundary',
@@ -220,9 +221,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			'it  it it  it',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(7, 'b')
+				new ViewLineToken(6, ''),
+				new ViewLineToken(7, 'a'),
+				new ViewLineToken(13, 'b')
 			],
 			0,
 			'boundary',
@@ -244,9 +245,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		testCreateLineParts(
 			' Hello world!\t',
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
+				new ViewLineToken(4, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(14, 'b')
 			],
 			0,
 			'all',
@@ -266,7 +267,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('createLineParts can handle unsorted inline decorations', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			'Hello world',
-			new ViewLineTokens([new ViewLineToken(0, '')], 0, 'Hello world'.length),
+			0,
+			[new ViewLineToken(11, '')],
 			[
 				new Decoration(5, 7, 'a'),
 				new Decoration(1, 3, 'b'),
@@ -369,7 +371,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			lineContent,
-			new ViewLineTokens(parts, 0, lineContent.length),
+			0,
+			parts,
 			[],
 			tabSize,
 			10,
@@ -390,7 +393,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'hello world',
 			4,
 			[
-				new ViewLineToken(0, 'aToken')
+				new ViewLineToken(11, 'aToken')
 			]
 		);
 		testGetColumnOfLinePartOffset(0, 11, 0, 1);
@@ -412,12 +415,12 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'var x = 3;',
 			4,
 			[
-				new ViewLineToken(0, 'meta type js storage var expr'),
-				new ViewLineToken(3, 'meta js var expr'),
-				new ViewLineToken(4, 'meta js var expr var-single-variable variable'),
-				new ViewLineToken(5, 'meta js var expr var-single-variable'),
-				new ViewLineToken(8, 'meta js var expr var-single-variable constant numeric'),
-				new ViewLineToken(9, ''),
+				new ViewLineToken(3, 'meta type js storage var expr'),
+				new ViewLineToken(4, 'meta js var expr'),
+				new ViewLineToken(5, 'meta js var expr var-single-variable variable'),
+				new ViewLineToken(8, 'meta js var expr var-single-variable'),
+				new ViewLineToken(9, 'meta js var expr var-single-variable constant numeric'),
+				new ViewLineToken(10, ''),
 			]
 		);
 		testGetColumnOfLinePartOffset(0, 3, 0, 1);
@@ -443,7 +446,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\t',
 			6,
 			[
-				new ViewLineToken(0, 'vs-whitespace')
+				new ViewLineToken(1, 'vs-whitespace')
 			]
 		);
 		testGetColumnOfLinePartOffset(0, 6, 0, 1);
@@ -460,8 +463,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\tfunction',
 			4,
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(1, 'meta type js function storage'),
+				new ViewLineToken(1, ''),
+				new ViewLineToken(9, 'meta type js function storage'),
 			]
 		);
 		testGetColumnOfLinePartOffset(0, 4, 0, 1);
@@ -485,8 +488,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\t\tfunction',
 			4,
 			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(2, 'meta type js function storage'),
+				new ViewLineToken(2, ''),
+				new ViewLineToken(10, 'meta type js function storage'),
 			]
 		);
 		testGetColumnOfLinePartOffset(0, 8, 0, 1);

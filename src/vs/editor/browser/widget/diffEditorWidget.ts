@@ -23,7 +23,7 @@ import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -1885,12 +1885,12 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private renderOriginalLine(count: number, originalModel: editorCommon.IModel, config: editorCommon.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
-		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
 		let r = renderViewLine(new RenderLineInput(
 			lineContent,
-			lineTokens,
+			0,
+			[new ViewLineToken(lineContent.length, '')],
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,
