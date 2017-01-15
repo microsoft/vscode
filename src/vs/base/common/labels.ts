@@ -83,19 +83,22 @@ function getPath(arg1: URI | string | IWorkspaceProvider): string {
  */
 export function shorten(paths: string[]): string[] {
 	const ellipsis = '\u2026';
+	const separator = '/';
 	const shortenedPaths: string[] = new Array(paths.length);
+
+	paths = paths.map(path => normalize(path));
 
 	// for every path
 	let match = false;
 	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
-		const segments: string[] = paths[pathIndex].split(nativeSep);
+		const segments: string[] = paths[pathIndex].split(separator);
 		match = true;
 
 		// pick the first shortest subpath found
 		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
 			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
 				match = false;
-				const subpath = segments.slice(start, start + subpathLength).join(nativeSep);
+				const subpath = segments.slice(start, start + subpathLength).join(separator);
 
 				// that is unique to any other path
 				for (let otherPathIndex = 0; !match && otherPathIndex < paths.length; otherPathIndex++) {
@@ -113,11 +116,11 @@ export function shorten(paths: string[]): string[] {
 				if (!match) {
 					let result = subpath;
 					if (start + subpathLength < segments.length) {
-						result = result + nativeSep + ellipsis;
+						result = result + separator + ellipsis;
 					}
 
 					if (start > 0) {
-						result = ellipsis + nativeSep + result;
+						result = ellipsis + separator + result;
 					}
 
 					shortenedPaths[pathIndex] = result;
