@@ -58,9 +58,6 @@ export class CloneAction extends Action {
 
 				var cloneLocation: string = defaultCloneLocation;
 
-				console.log('Clone Location:' + cloneLocation);
-
-
 				if (cloneLocation === null) {
 					const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
 						title: localize('directory', "Destination clone directory"),
