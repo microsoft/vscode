@@ -57,7 +57,9 @@ class AcceptOnCharacterOracle {
 		this._activeItem = item;
 		this._activeAcceptCharacters.clear();
 		for (const ch of item.suggestion.commitCharacters) {
-			this._activeAcceptCharacters.add(ch[0]);
+			if (ch.length > 0) {
+				this._activeAcceptCharacters.add(ch[0]);
+			}
 		}
 	}
 
