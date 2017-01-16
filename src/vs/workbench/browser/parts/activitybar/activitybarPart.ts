@@ -75,7 +75,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
 
 		if (pinnedViewlets) {
-			// Migrate git => scm viewlet
+			// TODO@Ben: Migrate git => scm viewlet
 			this.pinnedViewlets = pinnedViewlets
 				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
 				.filter(arrays.uniqueFilter<string>(str => str));
