@@ -13,11 +13,13 @@ export class Decoration {
 	public readonly startColumn: number;
 	public readonly endColumn: number;
 	public readonly className: string;
+	public readonly insertsBeforeOrAfter: boolean;
 
-	constructor(startColumn: number, endColumn: number, className: string) {
+	constructor(startColumn: number, endColumn: number, className: string, insertsBeforeOrAfter: boolean) {
 		this.startColumn = startColumn;
 		this.endColumn = endColumn;
 		this.className = className;
+		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
 	}
 
 	private static _equals(a: Decoration, b: Decoration): boolean {
@@ -25,6 +27,7 @@ export class Decoration {
 			a.startColumn === b.startColumn
 			&& a.endColumn === b.endColumn
 			&& a.className === b.className
+			&& a.insertsBeforeOrAfter === b.insertsBeforeOrAfter
 		);
 	}
 
@@ -52,7 +55,6 @@ export class Decoration {
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
 			let d = lineDecorations[i];
 			let range = d.range;
-			let className = d.inlineClassName;
 
 			if (range.endLineNumber < lineNumber || range.startLineNumber > lineNumber) {
 				// Ignore decorations that sit outside this line
@@ -72,7 +74,7 @@ export class Decoration {
 				continue;
 			}
 
-			result[resultLen++] = new Decoration(startColumn, endColumn, className);
+			result[resultLen++] = new Decoration(startColumn, endColumn, d.inlineClassName, d.insertsBeforeOrAfter);
 		}
 
 		return result;

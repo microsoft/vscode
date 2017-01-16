@@ -14,14 +14,14 @@ import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 suite('Editor ViewLayout - ViewLineParts', () => {
 
 	function newDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, inlineClassName: string): InlineDecoration {
-		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName);
+		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName, false);
 	}
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
 
 		var result = LineDecorationsNormalizer.normalize([
-			new Decoration(1, 11, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 11, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]);
 
 		assert.deepEqual(result, [
@@ -34,8 +34,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
 		var result = LineDecorationsNormalizer.normalize([
-			new Decoration(15, 21, 'vs-whitespace'),
-			new Decoration(20, 21, 'inline-folded'),
+			new Decoration(15, 21, 'vs-whitespace', false),
+			new Decoration(20, 21, 'inline-folded', false),
 		]);
 
 		assert.deepEqual(result, [
@@ -51,7 +51,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		], 3, 12, 500);
 
 		assert.deepEqual(result, [
-			new Decoration(12, 30, 'detected-link'),
+			new Decoration(12, 30, 'detected-link', false),
 		]);
 	});
 
@@ -272,9 +272,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			[new ViewLineToken(11, '')],
 			[
-				new Decoration(5, 7, 'a'),
-				new Decoration(1, 3, 'b'),
-				new Decoration(2, 8, 'c'),
+				new Decoration(5, 7, 'a', false),
+				new Decoration(1, 3, 'b', false),
+				new Decoration(2, 8, 'c', false),
 			],
 			4,
 			10,
@@ -304,65 +304,65 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('ViewLineParts', () => {
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 2, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 2, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 0, 'c1'),
 				new DecorationSegment(2, 2, 'c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 3, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 3, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1'),
 				new DecorationSegment(2, 2, 'c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1'),
 				new DecorationSegment(2, 2, 'c1 c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1*'),
 				new DecorationSegment(2, 2, 'c1 c1* c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(1, 4, 'c1**'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(1, 4, 'c1**', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(1, 4, 'c1**'),
-			new Decoration(3, 4, 'c2'),
-			new Decoration(3, 4, 'c2*')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(1, 4, 'c1**', false),
+			new Decoration(3, 4, 'c2', false),
+			new Decoration(3, 4, 'c2*', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(1, 4, 'c1**'),
-			new Decoration(3, 4, 'c2'),
-			new Decoration(3, 5, 'c2*')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(1, 4, 'c1**', false),
+			new Decoration(3, 4, 'c2', false),
+			new Decoration(3, 5, 'c2*', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*'),
