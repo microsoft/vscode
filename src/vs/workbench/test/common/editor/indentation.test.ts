@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Selection } from 'vs/editor/common/core/selection';
-import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/workbench/parts/indentation/common/indentationCommands';
+import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/workbench/common/editor/indentation';
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {

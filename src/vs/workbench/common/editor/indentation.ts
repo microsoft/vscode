@@ -5,11 +5,12 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, EditorContextKeys, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/workbench/parts/indentation/common/indentationCommands';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 
 @editorAction
 export class IndentationToSpacesAction extends EditorAction {
@@ -158,5 +159,63 @@ export class DetectIndentation extends EditorAction {
 
 		let creationOpts = modelService.getCreationOptions();
 		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize);
+	}
+}
+
+function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
+	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
+		// Model is empty
+		return;
+	}
+
+	let spaces = '';
+	for (let i = 0; i < tabSize; i++) {
+		spaces += ' ';
+	}
+
+	const content = model.getLinesContent();
+	for (let i = 0; i < content.length; i++) {
+		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(i + 1);
+		if (lastIndentationColumn === 0) {
+			lastIndentationColumn = model.getLineMaxColumn(i + 1);
+		}
+
+		const text = (tabsToSpaces ? content[i].substr(0, lastIndentationColumn).replace(/\t/ig, spaces) :
+			content[i].substr(0, lastIndentationColumn).replace(new RegExp(spaces, 'gi'), '\t')) +
+			content[i].substr(lastIndentationColumn);
+
+		builder.addEditOperation(new Range(i + 1, 1, i + 1, model.getLineMaxColumn(i + 1)), text);
+	}
+}
+
+export class IndentationToSpacesCommand implements ICommand {
+
+	private selectionId: string;
+
+	constructor(private selection: Selection, private tabSize: number) { }
+
+	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+		this.selectionId = builder.trackSelection(this.selection);
+		getIndentationEditOperations(model, builder, this.tabSize, true);
+	}
+
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this.selectionId);
+	}
+}
+
+export class IndentationToTabsCommand implements ICommand {
+
+	private selectionId: string;
+
+	constructor(private selection: Selection, private tabSize: number) { }
+
+	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+		this.selectionId = builder.trackSelection(this.selection);
+		getIndentationEditOperations(model, builder, this.tabSize, false);
+	}
+
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this.selectionId);
 	}
 }
