@@ -110,14 +110,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		this._xterm.open(this._xtermElement);
 
-		this._process.on('message', (message) => {
-			if (!this._xterm) {
-				return;
-			}
-			if (message.type === 'data') {
-				this._xterm.write(message.content);
-			}
-		});
+		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			this._process.send({
 				event: 'input',
@@ -371,6 +364,15 @@ export class TerminalInstance implements ITerminalInstance {
 		}, LAUNCHING_DURATION);
 	}
 
+	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
+		if (!this._xterm) {
+			return;
+		}
+		if (message.type === 'data') {
+			this._xterm.write(message.content);
+		}
+	}
+
 	private _onPtyProcessExit(exitCode: number): void {
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
@@ -416,6 +418,26 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		}
+	}
+
+	public reuseTerminal(shell: IShellLaunchConfig): void {
+		if (this._process) {
+			this._process.removeAllListeners('exit');
+			if (this._process.connected) {
+				this._process.kill();
+			}
+			this._process = null;
+		}
+		// Ensure new processes' output starts at start of new line
+		this._xterm.write('\n\x1b[G');
+		this._createProcess(this._contextService.getWorkspace(), shell.name, shell);
+		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
+		// TODO: Get rid of wait for any key listeners and any other listeners that are no longer valid
+		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
+			this._xterm.setOption('disableStdin', false);
+		}
+		// Set the new shell launch config
+		this._shellLaunchConfig = shell;
 	}
 
 	// TODO: This should be private/protected
