@@ -46,10 +46,10 @@ import 'vs/workbench/parts/search/browser/openAnythingHandler'; // can be packag
 import 'vs/workbench/parts/scm/browser/scm.contribution';
 import 'vs/workbench/parts/scm/browser/scmViewlet'; // can be packaged separately
 
-import 'vs/workbench/parts/git/electron-browser/git.contribution';
-import 'vs/workbench/parts/git/browser/gitQuickOpen';
-import 'vs/workbench/parts/git/browser/gitActions.contribution';
-import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separately
+// import 'vs/workbench/parts/git/electron-browser/git.contribution';
+// import 'vs/workbench/parts/git/browser/gitQuickOpen';
+// import 'vs/workbench/parts/git/browser/gitActions.contribution';
+// import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
 import 'vs/workbench/parts/debug/electron-browser/repl';
