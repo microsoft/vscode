@@ -180,22 +180,22 @@
         {
           "command": "git.pull",
           "group": "1_sync",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.pullRebase",
           "group": "1_sync",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.push",
           "group": "1_sync",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.pushTo",
           "group": "1_sync",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.publish",
@@ -205,27 +205,27 @@
         {
           "command": "git.commitStaged",
           "group": "3_commit",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.commitStagedSigned",
           "group": "3_commit",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.commitAll",
           "group": "3_commit",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.commitAllSigned",
           "group": "3_commit",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.undoCommit",
           "group": "3_commit",
-          "when": "scmProvider == git"
+          "when": "scmProvider == none"
         },
         {
           "command": "git.unstageAll",
