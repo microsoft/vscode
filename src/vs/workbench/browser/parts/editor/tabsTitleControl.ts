@@ -216,10 +216,16 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
-				if (this.tabOptions.showTabCloseButton) {
-					DOM.removeClass(tabContainer, 'no-close-button');
-				} else {
+				if (this.tabOptions.tabCloseButton === 'off') {
 					DOM.addClass(tabContainer, 'no-close-button');
+				} else {
+					DOM.removeClass(tabContainer, 'no-close-button');
+				}
+
+				if (this.tabOptions.tabCloseButton === 'left') {
+					DOM.addClass(tabContainer, 'close-position-left');
+				} else {
+					DOM.removeClass(tabContainer, 'close-position-left');
 				}
 
 				// Label
@@ -348,18 +354,6 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.tabIndex = 0;
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
 		DOM.addClass(tabContainer, 'tab monaco-editor-background');
-
-		if (!this.tabOptions.showTabCloseButton || this.tabOptions.tabCloseButton === 'off') {
-			DOM.addClass(tabContainer, 'no-close-button');
-		} else {
-			DOM.removeClass(tabContainer, 'no-close-button');
-		}
-
-		if (this.tabOptions.tabCloseButton === 'left') {
-			DOM.addClass(tabContainer, 'close-position-left');
-		} else {
-			DOM.removeClass(tabContainer, 'close-position-left');
-		}
 
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);

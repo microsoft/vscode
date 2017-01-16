@@ -113,16 +113,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 			'default': true
 		},
-		'workbench.editor.showTabCloseButton': {
-			'type': 'boolean',
-			'description': nls.localize('showEditorTabCloseButton', "Controls if editor tabs should have a visible close button or not."),
-			'default': true
-		},
 		'workbench.editor.tabCloseButton': {
 			'type': 'string',
 			'enum': ['left', 'right', 'off'],
 			'default': 'right',
-			'description': nls.localize('editorTabCloseButton', "Controls the position of the editor's tabs close buttons.")
+			'description': nls.localize('editorTabCloseButton', "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
 		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',
