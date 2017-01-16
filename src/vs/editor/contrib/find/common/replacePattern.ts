@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { IPatternInfo } from 'vs/platform/search/common/search';
 import { CharCode } from 'vs/base/common/charCode';
 
 export class ReplacePattern {

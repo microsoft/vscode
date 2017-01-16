@@ -7,7 +7,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
@@ -47,9 +46,8 @@ export function getLanguages(): ILanguageExtensionPoint[] {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	const desired = 'onLanguage:' + languageId;
-	let disposable = onWillActivate.event((activationEvent) => {
-		if (activationEvent === desired) {
+	let disposable = StaticServices.modeService.get().onDidCreateMode((mode) => {
+		if (mode.getId() === languageId) {
 			// stop listening
 			disposable.dispose();
 			// invoke actual listener

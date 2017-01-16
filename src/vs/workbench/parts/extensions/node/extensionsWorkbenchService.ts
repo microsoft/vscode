@@ -841,7 +841,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				}
 
 				const extension = result.firstPage[0];
-				this.open(extension).done(null, error => this.onError(error));
+				const promises = [this.open(extension)];
+
+				if (this.local.every(local => local.identifier !== extension.identifier)) {
+					promises.push(this.install(extension));
+				}
+
+				TPromise.join(promises)
+					.done(null, error => this.onError(error));
 			});
 	}
 

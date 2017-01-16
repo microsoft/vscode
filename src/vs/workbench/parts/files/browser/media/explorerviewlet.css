@@ -48,6 +48,11 @@
 	visibility: hidden;
 }
 
+.explorer-viewlet .header .monaco-count-badge.hidden {
+	display: none;
+	visibility: hidden;
+}
+
 .explorer-folders-view .monaco-tree-row > .content {
 	display: inline-block;
 }

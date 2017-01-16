@@ -71,36 +71,35 @@ export class TokenMetadata {
 		return className;
 	}
 
-	public static inflateArr(tokens: Uint32Array): ViewLineToken[] {
-		let tokenCount = (tokens.length >>> 1);
+	public static inflateArr(tokens: Uint32Array, lineLength: number): ViewLineToken[] {
 		let result: ViewLineToken[] = [];
 
-		for (let i = 0; i < tokenCount; i++) {
-			let startOffset = tokens[(i << 1)];
+		for (let i = 0, len = (tokens.length >>> 1); i < len; i++) {
+			let endOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
 			let metadata = tokens[(i << 1) + 1];
 
-			result[i] = new ViewLineToken(startOffset, this._getClassNameFromMetadata(metadata));
+			result[i] = new ViewLineToken(endOffset, this._getClassNameFromMetadata(metadata));
 		}
+
 		return result;
 	}
 
-	public static sliceAndInflate(tokens: Uint32Array, startOffset: number, endOffset: number, deltaStartIndex: number): ViewLineToken[] {
+	public static sliceAndInflate(tokens: Uint32Array, startOffset: number, endOffset: number, deltaOffset: number, lineLength: number): ViewLineToken[] {
 		let tokenIndex = this.findIndexInSegmentsArray(tokens, startOffset);
 		let result: ViewLineToken[] = [], resultLen = 0;
 
-		result[resultLen++] = new ViewLineToken(0, this._getClassNameFromMetadata(tokens[(tokenIndex << 1) + 1]));
+		for (let i = tokenIndex, len = (tokens.length >>> 1); i < len; i++) {
+			let tokenStartOffset = tokens[(i << 1)];
 
-		for (let i = tokenIndex + 1, len = (tokens.length >>> 1); i < len; i++) {
-			let originalStartOffset = tokens[(i << 1)];
-
-			if (originalStartOffset >= endOffset) {
+			if (tokenStartOffset >= endOffset) {
 				break;
 			}
 
-			let newStartOffset = originalStartOffset - startOffset + deltaStartIndex;
+			let tokenEndOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
+			let newEndOffset = tokenEndOffset - startOffset + deltaOffset;
 			let metadata = tokens[(i << 1) + 1];
 
-			result[resultLen++] = new ViewLineToken(newStartOffset, this._getClassNameFromMetadata(metadata));
+			result[resultLen++] = new ViewLineToken(newEndOffset, this._getClassNameFromMetadata(metadata));
 		}
 
 		return result;

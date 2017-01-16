@@ -565,6 +565,9 @@ export class CallStackRenderer implements IRenderer {
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
 		stackFrame.source.deemphasize ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
 		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
+		if (stackFrame.source.raw.origin) {
+			data.file.title += `\n${stackFrame.source.raw.origin}`;
+		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
