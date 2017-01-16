@@ -89,30 +89,28 @@ export class CommandCenter {
 
 		descriptor.value = function (...args: any[]) {
 			fn.apply(this, args).catch(async err => {
-				if (err.gitErrorCode) {
-					let message: string;
+				let message: string;
 
-					switch (err.gitErrorCode) {
-						case 'DirtyWorkTree':
-							message = 'Please clean your repository working tree before checkout.';
-							break;
-						default:
-							message = (err.stderr || err.message).replace(/^error: /, '');
-							break;
-					}
+				switch (err.gitErrorCode) {
+					case 'DirtyWorkTree':
+						message = 'Please clean your repository working tree before checkout.';
+						break;
+					default:
+						message = (err.stderr || err.message).replace(/^error: /, '');
+						break;
+				}
 
-					const outputChannel = this.outputChannel as OutputChannel;
-					const openOutputChannelChoice = 'Open Git Log';
-					const choice = await window.showErrorMessage(message, openOutputChannelChoice);
-
-					if (choice === openOutputChannelChoice) {
-						outputChannel.show();
-					}
-				} else if (err.message) {
-					window.showErrorMessage(err.message);
+				if (!message) {
 					console.error(err);
-				} else {
-					console.error(err);
+					return;
+				}
+
+				const outputChannel = this.outputChannel as OutputChannel;
+				const openOutputChannelChoice = 'Open Git Log';
+				const choice = await window.showErrorMessage(message, openOutputChannelChoice);
+
+				if (choice === openOutputChannelChoice) {
+					outputChannel.show();
 				}
 			});
 		};
