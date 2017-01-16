@@ -1613,6 +1613,10 @@ declare module monaco.editor {
          */
         className?: string;
         /**
+         * Message to be rendered when hovering over the glyph margin decoration.
+         */
+        glyphMarginHoverMessage?: MarkedString | MarkedString[];
+        /**
          * Array of MarkedString to render as the decoration message.
          */
         hoverMessage?: MarkedString | MarkedString[];

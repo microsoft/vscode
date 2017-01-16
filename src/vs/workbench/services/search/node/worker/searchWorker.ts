@@ -167,7 +167,7 @@ export class SearchWorkerEngine {
 		return new TPromise<void>((resolve, reject) => {
 			fs.open(filename, 'r', null, (error: Error, fd: number) => {
 				if (error) {
-					return reject(error);
+					return resolve(null);
 				}
 
 				let buffer = new Buffer(options.bufferLength);
@@ -275,7 +275,7 @@ export class SearchWorkerEngine {
 
 				readFile(/*isFirstRead=*/true, (error: Error) => {
 					if (error) {
-						return reject(error);
+						return resolve(null);
 					}
 
 					if (line.length) {
@@ -283,11 +283,7 @@ export class SearchWorkerEngine {
 					}
 
 					fs.close(fd, (error: Error) => {
-						if (error) {
-							reject(error);
-						} else {
-							resolve(null);
-						}
+						resolve(null);
 					});
 				});
 			});

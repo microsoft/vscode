@@ -156,6 +156,11 @@
 	cursor: pointer;
 }
 
+.monaco-editor .edit-preferences-widget.hidden {
+	display: none;
+	visibility: hidden;
+}
+
 .monaco-editor.hc-black .edit-preferences-widget,
 .monaco-editor.vs-dark .edit-preferences-widget {
 	background: url('edit_inverse.svg') center center no-repeat;

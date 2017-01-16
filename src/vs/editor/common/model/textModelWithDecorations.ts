@@ -834,8 +834,8 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 
 	stickiness: editorCommon.TrackedRangeStickiness;
 	className: string;
-	glyphMarginHoverMessage: string;
 	hoverMessage: MarkedString | MarkedString[];
+	glyphMarginHoverMessage: MarkedString | MarkedString[];
 	isWholeLine: boolean;
 	showInOverviewRuler: string;
 	overviewRuler: editorCommon.IModelDecorationOverviewRulerOptions;
@@ -849,8 +849,8 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	constructor(options: editorCommon.IModelDecorationOptions) {
 		this.stickiness = options.stickiness || editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
+		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || strings.empty;
 		this.isWholeLine = options.isWholeLine || false;
 		this.overviewRuler = _normalizeOverviewRulerOptions(options.overviewRuler, options.showInOverviewRuler);
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : strings.empty;
@@ -873,7 +873,6 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		return (
 			this.stickiness === other.stickiness
 			&& this.className === other.className
-			&& this.glyphMarginHoverMessage === other.glyphMarginHoverMessage
 			&& this.isWholeLine === other.isWholeLine
 			&& this.showInOverviewRuler === other.showInOverviewRuler
 			&& this.glyphMarginClassName === other.glyphMarginClassName
@@ -883,6 +882,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 			&& this.beforeContentClassName === other.beforeContentClassName
 			&& this.afterContentClassName === other.afterContentClassName
 			&& markedStringsEquals(this.hoverMessage, other.hoverMessage)
+			&& markedStringsEquals(this.glyphMarginHoverMessage, other.glyphMarginHoverMessage)
 			&& ModelDecorationOptions._overviewRulerEquals(this.overviewRuler, other.overviewRuler)
 		);
 	}

@@ -24,7 +24,7 @@ export class TerminalSupport {
 
 		let delay = 0;
 		if (!TerminalSupport.integratedTerminalInstance) {
-			TerminalSupport.integratedTerminalInstance = terminalService.createInstance(args.title || nls.localize('debuggee', "debuggee"));
+			TerminalSupport.integratedTerminalInstance = terminalService.createInstance({ executable: args.title || nls.localize('debuggee', "debuggee") });
 			delay = 2000;	// delay sendText so that the newly created terminal is ready.
 		}
 		if (!TerminalSupport.terminalDisposedListener) {
