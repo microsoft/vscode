@@ -381,6 +381,12 @@ export class CommandCenter {
 		await Promise.reject('not implemented');
 	}
 
+	@CommandCenter.Command('git.push')
+	@CommandCenter.CatchErrors
+	async push(): Promise<void> {
+		await Promise.reject('not implemented');
+	}
+
 	@CommandCenter.Command('git.pushTo')
 	@CommandCenter.CatchErrors
 	async pushTo(): Promise<void> {
