@@ -355,6 +355,122 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
 	});
 
+	test('issue #6885: Splits large tokens', () => {
+		//                                                                                                                  1         1         1
+		//                        1         2         3         4         5         6         7         8         9         0         1         2
+		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+		let _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
+
+		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
+			let lineParts = [createPart(lineText.length, 'mtk1')];
+			let actual = renderViewLine(new RenderLineInput(
+				lineText,
+				false,
+				0,
+				lineParts,
+				[],
+				4,
+				10,
+				-1,
+				'none',
+				false
+			));
+			assert.equal(actual.output, '<span>' + expectedOutput.join('') + '</span>', message);
+		}
+
+		// A token with 49 chars
+		{
+			assertSplitsTokens(
+				'49 chars',
+				_lineText.substr(0, 49),
+				[
+					'<span class="mtk1">This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;very&nbsp;inter</span>',
+				]
+			);
+		}
+
+		// A token with 50 chars
+		{
+			assertSplitsTokens(
+				'50 chars',
+				_lineText.substr(0, 50),
+				[
+					'<span class="mtk1">This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;very&nbsp;intere</span>',
+				]
+			);
+		}
+
+		// A token with 51 chars
+		{
+			assertSplitsTokens(
+				'51 chars',
+				_lineText.substr(0, 51),
+				[
+					'<span class="mtk1">This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;very&nbsp;intere</span>',
+					'<span class="mtk1">s</span>',
+				]
+			);
+		}
+
+		// A token with 99 chars
+		{
+			assertSplitsTokens(
+				'99 chars',
+				_lineText.substr(0, 99),
+				[
+					'<span class="mtk1">This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;very&nbsp;intere</span>',
+					'<span class="mtk1">sting&nbsp;text.&nbsp;This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contain</span>',
+				]
+			);
+		}
+
+		// A token with 100 chars
+		{
+			assertSplitsTokens(
+				'100 chars',
+				_lineText.substr(0, 100),
+				[
+					'<span class="mtk1">This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;very&nbsp;intere</span>',
+					'<span class="mtk1">sting&nbsp;text.&nbsp;This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains</span>',
+				]
+			);
+		}
+
+		// A token with 101 chars
+		{
+			assertSplitsTokens(
+				'101 chars',
+				_lineText.substr(0, 101),
+				[
+					'<span class="mtk1">This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;very&nbsp;intere</span>',
+					'<span class="mtk1">sting&nbsp;text.&nbsp;This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains</span>',
+					'<span class="mtk1">&nbsp;</span>',
+				]
+			);
+		}
+	});
+
+	test('issue #6885: Does not split large tokens in RTL text', () => {
+		let lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
+		let lineParts = [createPart(lineText.length, 'mtk1')];
+		let expectedOutput = [
+			'<span dir="ltr" class="mtk1">את&nbsp;גרמנית&nbsp;בהתייחסות&nbsp;שמו,&nbsp;שנתי&nbsp;המשפט&nbsp;אל&nbsp;חפש,&nbsp;אם&nbsp;כתב&nbsp;אחרים&nbsp;ולחבר.&nbsp;של&nbsp;התוכן&nbsp;אודות&nbsp;בויקיפדיה&nbsp;כלל,&nbsp;של&nbsp;עזרה&nbsp;כימיה&nbsp;היא.&nbsp;על&nbsp;עמוד&nbsp;יוצרים&nbsp;מיתולוגיה&nbsp;סדר,&nbsp;אם&nbsp;שכל&nbsp;שתפו&nbsp;לעברית&nbsp;שינויים,&nbsp;אם&nbsp;שאלות&nbsp;אנגלית&nbsp;עזה.&nbsp;שמות&nbsp;בקלות&nbsp;מה&nbsp;סדר.</span>'
+		];
+		let actual = renderViewLine(new RenderLineInput(
+			lineText,
+			true,
+			0,
+			lineParts,
+			[],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+		assert.equal(actual.output, '<span>' + expectedOutput.join('') + '</span>');
+	});
+
 	function assertCharacterMapping(actual: CharacterMapping, expected: number[][]): void {
 		let charOffset = 0;
 		for (let partIndex = 0; partIndex < expected.length; partIndex++) {
