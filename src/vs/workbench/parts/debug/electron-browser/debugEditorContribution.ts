@@ -14,9 +14,10 @@ import { visit } from 'vs/base/common/json';
 import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardTokenType } from 'vs/editor/common/modes';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -28,15 +29,22 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { toNameValueMap, getDecorations, getWordToLineNumbersMap } from 'vs/workbench/parts/debug/electron-browser/debugInlineValues';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
+
 const REMOVE_DECORATORS_DEBOUNCE_INTERVAL = 100; // If we receive a break in this interval, don't reset decorators as it causes a UI flash.
-const INLINE_DECORATOR_KEY = 'inlineDecorator';
+const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
+const MAX_INLINE_VALUE_LENGTH = 50; // Max string length of each inline 'x = y' string. If exceeded ... is added
+const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
+const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
+const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
+// LanguageConfigurationRegistry.getWordDefinition() return regexes that allow spaces and punctuation characters for languages like python
+// Using that approach is not viable so we are using a simple regex to look for word tokens.
+const WORD_REGEXP = /[\$\_A-Za-z][\$\_A-Za-z0-9]*/g;
 
 @editorContribution
 export class DebugEditorContribution implements IDebugEditorContribution {
@@ -74,7 +82,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.updateConfigurationWidgetVisibility();
-		this.codeEditorService.registerDecorationType(INLINE_DECORATOR_KEY, {});
+		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
@@ -169,6 +177,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.closeBreakpointWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
+			this.wordToLineNumbersMap = null;
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 	}
@@ -224,32 +233,23 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		clearTimeout(this.removeDecorationsTimeoutId);
 		if (!stackFrame) {
 			this.removeDecorationsTimeoutId = setTimeout(() => {
-				this.editor.removeDecorations(INLINE_DECORATOR_KEY);
-				this.wordToLineNumbersMap = null;
+				this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY);
 			}, REMOVE_DECORATORS_DEBOUNCE_INTERVAL);
 			return;
 		}
 
-		// URI has changed, invalidate the editorWordRangeMap so its re-computed for the current model
-		if (stackFrame.source.uri.toString() !== this.editor.getModel().uri.toString()) {
-			this.wordToLineNumbersMap = null;
+		const editorModel = this.editor.getModel();
+		if (!editorModel) {
+			return;
 		}
 
 		stackFrame.getScopes()
 			// Get all top level children in the scope chain
 			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren())))
 			.then(children => {
-				const editorModel = this.editor.getModel();
-				// Compute name-value map for all variables in scope chain
-				const expressions = [].concat.apply([], children);
-				const nameValueMap = toNameValueMap(expressions);
-				// Build wordRangeMap if not already computed for the editor model
-				if (!this.wordToLineNumbersMap) {
-					this.wordToLineNumbersMap = getWordToLineNumbersMap(editorModel);
-				}
-				// Compute decorators from nameValueMap and wordRangeMap and apply to editor
-				const decorators = getDecorations(nameValueMap, this.wordToLineNumbersMap);
-				this.editor.setDecorations(INLINE_DECORATOR_KEY, decorators);
+				const expressions = children.reduce((previous, current) => previous.concat(current), []);
+				const decorations = this.createInlineValueDecorations(expressions);
+				this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, decorations);
 			});
 	}
 
@@ -376,6 +376,131 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		glyphMarginClassName: 'debug-breakpoint-hint-glyph',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
+
+	// Inline Decorations
+
+	private createInlineValueDecorations(expressions: IExpression[]): IDecorationOptions[] {
+		const nameValueMap = new Map<string, string>();
+		for (let expr of expressions) {
+			// Put ellipses in value if its too long. Preserve last char e.g "longstr…" or {a:true, b:true, …}
+			let value = expr.value;
+			if (value && value.length > MAX_INLINE_VALUE_LENGTH) {
+				value = value.substr(0, MAX_INLINE_VALUE_LENGTH) + '…' + value[value.length - 1];
+			}
+
+			nameValueMap.set(expr.name, value);
+
+			// Limit the size of map. Too large can have a perf impact
+			if (nameValueMap.size >= MAX_NUM_INLINE_VALUES) {
+				break;
+			}
+		}
+
+		const lineToNamesMap: Map<number, string[]> = new Map<number, string[]>();
+		const wordToLineNumbersMap = this.getWordToLineNumbersMap();
+
+		// Compute unique set of names on each line
+		nameValueMap.forEach((value, name) => {
+			if (wordToLineNumbersMap.has(name)) {
+				for (let lineNumber of wordToLineNumbersMap.get(name)) {
+					if (!lineToNamesMap.has(lineNumber)) {
+						lineToNamesMap.set(lineNumber, []);
+					}
+
+					lineToNamesMap.get(lineNumber).push(name);
+				}
+			}
+		});
+
+		const decorations: IDecorationOptions[] = [];
+		// Compute decorators for each line
+		lineToNamesMap.forEach((names, line) => {
+			// Wrap with 1em unicode space for readability
+			const contentText = '\u2003' + names.map(name => `${name} = ${nameValueMap.get(name)}`).join(', ') + '\u2003';
+			decorations.push(this.createDecoration(line, contentText));
+		});
+
+		return decorations;
+	}
+
+	private createDecoration(lineNumber: number, contentText: string): IDecorationOptions {
+		const margin = '10px';
+		const backgroundColor = 'rgba(255, 200, 0, 0.2)';
+		const lightForegroundColor = 'rgba(0, 0, 0, 0.5)';
+		const darkForegroundColor = 'rgba(255, 255, 255, 0.5)';
+
+		// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
+		if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
+			contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+		}
+
+		const column = this.editor.getModel().getLineMaxColumn(lineNumber);
+		return {
+			range: {
+				startLineNumber: lineNumber,
+				endLineNumber: lineNumber,
+				startColumn: column,
+				endColumn: column
+			},
+			renderOptions: {
+				dark: {
+					after: {
+						contentText,
+						backgroundColor,
+						color: darkForegroundColor,
+						margin
+					}
+				},
+				light: {
+					after: {
+						contentText,
+						backgroundColor,
+						color: lightForegroundColor,
+						margin
+					}
+				}
+			}
+		};
+	}
+
+	private getWordToLineNumbersMap(): Map<string, number[]> {
+		if (!this.wordToLineNumbersMap) {
+			this.wordToLineNumbersMap = new Map<string, number[]>();
+			const model = this.editor.getModel();
+
+			// For every word in every line, map its ranges for fast lookup
+			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
+				const lineContent = model.getLineContent(lineNumber);
+
+				// If line is too long then skip the line
+				if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+					continue;
+				}
+
+				const lineTokens = model.getLineTokens(lineNumber);
+				for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
+					const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
+
+					// Token is a word and not a comment
+					if (token.tokenType === StandardTokenType.Other) {
+						WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+						const wordMatch = WORD_REGEXP.exec(tokenStr);
+
+						if (wordMatch) {
+							const word = wordMatch[0];
+							if (!this.wordToLineNumbersMap.has(word)) {
+								this.wordToLineNumbersMap.set(word, []);
+							}
+
+							this.wordToLineNumbersMap.get(word).push(lineNumber);
+						}
+					}
+				}
+			}
+		}
+
+		return this.wordToLineNumbersMap;
+	}
 
 	public dispose(): void {
 		if (this.breakpointWidget) {
