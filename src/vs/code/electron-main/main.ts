@@ -24,8 +24,8 @@ import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
-import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
+// import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
+// import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -134,9 +134,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	}
 
 	// Register Main IPC services
-	const askpassService = new GitAskpassService();
-	const askpassChannel = new AskpassChannel(askpassService);
-	mainIpcServer.registerChannel('askpass', askpassChannel);
+	// const askpassService = new GitAskpassService();
+	// const askpassChannel = new AskpassChannel(askpassService);
+	// mainIpcServer.registerChannel('askpass', askpassChannel);
 
 	// Create Electron IPC Server
 	const electronIpcServer = new ElectronIPCServer();
