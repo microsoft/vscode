@@ -46,6 +46,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _alternativeVersionId: number;
 	private _BOM: string;
 	protected _mightContainRTL: boolean;
+	protected _mightContainNonBasicASCII: boolean;
 
 	private _shouldSimplifyMode: boolean;
 	private _shouldDenyMode: boolean;
@@ -189,6 +190,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._mightContainRTL;
 	}
 
+	public mightContainNonBasicASCII(): boolean {
+		return this._mightContainNonBasicASCII;
+	}
+
 	public getAlternativeVersionId(): number {
 		this._assertNotDisposed();
 		return this._alternativeVersionId;
@@ -293,6 +298,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			lines: this.getLinesContent(),
 			length: this.getValueLength(),
 			containsRTL: this._mightContainRTL,
+			isBasicASCII: !this._mightContainNonBasicASCII,
 			options: this._options
 		};
 	}
@@ -752,6 +758,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		const containsRTL = strings.containsRTL(rawText);
+		const isBasicASCII = (containsRTL ? false : strings.isBasicASCII(rawText));
 
 		// Split the text into lines
 		const lines = rawText.split(/\r\n|\r|\n/);
@@ -800,6 +807,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			lines: lines,
 			length: rawText.length,
 			containsRTL: containsRTL,
+			isBasicASCII: isBasicASCII,
 			options: resolvedOpts
 		};
 	}
@@ -814,6 +822,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 		this._BOM = rawText.BOM;
 		this._mightContainRTL = rawText.containsRTL;
+		this._mightContainNonBasicASCII = !rawText.isBasicASCII;
 		this._EOL = rawText.EOL;
 		this._lines = modelLines;
 		this._lineStarts = null;
