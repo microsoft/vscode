@@ -326,9 +326,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private onDidSelectEmitter = new Emitter<ICompletionItem>();
 	private onDidFocusEmitter = new Emitter<ICompletionItem>();
+	private onDidHideEmitter = new Emitter<this>();
+	private onDidShowEmitter = new Emitter<this>();
+
 
 	readonly onDidSelect: Event<ICompletionItem> = this.onDidSelectEmitter.event;
 	readonly onDidFocus: Event<ICompletionItem> = this.onDidFocusEmitter.event;
+	readonly onDidHide: Event<this> = this.onDidHideEmitter.event;
+	readonly onDidShow: Event<this> = this.onDidShowEmitter.event;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -697,6 +702,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.renderDetails();
 		this.showTimeout = TPromise.timeout(100).then(() => {
 			addClass(this.element, 'visible');
+			this.onDidShowEmitter.fire(this);
 		});
 	}
 
@@ -709,6 +715,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	hideWidget(): void {
 		clearTimeout(this.loadingTimeout);
 		this.setState(State.Hidden);
+		this.onDidHideEmitter.fire(this);
 	}
 
 	hideDetailsOrHideWidget(): void {
