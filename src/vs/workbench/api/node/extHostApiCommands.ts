@@ -234,6 +234,17 @@ export class ExtHostApiCommands {
 					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
 				]
 			});
+
+		this._register('vscode.newUntitled', (contents: string, path: string, language: string) => {
+			return this._commands.executeCommand('_workbench.newUntitled', [contents, path, language]);
+		}, {
+				description: 'Creates a new untitled file and opens it in the editor. The optional arguments allow to define the contents, path and language of the untitled document.',
+				args: [
+					{ name: 'contents', description: '(optional) Contents of the untitled document', constraint: v => v === void 0 || typeof v === 'string' },
+					{ name: 'path', description: '(optional) File path of the untitled document', constraint: v => v === void 0 || typeof v === 'string' },
+					{ name: 'language', description: '(optional) Identifier of the language to use for the untitled document', constraint: v => v === void 0 || typeof v === 'string' }
+				]
+			});
 	}
 
 	// --- command impl
