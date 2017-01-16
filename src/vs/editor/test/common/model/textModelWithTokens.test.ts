@@ -293,18 +293,18 @@ suite('TextModelWithTokens regression tests', () => {
 
 		let model = Model.createFromString('A model with\ntwo lines');
 
-		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, 'mtk1')]);
-		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, 'mtk1')]);
+		assertViewLineTokens(model, 1, true, [new ViewLineToken(12, 'mtk1')]);
+		assertViewLineTokens(model, 2, true, [new ViewLineToken(9, 'mtk1')]);
 
 		model.setMode(languageIdentifier1);
 
-		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, 'mtk11')]);
-		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, 'mtk12')]);
+		assertViewLineTokens(model, 1, true, [new ViewLineToken(12, 'mtk11')]);
+		assertViewLineTokens(model, 2, true, [new ViewLineToken(9, 'mtk12')]);
 
 		model.setMode(languageIdentifier2);
 
-		assertViewLineTokens(model, 1, false, [new ViewLineToken(0, 'mtk1')]);
-		assertViewLineTokens(model, 2, false, [new ViewLineToken(0, 'mtk1')]);
+		assertViewLineTokens(model, 1, false, [new ViewLineToken(12, 'mtk1')]);
+		assertViewLineTokens(model, 2, false, [new ViewLineToken(9, 'mtk1')]);
 
 		model.dispose();
 		registration1.dispose();

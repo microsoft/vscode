@@ -24,7 +24,7 @@ class TestTerminalInstance extends TerminalInstance {
 		return super._getCwd(shell, workspace);
 	}
 
-	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig): void { }
+	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void { }
 }
 
 suite('Workbench - TerminalInstance', () => {
@@ -91,7 +91,7 @@ suite('Workbench - TerminalInstance', () => {
 			configHelper = {
 				getCwd: () => null
 			};
-			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null, null);
+			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null);
 		});
 
 		// This helper checks the paths in a cross-platform friendly manner
