@@ -58,6 +58,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			lineContent,
+			false,
 			fauxIndentLength,
 			tokens,
 			[],
@@ -267,6 +268,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('createLineParts can handle unsorted inline decorations', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			'Hello world',
+			false,
 			0,
 			[new ViewLineToken(11, '')],
 			[
@@ -371,6 +373,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			lineContent,
+			false,
 			0,
 			parts,
 			[],
