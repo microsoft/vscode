@@ -16,7 +16,7 @@ import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { VisibleRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
+import { IViewLines, VisibleRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
@@ -47,7 +47,7 @@ class LastRenderedData {
 	}
 }
 
-export class ViewLines extends ViewLayer<ViewLine> {
+export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	/**
 	 * Width to extends a line to render the line feed at the end of the line
 	 */

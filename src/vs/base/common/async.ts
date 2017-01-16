@@ -422,23 +422,6 @@ export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t:
 	return loop();
 }
 
-export function once<T extends Function>(fn: T): T {
-	const _this = this;
-	let didCall = false;
-	let result: any;
-
-	return function () {
-		if (didCall) {
-			return result;
-		}
-
-		didCall = true;
-		result = fn.apply(_this, arguments);
-
-		return result;
-	} as any as T;
-}
-
 interface ILimitedTaskFactory {
 	factory: ITask<Promise>;
 	c: ValueCallback;

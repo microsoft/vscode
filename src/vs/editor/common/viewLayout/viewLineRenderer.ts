@@ -98,9 +98,12 @@ export class CharacterMapping {
 	private readonly _data: Uint32Array;
 	public readonly length: number;
 
-	constructor(length: number) {
+	private readonly _partLengths: Uint16Array;
+
+	constructor(length: number, partCount: number) {
 		this.length = length;
 		this._data = new Uint32Array(this.length);
+		this._partLengths = new Uint16Array(partCount);
 	}
 
 	public setPartData(charOffset: number, partIndex: number, charIndex: number): void {
@@ -109,6 +112,14 @@ export class CharacterMapping {
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
 		this._data[charOffset] = partData;
+	}
+
+	public setPartLength(partIndex: number, length: number): void {
+		this._partLengths[partIndex] = length;
+	}
+
+	public getPartLengths(): Uint16Array {
+		return this._partLengths;
 	}
 
 	public charOffsetToPartData(charOffset: number): number {
@@ -190,19 +201,22 @@ export class RenderLineOutput {
 
 	readonly characterMapping: CharacterMapping;
 	readonly output: string;
+	readonly containsRTL: boolean;
 
-	constructor(characterMapping: CharacterMapping, output: string) {
+	constructor(characterMapping: CharacterMapping, output: string, containsRTL: boolean) {
 		this.characterMapping = characterMapping;
 		this.output = output;
+		this.containsRTL = containsRTL;
 	}
 }
 
 export function renderViewLine(input: RenderLineInput): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 		return new RenderLineOutput(
-			new CharacterMapping(0),
+			new CharacterMapping(0, 0),
 			// This is basically for IE's hit test to work
-			'<span><span>&nbsp;</span></span>'
+			'<span><span>&nbsp;</span></span>',
+			false
 		);
 	}
 
@@ -217,7 +231,7 @@ class ResolvedRenderLineInput {
 		public readonly tokens: ViewLineToken[],
 		public readonly lineDecorations: Decoration[],
 		public readonly tabSize: number,
-		public readonly emitLTRDir: boolean,
+		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
@@ -247,10 +261,12 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.lineDecorations.length > 0) {
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-
-	let emitLTRDir = false;
+	let containsRTL = false;
 	if (input.mightContainRTL) {
-		emitLTRDir = strings.containsRTL(lineContent);
+		containsRTL = strings.containsRTL(lineContent);
+	}
+	if (!containsRTL) {
+		tokens = splitLargeTokens(tokens);
 	}
 
 	return new ResolvedRenderLineInput(
@@ -260,13 +276,17 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens,
 		input.lineDecorations,
 		input.tabSize,
-		emitLTRDir,
+		containsRTL,
 		input.spaceWidth,
 		input.renderWhitespace,
 		input.renderControlCharacters
 	);
 }
 
+/**
+ * In the rendering phase, characters are always looped until token.endIndex.
+ * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
+ */
 function removeOverflowing(tokens: ViewLineToken[], len: number): ViewLineToken[] {
 	if (tokens.length === 0) {
 		return tokens;
@@ -290,6 +310,47 @@ function removeOverflowing(tokens: ViewLineToken[], len: number): ViewLineToken[
 	return result;
 }
 
+/**
+ * written as a const enum to get value inlining.
+ */
+const enum Constants {
+	LongToken = 50
+}
+
+/**
+ * See https://github.com/Microsoft/vscode/issues/6885.
+ * It appears that having very large spans causes very slow reading of character positions.
+ * So here we try to avoid that.
+ */
+function splitLargeTokens(tokens: ViewLineToken[]): ViewLineToken[] {
+	let lastTokenEndIndex = 0;
+	let result: ViewLineToken[] = [], resultLen = 0;
+	for (let i = 0, len = tokens.length; i < len; i++) {
+		const token = tokens[i];
+		const tokenEndIndex = token.endIndex;
+		let diff = (tokenEndIndex - lastTokenEndIndex);
+		if (diff > Constants.LongToken) {
+			const tokenType = token.type;
+			const piecesCount = Math.ceil(diff / Constants.LongToken);
+			for (let j = 1; j < piecesCount; j++) {
+				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
+				result[resultLen++] = new ViewLineToken(pieceEndIndex, tokenType);
+			}
+			result[resultLen++] = new ViewLineToken(tokenEndIndex, tokenType);
+		} else {
+			result[resultLen++] = token;
+		}
+		lastTokenEndIndex = tokenEndIndex;
+	}
+
+	return result;
+}
+
+/**
+ * Whitespace is rendered by "replacing" tokens with a special-purpose `vs-whitespace` type that is later recognized in the rendering phase.
+ * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
+ * The rendering phase will generate `style="width:..."` for these tokens.
+ */
 function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, onlyBoundary: boolean): ViewLineToken[] {
 
 	let result: ViewLineToken[] = [], resultLen = 0;
@@ -391,6 +452,10 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 	return result;
 }
 
+/**
+ * Inline decorations are "merged" on top of tokens.
+ * Special care must be taken when multiple inline decorations are at play and they overlap.
+ */
 function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewLineToken[], _lineDecorations: Decoration[]): ViewLineToken[] {
 	_lineDecorations.sort(Decoration.compare);
 	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
@@ -411,7 +476,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType);
 			}
 
-			if (lineDecoration.endOffset + 1 < tokenEndIndex) {
+			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
 				lastResultEndIndex = lineDecoration.endOffset + 1;
 				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				lineDecorationIndex++;
@@ -429,18 +494,22 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 	return result;
 }
 
+/**
+ * This function is on purpose not split up into multiple functions to allow runtime type inference (i.e. performance reasons).
+ * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
+ */
 function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	const lineContent = input.lineContent;
 	const len = input.len;
 	const isOverflowing = input.isOverflowing;
 	const tokens = input.tokens;
 	const tabSize = input.tabSize;
-	const emitLTRDir = input.emitLTRDir;
+	const containsRTL = input.containsRTL;
 	const spaceWidth = input.spaceWidth;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
 
-	const characterMapping = new CharacterMapping(len + 1);
+	const characterMapping = new CharacterMapping(len + 1, tokens.length);
 
 	let charIndex = 0;
 	let tabsCharDelta = 0;
@@ -485,9 +554,12 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 				charOffsetInPart++;
 			}
 
+			characterMapping.setPartLength(tokenIndex, partContentCnt);
 			out += `<span class="${tokenType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
 
 		} else {
+
+			let partContentCnt = 0;
 			let partContent = '';
 
 			for (; charIndex < tokenEndIndex; charIndex++) {
@@ -501,52 +573,63 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 						charOffsetInPart += insertSpacesCount - 1;
 						while (insertSpacesCount > 0) {
 							partContent += '&nbsp;';
+							partContentCnt++;
 							insertSpacesCount--;
 						}
 						break;
 
 					case CharCode.Space:
 						partContent += '&nbsp;';
+						partContentCnt++;
 						break;
 
 					case CharCode.LessThan:
 						partContent += '&lt;';
+						partContentCnt++;
 						break;
 
 					case CharCode.GreaterThan:
 						partContent += '&gt;';
+						partContentCnt++;
 						break;
 
 					case CharCode.Ampersand:
 						partContent += '&amp;';
+						partContentCnt++;
 						break;
 
 					case CharCode.Null:
 						partContent += '&#00;';
+						partContentCnt++;
 						break;
 
 					case CharCode.UTF8_BOM:
 					case CharCode.LINE_SEPARATOR_2028:
 						partContent += '\ufffd';
+						partContentCnt++;
 						break;
 
 					case CharCode.CarriageReturn:
 						// zero width space, because carriage return would introduce a line break
 						partContent += '&#8203';
+						partContentCnt++;
 						break;
 
 					default:
 						if (renderControlCharacters && charCode < 32) {
 							partContent += String.fromCharCode(9216 + charCode);
+							partContentCnt++;
 						} else {
-							partContent += String.fromCharCode(charCode);;
+							partContent += String.fromCharCode(charCode);
+							partContentCnt++;
 						}
 				}
 
 				charOffsetInPart++;
 			}
 
-			if (emitLTRDir) {
+			characterMapping.setPartLength(tokenIndex, partContentCnt);
+			if (containsRTL) {
 				out += `<span dir="ltr" class="${tokenType}">${partContent}</span>`;
 			} else {
 				out += `<span class="${tokenType}">${partContent}</span>`;
@@ -560,10 +643,10 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	characterMapping.setPartData(len, tokens.length - 1, charOffsetInPart);
 
 	if (isOverflowing) {
-		out += `<span class="">&hellip;</span>`;
+		out += `<span class="vs-whitespace">&hellip;</span>`;
 	}
 
 	out += '</span>';
 
-	return new RenderLineOutput(characterMapping, out);
+	return new RenderLineOutput(characterMapping, out, containsRTL);
 }
