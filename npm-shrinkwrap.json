@@ -333,9 +333,9 @@
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
     "node-pty": {
-      "version": "0.4.1",
-      "from": "node-pty@0.4.1",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.4.1.tgz",
+      "version": "0.6.0-beta2",
+      "from": "node-pty@0.6.0-beta2",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.0-beta2.tgz",
       "dependencies": {
         "extend": {
           "version": "1.2.1",
@@ -432,7 +432,7 @@
     "xterm": {
       "version": "2.2.3",
       "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.9",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#36c63323c3f940636e799ae6e0168b2dfd7a3d21"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#745a40e15a2a6387df56340625e3c504e84826cf"
     },
     "yauzl": {
       "version": "2.3.1",

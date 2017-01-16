@@ -6,7 +6,7 @@
 
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
-import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -31,7 +31,7 @@ export interface IViewModel extends IEventEmitter {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getLineTokens(lineNumber: number): ViewLineTokens;
+	getLineTokens(lineNumber: number): ViewLineToken[];
 	getDecorationsViewportData(startLineNumber: number, endLineNumber: number): IDecorationsViewportData;
 	getLineRenderLineNumber(lineNumber: number): string;
 	/**

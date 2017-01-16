@@ -6,7 +6,6 @@
 
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
-import processes = require('vs/base/node/processes');
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +16,6 @@ export const TERMINAL_SERVICE_ID = 'terminalService';
 
 export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
-export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
 
 export const TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE = platform.isWindows;
 
@@ -80,11 +78,28 @@ export interface ITerminalFont {
 }
 
 export interface IShellLaunchConfig {
-	executable: string;
-	args: string[];
-	/** Whether to ignore a custom cwd (if the shell is being launched by an extension) */
-	ignoreCustomCwd?: boolean;
-	/** Whether to wait for a key press before closing the terminal */
+	/** The name of the terminal, this this is not set the name of the process will be used. */
+	name?: string;
+	/** The shell executable (bash, cmd, etc.). */
+	executable?: string;
+	/** The CLI arguments to use with executable. */
+	args?: string[];
+	/**
+	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
+	 * settings key.
+	 */
+	cwd?: string;
+	/**
+	 * A custom environment for the terminal, if this is not set the environment will be inherited
+	 * from the VS Code process.
+	 */
+	env?: { [key: string]: string };
+	/**
+	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
+	 * shell is being launched by an extension).
+	 */
+	ignoreConfigurationCwd?: boolean;
+	/** Whether to wait for a key press before closing the terminal. */
 	waitOnExit?: boolean;
 }
 
@@ -100,7 +115,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean, ignoreCustomCwd?: boolean): ITerminalInstance;
+	createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
