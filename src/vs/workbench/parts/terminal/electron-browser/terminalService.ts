@@ -66,7 +66,6 @@ export class TerminalService implements ITerminalService {
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
-			name,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		terminalInstance.addDisposable(terminalInstance.onClosed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
