@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
-import * as types from 'vs/base/common/types';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
@@ -270,6 +269,10 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public getCompound(name: string): debug.ICompound {
+		if (!this.contextService.getWorkspace()) {
+			return null;
+		}
+
 		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
 		if (!config || !config.compounds) {
 			return null;
@@ -295,31 +298,25 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		}
 	}
 
-	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
-		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
-
-		let result: debug.IConfig;
-		if (types.isObject(nameOrConfig)) {
-			result = objects.deepClone(nameOrConfig) as debug.IConfig;
-		} else {
-			if (!nameOrConfig || !config || !config.configurations || !config.configurations.length) {
-				return TPromise.wrapError(new Error());
-			}
-
-			const filtered = config.configurations.filter(cfg => cfg && cfg.name === nameOrConfig);
-			if (filtered.length !== 1) {
-				const message = filtered.length === 0 ? nls.localize('configurationDoesNotExist', "Configuration '{0}' does not exist.", nameOrConfig)
-					: nls.localize('configuraitonNotUnique', "There are multiple configurations with name '{0}'.", nameOrConfig);
-				return TPromise.wrapError(new Error(message));
-			}
-
-			result = objects.deepClone(filtered[0]);
-		}
-
+	public getConfiguration(name: string): debug.IConfig {
 		if (!this.contextService.getWorkspace()) {
-			return TPromise.as(result);
+			return null;
 		}
 
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
+		if (!config || !config.configurations) {
+			return null;
+		}
+
+		return config.configurations.filter(config => config.name === name).pop();
+	}
+
+	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
+		if (!this.contextService.getWorkspace()) {
+			return TPromise.as(config);
+		}
+
+		const result = objects.deepClone(config) as debug.IConfig;
 		// Set operating system specific properties #1873
 		const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
 			if (flag && osConfig) {

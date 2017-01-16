@@ -32,6 +32,7 @@ import { MainThreadTerminalService } from './mainThreadTerminalService';
 import { MainThreadWorkspace } from './mainThreadWorkspace';
 import { MainProcessExtensionService } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
+import { MainThreadSCM } from './mainThreadSCM';
 
 // --- other interested parties
 import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
@@ -80,6 +81,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadTelemetry).set(create(MainThreadTelemetry));
 		col.define(MainContext.MainThreadTerminalService).set(create(MainThreadTerminalService));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
+		col.define(MainContext.MainThreadSCM).set(create(MainThreadSCM));
 		if (this.extensionService instanceof MainProcessExtensionService) {
 			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
 		}

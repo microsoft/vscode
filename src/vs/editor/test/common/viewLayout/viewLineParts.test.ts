@@ -14,14 +14,14 @@ import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 suite('Editor ViewLayout - ViewLineParts', () => {
 
 	function newDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, inlineClassName: string): InlineDecoration {
-		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName);
+		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName, false);
 	}
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
 
 		var result = LineDecorationsNormalizer.normalize([
-			new Decoration(1, 11, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 11, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]);
 
 		assert.deepEqual(result, [
@@ -34,8 +34,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
 		var result = LineDecorationsNormalizer.normalize([
-			new Decoration(15, 21, 'vs-whitespace'),
-			new Decoration(20, 21, 'inline-folded'),
+			new Decoration(15, 21, 'vs-whitespace', false),
+			new Decoration(20, 21, 'inline-folded', false),
 		]);
 
 		assert.deepEqual(result, [
@@ -51,13 +51,15 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		], 3, 12, 500);
 
 		assert.deepEqual(result, [
-			new Decoration(12, 30, 'detected-link'),
+			new Decoration(12, 30, 'detected-link', false),
 		]);
 	});
 
-	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
+			fontIsMonospace,
 			lineContent,
+			false,
 			fauxIndentLength,
 			tokens,
 			[],
@@ -71,8 +73,36 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		assert.deepEqual(actual.output.split(/></g), expected.split(/></g));
 	}
 
+	test('issue #18616: Inline decorations ending at the text length are no longer rendered', () => {
+
+		let lineContent = 'https://microsoft.com';
+
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			lineContent,
+			false,
+			0,
+			[new ViewLineToken(21, 'mtk3')],
+			[new Decoration(1, 22, 'link', false)],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3 link">https://microsoft.com</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.output, expected);
+	});
+
 	test('createLineParts simple', () => {
 		testCreateLineParts(
+			false,
 			'Hello world!',
 			[
 				new ViewLineToken(12, '')
@@ -88,6 +118,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts simple two tokens', () => {
 		testCreateLineParts(
+			false,
 			'Hello world!',
 			[
 				new ViewLineToken(6, 'a'),
@@ -105,6 +136,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - 4 leading spaces', () => {
 		testCreateLineParts(
+			false,
 			'    Hello world!    ',
 			[
 				new ViewLineToken(4, ''),
@@ -125,6 +157,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - 8 leading spaces', () => {
 		testCreateLineParts(
+			false,
 			'        Hello world!        ',
 			[
 				new ViewLineToken(8, ''),
@@ -147,6 +180,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - 2 leading tabs', () => {
 		testCreateLineParts(
+			false,
 			'\t\tHello world!\t',
 			[
 				new ViewLineToken(2, ''),
@@ -168,6 +202,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - mixed leading spaces and tabs', () => {
 		testCreateLineParts(
+			false,
 			'  \t\t  Hello world! \t  \t   \t    ',
 			[
 				new ViewLineToken(6, ''),
@@ -194,6 +229,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('createLineParts render whitespace skips faux indent', () => {
 		testCreateLineParts(
+			false,
 			'\t\t  Hello world! \t  \t   \t    ',
 			[
 				new ViewLineToken(4, ''),
@@ -217,8 +253,32 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		);
 	});
 
+	test('createLineParts does not emit width for monospace fonts', () => {
+		testCreateLineParts(
+			true,
+			'\t\t  Hello world! \t  \t   \t    ',
+			[
+				new ViewLineToken(4, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(29, 'b')
+			],
+			2,
+			'boundary',
+			[
+				'<span>',
+				'<span class="">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+				'<span class="vs-whitespace">&middot;&middot;</span>',
+				'<span class="a">He</span>',
+				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="vs-whitespace">&middot;&rarr;&middot;&middot;&rarr;&nbsp;&middot;&middot;&middot;&rarr;&middot;&middot;&middot;&middot;</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
 	test('createLineParts render whitespace in middle but not for one space', () => {
 		testCreateLineParts(
+			false,
 			'it  it it  it',
 			[
 				new ViewLineToken(6, ''),
@@ -243,6 +303,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('createLineParts render whitespace for all in middle', () => {
 		testCreateLineParts(
+			false,
 			' Hello world!\t',
 			[
 				new ViewLineToken(4, ''),
@@ -266,13 +327,15 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('createLineParts can handle unsorted inline decorations', () => {
 		let actual = renderViewLine(new RenderLineInput(
+			false,
 			'Hello world',
+			false,
 			0,
 			[new ViewLineToken(11, '')],
 			[
-				new Decoration(5, 7, 'a'),
-				new Decoration(1, 3, 'b'),
-				new Decoration(2, 8, 'c'),
+				new Decoration(5, 7, 'a', false),
+				new Decoration(1, 3, 'b', false),
+				new Decoration(2, 8, 'c', false),
 			],
 			4,
 			10,
@@ -302,65 +365,65 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('ViewLineParts', () => {
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 2, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 2, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 0, 'c1'),
 				new DecorationSegment(2, 2, 'c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 3, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 3, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1'),
 				new DecorationSegment(2, 2, 'c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1'),
 				new DecorationSegment(2, 2, 'c1 c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1*'),
 				new DecorationSegment(2, 2, 'c1 c1* c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(1, 4, 'c1**'),
-			new Decoration(3, 4, 'c2')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(1, 4, 'c1**', false),
+			new Decoration(3, 4, 'c2', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(1, 4, 'c1**'),
-			new Decoration(3, 4, 'c2'),
-			new Decoration(3, 4, 'c2*')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(1, 4, 'c1**', false),
+			new Decoration(3, 4, 'c2', false),
+			new Decoration(3, 4, 'c2*', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize([
-			new Decoration(1, 4, 'c1'),
-			new Decoration(1, 4, 'c1*'),
-			new Decoration(1, 4, 'c1**'),
-			new Decoration(3, 4, 'c2'),
-			new Decoration(3, 5, 'c2*')
+			new Decoration(1, 4, 'c1', false),
+			new Decoration(1, 4, 'c1*', false),
+			new Decoration(1, 4, 'c1**', false),
+			new Decoration(3, 4, 'c2', false),
+			new Decoration(3, 5, 'c2*', false)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*'),
@@ -368,9 +431,11 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			]);
 	});
 
-	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
+	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
+			false,
 			lineContent,
+			false,
 			0,
 			parts,
 			[],
@@ -380,6 +445,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'none',
 			false
 		));
+
+		const partLengths = renderLineOutput.characterMapping.getPartLengths();
+		let actualPartLengths: number[] = [];
+		for (let i = 0; i < partLengths.length; i++) {
+			actualPartLengths[i] = partLengths[i];
+		}
+		assert.deepEqual(actualPartLengths, expectedPartLengths, 'part lengths OK');
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
 			let charOffset = renderLineOutput.characterMapping.partDataToCharOffset(partIndex, partLength, offset);
@@ -394,7 +466,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			4,
 			[
 				new ViewLineToken(11, 'aToken')
-			]
+			],
+			[11]
 		);
 		testGetColumnOfLinePartOffset(0, 11, 0, 1);
 		testGetColumnOfLinePartOffset(0, 11, 1, 2);
@@ -421,7 +494,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(8, 'meta js var expr var-single-variable'),
 				new ViewLineToken(9, 'meta js var expr var-single-variable constant numeric'),
 				new ViewLineToken(10, ''),
-			]
+			],
+			[3, 1, 1, 3, 1, 1]
 		);
 		testGetColumnOfLinePartOffset(0, 3, 0, 1);
 		testGetColumnOfLinePartOffset(0, 3, 1, 2);
@@ -447,7 +521,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			6,
 			[
 				new ViewLineToken(1, 'vs-whitespace')
-			]
+			],
+			[6]
 		);
 		testGetColumnOfLinePartOffset(0, 6, 0, 1);
 		testGetColumnOfLinePartOffset(0, 6, 1, 1);
@@ -465,7 +540,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			[
 				new ViewLineToken(1, ''),
 				new ViewLineToken(9, 'meta type js function storage'),
-			]
+			],
+			[4, 8]
 		);
 		testGetColumnOfLinePartOffset(0, 4, 0, 1);
 		testGetColumnOfLinePartOffset(0, 4, 1, 1);
@@ -490,7 +566,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			[
 				new ViewLineToken(2, ''),
 				new ViewLineToken(10, 'meta type js function storage'),
-			]
+			],
+			[8, 8]
 		);
 		testGetColumnOfLinePartOffset(0, 8, 0, 1);
 		testGetColumnOfLinePartOffset(0, 8, 1, 1);

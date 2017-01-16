@@ -27,7 +27,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/workbench/parts/indentation/common/indentation';
+import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/common/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/editor';
@@ -42,10 +42,9 @@ import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
@@ -680,24 +679,20 @@ function isWritableCodeEditor(e: IBaseEditor): boolean {
 
 export class ShowLanguageExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showLanguageExtensions';
+	static ID = 'workbench.action.showLanguageExtensions';
 
 	constructor(
-		private extension: string,
-		@IViewletService private viewletService: IViewletService,
+		private fileExtension: string,
+		@ICommandService private commandService: ICommandService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
-		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", extension), null, true);
+		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension));
+
 		this.enabled = galleryService.isEnabled();
 	}
 
 	run(): TPromise<void> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
-			.then(viewlet => {
-				viewlet.search(`ext:${this.extension.replace(/^\./, '')}`);
-				viewlet.focus();
-			});
+		return this.commandService.executeCommand('workbench.extensions.action.showLanguageExtensions', this.fileExtension).then(() => void 0);
 	}
 }
 
