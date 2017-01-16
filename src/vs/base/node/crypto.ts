@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import * as stream from 'stream';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { once } from 'vs/base/common/async';
+import { once } from 'vs/base/common/functional';
 
 export function checksum(path: string, sha1hash: string): TPromise<void> {
 	const promise = new TPromise<string>((c, e) => {
