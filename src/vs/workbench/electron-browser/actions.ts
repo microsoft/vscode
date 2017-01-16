@@ -762,9 +762,9 @@ export class ReportPerformanceIssueAction extends Action {
 - Memory (System): <code>${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)</code>
 - Memory (Process): <code>${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)</code>
 - Load (avg): <code>${metrics.loadavg.map(l => Math.round(l)).join(', ')}</code>
-- VM (likelyhood): <code>${metrics.isVMLikelyhood}%</code>
+- VM: <code>${metrics.isVMLikelyhood}%</code>
 - Initial Startup: <code>${metrics.initialStartup ? 'yes' : 'no'}</code>
-- Screen Reader Active: <code>${metrics.hasAccessibilitySupport ? 'yes' : 'no'}</code>
+- Screen Reader: <code>${metrics.hasAccessibilitySupport ? 'yes' : 'no'}</code>
 - Empty Workspace: <code>${metrics.emptyWorkbench ? 'yes' : 'no'}</code>
 - Timings:
 
@@ -802,7 +802,7 @@ Additional Steps to Reproduce (if any):
 |---|---|---|`;
 
 		const table = this.getStartupMetricsTable(nodeModuleLoadTime).map(e => {
-			return `|<code>${e.component}</code>|${e.task}|<code>${e.time}</code>|`;
+			return `|${e.component}|${e.task}|${e.time}|`;
 		}).join('\n');
 
 		return `${tableHeader}\n${table}`;
