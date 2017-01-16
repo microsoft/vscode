@@ -110,6 +110,7 @@ export class BareFontInfo {
 export class FontInfo extends BareFontInfo {
 	readonly _editorStylingBrand: void;
 
+	readonly isMonospace: boolean;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly typicalFullwidthCharacterWidth: number;
 	readonly spaceWidth: number;
@@ -123,12 +124,14 @@ export class FontInfo extends BareFontInfo {
 		fontWeight: string;
 		fontSize: number;
 		lineHeight: number;
+		isMonospace: boolean;
 		typicalHalfwidthCharacterWidth: number;
 		typicalFullwidthCharacterWidth: number;
 		spaceWidth: number;
 		maxDigitWidth: number;
 	}) {
 		super(opts);
+		this.isMonospace = opts.isMonospace;
 		this.typicalHalfwidthCharacterWidth = opts.typicalHalfwidthCharacterWidth;
 		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
 		this.spaceWidth = opts.spaceWidth;
