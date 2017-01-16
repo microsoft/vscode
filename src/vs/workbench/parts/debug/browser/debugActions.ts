@@ -121,23 +121,50 @@ export class StartAction extends AbstractDebugAction {
 	public run(): TPromise<any> {
 		const manager = this.debugService.getConfigurationManager();
 		const configName = this.debugService.getViewModel().selectedConfigurationName;
+		const compound = manager.getCompound(configName);
+		if (compound) {
+			return this.commandService.executeCommand('_workbench.startDebug', configName);
+		}
+
 		const configurationPromise: TPromise<IConfig> = configName && this.contextService.getWorkspace() ?
 			manager.getConfiguration(configName) : TPromise.as(null);
 
 		return configurationPromise.then(configuration => {
 			const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
 			if (command) {
-				return this.commandService.executeCommand(command, configuration || {});
+				return this.commandService.executeCommand(command, configuration || this.getDefaultConfiguration());
 			}
 
 			return this.commandService.executeCommand('_workbench.startDebug', configName);
 		});
 	}
 
+	protected getDefaultConfiguration(): any {
+		return {};
+	}
+
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getModel().getProcesses();
 		return super.isEnabled(state) && process.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName);
+	}
+}
+
+export class RunAction extends StartAction {
+	static ID = 'workbench.action.debug.run';
+	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
+
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(id, label, debugService, keybindingService, commandService, contextService);
+	}
+
+	protected getDefaultConfiguration(): any {
+		return { noDebug: true };
 	}
 }
 
@@ -701,43 +728,6 @@ export class FocusReplAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.panelService.openPanel(REPL_ID, true);
-	}
-}
-
-export class RunAction extends AbstractDebugAction {
-	static ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
-
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super(id, label, null, debugService, keybindingService);
-	}
-
-	public run(): TPromise<any> {
-		const manager = this.debugService.getConfigurationManager();
-		const configName = this.debugService.getViewModel().selectedConfigurationName;
-		const configurationPromise: TPromise<IConfig> = configName && this.contextService.getWorkspace() ?
-			manager.getConfiguration(configName) : TPromise.as(null);
-
-		return configurationPromise.then(configuration => {
-			const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
-			if (command) {
-				return this.commandService.executeCommand(command, configuration || { noDebug: true });
-			}
-
-			if (configuration) {
-				configuration.noDebug = true;
-				return this.commandService.executeCommand('_workbench.startDebug', configuration);
-			}
-		});
-	}
-
-	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && state === State.Inactive;
 	}
 }
 
