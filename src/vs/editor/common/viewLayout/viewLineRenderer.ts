@@ -476,7 +476,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType);
 			}
 
-			if (lineDecoration.endOffset + 1 < tokenEndIndex) {
+			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
 				lastResultEndIndex = lineDecoration.endOffset + 1;
 				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				lineDecorationIndex++;
