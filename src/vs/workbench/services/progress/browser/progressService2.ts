@@ -12,8 +12,32 @@ import { IProgressService2, IProgress, Progress } from 'vs/platform/progress/com
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import * as dom from 'vs/base/browser/dom';
 
+class ActivityBarProgress implements IProgress<number> {
+
+	private _handle: IDisposable;
+
+	constructor(
+		private _activityBar: IActivityBarService,
+		private _viewletId: string) {
+
+	}
+
+	dispose(): void {
+		if (this._handle) {
+			this._handle.dispose();
+			this._handle = undefined;
+		}
+	}
+
+	report(n: number): void {
+		if (!this._handle) {
+			this._handle = this._activityBar.showActivity(this._viewletId, new ProgressBadge(() => '...'), 'progress-badge');
+		}
+	}
+}
 
 class WindowProgressItem implements IStatusbarItem {
 
@@ -54,6 +78,12 @@ export class ProgressService2 implements IProgressService2 {
 
 	private _stack: Progress<string>[] = [];
 
+	constructor(
+		@IActivityBarService private _activityBar: IActivityBarService
+	) {
+		//
+	}
+
 	withWindowProgress(task: (progress: IProgress<string>) => TPromise<any>): void {
 
 		const progress = new Progress<string>(() => this._updateProgress());
@@ -66,6 +96,11 @@ export class ProgressService2 implements IProgressService2 {
 			this._stack.splice(idx, 1);
 			this._updateProgress();
 		});
+	}
+
+	withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void {
+		const progress = new ActivityBarProgress(this._activityBar, viewletId);
+		always(task(progress), () => progress.dispose());
 	}
 
 	private _updateProgress() {
