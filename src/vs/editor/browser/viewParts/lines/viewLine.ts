@@ -179,7 +179,7 @@ class RenderedViewLine {
 	/**
 	 * This is a map that is used only when the line is guaranteed to have no RTL text.
 	 */
-	private _pixelOffsetCache: number[];
+	private _pixelOffsetCache: Int32Array;
 
 	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) {
 		this.domNode = domNode;
@@ -191,7 +191,7 @@ class RenderedViewLine {
 
 		this._pixelOffsetCache = null;
 		if (!renderLineOutput.containsRTL) {
-			this._pixelOffsetCache = [];
+			this._pixelOffsetCache = new Int32Array(this._characterMapping.length + 1);
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
 			}
