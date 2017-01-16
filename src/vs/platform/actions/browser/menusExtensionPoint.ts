@@ -33,7 +33,12 @@ namespace schema {
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
+			case 'scm/title': return MenuId.SCMTitle;
+			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
+			case 'scm/resource/context': return MenuId.SCMResourceContext;
 		}
+
+		return void 0;
 	}
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
