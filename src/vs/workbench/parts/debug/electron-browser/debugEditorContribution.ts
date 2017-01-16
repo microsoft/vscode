@@ -11,6 +11,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import uri from 'vs/base/common/uri';
 import { visit } from 'vs/base/common/json';
+import { Constants } from 'vs/editor/common/core/uint';
 import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -427,13 +428,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
 		}
 
-		const column = this.editor.getModel().getLineMaxColumn(lineNumber);
 		return {
 			range: {
 				startLineNumber: lineNumber,
 				endLineNumber: lineNumber,
-				startColumn: column,
-				endColumn: column
+				startColumn: Constants.MAX_SAFE_SMALL_INTEGER - 1,
+				endColumn: Constants.MAX_SAFE_SMALL_INTEGER
 			},
 			renderOptions: {
 				dark: {
