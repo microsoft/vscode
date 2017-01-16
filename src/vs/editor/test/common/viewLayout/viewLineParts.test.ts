@@ -72,6 +72,32 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		assert.deepEqual(actual.output.split(/></g), expected.split(/></g));
 	}
 
+	test('issue #18616: Inline decorations ending at the text length are no longer rendered', () => {
+
+		let lineContent = 'https://microsoft.com';
+
+		let actual = renderViewLine(new RenderLineInput(
+			lineContent,
+			false,
+			0,
+			[new ViewLineToken(21, 'mtk3')],
+			[new Decoration(1, 22, 'link', false)],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3 link">https://microsoft.com</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.output, expected);
+	});
+
 	test('createLineParts simple', () => {
 		testCreateLineParts(
 			'Hello world!',
