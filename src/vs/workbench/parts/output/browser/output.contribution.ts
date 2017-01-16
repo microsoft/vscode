@@ -137,28 +137,12 @@ registerAction({
 registerAction({
 	id: ToggleOutputAutoScrollingAction.ID,
 	title: ToggleOutputAutoScrollingAction.LABEL,
-	handler(accessor, channelData?: {name: string}){
+	handler(accessor, channelData?: { name: string }) {
 		const outputService = accessor.get(IOutputService);
 		if (channelData && typeof channelData.name === 'string') {
 			outputService.getChannels()
-                .filter(channel => channel.label === channelData.name)
-                .forEach(channel => channel.toggleAutoScrolling())
-		}
-		else {
-			outputService.getActiveChannel().toggleAutoScrolling();
-		}
-	}
-});
-
-registerAction({
-	id: ToggleOutputAutoScrollingAction.ID,
-	title: ToggleOutputAutoScrollingAction.LABEL,
-	handler(accessor, channelData?: {name: string}){
-		const outputService = accessor.get(IOutputService);
-		if (channelData && typeof channelData.name === 'string') {
-			outputService.getChannels()
-                .filter(channel => channel.label === channelData.name)
-                .forEach(channel => channel.toggleAutoScrolling())
+				.filter(channel => channel.label === channelData.name)
+				.forEach(channel => channel.toggleAutoScrolling());
 		}
 		else {
 			outputService.getActiveChannel().toggleAutoScrolling();

@@ -51,19 +51,19 @@ export class ClearOutputAction extends Action {
 
 export class ToggleOutputAutoScrollingAction extends Action {
 
-    public static ID = 'workbench.output.action.toggleOutputAutoScrolling';
-    public static LABEL = nls.localize('toggleOutputAutoScrolling', "Toggle Output Auto Scrolling");
+	public static ID = 'workbench.output.action.toggleOutputAutoScrolling';
+	public static LABEL = nls.localize('toggleOutputAutoScrolling', "Toggle Output Auto Scrolling");
 
-    constructor(id: string, label: string,
-                @IOutputService private outputService: IOutputService) {
-        super(id, label, 'output-action toggle-output-auto-scrolling');
-    }
+	constructor(id: string, label: string,
+				@IOutputService private outputService: IOutputService) {
+		super(id, label, 'output-action toggle-output-auto-scrolling');
+	}
 
-    public run(): TPromise<any> {
-        this.outputService.getActiveChannel().toggleAutoScrolling();
+	public run(): TPromise<any> {
+		this.outputService.getActiveChannel().toggleAutoScrolling();
 
-        return TPromise.as(true);
-    }
+		return TPromise.as(true);
+	}
 }
 
 export class SwitchOutputAction extends Action {
