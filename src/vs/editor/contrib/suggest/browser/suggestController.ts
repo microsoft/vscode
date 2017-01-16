@@ -35,27 +35,32 @@ class AcceptOnCharacterOracle {
 
 	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (item: ICompletionItem) => any) {
 
-		this._disposables.push(widget.onDidFocus(item => {
-			if (!item || isFalsyOrEmpty(item.suggestion.commitCharacters)) {
-				this._activeItem = undefined;
-				return;
-			}
-
-			this._activeItem = item;
-			this._activeAcceptCharacters.clear();
-			for (const ch of item.suggestion.commitCharacters) {
-				this._activeAcceptCharacters.add(ch[0]);
-			}
-		}));
+		this._disposables.push(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
+		this._disposables.push(widget.onDidFocus(this._onItem, this));
+		this._disposables.push(widget.onDidHide(this.reset, this));
 
 		this._disposables.push(editor.onWillType(text => {
 			if (this._activeItem) {
 				const ch = text[text.length - 1];
-				if (this._activeAcceptCharacters.has(ch)) {
+				if (this._activeAcceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
 					accept(this._activeItem);
 				}
 			}
 		}));
+	}
+
+	private _onItem(item: ICompletionItem): void {
+		if (!item || isFalsyOrEmpty(item.suggestion.commitCharacters)) {
+			this.reset();
+			return;
+		}
+		this._activeItem = item;
+		this._activeAcceptCharacters.clear();
+		for (const ch of item.suggestion.commitCharacters) {
+			if (ch.length > 0) {
+				this._activeAcceptCharacters.add(ch[0]);
+			}
+		}
 	}
 
 	reset(): void {
@@ -106,8 +111,6 @@ export class SuggestController implements IEditorContribution {
 		const autoAcceptOracle = new AcceptOnCharacterOracle(editor, this.widget, item => this.onDidSelectItem(item));
 		this.toDispose.push(
 			autoAcceptOracle,
-			this.model.onDidCancel(autoAcceptOracle.reset, autoAcceptOracle),
-			this.model.onDidTrigger(autoAcceptOracle.reset, autoAcceptOracle),
 			this.model.onDidSuggest(e => {
 				if (e.completionModel.items.length === 0) {
 					autoAcceptOracle.reset();

@@ -113,16 +113,28 @@ class DirtyDiffModelDecorator {
 			return this._originalURIPromise;
 		}
 
-		this._originalURIPromise = this.scmService.getBaselineResource(this.uri)
-			.then(originalUri => this.textModelResolverService.createModelReference(originalUri)
-				.then(ref => {
-					this.baselineModel = ref.object.textEditorModel;
+		const provider = this.scmService.activeProvider;
 
-					this.toDispose.push(ref);
-					this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+		if (!provider) {
+			return winjs.TPromise.as(null);
+		}
 
-					return originalUri;
-				}, err => null));
+		this._originalURIPromise = provider.getOriginalResource(this.uri)
+			.then(originalUri => {
+				if (!originalUri) {
+					return null;
+				}
+
+				return this.textModelResolverService.createModelReference(originalUri)
+					.then(ref => {
+						this.baselineModel = ref.object.textEditorModel;
+
+						this.toDispose.push(ref);
+						this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+
+						return originalUri;
+					});
+			});
 
 		return always(this._originalURIPromise, () => {
 			this._originalURIPromise = null;

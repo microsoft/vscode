@@ -5,29 +5,48 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, IBaselineResourceProvider } from './scm';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ISCMService, ISCMProvider } from './scm';
 
 export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
-	private providers: IBaselineResourceProvider[] = [];
+	private activeProviderContextKey: IContextKey<string | undefined>;
+	private providers: ISCMProvider[] = [];
+	private _activeProvider: ISCMProvider | undefined;
 
-	getBaselineResource(resource: URI): TPromise<URI> {
-		const promises = this.providers
-			.map(p => p.getBaselineResource(resource));
+	private _onDidChangeProvider = new Emitter<ISCMProvider>();
+	get onDidChangeProvider(): Event<ISCMProvider> { return this._onDidChangeProvider.event; }
 
-		return TPromise.join(promises).then(originalResources => {
-			// TODO@Joao: just take the first
-			return originalResources.filter(uri => !!uri)[0];
-		});
+	constructor(
+		@IContextKeyService private contextKeyService: IContextKeyService
+	) {
+		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scm.provider', void 0);
 	}
 
-	registerBaselineResourceProvider(provider: IBaselineResourceProvider): IDisposable {
+	get activeProvider(): ISCMProvider | undefined {
+		return this._activeProvider;
+	}
+
+	set activeProvider(provider: ISCMProvider) {
+		if (provider && this.providers.indexOf(provider) === -1) {
+			throw new Error('Provider not registered');
+		}
+
+		this._activeProvider = provider;
+		this.activeProviderContextKey.set(provider ? provider.id : void 0);
+		this._onDidChangeProvider.fire(provider);
+	}
+
+	registerSCMProvider(provider: ISCMProvider): IDisposable {
 		this.providers = [provider, ...this.providers];
+
+		if (this.providers.length === 1) {
+			this.activeProvider = provider;
+		}
 
 		return toDisposable(() => {
 			const index = this.providers.indexOf(provider);
@@ -37,6 +56,10 @@ export class SCMService implements ISCMService {
 			}
 
 			this.providers.splice(index, 1);
+
+			if (this.activeProvider === provider) {
+				this.activeProvider = this.providers[0];
+			}
 		});
 	}
 }

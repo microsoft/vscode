@@ -404,6 +404,11 @@ export interface IEditorOptions {
 	 */
 	acceptSuggestionOnEnter?: boolean;
 	/**
+	 * Accept suggestions on provider defined characters.
+	 * Defaults to true.
+	 */
+	acceptSuggestionOnCommitCharacter?: boolean;
+	/**
 	 * Enable snippet suggestions. Default to 'true'.
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
@@ -881,6 +886,7 @@ export class EditorContribOptions {
 	readonly formatOnType: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
+	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
@@ -905,6 +911,7 @@ export class EditorContribOptions {
 		formatOnType: boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
+		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
@@ -925,6 +932,7 @@ export class EditorContribOptions {
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
@@ -951,6 +959,7 @@ export class EditorContribOptions {
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion
@@ -1565,6 +1574,11 @@ export interface ITextModel {
 	 */
 	mightContainRTL(): boolean;
 
+	/**
+	 * @internal
+	 */
+	mightContainNonBasicASCII(): boolean;
+
 	getOptions(): TextModelResolvedOptions;
 
 	/**
@@ -1588,6 +1602,7 @@ export interface ITextModel {
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
+	 * @internal
 	 */
 	setValueFromRawText(newValue: IRawText): void;
 
@@ -1606,11 +1621,13 @@ export interface ITextModel {
 
 	/**
 	 * Get the raw text stored in this model.
+	 * @internal
 	 */
 	toRawText(): IRawText;
 
 	/**
 	 * Check if the raw text stored in this model equals another raw text.
+	 * @internal
 	 */
 	equals(other: IRawText): boolean;
 
@@ -2321,6 +2338,7 @@ export interface IModelContentChangedEvent {
 
 /**
  * The raw text backing a model.
+ * @internal
  */
 export interface IRawText {
 	/**
@@ -2343,6 +2361,10 @@ export interface IRawText {
 	 * The text contains Unicode characters classified as "R" or "AL".
 	 */
 	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
 	/**
 	 * The options associated with this text.
 	 */

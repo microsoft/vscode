@@ -236,6 +236,27 @@ export abstract class MainProcessExtensionServiceShape {
 	$onExtensionActivationFailed(extensionId: string): void { throw ni(); }
 }
 
+export interface SCMProviderFeatures {
+	label: string;
+	supportsCommit: boolean;
+	supportsOpen: boolean;
+	supportsDrag: boolean;
+	supportsOriginalResource: boolean;
+}
+
+export type SCMRawResource = [
+	string /*uri*/,
+	string[] /*icons: light, dark*/,
+	boolean /*strike through*/
+];
+export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
+
+export abstract class MainThreadSCMShape {
+	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
+	$unregister(id: string): void { throw ni(); }
+	$onChange(id: string, resources: SCMRawResourceGroup[]): void { throw ni(); }
+}
+
 // -- extension host
 
 export abstract class ExtHostCommandsShape {
@@ -364,6 +385,13 @@ export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
 }
 
+export abstract class ExtHostSCMShape {
+	$commit(id: string, message: string): TPromise<void> { throw ni(); }
+	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
+	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
+	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -386,6 +414,7 @@ export const MainContext = {
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
+	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape)
 };
 
 export const ExtHostContext = {
@@ -401,5 +430,6 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
-	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape)
+	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
+	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape)
 };

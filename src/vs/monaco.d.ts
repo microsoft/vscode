@@ -1314,6 +1314,11 @@ declare module monaco.editor {
          */
         acceptSuggestionOnEnter?: boolean;
         /**
+         * Accept suggestions on provider defined characters.
+         * Defaults to true.
+         */
+        acceptSuggestionOnCommitCharacter?: boolean;
+        /**
          * Enable snippet suggestions. Default to 'true'.
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
@@ -1523,6 +1528,7 @@ declare module monaco.editor {
         readonly formatOnType: boolean;
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
+        readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
         readonly tabCompletion: boolean;
@@ -1935,10 +1941,6 @@ declare module monaco.editor {
          */
         setValue(newValue: string): void;
         /**
-         * Replace the entire text buffer value contained in this model.
-         */
-        setValueFromRawText(newValue: IRawText): void;
-        /**
          * Get the text stored in this model.
          * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
          * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -1949,14 +1951,6 @@ declare module monaco.editor {
          * Get the length of the text stored in this model.
          */
         getValueLength(eol?: EndOfLinePreference, preserveBOM?: boolean): number;
-        /**
-         * Get the raw text stored in this model.
-         */
-        toRawText(): IRawText;
-        /**
-         * Check if the raw text stored in this model equals another raw text.
-         */
-        equals(other: IRawText): boolean;
         /**
          * Get the text in a certain range.
          * @param range The range describing what text to get.
@@ -2362,41 +2356,6 @@ declare module monaco.editor {
          * Flag that indicates that this event was generated while redoing.
          */
         readonly isRedoing: boolean;
-    }
-
-    /**
-     * The raw text backing a model.
-     */
-    export interface IRawText {
-        /**
-         * The entire text length.
-         */
-        readonly length: number;
-        /**
-         * The text split into lines.
-         */
-        readonly lines: string[];
-        /**
-         * The BOM (leading character sequence of the file).
-         */
-        readonly BOM: string;
-        /**
-         * The end of line sequence.
-         */
-        readonly EOL: string;
-        /**
-         * The text contains Unicode characters classified as "R" or "AL".
-         */
-        readonly containsRTL: boolean;
-        /**
-         * The options associated with this text.
-         */
-        readonly options: {
-            readonly tabSize: number;
-            readonly insertSpaces: boolean;
-            readonly defaultEOL: DefaultEndOfLine;
-            readonly trimAutoWhitespace: boolean;
-        };
     }
 
     /**
@@ -3843,6 +3802,7 @@ declare module monaco.editor {
 
     export class FontInfo extends BareFontInfo {
         readonly _editorStylingBrand: void;
+        readonly isMonospace: boolean;
         readonly typicalHalfwidthCharacterWidth: number;
         readonly typicalFullwidthCharacterWidth: number;
         readonly spaceWidth: number;

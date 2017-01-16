@@ -189,6 +189,7 @@ const configurationValueWhitelist = [
 	'editor.roundedSelection',
 	'editor.quickSuggestions',
 	'editor.acceptSuggestionOnEnter',
+	'editor.acceptSuggestionOnCommitCharacter',
 	'workbench.editor.showTabs',
 	'files.encoding',
 	'editor.quickSuggestionsDelay',
