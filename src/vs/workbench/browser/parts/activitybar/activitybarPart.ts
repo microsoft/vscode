@@ -71,7 +71,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.viewletIdToActivity = Object.create(null);
 
 		this.memento = this.getMemento(this.storageService, MementoScope.GLOBAL);
-		this.pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] || this.viewletService.getViewlets().map(v => v.id);
+
+		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
+
+		if (pinnedViewlets) {
+			// Migrate git => scm viewlet
+			this.pinnedViewlets = pinnedViewlets
+				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
+				.filter(arrays.uniqueFilter<string>(str => str));
+
+		} else {
+			this.pinnedViewlets = this.viewletService.getViewlets().map(v => v.id);
+		}
 
 		// Update viewlet switcher when external viewlets become ready
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
