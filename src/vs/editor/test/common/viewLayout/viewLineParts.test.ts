@@ -370,7 +370,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			]);
 	});
 
-	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
+	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			lineContent,
 			false,
@@ -383,6 +383,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'none',
 			false
 		));
+
+		const partLengths = renderLineOutput.characterMapping.getPartLengths();
+		let actualPartLengths: number[] = [];
+		for (let i = 0; i < partLengths.length; i++) {
+			actualPartLengths[i] = partLengths[i];
+		}
+		assert.deepEqual(actualPartLengths, expectedPartLengths, 'part lengths OK');
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
 			let charOffset = renderLineOutput.characterMapping.partDataToCharOffset(partIndex, partLength, offset);
@@ -397,7 +404,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			4,
 			[
 				new ViewLineToken(11, 'aToken')
-			]
+			],
+			[11]
 		);
 		testGetColumnOfLinePartOffset(0, 11, 0, 1);
 		testGetColumnOfLinePartOffset(0, 11, 1, 2);
@@ -424,7 +432,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(8, 'meta js var expr var-single-variable'),
 				new ViewLineToken(9, 'meta js var expr var-single-variable constant numeric'),
 				new ViewLineToken(10, ''),
-			]
+			],
+			[3, 1, 1, 3, 1, 1]
 		);
 		testGetColumnOfLinePartOffset(0, 3, 0, 1);
 		testGetColumnOfLinePartOffset(0, 3, 1, 2);
@@ -450,7 +459,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			6,
 			[
 				new ViewLineToken(1, 'vs-whitespace')
-			]
+			],
+			[6]
 		);
 		testGetColumnOfLinePartOffset(0, 6, 0, 1);
 		testGetColumnOfLinePartOffset(0, 6, 1, 1);
@@ -468,7 +478,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			[
 				new ViewLineToken(1, ''),
 				new ViewLineToken(9, 'meta type js function storage'),
-			]
+			],
+			[4, 8]
 		);
 		testGetColumnOfLinePartOffset(0, 4, 0, 1);
 		testGetColumnOfLinePartOffset(0, 4, 1, 1);
@@ -493,7 +504,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			[
 				new ViewLineToken(2, ''),
 				new ViewLineToken(10, 'meta type js function storage'),
-			]
+			],
+			[8, 8]
 		);
 		testGetColumnOfLinePartOffset(0, 8, 0, 1);
 		testGetColumnOfLinePartOffset(0, 8, 1, 1);

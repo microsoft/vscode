@@ -98,9 +98,12 @@ export class CharacterMapping {
 	private readonly _data: Uint32Array;
 	public readonly length: number;
 
-	constructor(length: number) {
+	private readonly _partLengths: Uint16Array;
+
+	constructor(length: number, partCount: number) {
 		this.length = length;
 		this._data = new Uint32Array(this.length);
+		this._partLengths = new Uint16Array(partCount);
 	}
 
 	public setPartData(charOffset: number, partIndex: number, charIndex: number): void {
@@ -109,6 +112,14 @@ export class CharacterMapping {
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
 		this._data[charOffset] = partData;
+	}
+
+	public setPartLength(partIndex: number, length: number): void {
+		this._partLengths[partIndex] = length;
+	}
+
+	public getPartLengths(): Uint16Array {
+		return this._partLengths;
 	}
 
 	public charOffsetToPartData(charOffset: number): number {
@@ -202,7 +213,7 @@ export class RenderLineOutput {
 export function renderViewLine(input: RenderLineInput): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 		return new RenderLineOutput(
-			new CharacterMapping(0),
+			new CharacterMapping(0, 0),
 			// This is basically for IE's hit test to work
 			'<span><span>&nbsp;</span></span>',
 			false
@@ -498,7 +509,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
 
-	const characterMapping = new CharacterMapping(len + 1);
+	const characterMapping = new CharacterMapping(len + 1, tokens.length);
 
 	let charIndex = 0;
 	let tabsCharDelta = 0;
@@ -543,9 +554,12 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 				charOffsetInPart++;
 			}
 
+			characterMapping.setPartLength(tokenIndex, partContentCnt);
 			out += `<span class="${tokenType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
 
 		} else {
+
+			let partContentCnt = 0;
 			let partContent = '';
 
 			for (; charIndex < tokenEndIndex; charIndex++) {
@@ -559,51 +573,62 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 						charOffsetInPart += insertSpacesCount - 1;
 						while (insertSpacesCount > 0) {
 							partContent += '&nbsp;';
+							partContentCnt++;
 							insertSpacesCount--;
 						}
 						break;
 
 					case CharCode.Space:
 						partContent += '&nbsp;';
+						partContentCnt++;
 						break;
 
 					case CharCode.LessThan:
 						partContent += '&lt;';
+						partContentCnt++;
 						break;
 
 					case CharCode.GreaterThan:
 						partContent += '&gt;';
+						partContentCnt++;
 						break;
 
 					case CharCode.Ampersand:
 						partContent += '&amp;';
+						partContentCnt++;
 						break;
 
 					case CharCode.Null:
 						partContent += '&#00;';
+						partContentCnt++;
 						break;
 
 					case CharCode.UTF8_BOM:
 					case CharCode.LINE_SEPARATOR_2028:
 						partContent += '\ufffd';
+						partContentCnt++;
 						break;
 
 					case CharCode.CarriageReturn:
 						// zero width space, because carriage return would introduce a line break
 						partContent += '&#8203';
+						partContentCnt++;
 						break;
 
 					default:
 						if (renderControlCharacters && charCode < 32) {
 							partContent += String.fromCharCode(9216 + charCode);
+							partContentCnt++;
 						} else {
-							partContent += String.fromCharCode(charCode);;
+							partContent += String.fromCharCode(charCode);
+							partContentCnt++;
 						}
 				}
 
 				charOffsetInPart++;
 			}
 
+			characterMapping.setPartLength(tokenIndex, partContentCnt);
 			if (containsRTL) {
 				out += `<span dir="ltr" class="${tokenType}">${partContent}</span>`;
 			} else {
@@ -618,7 +643,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	characterMapping.setPartData(len, tokens.length - 1, charOffsetInPart);
 
 	if (isOverflowing) {
-		out += `<span class="">&hellip;</span>`;
+		out += `<span class="vs-whitespace">&hellip;</span>`;
 	}
 
 	out += '</span>';
