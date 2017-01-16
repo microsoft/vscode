@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { Throttler } from 'vs/base/common/async';
 import { domEvent } from 'vs/base/browser/event';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, OneDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
@@ -157,6 +157,7 @@ export class SCMViewlet extends Viewlet {
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	private badgeHandle = new OneDisposable();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -175,7 +176,7 @@ export class SCMViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
-		this.disposables.push(this.menus);
+		this.disposables.push(this.menus, this.badgeHandle);
 	}
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
@@ -250,11 +251,12 @@ export class SCMViewlet extends Viewlet {
 			.reduce<number>((r, g) => r + g.resources.length, 0);
 
 		// TODO: make number contributable by provider
-		const badge = count > 0
-			? new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num))
-			: null;
-
-		this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+		if (count > 0) {
+			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
+			this.badgeHandle.value = this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+		} else {
+			this.badgeHandle.value = null;
+		}
 
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
