@@ -55,8 +55,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
-	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
+			fontIsMonospace,
 			lineContent,
 			false,
 			fauxIndentLength,
@@ -77,6 +78,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		let lineContent = 'https://microsoft.com';
 
 		let actual = renderViewLine(new RenderLineInput(
+			false,
 			lineContent,
 			false,
 			0,
@@ -100,6 +102,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('createLineParts simple', () => {
 		testCreateLineParts(
+			false,
 			'Hello world!',
 			[
 				new ViewLineToken(12, '')
@@ -115,6 +118,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts simple two tokens', () => {
 		testCreateLineParts(
+			false,
 			'Hello world!',
 			[
 				new ViewLineToken(6, 'a'),
@@ -132,6 +136,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - 4 leading spaces', () => {
 		testCreateLineParts(
+			false,
 			'    Hello world!    ',
 			[
 				new ViewLineToken(4, ''),
@@ -152,6 +157,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - 8 leading spaces', () => {
 		testCreateLineParts(
+			false,
 			'        Hello world!        ',
 			[
 				new ViewLineToken(8, ''),
@@ -174,6 +180,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - 2 leading tabs', () => {
 		testCreateLineParts(
+			false,
 			'\t\tHello world!\t',
 			[
 				new ViewLineToken(2, ''),
@@ -195,6 +202,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 	test('createLineParts render whitespace - mixed leading spaces and tabs', () => {
 		testCreateLineParts(
+			false,
 			'  \t\t  Hello world! \t  \t   \t    ',
 			[
 				new ViewLineToken(6, ''),
@@ -221,6 +229,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('createLineParts render whitespace skips faux indent', () => {
 		testCreateLineParts(
+			false,
 			'\t\t  Hello world! \t  \t   \t    ',
 			[
 				new ViewLineToken(4, ''),
@@ -244,8 +253,32 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		);
 	});
 
+	test('createLineParts does not emit width for monospace fonts', () => {
+		testCreateLineParts(
+			true,
+			'\t\t  Hello world! \t  \t   \t    ',
+			[
+				new ViewLineToken(4, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(29, 'b')
+			],
+			2,
+			'boundary',
+			[
+				'<span>',
+				'<span class="">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+				'<span class="vs-whitespace">&middot;&middot;</span>',
+				'<span class="a">He</span>',
+				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="vs-whitespace">&middot;&rarr;&middot;&middot;&rarr;&nbsp;&middot;&middot;&middot;&rarr;&middot;&middot;&middot;&middot;</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
 	test('createLineParts render whitespace in middle but not for one space', () => {
 		testCreateLineParts(
+			false,
 			'it  it it  it',
 			[
 				new ViewLineToken(6, ''),
@@ -270,6 +303,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('createLineParts render whitespace for all in middle', () => {
 		testCreateLineParts(
+			false,
 			' Hello world!\t',
 			[
 				new ViewLineToken(4, ''),
@@ -293,6 +327,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('createLineParts can handle unsorted inline decorations', () => {
 		let actual = renderViewLine(new RenderLineInput(
+			false,
 			'Hello world',
 			false,
 			0,
@@ -398,6 +433,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
+			false,
 			lineContent,
 			false,
 			0,
