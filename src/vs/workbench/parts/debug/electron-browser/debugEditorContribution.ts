@@ -36,7 +36,7 @@ import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/pref
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
 
-const REMOVE_DECORATORS_DEBOUNCE_INTERVAL = 100; // If we receive a break in this interval, don't reset decorators as it causes a UI flash.
+const REMOVE_INLINE_VALUES_DELAY = 100;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_INLINE_VALUE_LENGTH = 50; // Max string length of each inline 'x = y' string. If exceeded ... is added
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -53,12 +53,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private showHoverScheduler: RunOnceScheduler;
 	private hideHoverScheduler: RunOnceScheduler;
+	private removeInlineValuesScheduler: RunOnceScheduler;
 	private hoverRange: Range;
 
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
-	private removeDecorationsTimeoutId = 0;
 	private wordToLineNumbersMap: Map<string, number[]>;
 
 	private configurationWidget: FloatingClickWidget;
@@ -79,6 +79,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
+		this.removeInlineValuesScheduler = new RunOnceScheduler(() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY), REMOVE_INLINE_VALUES_DELAY);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.updateConfigurationWidgetVisibility();
@@ -225,34 +226,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	private updateInlineDecorators(stackFrame: IStackFrame): void {
-		// Since step over, step out is a fast continue + break. Continue clears stack.
-		// This means we'll get a null stackFrame followed quickly by a valid stackFrame.
-		// Removing all decorators and adding them again causes a noticeable UI flash due to relayout and paint.
-		// We want to only remove inline decorations if a null stackFrame isn't followed by a valid stackFrame in a short interval.
-		clearTimeout(this.removeDecorationsTimeoutId);
-		if (!stackFrame) {
-			this.removeDecorationsTimeoutId = setTimeout(() => {
-				this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY);
-			}, REMOVE_DECORATORS_DEBOUNCE_INTERVAL);
-			return;
-		}
-
-		const editorModel = this.editor.getModel();
-		if (!editorModel) {
-			return;
-		}
-
-		stackFrame.getScopes()
-			// Get all top level children in the scope chain
-			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren())))
-			.then(children => {
-				const expressions = children.reduce((previous, current) => previous.concat(current), []);
-				const decorations = this.createInlineValueDecorations(expressions);
-				this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, decorations);
-			});
-	}
-
 	private hideHoverWidget(): void {
 		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.isVisible()) {
 			this.hideHoverScheduler.schedule();
@@ -379,7 +352,27 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	// Inline Decorations
 
-	private createInlineValueDecorations(expressions: IExpression[]): IDecorationOptions[] {
+	private updateInlineDecorators(stackFrame: IStackFrame): void {
+		if (!stackFrame) {
+			if (!this.removeInlineValuesScheduler.isScheduled()) {
+				this.removeInlineValuesScheduler.schedule();
+			}
+			return;
+		}
+
+		this.removeInlineValuesScheduler.cancel();
+
+		stackFrame.getScopes()
+			// Get all top level children in the scope chain
+			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren())))
+			.then(children => {
+				const expressions = children.reduce((previous, current) => previous.concat(current), []);
+				const decorations = this.createAllInlineValueDecorations(expressions);
+				this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, decorations);
+			});
+	}
+
+	private createAllInlineValueDecorations(expressions: IExpression[]): IDecorationOptions[] {
 		const nameValueMap = new Map<string, string>();
 		for (let expr of expressions) {
 			// Put ellipses in value if its too long. Preserve last char e.g "longstr…" or {a:true, b:true, …}
@@ -417,13 +410,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		lineToNamesMap.forEach((names, line) => {
 			// Wrap with 1em unicode space for readability
 			const contentText = '\u2003' + names.map(name => `${name} = ${nameValueMap.get(name)}`).join(', ') + '\u2003';
-			decorations.push(this.createDecoration(line, contentText));
+			decorations.push(this.createInlineValueDecoration(line, contentText));
 		});
 
 		return decorations;
 	}
 
-	private createDecoration(lineNumber: number, contentText: string): IDecorationOptions {
+	private createInlineValueDecoration(lineNumber: number, contentText: string): IDecorationOptions {
 		const margin = '10px';
 		const backgroundColor = 'rgba(255, 200, 0, 0.2)';
 		const lightForegroundColor = 'rgba(0, 0, 0, 0.5)';
@@ -467,32 +460,33 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (!this.wordToLineNumbersMap) {
 			this.wordToLineNumbersMap = new Map<string, number[]>();
 			const model = this.editor.getModel();
+			if (model) {
+				// For every word in every line, map its ranges for fast lookup
+				for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
+					const lineContent = model.getLineContent(lineNumber);
 
-			// For every word in every line, map its ranges for fast lookup
-			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-				const lineContent = model.getLineContent(lineNumber);
+					// If line is too long then skip the line
+					if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+						continue;
+					}
 
-				// If line is too long then skip the line
-				if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
-					continue;
-				}
+					const lineTokens = model.getLineTokens(lineNumber);
+					for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
+						const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
 
-				const lineTokens = model.getLineTokens(lineNumber);
-				for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
-					const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
+						// Token is a word and not a comment
+						if (token.tokenType === StandardTokenType.Other) {
+							WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+							const wordMatch = WORD_REGEXP.exec(tokenStr);
 
-					// Token is a word and not a comment
-					if (token.tokenType === StandardTokenType.Other) {
-						WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
-						const wordMatch = WORD_REGEXP.exec(tokenStr);
+							if (wordMatch) {
+								const word = wordMatch[0];
+								if (!this.wordToLineNumbersMap.has(word)) {
+									this.wordToLineNumbersMap.set(word, []);
+								}
 
-						if (wordMatch) {
-							const word = wordMatch[0];
-							if (!this.wordToLineNumbersMap.has(word)) {
-								this.wordToLineNumbersMap.set(word, []);
+								this.wordToLineNumbersMap.get(word).push(lineNumber);
 							}
-
-							this.wordToLineNumbersMap.get(word).push(lineNumber);
 						}
 					}
 				}
