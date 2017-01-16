@@ -62,5 +62,5 @@ export interface IProgressService2 {
 
 	withWindowProgress(task: (progress: IProgress<string>) => TPromise<any>): void;
 
-	// withViewletProgress(viewletId:string, task)
+	withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void;
 }
