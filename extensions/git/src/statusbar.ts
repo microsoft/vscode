@@ -81,13 +81,16 @@ export class SyncStatusBar {
 					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
 				}
 				this.raw.command = 'git.sync';
+				this.raw.tooltip = 'Synchronize changes';
 			} else {
 				icon = '$(cloud-upload)';
 				this.raw.command = 'git.publish';
+				this.raw.tooltip = 'Publish changes';
 			}
 		} else {
 			this.raw.color = 'rgba(255,255,255,0.7)';
 			this.raw.command = '';
+			this.raw.tooltip = '';
 		}
 
 		this.raw.text = [icon, text].join(' ').trim();
