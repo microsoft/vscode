@@ -18,6 +18,7 @@ suite('viewLineRenderer.renderLine', () => {
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[][]): void {
 		let _actual = renderViewLine(new RenderLineInput(
 			lineContent,
+			false,
 			0,
 			[new ViewLineToken(lineContent.length, '')],
 			[],
@@ -62,6 +63,7 @@ suite('viewLineRenderer.renderLine', () => {
 	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[][]): void {
 		let _actual = renderViewLine(new RenderLineInput(
 			lineContent,
+			false,
 			0,
 			parts,
 			[],
@@ -95,6 +97,7 @@ suite('viewLineRenderer.renderLine', () => {
 	test('overflow', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			'Hello world!',
+			false,
 			0,
 			[
 				createPart(1, '0'),
@@ -190,6 +193,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		let _actual = renderViewLine(new RenderLineInput(
 			lineText,
+			false,
 			0,
 			lineParts,
 			[],
@@ -246,6 +250,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		let _actual = renderViewLine(new RenderLineInput(
 			lineText,
+			false,
 			0,
 			lineParts,
 			[],
@@ -302,6 +307,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		let _actual = renderViewLine(new RenderLineInput(
 			lineText,
+			false,
 			0,
 			lineParts,
 			[],
@@ -314,6 +320,39 @@ suite('viewLineRenderer.renderLine', () => {
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr);
+	});
+
+	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
+		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
+
+		let lineParts = [
+			createPart(3, 'mtk6'),
+			createPart(13, 'mtk1'),
+			createPart(66, 'mtk20'),
+			createPart(67, 'mtk1'),
+		];
+
+		let expectedOutput = [
+			'<span dir="ltr" class="mtk6">var</span>',
+			'<span dir="ltr" class="mtk1">&nbsp;קודמות&nbsp;=&nbsp;</span>',
+			'<span dir="ltr" class="mtk20">"מיותר&nbsp;קודמות&nbsp;צ\'ט&nbsp;של,&nbsp;אם&nbsp;לשון&nbsp;העברית&nbsp;שינויים&nbsp;ויש,&nbsp;אם"</span>',
+			'<span dir="ltr" class="mtk1">;</span>'
+		].join('');
+
+		let _actual = renderViewLine(new RenderLineInput(
+			lineText,
+			true,
+			0,
+			lineParts,
+			[],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+
+		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
 	});
 
 	function assertCharacterMapping(actual: CharacterMapping, expected: number[][]): void {

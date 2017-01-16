@@ -1889,6 +1889,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let r = renderViewLine(new RenderLineInput(
 			lineContent,
+			originalModel.mightContainRTL(),
 			0,
 			[new ViewLineToken(lineContent.length, '')],
 			actualDecorations,

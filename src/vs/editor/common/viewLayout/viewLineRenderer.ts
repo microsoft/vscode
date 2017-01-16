@@ -18,6 +18,7 @@ export const enum RenderWhitespace {
 export class RenderLineInput {
 
 	public readonly lineContent: string;
+	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
 	public readonly lineTokens: ViewLineToken[];
 	public readonly lineDecorations: Decoration[];
@@ -29,6 +30,7 @@ export class RenderLineInput {
 
 	constructor(
 		lineContent: string,
+		mightContainRTL: boolean,
 		fauxIndentLength: number,
 		lineTokens: ViewLineToken[],
 		lineDecorations: Decoration[],
@@ -39,6 +41,7 @@ export class RenderLineInput {
 		renderControlCharacters: boolean,
 	) {
 		this.lineContent = lineContent;
+		this.mightContainRTL = mightContainRTL;
 		this.fauxIndentLength = fauxIndentLength;
 		this.lineTokens = lineTokens;
 		this.lineDecorations = lineDecorations;
@@ -58,6 +61,7 @@ export class RenderLineInput {
 	public equals(other: RenderLineInput): boolean {
 		return (
 			this.lineContent === other.lineContent
+			&& this.mightContainRTL === other.mightContainRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
 			&& this.tabSize === other.tabSize
 			&& this.spaceWidth === other.spaceWidth
@@ -213,6 +217,7 @@ class ResolvedRenderLineInput {
 		public readonly tokens: ViewLineToken[],
 		public readonly lineDecorations: Decoration[],
 		public readonly tabSize: number,
+		public readonly emitLTRDir: boolean,
 		public readonly spaceWidth: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
@@ -243,6 +248,11 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
 
+	let emitLTRDir = false;
+	if (input.mightContainRTL) {
+		emitLTRDir = strings.containsRTL(lineContent);
+	}
+
 	return new ResolvedRenderLineInput(
 		lineContent,
 		len,
@@ -250,6 +260,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens,
 		input.lineDecorations,
 		input.tabSize,
+		emitLTRDir,
 		input.spaceWidth,
 		input.renderWhitespace,
 		input.renderControlCharacters
@@ -424,6 +435,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	const isOverflowing = input.isOverflowing;
 	const tokens = input.tokens;
 	const tabSize = input.tabSize;
+	const emitLTRDir = input.emitLTRDir;
 	const spaceWidth = input.spaceWidth;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
@@ -534,7 +546,11 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 				charOffsetInPart++;
 			}
 
-			out += `<span class="${tokenType}">${partContent}</span>`;
+			if (emitLTRDir) {
+				out += `<span dir="ltr" class="${tokenType}">${partContent}</span>`;
+			} else {
+				out += `<span class="${tokenType}">${partContent}</span>`;
+			}
 
 		}
 	}
