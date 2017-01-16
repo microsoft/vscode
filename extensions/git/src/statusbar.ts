@@ -6,8 +6,8 @@
 'use strict';
 
 import { window, Disposable, StatusBarItem, StatusBarAlignment } from 'vscode';
-import { RefType } from './git';
-import { Model } from './model';
+import { RefType, IBranch } from './git';
+import { Model, Operation } from './model';
 
 export class CheckoutStatusBar {
 
@@ -15,7 +15,7 @@ export class CheckoutStatusBar {
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		this.raw = window.createStatusBarItem(StatusBarAlignment.Left);
+		this.raw = window.createStatusBarItem(StatusBarAlignment.Left, Number.MAX_VALUE - 1);
 		this.raw.show();
 
 		this.disposables.push(this.raw);
@@ -51,49 +51,97 @@ export class CheckoutStatusBar {
 	}
 }
 
+interface SyncStatusBarState {
+	isSyncRunning: boolean;
+	hasRemotes: boolean;
+	HEAD: IBranch | undefined;
+}
+
 export class SyncStatusBar {
+
+	private static StartState: SyncStatusBarState = {
+		isSyncRunning: false,
+		hasRemotes: false,
+		HEAD: undefined
+	};
 
 	private raw: StatusBarItem;
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
-		this.raw = window.createStatusBarItem(StatusBarAlignment.Left);
-		this.disposables.push(this.raw);
-		model.onDidChange(this.update, this, this.disposables);
-		this.update();
+	private _state: SyncStatusBarState = SyncStatusBar.StartState;
+	private get state() { return this._state; }
+	private set state(state: SyncStatusBarState) {
+		this._state = state;
+		this.render();
 	}
 
-	private update(): void {
-		if (this.model.remotes.length === 0) {
+	constructor(private model: Model) {
+		this.raw = window.createStatusBarItem(StatusBarAlignment.Left, Number.MAX_VALUE);
+		this.disposables.push(this.raw);
+		model.onDidChange(this.onModelChange, this, this.disposables);
+		model.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
+		this.render();
+	}
+
+	private onOperationsChange(): void {
+		this.state = {
+			...this.state,
+			isSyncRunning: this.model.operations.isRunning(Operation.Sync)
+		};
+	}
+
+	private onModelChange(): void {
+		this.state = {
+			...this.state,
+			hasRemotes: this.model.remotes.length > 0,
+			HEAD: this.model.HEAD
+		};
+	}
+
+	private render(): void {
+		if (!this.state.hasRemotes) {
 			this.raw.hide();
 			return;
 		}
 
-		const HEAD = this.model.HEAD;
+		const HEAD = this.state.HEAD;
 		let icon = '$(sync)';
 		let text = '';
+		let command = '';
+		let tooltip = '';
 
 		if (HEAD && HEAD.name && HEAD.commit) {
-			this.raw.color = '';
-
 			if (HEAD.upstream) {
 				if (HEAD.ahead || HEAD.behind) {
 					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
 				}
-				this.raw.command = 'git.sync';
-				this.raw.tooltip = 'Synchronize changes';
+				command = 'git.sync';
+				tooltip = 'Synchronize changes';
 			} else {
 				icon = '$(cloud-upload)';
-				this.raw.command = 'git.publish';
-				this.raw.tooltip = 'Publish changes';
+				command = 'git.publish';
+				tooltip = 'Publish changes';
 			}
 		} else {
-			this.raw.color = 'rgba(255,255,255,0.7)';
-			this.raw.command = '';
-			this.raw.tooltip = '';
+			command = '';
+			tooltip = '';
+		}
+
+		if (this.state.isSyncRunning) {
+			command = '';
+			tooltip = 'Synchronizing changes...';
 		}
 
 		this.raw.text = [icon, text].join(' ').trim();
+		this.raw.command = command;
+		this.raw.tooltip = tooltip;
+
+		if (command) {
+			this.raw.color = '';
+		} else {
+			this.raw.color = 'rgba(255,255,255,0.7)';
+		}
+
 		this.raw.show();
 	}
 
