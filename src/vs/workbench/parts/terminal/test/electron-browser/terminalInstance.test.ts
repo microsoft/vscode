@@ -24,7 +24,7 @@ class TestTerminalInstance extends TerminalInstance {
 		return super._getCwd(shell, workspace);
 	}
 
-	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig): void { }
+	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void { }
 }
 
 suite('Workbench - TerminalInstance', () => {
