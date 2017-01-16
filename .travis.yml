@@ -40,8 +40,8 @@ install:
 script:
   - gulp hygiene --silent
   - gulp electron --silent
-  - gulp compile --silent
-  - gulp optimize-vscode --silent
+  - gulp compile --silent --max_old_space_size=4096
+  - gulp optimize-vscode --silent --max_old_space_size=4096
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 
