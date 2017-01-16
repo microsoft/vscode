@@ -573,6 +573,11 @@ export class DebugService implements debug.IDebugService {
 						const config = typeof configurationOrName === 'string' ? this.configurationManager.getConfiguration(configurationOrName) : configurationOrName;
 
 						return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+							if (!resolvedConfig) {
+								// User canceled resolving of interactive variables, silently return
+								return;
+							}
+
 							if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
 								return resolvedConfig.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type)))
 									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
