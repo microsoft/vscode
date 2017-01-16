@@ -44,11 +44,11 @@ export function done<T>(promise: Promise<T>): Promise<void> {
 	return promise.then<void>(() => void 0, () => void 0);
 }
 
-export function throttle<T>(fn: () => Promise<T>): () => Promise<T> {
+export function throttle<T>(fn: (...args: any[]) => Promise<T>): () => Promise<T> {
 	let current: Promise<T> | undefined;
 	let next: Promise<T> | undefined;
 
-	const trigger = () => {
+	const trigger = (...args: any[]) => {
 		if (next) {
 			return next;
 		}
@@ -62,7 +62,7 @@ export function throttle<T>(fn: () => Promise<T>): () => Promise<T> {
 			return next;
 		}
 
-		current = fn.call(this) as Promise<T>;
+		current = fn.apply(this, args) as Promise<T>;
 
 		done(current).then(() => {
 			current = undefined;
