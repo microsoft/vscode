@@ -1842,7 +1842,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				if (isChangeOrDelete(charChange)) {
 					decorations.push(new InlineDecoration(
 						new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
-						'char-delete'
+						'char-delete',
+						false
 					));
 				}
 			}
