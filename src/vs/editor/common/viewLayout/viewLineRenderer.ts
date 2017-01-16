@@ -247,10 +247,12 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.lineDecorations.length > 0) {
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-
-	let emitLTRDir = false;
+	let containsRTL = false;
 	if (input.mightContainRTL) {
-		emitLTRDir = strings.containsRTL(lineContent);
+		containsRTL = strings.containsRTL(lineContent);
+	}
+	if (!containsRTL) {
+		tokens = splitLargeTokens(tokens);
 	}
 
 	return new ResolvedRenderLineInput(
@@ -260,13 +262,17 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens,
 		input.lineDecorations,
 		input.tabSize,
-		emitLTRDir,
+		containsRTL,
 		input.spaceWidth,
 		input.renderWhitespace,
 		input.renderControlCharacters
 	);
 }
 
+/**
+ * In the rendering phase, characters are always looped until token.endIndex.
+ * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
+ */
 function removeOverflowing(tokens: ViewLineToken[], len: number): ViewLineToken[] {
 	if (tokens.length === 0) {
 		return tokens;
@@ -290,6 +296,47 @@ function removeOverflowing(tokens: ViewLineToken[], len: number): ViewLineToken[
 	return result;
 }
 
+/**
+ * written as a const enum to get value inlining.
+ */
+const enum Constants {
+	LongToken = 50
+}
+
+/**
+ * See https://github.com/Microsoft/vscode/issues/6885.
+ * It appears that having very large spans causes very slow reading of character positions.
+ * So here we try to avoid that.
+ */
+function splitLargeTokens(tokens: ViewLineToken[]): ViewLineToken[] {
+	let lastTokenEndIndex = 0;
+	let result: ViewLineToken[] = [], resultLen = 0;
+	for (let i = 0, len = tokens.length; i < len; i++) {
+		const token = tokens[i];
+		const tokenEndIndex = token.endIndex;
+		let diff = (tokenEndIndex - lastTokenEndIndex);
+		if (diff > Constants.LongToken) {
+			const tokenType = token.type;
+			const piecesCount = Math.ceil(diff / Constants.LongToken);
+			for (let j = 1; j < piecesCount; j++) {
+				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
+				result[resultLen++] = new ViewLineToken(pieceEndIndex, tokenType);
+			}
+			result[resultLen++] = new ViewLineToken(tokenEndIndex, tokenType);
+		} else {
+			result[resultLen++] = token;
+		}
+		lastTokenEndIndex = tokenEndIndex;
+	}
+
+	return result;
+}
+
+/**
+ * Whitespace is rendered by "replacing" tokens with a special-purpose `vs-whitespace` type that is later recognized in the rendering phase.
+ * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
+ * The rendering phase will generate `style="width:..."` for these tokens.
+ */
 function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, onlyBoundary: boolean): ViewLineToken[] {
 
 	let result: ViewLineToken[] = [], resultLen = 0;
@@ -391,6 +438,10 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 	return result;
 }
 
+/**
+ * Inline decorations are "merged" on top of tokens.
+ * Special care must be taken when multiple inline decorations are at play and they overlap.
+ */
 function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewLineToken[], _lineDecorations: Decoration[]): ViewLineToken[] {
 	_lineDecorations.sort(Decoration.compare);
 	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
@@ -429,6 +480,10 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 	return result;
 }
 
+/**
+ * This function is on purpose not split up into multiple functions to allow runtime type inference (i.e. performance reasons).
+ * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
+ */
 function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	const lineContent = input.lineContent;
 	const len = input.len;
