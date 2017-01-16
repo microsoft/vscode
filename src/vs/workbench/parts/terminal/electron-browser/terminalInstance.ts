@@ -45,7 +45,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _processId: number;
 	private _skipTerminalCommands: string[];
 	private _title: string;
-	private _toDispose: lifecycle.IDisposable[];
+	private _instanceDisposables: lifecycle.IDisposable[];
+	private _processDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: any;
 	private _xtermElement: HTMLDivElement;
@@ -70,7 +71,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
-		this._toDispose = [];
+		this._instanceDisposables = [];
+		this._processDisposables = [];
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
@@ -91,7 +93,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
-		this._toDispose.push(disposable);
+		this._instanceDisposables.push(disposable);
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -111,10 +113,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			this._process.send({
-				event: 'input',
-				data: this._sanitizeInput(data)
-			});
+			if (this._process) {
+				this._process.send({
+					event: 'input',
+					data: this._sanitizeInput(data)
+				});
+			}
 			return false;
 		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
@@ -138,48 +142,48 @@ export class TerminalInstance implements ITerminalInstance {
 				return false;
 			}
 		});
-		(<HTMLElement>this._xterm.element).addEventListener('mouseup', event => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
 			// Wait until mouseup has propogated through the DOM before evaluating the new selection
 			// state.
 			setTimeout(() => {
 				this._refreshSelectionContextKey();
 			}, 0);
-		});
+		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
-		(<HTMLElement>this._xterm.element).addEventListener('keyup', event => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
 			// Wait until keyup has propogated through the DOM before evaluating the new selection
 			// state.
 			setTimeout(() => {
 				this._refreshSelectionContextKey();
 			}, 0);
-		});
+		}));
 
 		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
 		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		DOM.addClass(focusTrap, 'focus-trap');
-		focusTrap.addEventListener('focus', function (event: FocusEvent) {
+		this._instanceDisposables.push(DOM.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
 			let currentElement = focusTrap;
 			while (!DOM.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement;
 			}
 			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
 			hidePanelElement.focus();
-		});
+		}));
 		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
@@ -230,7 +234,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._process = null;
 		}
 		this._onDisposed.fire(this);
-		this._toDispose = lifecycle.dispose(this._toDispose);
+		this._processDisposables = lifecycle.dispose(this._processDisposables);
+		this._instanceDisposables = lifecycle.dispose(this._instanceDisposables);
 	}
 
 	public focus(force?: boolean): void {
@@ -395,9 +400,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
-			(<HTMLElement>this._xterm.textarea).addEventListener('keypress', (data) => {
+			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', () => {
 				this.dispose();
-			});
+			}));
 		} else {
 			this.dispose();
 			if (exitCode) {
@@ -419,7 +424,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public reuseTerminal(shell: IShellLaunchConfig): void {
+	public reuseTerminal(shell?: IShellLaunchConfig): void {
+		// Kill and clean up old process
 		if (this._process) {
 			this._process.removeAllListeners('exit');
 			if (this._process.connected) {
@@ -427,14 +433,22 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			this._process = null;
 		}
+		lifecycle.dispose(this._processDisposables);
+		this._processDisposables = [];
+
 		// Ensure new processes' output starts at start of new line
 		this._xterm.write('\n\x1b[G');
+
+		// Initialize new process
 		this._createProcess(this._contextService.getWorkspace(), shell.name, shell);
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
-		// TODO: Get rid of wait for any key listeners and any other listeners that are no longer valid
+
+		// Clean up waitOnExit state
 		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
 			this._xterm.setOption('disableStdin', false);
+			this._isExiting = false;
 		}
+
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell;
 	}
