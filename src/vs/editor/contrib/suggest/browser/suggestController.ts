@@ -51,7 +51,7 @@ class AcceptOnCharacterOracle {
 		this._disposables.push(editor.onWillType(text => {
 			if (this._activeItem) {
 				const ch = text[text.length - 1];
-				if (this._activeAcceptCharacters.has(ch)) {
+				if (this._activeAcceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
 					accept(this._activeItem);
 				}
 			}
