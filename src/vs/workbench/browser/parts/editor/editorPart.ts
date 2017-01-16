@@ -145,7 +145,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: editorConfig.enablePreview,
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
-				showTabCloseButton: editorConfig.showTabCloseButton,
 				tabCloseButton: editorConfig.tabCloseButton
 			};
 
@@ -155,7 +154,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: true,
 				showIcons: false,
 				showTabs: true,
-				showTabCloseButton: true,
 				tabCloseButton: 'right'
 			};
 		}
@@ -189,7 +187,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.tabOptions = {
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
-				showTabCloseButton: editorConfig.showTabCloseButton,
 				tabCloseButton: editorConfig.tabCloseButton,
 				showTabs: editorConfig.showTabs
 			};

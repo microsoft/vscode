@@ -897,7 +897,6 @@ export interface IWorkbenchEditorConfiguration {
 	workbench: {
 		editor: {
 			showTabs: boolean;
-			showTabCloseButton: boolean;
 			tabCloseButton: 'left' | 'right' | 'off';
 			showIcons: boolean;
 			enablePreview: boolean;

@@ -21,8 +21,7 @@ export const IEditorGroupService = createDecorator<IEditorGroupService>('editorG
 
 export interface ITabOptions {
 	showTabs?: boolean;
-	showTabCloseButton?: boolean;
-	tabCloseButton?: string;
+	tabCloseButton?: 'left' | 'right' | 'off';
 	showIcons?: boolean;
 	previewEditors?: boolean;
 };

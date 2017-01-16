@@ -212,7 +212,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 	private updateTabOptions(tabOptions: ITabOptions, refresh?: boolean): void {
 		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
-		const showTabCloseButton =  this.tabOptions ? this.tabOptions.showTabCloseButton : false;
 		this.tabOptions = tabOptions;
 
 		if (!refresh) {
@@ -250,7 +249,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.tabOptions.showIcons || showTabCloseButton !== this.tabOptions.showTabCloseButton || tabCloseButton !== this.tabOptions.tabCloseButton) {
+				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton) {
 					titleControl.refresh();
 				}
 			}
