@@ -362,6 +362,7 @@ export class ShowStartupPerformance extends Action {
 			console.log(`CPUs: ${metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})`);
 			console.log(`Memory (System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
 			console.log(`Memory (Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
+			console.log(`VM (likelyhood): ${metrics.isVMLikelyhood}%`);
 			console.log(`Initial Startup: ${metrics.initialStartup}`);
 			console.log(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);

@@ -5,6 +5,7 @@
 'use strict';
 
 import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
+import { virtualMachineHint } from 'vs/base/node/id';
 
 import * as os from 'os';
 
@@ -67,6 +68,7 @@ export class TimerService implements ITimerService {
 		let release: string;
 		let loadavg: number[];
 		let meminfo: IMemoryInfo;
+		let isVMLikelyhood: number;
 
 		try {
 			totalmem = os.totalmem();
@@ -75,6 +77,8 @@ export class TimerService implements ITimerService {
 			release = os.release();
 			loadavg = os.loadavg();
 			meminfo = process.getProcessMemoryInfo();
+
+			isVMLikelyhood = Math.round((virtualMachineHint.value() * 100));
 
 			const rawCpus = os.cpus();
 			if (rawCpus && rawCpus.length > 0) {
@@ -105,6 +109,7 @@ export class TimerService implements ITimerService {
 			cpus,
 			loadavg,
 			initialStartup,
+			isVMLikelyhood,
 			hasAccessibilitySupport: !!this.hasAccessibilitySupport,
 			emptyWorkbench: this.isEmptyWorkbench
 		};
