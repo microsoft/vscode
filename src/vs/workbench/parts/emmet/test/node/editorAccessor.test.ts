@@ -73,6 +73,7 @@ suite('Emmet', () => {
 			// mapped syntaxes
 			testIsEnabled('typescriptreact', null);
 			testIsEnabled('javascriptreact', null);
+			testIsEnabled('jsx-tags', null);
 			testIsEnabled('sass-indented', null);
 
 			// syntaxes mapped using the scope name of the grammar
@@ -147,6 +148,7 @@ suite('Emmet', () => {
 			// mapped syntaxes
 			testSyntax('typescriptreact', null, 'jsx');
 			testSyntax('javascriptreact', null, 'jsx');
+			testSyntax('jsx-tags', null, 'jsx');
 			testSyntax('sass-indented', null, 'sass');
 
 			// syntaxes mapped using the scope name of the grammar
