@@ -12,7 +12,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';

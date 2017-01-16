@@ -243,10 +243,9 @@ export interface IEditorOptions {
 	 */
 	roundedSelection?: boolean;
 	/**
-	 * Theme to be used for rendering. Consists of two parts, the UI theme and the syntax theme,
-	 * separated by a space.
-	 * The current available UI themes are: 'vs' (default), 'vs-dark', 'hc-black'
-	 * The syntax themes are contributed. The default is 'default-theme'
+	 * Theme to be used for rendering.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 */
 	theme?: string;
 	/**
@@ -1130,9 +1129,8 @@ export interface IModelDecorationOptions {
 	className?: string;
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
-	 * @internal
 	 */
-	glyphMarginHoverMessage?: string;
+	glyphMarginHoverMessage?: MarkedString | MarkedString[];
 	/**
 	 * Array of MarkedString to render as the decoration message.
 	 */

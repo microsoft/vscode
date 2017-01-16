@@ -10,9 +10,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
-import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IExtensionDescription, IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { ICommandService, ICommand, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommand, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
@@ -23,7 +21,6 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
-import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -31,6 +28,10 @@ import { IDisposable, IReference, ImmortalReference } from 'vs/base/common/lifec
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { values } from 'vs/base/common/collections';
+import { MenuId, MenuRegistry, ICommandAction, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { Menu } from 'vs/platform/actions/common/menu';
+import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
 export class SimpleEditor implements IEditor {
 
@@ -263,16 +264,14 @@ export class SimpleMessageService implements IMessageService {
 	}
 }
 
-export class StandaloneCommandService extends CommandService {
+export class StandaloneCommandService implements ICommandService {
+	_serviceBrand: any;
 
+	private readonly _instantiationService: IInstantiationService;
 	private _dynamicCommands: { [id: string]: ICommand; };
 
-	constructor(
-		instantiationService: IInstantiationService,
-		extensionService: IExtensionService
-	) {
-		super(instantiationService, extensionService);
-
+	constructor(instantiationService: IInstantiationService) {
+		this._instantiationService = instantiationService;
 		this._dynamicCommands = Object.create(null);
 	}
 
@@ -280,8 +279,18 @@ export class StandaloneCommandService extends CommandService {
 		this._dynamicCommands[id] = command;
 	}
 
-	protected _getCommand(id: string): ICommand {
-		return super._getCommand(id) || this._dynamicCommands[id];
+	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
+		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
+		if (!command) {
+			return TPromise.wrapError(new Error(`command '${id}' not found`));
+		}
+
+		try {
+			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
+			return TPromise.as(result);
+		} catch (err) {
+			return TPromise.wrapError(err);
+		}
 	}
 }
 
@@ -353,38 +362,6 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 }
 
-export class SimpleExtensionService extends AbstractExtensionService<ActivatedExtension> {
-
-	constructor() {
-		super(true);
-	}
-
-	protected _showMessage(severity: Severity, msg: string): void {
-		switch (severity) {
-			case Severity.Error:
-				console.error(msg);
-				break;
-			case Severity.Warning:
-				console.warn(msg);
-				break;
-			case Severity.Info:
-				console.info(msg);
-				break;
-			default:
-				console.log(msg);
-		}
-	}
-
-	protected _createFailedExtension(): ActivatedExtension {
-		throw new Error('unexpected');
-	}
-
-	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
-		throw new Error('unexpected');
-	}
-
-}
-
 export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: any;
@@ -416,5 +393,42 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public keys(): IConfigurationKeys {
 		return { default: [], user: [] };
+	}
+}
+
+export class SimpleMenuService implements IMenuService {
+
+	_serviceBrand: any;
+
+	private readonly _commandService: ICommandService;
+
+	constructor(commandService: ICommandService) {
+		this._commandService = commandService;
+	}
+
+	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+		return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
+	}
+
+	public getCommandActions(): ICommandAction[] {
+		return values(MenuRegistry.commands);
+	}
+}
+
+export class StandaloneTelemetryService implements ITelemetryService {
+	_serviceBrand: void;
+
+	public isOptedIn = false;
+
+	public publicLog(eventName: string, data?: any): TPromise<void> {
+		return TPromise.as<void>(null);
+	}
+
+	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
+		return null;
+	}
+
+	public getExperiments(): ITelemetryExperiments {
+		return null;
 	}
 }

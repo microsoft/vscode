@@ -652,10 +652,6 @@ export class FileSorter implements ISorter {
 			return 1;
 		}
 
-		if (statA.isDirectory && statB.isDirectory) {
-			return statA.name.toLowerCase().localeCompare(statB.name.toLowerCase());
-		}
-
 		if (statA instanceof NewStatPlaceholder) {
 			return -1;
 		}

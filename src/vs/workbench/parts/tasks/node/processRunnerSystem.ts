@@ -90,7 +90,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	public build(): ITaskExecuteResult {
 		if (this.activeTaskIdentifier) {
 			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === this.defaultBuildTaskIdentifier, watching: task.isWatching }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === this.defaultBuildTaskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
 		}
 		if (!this.defaultBuildTaskIdentifier) {
 			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noBuildTask', 'No task is marked as a build task in the tasks.json. Mark a task with \'isBuildCommand\'.'), TaskErrors.NoBuildTask);
@@ -109,7 +109,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	public runTest(): ITaskExecuteResult {
 		if (this.activeTaskIdentifier) {
 			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === this.defaultTestTaskIdentifier, watching: task.isWatching }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === this.defaultTestTaskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
 		}
 		if (!this.defaultTestTaskIdentifier) {
 			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noTestTask', 'No test task configured.'), TaskErrors.NoTestTask);
@@ -120,7 +120,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	public run(taskIdentifier: string): ITaskExecuteResult {
 		if (this.activeTaskIdentifier) {
 			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === taskIdentifier, watching: task.isWatching }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === taskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
 		}
 		return this.executeTask(taskIdentifier);
 	}
@@ -239,7 +239,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
-		if (task.isWatching) {
+		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
 			let event: TaskEvent = { taskId: task.id, taskName: task.name, type: TaskType.Watching };

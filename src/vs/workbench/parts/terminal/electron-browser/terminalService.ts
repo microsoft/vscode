@@ -61,18 +61,11 @@ export class TerminalService implements ITerminalService {
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
-	public createInstance(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean, ignoreCustomCwd?: boolean): ITerminalInstance {
-		let shell: IShellLaunchConfig = {
-			executable: shellPath,
-			args: shellArgs,
-			waitOnExit,
-			ignoreCustomCwd
-		};
+	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
-			name,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		terminalInstance.addDisposable(terminalInstance.onClosed(this._onInstanceDisposed.fire, this._onInstanceDisposed));

@@ -28,7 +28,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITelemetryService, anonymize } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
 /**

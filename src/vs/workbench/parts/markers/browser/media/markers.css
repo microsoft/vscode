@@ -41,6 +41,12 @@
 	height: 100%;
 }
 
+.markers-panel .markers-panel-container .tree-container.hidden,
+.markers-panel .markers-panel-container .message-box-container.hidden {
+	display: none;
+	visibility: hidden;
+}
+
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
 	display: flex;
 	line-height: 22px;
