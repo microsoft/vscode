@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/workbench/parts/snippets/common/snippetCompletion';
 import nls = require('vs/nls');
 import winjs = require('vs/base/common/winjs.base');
 import paths = require('vs/base/common/paths');

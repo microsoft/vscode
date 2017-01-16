@@ -7,19 +7,12 @@
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
-import mime = require('vs/base/common/mime');
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
 
 export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
@@ -81,57 +74,8 @@ export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = Ext
 	}
 });
 
-function isUndefinedOrStringArray(value: string[]): boolean {
-	if (typeof value === 'undefined') {
-		return true;
-	}
-	if (!Array.isArray(value)) {
-		return false;
-	}
-	return value.every(item => typeof item === 'string');
-}
-
-function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
-	if (!value) {
-		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
-		return false;
-	}
-	if (typeof value.id !== 'string') {
-		collector.error(nls.localize('require.id', "property `{0}` is mandatory and must be of type `string`", 'id'));
-		return false;
-	}
-	if (!isUndefinedOrStringArray(value.extensions)) {
-		collector.error(nls.localize('opt.extensions', "property `{0}` can be omitted and must be of type `string[]`", 'extensions'));
-		return false;
-	}
-	if (!isUndefinedOrStringArray(value.filenames)) {
-		collector.error(nls.localize('opt.filenames', "property `{0}` can be omitted and must be of type `string[]`", 'filenames'));
-		return false;
-	}
-	if (typeof value.firstLine !== 'undefined' && typeof value.firstLine !== 'string') {
-		collector.error(nls.localize('opt.firstLine', "property `{0}` can be omitted and must be of type `string`", 'firstLine'));
-		return false;
-	}
-	if (typeof value.configuration !== 'undefined' && typeof value.configuration !== 'string') {
-		collector.error(nls.localize('opt.configuration', "property `{0}` can be omitted and must be of type `string`", 'configuration'));
-		return false;
-	}
-	if (!isUndefinedOrStringArray(value.aliases)) {
-		collector.error(nls.localize('opt.aliases', "property `{0}` can be omitted and must be of type `string[]`", 'aliases'));
-		return false;
-	}
-	if (!isUndefinedOrStringArray(value.mimetypes)) {
-		collector.error(nls.localize('opt.mimetypes', "property `{0}` can be omitted and must be of type `string[]`", 'mimetypes'));
-		return false;
-	}
-	return true;
-}
-
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
-
-	private _instantiationService: IInstantiationService;
-	protected _extensionService: IExtensionService;
 
 	private _instantiatedModes: { [modeId: string]: IMode; };
 
@@ -143,17 +87,15 @@ export class ModeServiceImpl implements IModeService {
 	private _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
 	public onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
-	constructor(
-		instantiationService: IInstantiationService,
-		extensionService: IExtensionService
-	) {
-		this._instantiationService = instantiationService;
-		this._extensionService = extensionService;
-
+	constructor() {
 		this._instantiatedModes = {};
 
 		this._registry = new LanguagesRegistry();
 		this._registry.onDidAddModes((modes) => this._onDidAddModes.fire(modes));
+	}
+
+	protected _onReady(): TPromise<boolean> {
+		return TPromise.as(true);
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -186,6 +128,16 @@ export class ModeServiceImpl implements IModeService {
 
 	public getModeIdForLanguageName(alias: string): string {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
+	}
+
+	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
+		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
+
+		if (modeIds.length > 0) {
+			return modeIds[0];
+		}
+
+		return null;
 	}
 
 	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
@@ -245,7 +197,23 @@ export class ModeServiceImpl implements IModeService {
 		}
 	}
 
-	public getModeIdByLanguageName(languageName: string): string {
+	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
+		return this._onReady().then(() => {
+			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
+			// Fall back to plain text if no mode was found
+			return this._getOrCreateMode(modeId || 'plaintext');
+		});
+	}
+
+	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
+		return this._onReady().then(() => {
+			var modeId = this._getModeIdByLanguageName(languageName);
+			// Fall back to plain text if no mode was found
+			return this._getOrCreateMode(modeId || 'plaintext');
+		});
+	}
+
+	private _getModeIdByLanguageName(languageName: string): string {
 		var modeIds = this._registry.getModeIdsFromLanguageName(languageName);
 
 		if (modeIds.length > 0) {
@@ -255,38 +223,8 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
-		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
-	}
-
-	public onReady(): TPromise<boolean> {
-		return this._extensionService.onReady();
-	}
-
-	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
-		return this.onReady().then(() => {
-			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
-			// Fall back to plain text if no mode was found
-			return this._getOrCreateMode(modeId || 'plaintext');
-		});
-	}
-
-	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
-		return this.onReady().then(() => {
-			var modeId = this.getModeIdByLanguageName(languageName);
-			// Fall back to plain text if no mode was found
-			return this._getOrCreateMode(modeId || 'plaintext');
-		});
-	}
-
 	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<IMode> {
-		return this.onReady().then(() => {
+		return this._onReady().then(() => {
 			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -299,87 +237,7 @@ export class ModeServiceImpl implements IModeService {
 			this._instantiatedModes[modeId] = new FrankensteinMode(languageIdentifier);
 
 			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);
-
-			this._extensionService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
 		}
 		return this._instantiatedModes[modeId];
-	}
-}
-
-export class MainThreadModeServiceImpl extends ModeServiceImpl {
-	private _configurationService: IConfigurationService;
-	private _onReadyPromise: TPromise<boolean>;
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(instantiationService, extensionService);
-		this._configurationService = configurationService;
-
-		languagesExtPoint.setHandler((extensions: IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
-			let allValidLanguages: IValidLanguageExtensionPoint[] = [];
-
-			for (let i = 0, len = extensions.length; i < len; i++) {
-				let extension = extensions[i];
-
-				if (!Array.isArray(extension.value)) {
-					extension.collector.error(nls.localize('invalid', "Invalid `contributes.{0}`. Expected an array.", languagesExtPoint.name));
-					continue;
-				}
-
-				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
-					let ext = extension.value[j];
-					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
-						let configuration = (ext.configuration ? paths.join(extension.description.extensionFolderPath, ext.configuration) : ext.configuration);
-						allValidLanguages.push({
-							id: ext.id,
-							extensions: ext.extensions,
-							filenames: ext.filenames,
-							filenamePatterns: ext.filenamePatterns,
-							firstLine: ext.firstLine,
-							aliases: ext.aliases,
-							mimetypes: ext.mimetypes,
-							configuration: configuration
-						});
-					}
-				}
-			}
-
-			ModesRegistry.registerLanguages(allValidLanguages);
-
-		});
-
-		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
-	}
-
-	public onReady(): TPromise<boolean> {
-		if (!this._onReadyPromise) {
-			const configuration = this._configurationService.getConfiguration<IFilesConfiguration>();
-			this._onReadyPromise = this._extensionService.onReady().then(() => {
-				this.onConfigurationChange(configuration);
-
-				return true;
-			});
-		}
-
-		return this._onReadyPromise;
-	}
-
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-
-		// Clear user configured mime associations
-		mime.clearTextMimes(true /* user configured */);
-
-		// Register based on settings
-		if (configuration.files && configuration.files.associations) {
-			Object.keys(configuration.files.associations).forEach(pattern => {
-				const langId = configuration.files.associations[pattern];
-				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
-
-				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
-			});
-		}
 	}
 }

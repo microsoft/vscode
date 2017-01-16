@@ -105,9 +105,14 @@ export class SuggestController implements IEditorContribution {
 		// Wire up logic to accept a suggestion on certain characters
 		const autoAcceptOracle = new AcceptOnCharacterOracle(editor, this.widget, item => this.onDidSelectItem(item));
 		this.toDispose.push(
+			autoAcceptOracle,
 			this.model.onDidCancel(autoAcceptOracle.reset, autoAcceptOracle),
 			this.model.onDidTrigger(autoAcceptOracle.reset, autoAcceptOracle),
-			autoAcceptOracle
+			this.model.onDidSuggest(e => {
+				if (e.completionModel.items.length === 0) {
+					autoAcceptOracle.reset();
+				}
+			})
 		);
 	}
 

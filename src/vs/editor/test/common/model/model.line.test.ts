@@ -9,15 +9,12 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ModelLine, ILineEdit, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 
-function assertLineTokens(actual: LineTokens, expected: TestToken[]): void {
-	let inflatedActual = actual.inflate();
-	assert.deepEqual(inflatedActual, expected.map((token) => {
-		return {
-			startIndex: token.startOffset,
-			type: 'mtk' + token.color
-		};
-	}), 'Line tokens are equal');
+function assertLineTokens(_actual: LineTokens, _expected: TestToken[]): void {
+	let expected = TokenMetadata.inflateArr(TestToken.toTokens(_expected), _actual.getLineLength());
+	let actual = _actual.inflate();
+	assert.deepEqual(actual, expected);
 }
 
 const NO_TAB_SIZE = 0;

@@ -17,7 +17,6 @@ import { ReplaceAllCommand } from './replaceAllCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,

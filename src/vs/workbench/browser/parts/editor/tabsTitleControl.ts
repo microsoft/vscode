@@ -12,6 +12,7 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
+import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
@@ -37,7 +38,6 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
-import paths = require('vs/base/common/paths');
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -256,15 +256,10 @@ export class TabsTitleControl extends TitleControl {
 		const labels: IEditorInputLabel[] = [];
 
 		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
 			let description = editor.getDescription();
-			if (description && description.indexOf(paths.nativeSep) >= 0) {
-				description = paths.basename(description); // optimize for editors that show paths and build a shorter description to keep tab width small
-			}
-
 			const item: IEditorInputLabel = {
 				editor,
 				name: editor.getName(),
@@ -274,27 +269,16 @@ export class TabsTitleControl extends TitleControl {
 			labels.push(item);
 
 			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
-			if (item.description) {
-				mapLabelAndDescriptionToDuplicates.getOrSet(item.name + item.description, []).push(item);
-			}
 		});
 
-		// Mark label duplicates
+		// Mark duplicates and shorten their descriptions
 		const labelDuplicates = mapLabelToDuplicates.values();
 		labelDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
-				duplicates.forEach(duplicate => {
+				let shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+				duplicates.forEach((duplicate, i) => {
+					duplicate.description = shortenedDescriptions[i];
 					duplicate.hasAmbiguousName = true;
-				});
-			}
-		});
-
-		// React to duplicates for combination of label and description
-		const descriptionDuplicates = mapLabelAndDescriptionToDuplicates.values();
-		descriptionDuplicates.forEach(duplicates => {
-			if (duplicates.length > 1) {
-				duplicates.forEach(duplicate => {
-					duplicate.description = duplicate.editor.getDescription(); // fallback to full description if the short description still has duplicates
 				});
 			}
 		});
