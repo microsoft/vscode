@@ -82,14 +82,14 @@
 	outline-offset: -1px;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink.focus .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:focus .terminal-cursor { animation: cursor-blink 1.2s infinite step-end; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink.focus .terminal-cursor,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:focus .terminal-cursor { animation: cursor-blink-dark 1.2s infinite step-end; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink.focus .terminal-cursor,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:focus .terminal-cursor { animation: cursor-blink-hc-black 1.2s infinite step-end; }
 
-@keyframes blink-cursor {
+@keyframes cursor-blink {
 	0% {
 		background-color: #333;
 		color: #CCC;
@@ -100,7 +100,7 @@
 	}
 }
 
-@keyframes blink-cursor-dark {
+@keyframes cursor-blink-dark {
 	0% {
 		background-color: #CCC;
 		color: #1e1e1e;
@@ -111,7 +111,7 @@
 	}
 }
 
-@keyframes blink-cursor-hc-black {
+@keyframes cursor-blink-hc-black {
 	0% {
 		background-color: #fff;
 		color: #000;
