@@ -41,16 +41,11 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 		let viewLineTokens = lineTokens.inflate();
 
 		let startOffset = 0;
-		let className = viewLineTokens[0].type;
-
-		for (let j = 1, lenJ = viewLineTokens.length; j < lenJ; j++) {
-			let viewLineToken = viewLineTokens[j];
-
-			result += `<span class="${className}">${strings.escape(line.substring(startOffset, viewLineToken.startIndex))}</span>`;
-			startOffset = viewLineToken.startIndex;
-			className = viewLineToken.type;
+		for (let j = 0, lenJ = viewLineTokens.length; j < lenJ; j++) {
+			const viewLineToken = viewLineTokens[j];
+			result += `<span class="${viewLineToken.type}">${strings.escape(line.substring(startOffset, viewLineToken.endIndex))}</span>`;
+			startOffset = viewLineToken.endIndex;
 		}
-		result += `<span class="${className}">${strings.escape(line.substring(startOffset))}</span>`;
 
 		currentState = tokenizationResult.endState;
 	}

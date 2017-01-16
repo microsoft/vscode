@@ -6,7 +6,6 @@
 
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
-import processes = require('vs/base/node/processes');
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

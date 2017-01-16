@@ -9,9 +9,9 @@ import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
 
 const powerShellExePath =
-		!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')
-			? `${process.env.windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
-			: `${process.env.windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`;
+	!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')
+		? `${process.env.windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
+		: `${process.env.windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`;
 
 const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;
 
