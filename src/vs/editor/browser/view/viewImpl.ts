@@ -12,7 +12,6 @@ import * as dom from 'vs/base/browser/dom';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -45,8 +44,7 @@ import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext, IViewEventHandler } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 
@@ -846,56 +844,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		safeInvokeNoArg(() => this._actualRender());
 	}
 
-	private createRenderingContext(linesViewportData: ViewLinesViewportData): IRenderingContext {
-
-		let vInfo = this.layoutProvider.getCurrentViewport();
-
-		let deltaTop = linesViewportData.visibleRangesDeltaTop;
-
-		let r: IRenderingContext = {
-			linesViewportData: linesViewportData,
-			scrollWidth: this.layoutProvider.getScrollWidth(),
-			scrollHeight: this.layoutProvider.getScrollHeight(),
-
-			visibleRange: linesViewportData.visibleRange,
-			bigNumbersDelta: linesViewportData.bigNumbersDelta,
-
-			viewportWidth: vInfo.width,
-			viewportHeight: vInfo.height,
-			viewportLeft: vInfo.left,
-			viewportTop: vInfo.top,
-
-			getScrolledTopFromAbsoluteTop: (absoluteTop: number) => {
-				return this.layoutProvider.getScrolledTopFromAbsoluteTop(absoluteTop);
-			},
-
-			getViewportVerticalOffsetForLineNumber: (lineNumber: number) => {
-				let verticalOffset = this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
-				let scrolledTop = this.layoutProvider.getScrolledTopFromAbsoluteTop(verticalOffset);
-				return scrolledTop;
-			},
-
-			getDecorationsInViewport: () => linesViewportData.getDecorationsInViewport(),
-
-			linesVisibleRangesForRange: (range: Range, includeNewLines: boolean) => {
-				return this.viewLines.linesVisibleRangesForRange(range, includeNewLines);
-			},
-
-			visibleRangeForPosition: (position: Position) => {
-				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop);
-				if (!visibleRanges) {
-					return null;
-				}
-				return visibleRanges[0];
-			},
-
-			lineIsVisible: (lineNumber: number) => {
-				return linesViewportData.visibleRange.startLineNumber <= lineNumber && lineNumber <= linesViewportData.visibleRange.endLineNumber;
-			}
-		};
-		return r;
-	}
-
 	private _getViewPartsToRender(): ViewPart[] {
 		let result: ViewPart[] = [];
 		for (let i = 0, len = this.viewParts.length; i < len; i++) {
@@ -934,7 +882,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this.keyboardHandler.writeToTextArea();
 		}
 
-		let renderingContext = this.createRenderingContext(linesViewportData);
+		let renderingContext = new RenderingContext(this.viewLines, this.layoutProvider, linesViewportData);
 
 		// Render the rest of the parts
 		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {

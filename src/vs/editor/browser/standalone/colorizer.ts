@@ -94,9 +94,11 @@ export class Colorizer {
 		});
 	}
 
-	public static colorizeLine(line: string, tokens: ViewLineToken[], tabSize: number = 4): string {
+	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: ViewLineToken[], tabSize: number = 4): string {
 		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			mightContainRTL,
 			0,
 			tokens,
 			[],
@@ -113,7 +115,7 @@ export class Colorizer {
 		let content = model.getLineContent(lineNumber);
 		let tokens = model.getLineTokens(lineNumber, false);
 		let inflatedTokens = tokens.inflate();
-		return this.colorizeLine(content, inflatedTokens, tabSize);
+		return this.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 }
 
@@ -128,7 +130,9 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		let line = lines[i];
 
 		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			false,
 			0,
 			[new ViewLineToken(line.length, '')],
 			[],
@@ -156,7 +160,9 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
 		let lineTokens = new LineTokens(colorMap, tokenizeResult.tokens, line);
 		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			true/* check for RTL */,
 			0,
 			lineTokens.inflate(),
 			[],

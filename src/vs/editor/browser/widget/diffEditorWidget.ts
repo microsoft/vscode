@@ -1842,7 +1842,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				if (isChangeOrDelete(charChange)) {
 					decorations.push(new InlineDecoration(
 						new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
-						'char-delete'
+						'char-delete',
+						false
 					));
 				}
 			}
@@ -1888,7 +1889,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
 		let r = renderViewLine(new RenderLineInput(
+			config.fontInfo.isMonospace,
 			lineContent,
+			originalModel.mightContainRTL(),
 			0,
 			[new ViewLineToken(lineContent.length, '')],
 			actualDecorations,

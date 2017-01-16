@@ -85,4 +85,43 @@ declare module 'vscode' {
 		 */
 		getClickCommand?(node: T): string;
 	}
+
+	export interface SCMResourceThemableDecorations {
+		readonly iconPath?: string | Uri;
+	}
+
+	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
+		readonly strikeThrough?: boolean;
+		readonly light?: SCMResourceThemableDecorations;
+		readonly dark?: SCMResourceThemableDecorations;
+	}
+
+	export interface SCMResource {
+		readonly uri: Uri;
+		readonly decorations?: SCMResourceDecorations;
+	}
+
+	export interface SCMResourceGroup {
+		readonly id: string;
+		readonly label: string;
+		readonly resources: SCMResource[];
+	}
+
+	export interface SCMProvider {
+		readonly label: string;
+		readonly resources: SCMResourceGroup[];
+		readonly onDidChange: Event<SCMResourceGroup[]>;
+		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+
+		commit?(message: string, token: CancellationToken): ProviderResult<void>;
+		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
+		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
+	}
+
+	export namespace scm {
+		export const onDidChangeActiveProvider: Event<SCMProvider>;
+		export let activeProvider: SCMProvider | undefined;
+		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
+		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
+	}
 }
