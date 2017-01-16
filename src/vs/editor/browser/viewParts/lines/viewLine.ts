@@ -22,6 +22,7 @@ export class ViewLine implements IVisibleLineData {
 	private _renderWhitespace: 'none' | 'boundary' | 'all';
 	private _renderControlCharacters: boolean;
 	private _spaceWidth: number;
+	private _fontIsMonospace: boolean;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
 
@@ -34,6 +35,7 @@ export class ViewLine implements IVisibleLineData {
 		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
+		this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 
@@ -79,6 +81,7 @@ export class ViewLine implements IVisibleLineData {
 		if (e.fontInfo) {
 			this._isMaybeInvalid = true;
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
+			this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
 		}
 		if (e.lineHeight) {
 			this._isMaybeInvalid = true;
@@ -101,6 +104,7 @@ export class ViewLine implements IVisibleLineData {
 		const actualInlineDecorations = Decoration.filter(inlineDecorations, lineNumber, model.getLineMinColumn(lineNumber), model.getLineMaxColumn(lineNumber));
 
 		let renderLineInput = new RenderLineInput(
+			this._fontIsMonospace,
 			model.getLineContent(lineNumber),
 			model.mightContainRTL(),
 			model.getLineMinColumn(lineNumber) - 1,
