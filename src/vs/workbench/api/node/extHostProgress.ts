@@ -17,9 +17,17 @@ export class ExtHostProgress {
 	}
 
 	withWindowProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+		return this._withProgress('window', task);
+	}
+
+	withScmViewletProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R> {
+		return this._withProgress('scm', task);
+	}
+
+	private _withProgress<R>(type: string, task: (progress: Progress<any>, token: CancellationToken) => Thenable<R>): Thenable<R> {
 		const handle = this._handles++;
 
-		this._proxy.$progressStart(handle);
+		this._proxy.$progressStart(handle, type);
 		const progress = {
 			report: (message: string) => {
 				this._proxy.$progressReport(handle, message);

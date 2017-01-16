@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IProgressService2 } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgress } from 'vs/platform/progress/common/progress';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadProgressShape } from './extHost.protocol';
 
 export class MainThreadProgress extends MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
-	private progress = new Map<number, { resolve: Function, reject: Function, progress: { report(m: string) } }>();
+	private progress = new Map<number, { resolve: Function, reject: Function, progress: IProgress<any> }>();
 
 	constructor(
 		@IProgressService2 progressService: IProgressService2
@@ -21,15 +21,25 @@ export class MainThreadProgress extends MainThreadProgressShape {
 	}
 
 
-	$progressStart(handle: number): void {
-		this._progressService.withWindowProgress(progress => {
+	$progressStart(handle: number, where: string): void {
+
+		const task = (progress: IProgress<any>) => {
 			return new TPromise<any>((resolve, reject) => {
 				this.progress.set(handle, { resolve, reject, progress });
 			});
-		});
+		};
+
+		switch (where) {
+			case 'window':
+				this._progressService.withWindowProgress(task);
+				break;
+			case 'scm':
+				this._progressService.withViewletProgress('workbench.view.git', task);
+		}
+
 	}
 
-	$progressReport(handle: number, message: string): void {
+	$progressReport(handle: number, message: any): void {
 		this.progress.get(handle).progress.report(message);
 	}
 
