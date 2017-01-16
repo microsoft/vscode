@@ -36,6 +36,7 @@ export class MockConfiguration extends CommonEditorConfiguration {
 			fontWeight: 'normal',
 			fontSize: 14,
 			lineHeight: 19,
+			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
 			spaceWidth: 10,
