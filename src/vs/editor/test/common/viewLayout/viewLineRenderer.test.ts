@@ -353,6 +353,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.containsRTL, true);
 	});
 
 	test('issue #6885: Splits large tokens', () => {
@@ -469,6 +470,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 		assert.equal(actual.output, '<span>' + expectedOutput.join('') + '</span>');
+		assert.equal(actual.containsRTL, true);
 	});
 
 	function assertCharacterMapping(actual: CharacterMapping, expected: number[][]): void {

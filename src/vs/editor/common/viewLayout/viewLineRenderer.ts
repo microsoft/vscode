@@ -190,10 +190,12 @@ export class RenderLineOutput {
 
 	readonly characterMapping: CharacterMapping;
 	readonly output: string;
+	readonly containsRTL: boolean;
 
-	constructor(characterMapping: CharacterMapping, output: string) {
+	constructor(characterMapping: CharacterMapping, output: string, containsRTL: boolean) {
 		this.characterMapping = characterMapping;
 		this.output = output;
+		this.containsRTL = containsRTL;
 	}
 }
 
@@ -202,7 +204,8 @@ export function renderViewLine(input: RenderLineInput): RenderLineOutput {
 		return new RenderLineOutput(
 			new CharacterMapping(0),
 			// This is basically for IE's hit test to work
-			'<span><span>&nbsp;</span></span>'
+			'<span><span>&nbsp;</span></span>',
+			false
 		);
 	}
 
@@ -217,7 +220,7 @@ class ResolvedRenderLineInput {
 		public readonly tokens: ViewLineToken[],
 		public readonly lineDecorations: Decoration[],
 		public readonly tabSize: number,
-		public readonly emitLTRDir: boolean,
+		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
@@ -490,7 +493,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	const isOverflowing = input.isOverflowing;
 	const tokens = input.tokens;
 	const tabSize = input.tabSize;
-	const emitLTRDir = input.emitLTRDir;
+	const containsRTL = input.containsRTL;
 	const spaceWidth = input.spaceWidth;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
@@ -601,7 +604,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 				charOffsetInPart++;
 			}
 
-			if (emitLTRDir) {
+			if (containsRTL) {
 				out += `<span dir="ltr" class="${tokenType}">${partContent}</span>`;
 			} else {
 				out += `<span class="${tokenType}">${partContent}</span>`;
@@ -620,5 +623,5 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 
 	out += '</span>';
 
-	return new RenderLineOutput(characterMapping, out);
+	return new RenderLineOutput(characterMapping, out, containsRTL);
 }

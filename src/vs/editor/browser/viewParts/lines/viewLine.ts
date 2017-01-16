@@ -123,7 +123,6 @@ export class ViewLine implements IVisibleLineData {
 		this._renderedViewLine = createRenderedLine(
 			this._renderedViewLine ? this._renderedViewLine.domNode : null,
 			renderLineInput,
-			this._context.model.mightContainRTL(),
 			isWhitespaceOnly,
 			renderViewLine(renderLineInput)
 		);
@@ -182,7 +181,7 @@ class RenderedViewLine {
 	 */
 	private _pixelOffsetCache: number[];
 
-	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) {
+	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 		this.html = renderLineOutput.output;
@@ -191,7 +190,7 @@ class RenderedViewLine {
 		this._cachedWidth = -1;
 
 		this._pixelOffsetCache = null;
-		if (!modelContainsRTL) {
+		if (!renderLineOutput.containsRTL) {
 			this._pixelOffsetCache = [];
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
@@ -375,17 +374,17 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 	}
 }
 
-const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
+const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
 	if (browser.isWebKit) {
 		return createWebKitRenderedLine;
 	}
 	return createNormalRenderedLine;
 })();
 
-function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new WebKitRenderedViewLine(domNode, renderLineInput, modelContainsRTL, isWhitespaceOnly, renderLineOutput);
+function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+	return new WebKitRenderedViewLine(domNode, renderLineInput, isWhitespaceOnly, renderLineOutput);
 }
 
-function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new RenderedViewLine(domNode, renderLineInput, modelContainsRTL, isWhitespaceOnly, renderLineOutput);
+function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+	return new RenderedViewLine(domNode, renderLineInput, isWhitespaceOnly, renderLineOutput);
 }
