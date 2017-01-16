@@ -570,30 +570,31 @@ export class DebugService implements debug.IDebugService {
 
 							return TPromise.join(compound.configurations.map(name => this.createProcess(name)));
 						}
+						const config = typeof configurationOrName === 'string' ? this.configurationManager.getConfiguration(configurationOrName) : configurationOrName;
 
-						return this.configurationManager.getConfiguration(configurationOrName).then(configuration => {
-							if (!this.configurationManager.getAdapter(configuration.type)) {
-								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
+						return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+							if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
+								return resolvedConfig.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type)))
 									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
 										{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 							}
 
-							return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
-								const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+							return this.runPreLaunchTask(resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
+								const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 								const successExitCode = taskSummary && taskSummary.exitCode === 0;
 								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-									return this.doCreateProcess(sessionId, configuration);
+									return this.doCreateProcess(sessionId, resolvedConfig);
 								}
 
 								this.messageService.show(severity.Error, {
-									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode),
 									actions: [
 										new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 											this.messageService.hideAll();
-											return this.doCreateProcess(sessionId, configuration);
+											return this.doCreateProcess(sessionId, resolvedConfig);
 										}),
 										this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 										CloseAction
@@ -794,10 +795,11 @@ export class DebugService implements debug.IDebugService {
 
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
-		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config => {
-			config.request = 'attach';
-			config.port = port;
-			this.doCreateProcess(sessionId, config);
+		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
+		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+			resolvedConfig.request = 'attach';
+			resolvedConfig.port = port;
+			this.doCreateProcess(sessionId, resolvedConfig);
 		});
 	}
 
