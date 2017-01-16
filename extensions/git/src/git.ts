@@ -161,7 +161,7 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-export async function exec(child: cp.ChildProcess, defaultEncoding = 'utf8'): Promise<IExecutionResult> {
+export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -182,12 +182,12 @@ export async function exec(child: cp.ChildProcess, defaultEncoding = 'utf8'): Pr
 		new Promise<string>(c => {
 			const buffers: string[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(buffers.join()));
+			once(child.stdout, 'close', () => c(buffers.join('')));
 		}),
 		new Promise<string>(c => {
 			const buffers: string[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(buffers.join()));
+			once(child.stderr, 'close', () => c(buffers.join('')));
 		})
 	]);
 
@@ -252,7 +252,6 @@ export class GitError {
 export interface IGitOptions {
 	gitPath: string;
 	version: string;
-	defaultEncoding?: string;
 }
 
 export const GitErrorCodes = {
@@ -279,7 +278,6 @@ export class Git {
 
 	private gitPath: string;
 	private version: string;
-	private defaultEncoding: string;
 
 	private _onOutput = new EventEmitter<string>();
 	get onOutput(): Event<string> { return this._onOutput.event; }
@@ -287,11 +285,10 @@ export class Git {
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
 		this.version = options.version;
-		this.defaultEncoding = options.defaultEncoding || 'utf8';
 	}
 
 	open(repository: string, env: any = {}): Repository {
-		return new Repository(this, repository, this.defaultEncoding, env);
+		return new Repository(this, repository, env);
 	}
 
 	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
@@ -384,7 +381,6 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repository: string,
-		private defaultEncoding: string,
 		private env: any = {}
 	) { }
 
@@ -467,7 +463,7 @@ export class Repository {
 
 	private async doBuffer(object: string): Promise<string> {
 		const child = this.stream(['show', object]);
-		const { exitCode, stdout } = await exec(child, this.defaultEncoding);
+		const { exitCode, stdout } = await exec(child);
 
 		if (exitCode) {
 			return Promise.reject<string>(new GitError({
