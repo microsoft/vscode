@@ -7,27 +7,10 @@
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 
-const FileNameMatch = /^([^.]*)(\.(.*))?$/;
+const FileNameComparer = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 export function compareFileNames(one: string, other: string): number {
-	let oneMatch = FileNameMatch.exec(one.toLowerCase());
-	let otherMatch = FileNameMatch.exec(other.toLowerCase());
-
-	let oneName = oneMatch[1] || '';
-	let oneExtension = oneMatch[3] || '';
-
-	let otherName = otherMatch[1] || '';
-	let otherExtension = otherMatch[3] || '';
-
-	if (oneName !== otherName) {
-		return oneName < otherName ? -1 : 1;
-	}
-
-	if (oneExtension === otherExtension) {
-		return 0;
-	}
-
-	return oneExtension < otherExtension ? -1 : 1;
+	return FileNameComparer.compare(one || '', other || '');
 }
 
 export function compareAnything(one: string, other: string, lookFor: string): number {
