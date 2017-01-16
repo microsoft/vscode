@@ -15,15 +15,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 
 
-class ProgressItem implements IStatusbarItem {
+class WindowProgressItem implements IStatusbarItem {
 
-	static Instance: ProgressItem;
+	static Instance: WindowProgressItem;
 
 	private _element: HTMLElement;
 	private _label: OcticonLabel;
 
 	constructor() {
-		ProgressItem.Instance = this;
+		WindowProgressItem.Instance = this;
 	}
 
 	render(element: HTMLElement): IDisposable {
@@ -70,15 +70,15 @@ export class ProgressService2 implements IProgressService2 {
 
 	private _updateProgress() {
 		if (this._stack.length === 0) {
-			ProgressItem.Instance.hide();
+			WindowProgressItem.Instance.hide();
 		} else {
-			ProgressItem.Instance.show();
-			ProgressItem.Instance.text = this._stack[0].value;
+			WindowProgressItem.Instance.show();
+			WindowProgressItem.Instance.text = this._stack[0].value;
 		}
 	}
 }
 
 
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ProgressItem, StatusbarAlignment.LEFT)
+	new StatusbarItemDescriptor(WindowProgressItem, StatusbarAlignment.LEFT)
 );
