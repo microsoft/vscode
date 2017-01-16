@@ -404,6 +404,11 @@ export interface IEditorOptions {
 	 */
 	acceptSuggestionOnEnter?: boolean;
 	/**
+	 * Accept suggestions on provider defined characters.
+	 * Defaults to true.
+	 */
+	acceptSuggestionOnCommitCharacter?: boolean;
+	/**
 	 * Enable snippet suggestions. Default to 'true'.
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
@@ -881,6 +886,7 @@ export class EditorContribOptions {
 	readonly formatOnType: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
+	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
@@ -905,6 +911,7 @@ export class EditorContribOptions {
 		formatOnType: boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
+		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
@@ -925,6 +932,7 @@ export class EditorContribOptions {
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
@@ -951,6 +959,7 @@ export class EditorContribOptions {
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion

@@ -1314,6 +1314,11 @@ declare module monaco.editor {
          */
         acceptSuggestionOnEnter?: boolean;
         /**
+         * Accept suggestions on provider defined characters.
+         * Defaults to true.
+         */
+        acceptSuggestionOnCommitCharacter?: boolean;
+        /**
          * Enable snippet suggestions. Default to 'true'.
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
@@ -1523,6 +1528,7 @@ declare module monaco.editor {
         readonly formatOnType: boolean;
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
+        readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
         readonly tabCompletion: boolean;
