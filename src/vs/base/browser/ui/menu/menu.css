@@ -104,10 +104,6 @@
 	animation: fadeIn 0.083s linear;
 }
 
-.ie.ie9 .context-view.monaco-menu-container {
-	box-shadow: 0 2px 8px 2px #A8A8A8;
-}
-
 .context-view.monaco-menu-container :focus {
 	outline: 0;
 }

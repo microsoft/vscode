@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as paths from 'vs/base/common/paths';
-import * as async from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -32,10 +31,10 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction, StopAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyValueAction, CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-
+import { once } from 'vs/base/common/functional';
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -47,6 +46,11 @@ export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
 	showHover?: boolean;
+}
+
+function replaceWhitespace(value: string): string {
+	const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
 export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
@@ -77,8 +81,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
-		const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
-		container.textContent = value.replace(/[\n\r\t]/g, char => map[char]);
+		container.textContent = replaceWhitespace(value);
 	} else {
 		container.textContent = value;
 	}
@@ -89,7 +92,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 
 export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = variable.name;
+		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : '';
 	}
 
@@ -129,7 +132,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	let disposed = false;
 	const toDispose: [lifecycle.IDisposable] = [inputBox];
 
-	const wrapUp = async.once((renamed: boolean) => {
+	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
 			disposed = true;
 			if (element instanceof Expression && renamed && inputBox.value) {
@@ -172,7 +175,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 }
 
 function getSourceName(source: Source, contextService: IWorkspaceContextService): string {
-	if (source.inMemory) {
+	if (source.name) {
 		return source.name;
 	}
 
@@ -269,7 +272,9 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		this.focusStackFrame(element, event, true);
+		if (element instanceof StackFrame) {
+			this.focusStackFrame(element, event, true);
+		}
 
 		return super.onLeftClick(tree, element, event);
 	}
@@ -279,7 +284,9 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		this.focusStackFrame(element, event, false);
+		if (element instanceof StackFrame) {
+			this.focusStackFrame(element, event, false);
+		}
 
 		return super.onEnter(tree, event);
 	}
@@ -302,33 +309,10 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	private focusStackFrame(element: any, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		let stackFrame: debug.IStackFrame;
-		let process: debug.IProcess;
-		if (element instanceof StackFrame) {
-			stackFrame = element;
-			process = element.thread.process;
-		}
-		if (element instanceof Thread) {
-			process = element.process;
-		}
-		if (element instanceof Process) {
-			process = element;
-		}
-
-		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).then(() => {
-			if (stackFrame) {
-				const sideBySide = (event && (event.ctrlKey || event.metaKey));
-				return this.editorService.openEditor({
-					resource: stackFrame.source.uri,
-					options: {
-						preserveFocus,
-						selection: { startLineNumber: stackFrame.lineNumber, startColumn: 1 },
-						revealIfVisible: true,
-						revealInCenterIfOutsideViewport: true
-					},
-				}, sideBySide);
-			}
+	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
+			const sideBySide = (event && (event.ctrlKey || event.metaKey));
+			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
 		}, errors.onUnexpectedError);
 	}
 }
@@ -349,12 +333,15 @@ export class CallStackActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
-		return element instanceof Thread || element instanceof StackFrame;
+		return element !== tree.getInput();
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
-		if (element instanceof Thread) {
+		if (element instanceof Process) {
+			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
+			actions.push(this.instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL));
+		} else if (element instanceof Thread) {
 			const thread = <Thread>element;
 			if (thread.stopped) {
 				actions.push(this.instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL));
@@ -570,8 +557,11 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		stackFrame.source.available ? dom.removeClass(data.stackFrame, 'disabled') : dom.addClass(data.stackFrame, 'disabled');
-		data.file.title = stackFrame.source.uri.fsPath;
+		stackFrame.source.deemphasize ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
+		if (stackFrame.source.raw.origin) {
+			data.file.title += `\n${stackFrame.source.raw.origin}`;
+		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);

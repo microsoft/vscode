@@ -4,24 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IMode } from 'vs/editor/common/modes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 
-let instanceCount = 0;
-function generateMockModeId(): string {
-	return 'mockMode' + (++instanceCount);
-}
+export class MockMode extends Disposable implements IMode {
+	private _languageIdentifier: LanguageIdentifier;
 
-export class MockMode implements IMode {
-	private _id: string;
-
-	constructor(id?: string) {
-		if (typeof id === 'undefined') {
-			id = generateMockModeId();
-		}
-		this._id = id;
+	constructor(languageIdentifier: LanguageIdentifier) {
+		super();
+		this._languageIdentifier = languageIdentifier;
 	}
 
 	public getId(): string {
-		return this._id;
+		return this._languageIdentifier.language;
+	}
+
+	public getLanguageIdentifier(): LanguageIdentifier {
+		return this._languageIdentifier;
 	}
 }

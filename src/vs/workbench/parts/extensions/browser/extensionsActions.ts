@@ -18,7 +18,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -29,7 +29,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
-
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class InstallAction extends Action {
 
@@ -313,7 +313,7 @@ export class DropDownMenuActionItem extends ActionItem {
 	}
 
 	private getActions(): IAction[] {
-		let actions = [];
+		let actions: IAction[] = [];
 		const menuActionGroups = this.menuActionGroups.filter(group => group.some(action => action.enabled));
 		for (const menuActions of menuActionGroups) {
 			actions = [...actions, ...menuActions, new Separator()];
@@ -553,7 +553,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 
 	private update(): void {
 		this.enabled = false;
-		if (this.extension && this.workspaceContextService.getWorkspace()) {
+		if (this.extension && this.workspaceContextService.hasWorkspace()) {
 			this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.disabledGlobally && !this.extension.disabledForWorkspace;
 		}
 	}
@@ -1001,7 +1001,7 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, null, !!contextService.getWorkspace());
+		super(id, label, null, contextService.hasWorkspace());
 	}
 
 	run(): TPromise<void> {
@@ -1104,7 +1104,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
 	) {
-		super(id, label, null, !!contextService.getWorkspace());
+		super(id, label, null, contextService.hasWorkspace());
 	}
 
 	public run(event: any): TPromise<any> {
@@ -1112,7 +1112,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private openExtensionsFile(): TPromise<any> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(severity.Info, localize('ConfigureWorkspaceRecommendations.noWorkspace', 'Recommendations are only available on a workspace folder.'));
 			return TPromise.as(undefined);
 		}
@@ -1216,7 +1216,7 @@ export class DisableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !e.disabledForWorkspace && !e.disabledGlobally);
+		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !e.disabledForWorkspace && !e.disabledGlobally);
 	}
 
 	run(): TPromise<any> {
@@ -1279,7 +1279,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.identifier) && !e.disabledGlobally && e.disabledForWorkspace);
+		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.identifier) && !e.disabledGlobally && e.disabledForWorkspace);
 	}
 
 	run(): TPromise<any> {
@@ -1291,3 +1291,14 @@ export class EnableAllWorkpsaceAction extends Action {
 		this.disposables = dispose(this.disposables);
 	}
 }
+
+CommandsRegistry.registerCommand('workbench.extensions.action.showLanguageExtensions', function (accessor: ServicesAccessor, fileExtension: string) {
+	const viewletService = accessor.get(IViewletService);
+
+	return viewletService.openViewlet(VIEWLET_ID, true)
+		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => {
+			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
+			viewlet.focus();
+		});
+});

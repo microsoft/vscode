@@ -70,8 +70,9 @@ export class EditorState {
 	}
 }
 
-interface ISerializedFileEditorInput {
-	resource: string;
+interface ISerializedFileHistoryEntry {
+	resource?: string;
+	resourceJSON: any;
 }
 
 export abstract class BaseHistoryService {
@@ -703,19 +704,19 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // nothing to save because history was not used
 		}
 
-		const entries: ISerializedFileEditorInput[] = this.history.map(input => {
+		const entries: ISerializedFileHistoryEntry[] = this.history.map(input => {
 			if (input instanceof EditorInput) {
 				return void 0; // only file resource inputs are serializable currently
 			}
 
-			return { resource: (input as IResourceInput).resource.toString() };
+			return { resourceJSON: (input as IResourceInput).resource.toJSON() };
 		}).filter(serialized => !!serialized);
 
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
 	private loadHistory(): void {
-		let entries: ISerializedFileEditorInput[] = [];
+		let entries: ISerializedFileHistoryEntry[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
@@ -723,9 +724,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		this.history = entries.map(entry => {
-			const serializedFileInput = entry as ISerializedFileEditorInput;
-			if (serializedFileInput.resource) {
-				return { resource: URI.parse(serializedFileInput.resource) } as IResourceInput;
+			const serializedFileInput = entry as ISerializedFileHistoryEntry;
+			if (serializedFileInput.resource || serializedFileInput.resourceJSON) {
+				return { resource: !!serializedFileInput.resourceJSON ? URI.revive(serializedFileInput.resourceJSON) : URI.parse(serializedFileInput.resource) } as IResourceInput;
 			}
 
 			return void 0;

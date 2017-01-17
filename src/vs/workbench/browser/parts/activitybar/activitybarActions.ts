@@ -8,7 +8,6 @@
 import 'vs/css!./media/activityaction';
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
@@ -93,13 +92,11 @@ export class ViewletActivityAction extends ActivityAction {
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
-			this.partService.setSideBarHidden(true);
-		} else {
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
-			this.activate();
+			return this.partService.setSideBarHidden(true);
 		}
 
-		return TPromise.as(true);
+		return this.viewletService.openViewlet(this.viewlet.id, true)
+			.then(() => this.activate());
 	}
 }
 
@@ -531,12 +528,10 @@ class OpenViewletAction extends Action {
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
-			this.partService.setSideBarHidden(true);
-		} else {
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
+			return this.partService.setSideBarHidden(true);
 		}
 
-		return TPromise.as(true);
+		return this.viewletService.openViewlet(this.viewlet.id, true);
 	}
 }
 

@@ -12,7 +12,7 @@ export const WORKSPACE_CONFIG_DEFAULT_PATH = `${WORKSPACE_CONFIG_FOLDER_DEFAULT_
 
 export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigurationService>('configurationService');
 
-export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigurationValue<any> }
+export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigurationValue<any> };
 
 export interface IWorkspaceConfigurationService extends IConfigurationService {
 

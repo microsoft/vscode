@@ -11,11 +11,14 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, IResourceDiffInput, Position } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
 export enum ConfirmResult {
 	SAVE,
@@ -577,10 +580,10 @@ export class TextEditorOptions extends EditorOptions {
 	private editorViewState: IEditorViewState;
 	private editorOptions: ICodeEditorOptions;
 
-	public static from(input: IResourceInput | IResourceDiffInput): TextEditorOptions {
+	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -611,6 +614,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.revealInCenterIfOutsideViewport) {
 				options.revealInCenterIfOutsideViewport = true;
+			}
+
+			if (input.options.viewState) {
+				options.editorViewState = input.options.viewState;
 			}
 
 			if (typeof input.options.index === 'number') {

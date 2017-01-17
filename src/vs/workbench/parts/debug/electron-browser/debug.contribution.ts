@@ -133,9 +133,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(IDebugService);
+		if (!configurationOrName) {
+			configurationOrName = debugService.getViewModel().selectedConfigurationName;
+		}
+
 		return debugService.createProcess(configurationOrName);
 	},
 	when: CONTEXT_NOT_IN_DEBUG_MODE,
+	primary: undefined
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.customDebugRequest',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
+		const process = accessor.get(IDebugService).getViewModel().focusedProcess;
+		if (process) {
+			return process.session.custom(request, requestArgs);
+		}
+	},
+	when: CONTEXT_IN_DEBUG_MODE,
 	primary: undefined
 });
 
@@ -158,6 +175,11 @@ configurationRegistry.registerConfiguration({
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer view on the end of a debug session"),
+			default: false
+		},
+		'debug.inlineValues': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
 			default: false
 		}
 	}

@@ -13,18 +13,21 @@ import URI from 'vs/base/common/uri';
 
 export class DeferredTPromise<T> extends TPromise<T> {
 
-	public canceled = false;
+	public canceled: boolean;
 
 	private completeCallback: TValueCallback<T>;
 	private errorCallback: (err: any) => void;
 	private progressCallback: ProgressCallback;
 
 	constructor() {
+		let captured: any;
 		super((c, e, p) => {
-			this.completeCallback = c;
-			this.errorCallback = e;
-			this.progressCallback = p;
+			captured = { c, e, p };
 		}, () => this.oncancel());
+		this.canceled = false;
+		this.completeCallback = captured.c;
+		this.errorCallback = captured.e;
+		this.progressCallback = captured.p;
 	}
 
 	public complete(value: T) {
@@ -51,7 +54,13 @@ export class DeferredPPromise<C, P> extends PPromise<C, P> {
 	private progressCallback: TProgressCallback<P>;
 
 	constructor(init: (complete: TValueCallback<C>, error: (err: any) => void, progress: TProgressCallback<P>) => void = (c, e, p) => { }, oncancel?: any) {
-		super((c, e, p) => { this.completeCallback = c; this.errorCallback = e; this.progressCallback = p; }, oncancel ? oncancel : () => this.oncancel);
+		let captured: any;
+		super((c, e, p) => {
+			captured = { c, e, p };
+		}, oncancel ? oncancel : () => this.oncancel);
+		this.completeCallback = captured.c;
+		this.errorCallback = captured.e;
+		this.progressCallback = captured.p;
 	}
 
 	private oncancel(): void {

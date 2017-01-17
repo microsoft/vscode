@@ -522,6 +522,10 @@ declare module monaco {
          */
         static isBeforeOrEqual(a: IPosition, b: IPosition): boolean;
         /**
+         * A function that compares positions, useful for sorting
+         */
+        static compare(a: IPosition, b: IPosition): number;
+        /**
          * Clone this position.
          */
         clone(): Position;
@@ -751,6 +755,15 @@ declare module monaco {
          */
         RTL = 1,
     }
+
+    export class Token {
+        _tokenBrand: void;
+        readonly offset: number;
+        readonly type: string;
+        readonly language: string;
+        constructor(offset: number, type: string, language: string);
+        toString(): string;
+    }
 }
 
 declare module monaco.editor {
@@ -854,6 +867,31 @@ declare module monaco.editor {
     export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
 
     /**
+     * Tokenize `text` using language `languageId`
+     */
+    export function tokenize(text: string, languageId: string): Token[][];
+
+    /**
+     * Define a new theme.
+     */
+    export function defineTheme(themeName: string, themeData: ITheme): void;
+
+    export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+
+    export interface ITheme {
+        base: BuiltinTheme;
+        inherit: boolean;
+        rules: IThemeRule[];
+    }
+
+    export interface IThemeRule {
+        token: string;
+        foreground?: string;
+        background?: string;
+        fontStyle?: string;
+    }
+
+    /**
      * A web worker that can provide a proxy to an arbitrary file.
      */
     export interface MonacoWebWorker<T> {
@@ -913,13 +951,13 @@ declare module monaco.editor {
     export interface IStandaloneCodeEditor extends ICodeEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
     }
 
     export interface IStandaloneDiffEditor extends IDiffEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
@@ -1116,10 +1154,9 @@ declare module monaco.editor {
          */
         roundedSelection?: boolean;
         /**
-         * Theme to be used for rendering. Consists of two parts, the UI theme and the syntax theme,
-         * separated by a space.
-         * The current available UI themes are: 'vs' (default), 'vs-dark', 'hc-black'
-         * The syntax themes are contributed. The default is 'default-theme'
+         * Theme to be used for rendering.
+         * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+         * You can create custom themes via `monaco.editor.defineTheme`.
          */
         theme?: string;
         /**
@@ -1276,6 +1313,11 @@ declare module monaco.editor {
          * Defaults to true.
          */
         acceptSuggestionOnEnter?: boolean;
+        /**
+         * Accept suggestions on provider defined characters.
+         * Defaults to true.
+         */
+        acceptSuggestionOnCommitCharacter?: boolean;
         /**
          * Enable snippet suggestions. Default to 'true'.
          */
@@ -1486,6 +1528,7 @@ declare module monaco.editor {
         readonly formatOnType: boolean;
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
+        readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
         readonly tabCompletion: boolean;
@@ -1575,6 +1618,10 @@ declare module monaco.editor {
          * CSS class name describing the decoration.
          */
         className?: string;
+        /**
+         * Message to be rendered when hovering over the glyph margin decoration.
+         */
+        glyphMarginHoverMessage?: MarkedString | MarkedString[];
         /**
          * Array of MarkedString to render as the decoration message.
          */
@@ -1894,10 +1941,6 @@ declare module monaco.editor {
          */
         setValue(newValue: string): void;
         /**
-         * Replace the entire text buffer value contained in this model.
-         */
-        setValueFromRawText(newValue: IRawText): void;
-        /**
          * Get the text stored in this model.
          * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
          * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -1908,14 +1951,6 @@ declare module monaco.editor {
          * Get the length of the text stored in this model.
          */
         getValueLength(eol?: EndOfLinePreference, preserveBOM?: boolean): number;
-        /**
-         * Get the raw text stored in this model.
-         */
-        toRawText(): IRawText;
-        /**
-         * Check if the raw text stored in this model equals another raw text.
-         */
-        equals(other: IRawText): boolean;
         /**
          * Get the text in a certain range.
          * @param range The range describing what text to get.
@@ -2018,10 +2053,11 @@ declare module monaco.editor {
          * @param isRegex Used to indicate that `searchString` is a regular expression.
          * @param matchCase Force the matching to match lower/upper case exactly.
          * @param wholeWord Force the matching to match entire words only.
+         * @param captureMatches The result will contain the captured groups.
          * @param limitResultCount Limit the number of results
          * @return The ranges where the matches are. It is empty if not matches have been found.
          */
-        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
         /**
          * Search the model.
          * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2029,10 +2065,11 @@ declare module monaco.editor {
          * @param isRegex Used to indicate that `searchString` is a regular expression.
          * @param matchCase Force the matching to match lower/upper case exactly.
          * @param wholeWord Force the matching to match entire words only.
+         * @param captureMatches The result will contain the captured groups.
          * @param limitResultCount Limit the number of results
          * @return The ranges where the matches are. It is empty if no matches have been found.
          */
-        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
         /**
          * Search the model for the next match. Loops to the beginning of the model if needed.
          * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2040,9 +2077,10 @@ declare module monaco.editor {
          * @param isRegex Used to indicate that `searchString` is a regular expression.
          * @param matchCase Force the matching to match lower/upper case exactly.
          * @param wholeWord Force the matching to match entire words only.
+         * @param captureMatches The result will contain the captured groups.
          * @return The range where the next match is. It is null if no next match has been found.
          */
-        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
+        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
         /**
          * Search the model for the previous match. Loops to the end of the model if needed.
          * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2050,9 +2088,16 @@ declare module monaco.editor {
          * @param isRegex Used to indicate that `searchString` is a regular expression.
          * @param matchCase Force the matching to match lower/upper case exactly.
          * @param wholeWord Force the matching to match entire words only.
+         * @param captureMatches The result will contain the captured groups.
          * @return The range where the previous match is. It is null if no previous match has been found.
          */
-        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
+        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
+    }
+
+    export class FindMatch {
+        _findMatchBrand: void;
+        readonly range: Range;
+        readonly matches: string[];
     }
 
     export interface IReadOnlyModel extends ITextModel {
@@ -2084,10 +2129,6 @@ declare module monaco.editor {
      * A model that is tokenized.
      */
     export interface ITokenizedModel extends ITextModel {
-        /**
-         * Get the current language mode associated with the model.
-         */
-        getMode(): languages.IMode;
         /**
          * Get the language associated with this model.
          */
@@ -2252,7 +2293,7 @@ declare module monaco.editor {
          * An event emitted when the language associated with the model has changed.
          * @event
          */
-        onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+        onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
         /**
          * An event emitted right before disposing the model.
          * @event
@@ -2272,15 +2313,15 @@ declare module monaco.editor {
     /**
      * An event describing that the current mode associated with a model has changed.
      */
-    export interface IModelModeChangedEvent {
+    export interface IModelLanguageChangedEvent {
         /**
-         * Previous mode
+         * Previous language
          */
-        readonly oldMode: languages.IMode;
+        readonly oldLanguage: string;
         /**
-         * New mode
+         * New language
          */
-        readonly newMode: languages.IMode;
+        readonly newLanguage: string;
     }
 
     /**
@@ -2315,41 +2356,6 @@ declare module monaco.editor {
          * Flag that indicates that this event was generated while redoing.
          */
         readonly isRedoing: boolean;
-    }
-
-    /**
-     * The raw text backing a model.
-     */
-    export interface IRawText {
-        /**
-         * The entire text length.
-         */
-        readonly length: number;
-        /**
-         * The text split into lines.
-         */
-        readonly lines: string[];
-        /**
-         * The BOM (leading character sequence of the file).
-         */
-        readonly BOM: string;
-        /**
-         * The end of line sequence.
-         */
-        readonly EOL: string;
-        /**
-         * The text contains Unicode characters classified as "R" or "AL".
-         */
-        readonly containsRTL: boolean;
-        /**
-         * The options associated with this text.
-         */
-        readonly options: {
-            readonly tabSize: number;
-            readonly insertSpaces: boolean;
-            readonly defaultEOL: DefaultEndOfLine;
-            readonly trimAutoWhitespace: boolean;
-        };
     }
 
     /**
@@ -2759,22 +2765,6 @@ declare module monaco.editor {
         readonly charChanges: ICharChange[];
     }
 
-    export class BareFontInfo {
-        readonly _bareFontInfoBrand: void;
-        readonly fontFamily: string;
-        readonly fontWeight: string;
-        readonly fontSize: number;
-        readonly lineHeight: number;
-    }
-
-    export class FontInfo extends BareFontInfo {
-        readonly _editorStylingBrand: void;
-        readonly typicalHalfwidthCharacterWidth: number;
-        readonly typicalFullwidthCharacterWidth: number;
-        readonly spaceWidth: number;
-        readonly maxDigitWidth: number;
-    }
-
     export interface INewScrollPosition {
         scrollLeft?: number;
         scrollTop?: number;
@@ -2842,7 +2832,7 @@ declare module monaco.editor {
          * An event emitted when the language of the current model has changed.
          * @event
          */
-        onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+        onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the options of the current model has changed.
          * @event
@@ -2901,7 +2891,7 @@ declare module monaco.editor {
         /**
          * Add a new action to this editor.
          */
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
         /**
          * Returns all actions associated with this editor.
          */
@@ -3163,11 +3153,12 @@ declare module monaco.editor {
          */
         pushUndoStop(): boolean;
         /**
-         * Execute a command on the editor.
+         * Execute edits on the editor.
          * @param source The source of the call.
-         * @param command The command to execute
+         * @param edits The edits to execute.
+         * @param endCursoState Cursor state after the edits were applied.
          */
-        executeEdits(source: string, edits: IIdentifiedSingleEditOperation[]): boolean;
+        executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
         /**
          * Execute multiple (concommitent) commands on the editor.
          * @param source The source of the call.
@@ -3366,7 +3357,6 @@ declare module monaco.editor {
         ColumnSelect: string;
         CreateCursor: string;
         LastCursorMoveToSelect: string;
-        JumpToBracket: string;
         Type: string;
         ReplacePreviousChar: string;
         CompositionStart: string;
@@ -3776,6 +3766,13 @@ declare module monaco.editor {
          */
         getTopForPosition(lineNumber: number, column: number): number;
         /**
+         * Get the hit test target at coordinates `clientX` and `clientY`.
+         * The coordinates are relative to the top-left of the viewport.
+         *
+         * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
+         */
+        getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
+        /**
          * Get the visible position for `position`.
          * The result position takes scrolling into account and is relative to the top left corner of the editor.
          * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
@@ -3802,6 +3799,22 @@ declare module monaco.editor {
          */
         getDomNode(): HTMLElement;
     }
+
+    export class FontInfo extends BareFontInfo {
+        readonly _editorStylingBrand: void;
+        readonly isMonospace: boolean;
+        readonly typicalHalfwidthCharacterWidth: number;
+        readonly typicalFullwidthCharacterWidth: number;
+        readonly spaceWidth: number;
+        readonly maxDigitWidth: number;
+    }
+    export class BareFontInfo {
+        readonly _bareFontInfoBrand: void;
+        readonly fontFamily: string;
+        readonly fontWeight: string;
+        readonly fontSize: number;
+        readonly lineHeight: number;
+    }
 }
 
 declare module monaco.languages {
@@ -3827,6 +3840,43 @@ declare module monaco.languages {
      * Set the editing configuration for a language.
      */
     export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable;
+
+    /**
+     * A token.
+     */
+    export interface IToken {
+        startIndex: number;
+        scopes: string;
+    }
+
+    /**
+     * The result of a line tokenization.
+     */
+    export interface ILineTokens {
+        /**
+         * The list of tokens on the line.
+         */
+        tokens: IToken[];
+        /**
+         * The tokenization end state.
+         * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+         */
+        endState: IState;
+    }
+
+    /**
+     * A "manual" provider of tokens.
+     */
+    export interface TokensProvider {
+        /**
+         * The initial state of a language. Will be the state passed in to tokenize the first line.
+         */
+        getInitialState(): IState;
+        /**
+         * Tokenize a line given the state at the beginning of the line.
+         */
+        tokenize(line: string, state: IState): ILineTokens;
+    }
 
     /**
      * Set the tokens provider for a language (manual implementation).
@@ -3872,6 +3922,11 @@ declare module monaco.languages {
      * Register a definition provider (used by e.g. go to definition).
      */
     export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
+
+    /**
+     * Register a type definition provider (used by e.g. go to implementation).
+     */
+    export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
 
     /**
      * Register a code lens provider (used by e.g. inline code lenses).
@@ -4232,36 +4287,6 @@ declare module monaco.languages {
     }
 
     /**
-     * A mode. Will soon be obsolete.
-     */
-    export interface IMode {
-        getId(): string;
-    }
-
-    /**
-     * A token. Only supports a single scope, but will soon support a scope array.
-     */
-    export interface IToken {
-        startIndex: number;
-        scopes: string | string[];
-    }
-
-    /**
-     * The result of a line tokenization.
-     */
-    export interface ILineTokens {
-        /**
-         * The list of tokens on the line.
-         */
-        tokens: IToken[];
-        /**
-         * The tokenization end state.
-         * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
-         */
-        endState: IState;
-    }
-
-    /**
      * The state of the tokenizer between two lines.
      * It is useful to store flags such as in multiline comment, etc.
      * The model will clone the previous line's state and pass it in to tokenize the next line.
@@ -4269,20 +4294,6 @@ declare module monaco.languages {
     export interface IState {
         clone(): IState;
         equals(other: IState): boolean;
-    }
-
-    /**
-     * A "manual" provider of tokens.
-     */
-    export interface TokensProvider {
-        /**
-         * The initial state of a language. Will be the state passed in to tokenize the first line.
-         */
-        getInitialState(): IState;
-        /**
-         * Tokenize a line given the state at the beginning of the line.
-         */
-        tokenize(line: string, state: IState): ILineTokens;
     }
 
     /**
@@ -4497,6 +4508,17 @@ declare module monaco.languages {
     }
 
     /**
+     * The type definition provider interface defines the contract between extensions and
+     * the go to implementation feature.
+     */
+    export interface TypeDefinitionProvider {
+        /**
+         * Provide the implementation of the symbol at the given position and document.
+         */
+        provideTypeDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+    }
+
+    /**
      * A symbol kind.
      */
     export enum SymbolKind {
@@ -4657,6 +4679,7 @@ declare module monaco.languages {
     }
 
     export interface CodeLensProvider {
+        onDidChange?: IEvent<this>;
         provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
         resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
     }

@@ -130,6 +130,10 @@ suite('CompletionModel', function () {
 		assertTopScore('cC', 1, 'ccfoo', 'camelCase');
 		assertTopScore('cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
 
+		// issue #17836
+		assertTopScore('p', 0, 'parse', 'posix', 'sep', 'pafdsa', 'path', 'p');
+		assertTopScore('pa', 0, 'parse', 'posix', 'sep', 'pafdsa', 'path', 'p');
+
 		// issue #14583
 		assertTopScore('log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
 		assertTopScore('e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
@@ -138,7 +142,7 @@ suite('CompletionModel', function () {
 		assertTopScore('workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
 
 		// issue #11423
-		assertTopScore('editor.r', 3, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		assertTopScore('editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 		assertTopScore('editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 		assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 
@@ -147,7 +151,9 @@ suite('CompletionModel', function () {
 		assertTopScore('convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
 		// dupe, issue #14942
 		assertTopScore('is', 0, 'isValidViewletId', 'import statement');
+
 	});
+
 
 	test('proper current word when length=0, #16380', function () {
 

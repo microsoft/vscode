@@ -404,40 +404,48 @@ export namespace KeyCodeUtils {
 	}
 }
 
-// Binary encoding strategy:
-// 15:  1 bit for ctrlCmd
-// 14:  1 bit for shift
-// 13:  1 bit for alt
-// 12:  1 bit for winCtrl
-//  0: 12 bits for keyCode (up to a maximum keyCode of 4096. Given we have 83 at this point thats good enough)
+/**
+ * Binary encoding strategy:
+ * ```
+ *    1111 11
+ *    5432 1098 7654 3210
+ *    ---- CSAW KKKK KKKK
+ *  C = bit 11 = ctrlCmd flag
+ *  S = bit 10 = shift flag
+ *  A = bit 9 = alt flag
+ *  W = bit 8 = winCtrl flag
+ *  K = bits 0-7 = key code
+ * ```
+ */
 const enum BinaryKeybindingsMask {
-	CtrlCmd = 1 << 15,
-	Shift = 1 << 14,
-	Alt = 1 << 13,
-	WinCtrl = 1 << 12,
-	KeyCode = 0x00000fff,
+	CtrlCmd = (1 << 11) >>> 0,
+	Shift = (1 << 10) >>> 0,
+	Alt = (1 << 9) >>> 0,
+	WinCtrl = (1 << 8) >>> 0,
+	KeyCode = 0x000000ff,
 	ModifierMask = CtrlCmd | Shift | Alt | WinCtrl
 }
 
 export const enum KeyMod {
-	CtrlCmd = 1 << 15,
-	Shift = 1 << 14,
-	Alt = 1 << 13,
-	WinCtrl = 1 << 12,
+	CtrlCmd = (1 << 11) >>> 0,
+	Shift = (1 << 10) >>> 0,
+	Alt = (1 << 9) >>> 0,
+	WinCtrl = (1 << 8) >>> 0,
 }
 
 export function KeyChord(firstPart: number, secondPart: number): number {
-	return firstPart | ((secondPart & 0x0000ffff) << 16);
+	let chordPart = ((secondPart & 0x0000ffff) << 16) >>> 0;
+	return (firstPart | chordPart) >>> 0;
 }
 
 export class BinaryKeybindings {
 
 	public static extractFirstPart(keybinding: number): number {
-		return keybinding & 0x0000ffff;
+		return (keybinding & 0x0000ffff) >>> 0;
 	}
 
 	public static extractChordPart(keybinding: number): number {
-		return (keybinding >> 16) & 0x0000ffff;
+		return (keybinding & 0xffff0000) >>> 16;
 	}
 
 	public static hasChord(keybinding: number): boolean {

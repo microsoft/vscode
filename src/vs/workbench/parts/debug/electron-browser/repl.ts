@@ -12,6 +12,7 @@ import * as errors from 'vs/base/common/errors';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Dimension, Builder } from 'vs/base/browser/builder';
+import { Schemas } from 'vs/base/common/network';
 import * as dom from 'vs/base/browser/dom';
 import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -29,11 +30,10 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
-import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
+import { ReplInputEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
@@ -72,7 +72,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private renderer: ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: ReplEditor;
+	private replInput: ReplInputEditor;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: IAction[];
@@ -81,7 +81,6 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
@@ -169,11 +168,11 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(ReplEditor, this.replInputContainer, this.getReplInputOptions());
-		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
+		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
+		const model = this.modelService.createModel('', null, uri.parse(`${Schemas.debug}:input`));
 		this.replInput.setModel(model);
 
-		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
+		modes.SuggestRegistry.register({ scheme: Schemas.debug }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
@@ -273,7 +272,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			theme: this.themeService.getColorTheme(),
+			theme: this.themeService.getColorTheme().id,
 			renderLineHighlight: 'none',
 			fixedOverflowWidgets: true,
 			acceptSuggestionOnEnter: false

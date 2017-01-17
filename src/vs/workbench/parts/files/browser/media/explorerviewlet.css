@@ -48,6 +48,56 @@
 	visibility: hidden;
 }
 
+.explorer-viewlet .header .monaco-count-badge.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.explorer-folders-view .monaco-tree-row .sub-content {
+	display: flex;
+}
+
+.explorer-folders-view .monaco-tree-row .sub-content::before {
+	background-size: 16px;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	display: inline-block;
+	vertical-align: top;
+	content: ' ';
+}
+
+.explorer-folders-view.align-icons-and-twisties .monaco-tree-row:not(.has-children) .sub-content::before {
+	display: none;
+}
+
+.explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded.svg");
+}
+
+.explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	display: inline-block;
+	background-image: url("collapsed.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded-dark.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	background-image: url("collapsed-dark.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded-hc.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	background-image: url("collapsed-hc.svg");
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
@@ -123,11 +173,6 @@
 .explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(ja) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group { font-weight: normal; }
-
-/* Disable tree twistie */
-.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
-	display: none;
-}
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,

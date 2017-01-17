@@ -37,7 +37,7 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (match: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
 	cancel: () => void;
 }
 

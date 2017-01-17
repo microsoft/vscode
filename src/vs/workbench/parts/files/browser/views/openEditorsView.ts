@@ -105,7 +105,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
-				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors")
+				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors: List of Active Files"),
+				showTwistie: false
 			});
 
 		this.fullRefreshNeeded = true;

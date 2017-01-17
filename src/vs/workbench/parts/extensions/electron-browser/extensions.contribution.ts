@@ -149,7 +149,7 @@ const enableAllWorkspaceAction = new SyncActionDescriptor(EnableAllWorkpsaceActi
 actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All (Workspace)', ExtensionsLabel);
 
 const checkForUpdatesAction = new SyncActionDescriptor(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL);
-actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: ${CheckForUpdatesAction.LABEL}`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Updates`, ExtensionsLabel);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

@@ -8,12 +8,12 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-var path_1 = require('path');
-var Lint = require('tslint/lib/lint');
+var path_1 = require("path");
+var Lint = require("tslint");
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
-        _super.apply(this, arguments);
+        return _super.apply(this, arguments) || this;
     }
     Rule.prototype.apply = function (sourceFile) {
         return this.applyWithWalker(new ImportPatterns(sourceFile, this.getOptions()));
@@ -24,8 +24,9 @@ exports.Rule = Rule;
 var ImportPatterns = (function (_super) {
     __extends(ImportPatterns, _super);
     function ImportPatterns(file, opts) {
-        _super.call(this, file, opts);
-        this.imports = Object.create(null);
+        var _this = _super.call(this, file, opts) || this;
+        _this.imports = Object.create(null);
+        return _this;
     }
     ImportPatterns.prototype.visitImportDeclaration = function (node) {
         var path = node.moduleSpecifier.getText();

@@ -218,10 +218,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			});
 		};
 		findInteractiveVariables(configuration);
+		let substitionCanceled = false;
 
 		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
 			return () => {
-				let commandId = null;
+				let commandId: string = null;
 				commandId = interactiveVariablesMap ? interactiveVariablesMap[interactiveVariable] : null;
 				if (!commandId) {
 					// Just launch any command if the interactive variable is not contributed by the adapter #12735
@@ -233,11 +234,13 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
 							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
 						);
+					} else {
+						substitionCanceled = true;
 					}
 				});
 			};
 		});
 
-		return sequence(factory).then(() => configuration);
+		return sequence(factory).then(() => substitionCanceled ? null : configuration);
 	}
 }

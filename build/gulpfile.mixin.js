@@ -51,8 +51,18 @@ gulp.task('mixin', function () {
 		const build = all.pipe(filter('build/**'));
 		const productJsonFilter = filter('product.json', { restore: true });
 
+		const vsdaFilter = (function() {
+			const filter = [];
+			if (process.platform !== 'win32') { filter.push('!**/vsda_win32.node'); }
+			if (process.platform !== 'darwin') { filter.push('!**/vsda_darwin.node'); }
+			if (process.platform !== 'linux' || process.arch !== 'x64') { filter.push('!**/vsda_linux64.node'); }
+			if (process.platform !== 'linux' || process.arch === 'x64') { filter.push('!**/vsda_linux32.node'); }
+
+			return filter;
+		})();
+
 		const mixin = all
-			.pipe(filter('quality/' + quality + '/**'))
+			.pipe(filter(['quality/' + quality + '/**'].concat(vsdaFilter)))
 			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())

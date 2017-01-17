@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { isArray } from './types';
-
 export const empty: IDisposable = Object.freeze({
 	dispose() { }
 });
@@ -14,17 +12,24 @@ export interface IDisposable {
 	dispose(): void;
 }
 
-export function dispose<T extends IDisposable>(...disposables: T[]): T;
+export function dispose<T extends IDisposable>(disposable: T): T;
+export function dispose<T extends IDisposable>(...disposables: T[]): T[];
 export function dispose<T extends IDisposable>(disposables: T[]): T[];
-export function dispose<T extends IDisposable>(...disposables: T[]): T[] {
-	const first = disposables[0];
+export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] {
 
-	if (isArray(first)) {
-		disposables = first as any as T[];
+	if (Array.isArray(first)) {
+		first.forEach(d => d && d.dispose());
+		return [];
+	} else if (rest.length === 0) {
+		if (first) {
+			first.dispose();
+			return first;
+		}
+	} else {
+		dispose(first);
+		dispose(rest);
+		return [];
 	}
-
-	disposables.forEach(d => d && d.dispose());
-	return [];
 }
 
 export function combinedDisposable(disposables: IDisposable[]): IDisposable {
@@ -65,6 +70,22 @@ export class Disposables extends Disposable {
 				return this._register(element);
 			}
 		}
+	}
+}
+
+export class OneDisposable implements IDisposable {
+
+	private _value: IDisposable;
+
+	set value(value: IDisposable) {
+		if (this._value) {
+			this._value.dispose();
+		}
+		this._value = value;
+	}
+
+	dispose() {
+		this.value = null;
 	}
 }
 

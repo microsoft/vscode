@@ -4,187 +4,117 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { Token } from 'vs/editor/common/core/token';
+import { ColorId, FontStyle, StandardTokenType, MetadataConsts, LanguageId } from 'vs/editor/common/modes';
 
-export const enum TokensBinaryEncodingValues {
-	START_INDEX_MASK = 0xffffffff,
-	TYPE_MASK = 0xffff,
-	START_INDEX_OFFSET = 1,
-	TYPE_OFFSET = 4294967296 // Math.pow(2, 32)
-}
+export class TokenMetadata {
 
-const DEFAULT_VIEW_TOKEN = new ViewLineToken(0, '');
-const INFLATED_TOKENS_EMPTY_TEXT: ViewLineToken[] = [];
-export const DEFLATED_TOKENS_EMPTY_TEXT: number[] = [];
-const INFLATED_TOKENS_NON_EMPTY_TEXT: ViewLineToken[] = [DEFAULT_VIEW_TOKEN];
-export const DEFLATED_TOKENS_NON_EMPTY_TEXT: number[] = [0];
-
-export class TokensInflatorMap {
-	_tokensInflatorMapBrand: void;
-
-	public topLevelModeId: string;
-	public _inflate: string[];
-
-	public _deflate: {
-		[token: string]: number;
-	};
-
-	constructor(topLevelModeId: string) {
-		this.topLevelModeId = topLevelModeId;
-		this._inflate = [''];
-		this._deflate = { '': 0 };
+	public static toBinaryStr(metadata: number): string {
+		let r = metadata.toString(2);
+		while (r.length < 32) {
+			r = '0' + r;
+		}
+		return r;
 	}
-}
 
-export class TokensBinaryEncoding {
+	public static printMetadata(metadata: number): void {
+		let languageId = TokenMetadata.getLanguageId(metadata);
+		let tokenType = TokenMetadata.getTokenType(metadata);
+		let fontStyle = TokenMetadata.getFontStyle(metadata);
+		let foreground = TokenMetadata.getForeground(metadata);
+		let background = TokenMetadata.getBackground(metadata);
 
-	public static deflateArr(map: TokensInflatorMap, tokens: Token[]): number[] {
-		if (tokens.length === 0) {
-			return DEFLATED_TOKENS_EMPTY_TEXT;
+		console.log({
+			languageId: languageId,
+			tokenType: tokenType,
+			fontStyle: fontStyle,
+			foreground: foreground,
+			background: background,
+		});
+	}
+
+	public static getLanguageId(metadata: number): LanguageId {
+		return (metadata & MetadataConsts.LANGUAGEID_MASK) >>> MetadataConsts.LANGUAGEID_OFFSET;
+	}
+
+	public static getTokenType(metadata: number): StandardTokenType {
+		return (metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET;
+	}
+
+	public static getFontStyle(metadata: number): FontStyle {
+		return (metadata & MetadataConsts.FONT_STYLE_MASK) >>> MetadataConsts.FONT_STYLE_OFFSET;
+	}
+
+	public static getForeground(metadata: number): ColorId {
+		return (metadata & MetadataConsts.FOREGROUND_MASK) >>> MetadataConsts.FOREGROUND_OFFSET;
+	}
+
+	public static getBackground(metadata: number): ColorId {
+		return (metadata & MetadataConsts.BACKGROUND_MASK) >>> MetadataConsts.BACKGROUND_OFFSET;
+	}
+
+	private static _getClassNameFromMetadata(metadata: number): string {
+		let foreground = this.getForeground(metadata);
+		let className = 'mtk' + foreground;
+
+		let fontStyle = this.getFontStyle(metadata);
+		if (fontStyle & FontStyle.Italic) {
+			className += ' mtki';
 		}
-		if (tokens.length === 1 && tokens[0].startIndex === 0 && !tokens[0].type) {
-			return DEFLATED_TOKENS_NON_EMPTY_TEXT;
+		if (fontStyle & FontStyle.Bold) {
+			className += ' mtkb';
+		}
+		if (fontStyle & FontStyle.Underline) {
+			className += ' mtku';
 		}
 
-		var i: number,
-			len: number,
-			deflatedToken: number,
-			deflated: number,
-			token: Token,
-			inflateMap = map._inflate,
-			deflateMap = map._deflate,
-			prevStartIndex: number = -1,
-			result: number[] = new Array(tokens.length);
+		return className;
+	}
 
-		for (i = 0, len = tokens.length; i < len; i++) {
-			token = tokens[i];
+	public static inflateArr(tokens: Uint32Array, lineLength: number): ViewLineToken[] {
+		let result: ViewLineToken[] = [];
 
-			if (token.startIndex <= prevStartIndex) {
-				token = new Token(prevStartIndex + 1, token.type);
-				onUnexpectedError({
-					message: 'Invalid tokens detected',
-					tokens: tokens
-				});
-			}
+		for (let i = 0, len = (tokens.length >>> 1); i < len; i++) {
+			let endOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
+			let metadata = tokens[(i << 1) + 1];
 
-			if (deflateMap.hasOwnProperty(token.type)) {
-				deflatedToken = deflateMap[token.type];
-			} else {
-				deflatedToken = inflateMap.length;
-				deflateMap[token.type] = deflatedToken;
-				inflateMap.push(token.type);
-			}
-
-			// http://stackoverflow.com/a/2803010
-			// All numbers in JavaScript are actually IEEE-754 compliant floating-point doubles.
-			// These have a 53-bit mantissa which should mean that any integer value with a magnitude
-			// of approximately 9 quadrillion or less -- more specifically, 9,007,199,254,740,991 --
-			// will be represented accurately.
-
-			// http://stackoverflow.com/a/6729252
-			// Bitwise operations cast numbers to 32bit representation in JS
-
-			// 32 bits for startIndex => up to 2^32 = 4,294,967,296
-			// 16 bits for token => up to 2^16 = 65,536
-
-			// [token][startIndex]
-			deflated = deflatedToken * TokensBinaryEncodingValues.TYPE_OFFSET + token.startIndex * TokensBinaryEncodingValues.START_INDEX_OFFSET;
-
-			result[i] = deflated;
-
-			prevStartIndex = token.startIndex;
+			result[i] = new ViewLineToken(endOffset, this._getClassNameFromMetadata(metadata));
 		}
 
 		return result;
 	}
 
-	public static getStartIndex(binaryEncodedToken: number): number {
-		return (binaryEncodedToken / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
-	}
+	public static sliceAndInflate(tokens: Uint32Array, startOffset: number, endOffset: number, deltaOffset: number, lineLength: number): ViewLineToken[] {
+		let tokenIndex = this.findIndexInSegmentsArray(tokens, startOffset);
+		let result: ViewLineToken[] = [], resultLen = 0;
 
-	public static getType(map: TokensInflatorMap, binaryEncodedToken: number): string {
-		var deflatedType = (binaryEncodedToken / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
-		if (deflatedType === 0) {
-			return strings.empty;
-		}
-		return map._inflate[deflatedType];
-	}
+		for (let i = tokenIndex, len = (tokens.length >>> 1); i < len; i++) {
+			let tokenStartOffset = tokens[(i << 1)];
 
-	public static inflateArr(map: TokensInflatorMap, binaryEncodedTokens: number[]): ViewLineToken[] {
-		if (binaryEncodedTokens.length === 0) {
-			return INFLATED_TOKENS_EMPTY_TEXT;
-		}
-		if (binaryEncodedTokens.length === 1 && binaryEncodedTokens[0] === 0) {
-			return INFLATED_TOKENS_NON_EMPTY_TEXT;
-		}
-
-		let result: ViewLineToken[] = [];
-		const inflateMap = map._inflate;
-
-		for (let i = 0, len = binaryEncodedTokens.length; i < len; i++) {
-			let deflated = binaryEncodedTokens[i];
-
-			let startIndex = (deflated / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
-			let deflatedType = (deflated / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
-
-			result.push(new ViewLineToken(startIndex, inflateMap[deflatedType]));
-		}
-
-		return result;
-	}
-
-	public static findIndexOfOffset(binaryEncodedTokens: number[], offset: number): number {
-		return this.findIndexInSegmentsArray(binaryEncodedTokens, offset);
-	}
-
-	public static sliceAndInflate(map: TokensInflatorMap, binaryEncodedTokens: number[], startOffset: number, endOffset: number, deltaStartIndex: number): ViewLineToken[] {
-		if (binaryEncodedTokens.length === 0) {
-			return INFLATED_TOKENS_EMPTY_TEXT;
-		}
-		if (binaryEncodedTokens.length === 1 && binaryEncodedTokens[0] === 0) {
-			return INFLATED_TOKENS_NON_EMPTY_TEXT;
-		}
-
-		let startIndex = this.findIndexInSegmentsArray(binaryEncodedTokens, startOffset);
-		let result: ViewLineToken[] = [];
-		const inflateMap = map._inflate;
-
-		let originalToken = binaryEncodedTokens[startIndex];
-		let deflatedType = (originalToken / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
-		let newStartIndex = 0;
-		result.push(new ViewLineToken(newStartIndex, inflateMap[deflatedType]));
-
-		for (let i = startIndex + 1, len = binaryEncodedTokens.length; i < len; i++) {
-			originalToken = binaryEncodedTokens[i];
-			let originalStartIndex = (originalToken / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
-
-			if (originalStartIndex >= endOffset) {
+			if (tokenStartOffset >= endOffset) {
 				break;
 			}
 
-			deflatedType = (originalToken / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
-			newStartIndex = originalStartIndex - startOffset + deltaStartIndex;
-			result.push(new ViewLineToken(newStartIndex, inflateMap[deflatedType]));
+			let tokenEndOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
+			let newEndOffset = tokenEndOffset - startOffset + deltaOffset;
+			let metadata = tokens[(i << 1) + 1];
+
+			result[resultLen++] = new ViewLineToken(newEndOffset, this._getClassNameFromMetadata(metadata));
 		}
 
 		return result;
 	}
 
-	private static findIndexInSegmentsArray(arr: number[], desiredIndex: number): number {
+	public static findIndexInSegmentsArray(tokens: Uint32Array, desiredIndex: number): number {
 
-		var low = 0,
-			high = arr.length - 1,
-			mid: number,
-			value: number;
+		let low = 0;
+		let high = (tokens.length >>> 1) - 1;
 
 		while (low < high) {
 
-			mid = low + Math.ceil((high - low) / 2);
+			let mid = low + Math.ceil((high - low) / 2);
 
-			value = arr[mid] & 0xffffffff;
+			let value = tokens[(mid << 1)];
 
 			if (value > desiredIndex) {
 				high = mid - 1;

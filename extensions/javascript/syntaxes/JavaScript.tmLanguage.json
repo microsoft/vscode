@@ -98,7 +98,7 @@
 			"patterns": [
 				{
 					"name": "meta.var-single-variable.expr.js",
-					"begin": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)",
+					"begin": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n    ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.js"
@@ -614,7 +614,7 @@
 		},
 		"namespace-declaration": {
 			"name": "meta.namespace.declaration.js",
-			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(namespace|module)\\s+",
+			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(namespace|module)\\s+(?=[_$[:alpha:]\"'`])",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1020,6 +1020,12 @@
 					"include": "#property-accessor"
 				},
 				{
+					"include": "#after-operator-block"
+				},
+				{
+					"include": "#decl-block"
+				},
+				{
 					"include": "#expression"
 				},
 				{
@@ -1126,7 +1132,7 @@
 						},
 						{
 							"name": "entity.name.function.js",
-							"match": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=(\\?\\s*)?\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)"
+							"match": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=(\\?\\s*)?\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n    ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)"
 						},
 						{
 							"name": "variable.object.property.js",
@@ -1166,7 +1172,7 @@
 					"name": "keyword.generator.asterisk.js"
 				}
 			},
-			"end": "(?=\\}|;|,)|(?<=\\})",
+			"end": "(?=\\}|;|,|$)|(?<=\\})",
 			"patterns": [
 				{
 					"include": "#method-declaration-name"
@@ -1184,42 +1190,7 @@
 					"include": "#return-type"
 				},
 				{
-					"include": "#method-overload-declaration"
-				},
-				{
 					"include": "#decl-block"
-				}
-			]
-		},
-		"method-overload-declaration": {
-			"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(?:\\b(?:(new)|(constructor))\\b(?!\\$|:))|(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<]))",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.modifier.js"
-				},
-				"2": {
-					"name": "storage.modifier.js"
-				},
-				"3": {
-					"name": "storage.modifier.async.js"
-				},
-				"4": {
-					"name": "storage.type.property.js"
-				},
-				"5": {
-					"name": "keyword.operator.new.js"
-				},
-				"6": {
-					"name": "storage.type.js"
-				},
-				"7": {
-					"name": "keyword.generator.asterisk.js"
-				}
-			},
-			"end": "(?=\\(|\\<)",
-			"patterns": [
-				{
-					"include": "#method-declaration-name"
 				}
 			]
 		},
@@ -1275,7 +1246,7 @@
 					"include": "#return-type"
 				},
 				{
-					"include": "#method-overload-declaration"
+					"include": "#object-literal-method-overload-declaration"
 				},
 				{
 					"include": "#decl-block"
@@ -1383,7 +1354,7 @@
 					"name": "entity.name.function.js"
 				}
 			},
-			"end": "(?=;|\\})|(?<=\\})",
+			"end": "(?=$|;|\\})|(?<=\\})",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1398,33 +1369,9 @@
 					"include": "#return-type"
 				},
 				{
-					"include": "#function-overload-declaration"
-				},
-				{
 					"include": "#decl-block"
 				}
 			]
-		},
-		"function-overload-declaration": {
-			"name": "meta.function.overload.js",
-			"match": "(?<!\\.|\\$)\\b(?:(export)\\s+)?(?:(async)\\s+)?(function\\b)(?:\\s*(\\*))?(?:(?:\\s+|(?<=\\*))([_$[:alpha:]][_$[:alnum:]]*))?\\s*",
-			"captures": {
-				"1": {
-					"name": "keyword.control.export.js"
-				},
-				"2": {
-					"name": "storage.modifier.async.js"
-				},
-				"3": {
-					"name": "storage.type.function.js"
-				},
-				"4": {
-					"name": "keyword.generator.asterisk.js"
-				},
-				"5": {
-					"name": "entity.name.function.js"
-				}
-			}
 		},
 		"object-literal": {
 			"name": "meta.objectliteral.js",
@@ -1497,7 +1444,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)(?=\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)",
+					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)(?=\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n    ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -2041,16 +1988,34 @@
 			]
 		},
 		"variable-initializer": {
-			"begin": "(?<!=|!)(=)(?!=)",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.operator.assignment.js"
-				}
-			},
-			"end": "(?=$|[,);}\\]])",
 			"patterns": [
 				{
-					"include": "#expression"
+					"begin": "(?<!=|!)(=)(?!=)(?=\\s*\\S)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.assignment.js"
+						}
+					},
+					"end": "(?=$|[,);}\\]])",
+					"patterns": [
+						{
+							"include": "#expression"
+						}
+					]
+				},
+				{
+					"begin": "(?<!=|!)(=)(?!=)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.assignment.js"
+						}
+					},
+					"end": "(?=[,);}\\]])|(?=^\\s*$)",
+					"patterns": [
+						{
+							"include": "#expression"
+						}
+					]
 				}
 			]
 		},
@@ -2397,7 +2362,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*(\n  (async\\s+)|(function\\s*[(<])|(function\\s+)|\n  ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)|\n  ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)))",
+					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*(\n  (async\\s+)|(function\\s*[(<])|(function\\s+)|\n  ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)|\n  ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n  ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n  ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)))",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
@@ -2465,7 +2430,7 @@
 					"name": "keyword.operator.new.js"
 				}
 			},
-			"end": "(?<=\\))|(?=[;),]|$|((?<!\\.|\\$)\\bnew\\b(?!\\$)))",
+			"end": "(?<=\\))|(?=[;),}]|$|((?<!\\.|\\$)\\bnew\\b(?!\\$)))",
 			"patterns": [
 				{
 					"include": "#paren-expression"
@@ -2516,7 +2481,7 @@
 				},
 				{
 					"name": "meta.object.member.js",
-					"begin": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)(?=\\s*(\n  (async\\s+)|(function\\s*[(<])|(function\\s+)|\n  ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)|\n  ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))))",
+					"begin": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)(?=\\s*(\n  (async\\s+)|(function\\s*[(<])|(function\\s+)|\n  ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)|\n  ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n  ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n  ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))))",
 					"beginCaptures": {
 						"0": {
 							"name": "meta.object-literal.key.js"
@@ -2695,15 +2660,6 @@
 			"patterns": [
 				{
 					"name": "meta.arrow.js",
-					"match": "(?<!\\.|\\$)(\\basync)(?=\\s*[<(])",
-					"captures": {
-						"1": {
-							"name": "storage.modifier.async.js"
-						}
-					}
-				},
-				{
-					"name": "meta.arrow.js",
 					"match": "(?:(?<!\\.|\\$)(\\basync)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)\\s*(?==>)",
 					"captures": {
 						"1": {
@@ -2716,7 +2672,12 @@
 				},
 				{
 					"name": "meta.arrow.js",
-					"begin": "(?x)\\s*(?=(<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)",
+					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)(?=\\s*[<(])\n) | (\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n    (\n      [(]\\s*\n      (\n        ([)]\\s*:) |                               # ():\n        ([_$[:alpha:]][_$[:alnum:]]*\\s*:) |       # [(]param:\n        (\\.\\.\\.)                                  # [(]...\n      )\n    ) |\n    (\n      [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\n      (\n        (\\s+extends\\s*[^=>]) |                    # < typeparam extends \n        (\\s*[,])                                  # < typeparam,\n      )\n    ) |\n    # arrow function possible to detect only with => on same line\n    (\n      (<([^<>]|\\<[^<>]+\\>)+>\\s*)?                 # typeparameters\n      \\(([^()]|\\([^()]*\\))*\\)                     # parameteres\n      (\\s*:\\s*(.)*)?                              # return type\n      \\s*=>                                       # arrow operator\n    )\n  )\n)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.async.js"
+						}
+					},
 					"end": "(?==>)",
 					"patterns": [
 						{
@@ -3687,5 +3648,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/3ee427b1527b890e3a56c1545b8ba1c39953fa36"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/f97fcdbb2f80123605982ca63b9ba68bb837df87"
 }

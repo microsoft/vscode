@@ -540,13 +540,13 @@ export abstract class SelectNextFindMatchAction extends EditorAction {
 		let allSelections = editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let nextMatch = editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord);
+		let nextMatch = editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord, false);
 
 		if (!nextMatch) {
 			return null;
 		}
 
-		return new Selection(nextMatch.startLineNumber, nextMatch.startColumn, nextMatch.endLineNumber, nextMatch.endColumn);
+		return new Selection(nextMatch.range.startLineNumber, nextMatch.range.startColumn, nextMatch.range.endLineNumber, nextMatch.range.endColumn);
 	}
 }
 
@@ -563,13 +563,13 @@ export abstract class SelectPreviousFindMatchAction extends EditorAction {
 		let allSelections = editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let previousMatch = editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord);
+		let previousMatch = editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord, false);
 
 		if (!previousMatch) {
 			return null;
 		}
 
-		return new Selection(previousMatch.startLineNumber, previousMatch.startColumn, previousMatch.endLineNumber, previousMatch.endColumn);
+		return new Selection(previousMatch.range.startLineNumber, previousMatch.range.startColumn, previousMatch.range.endLineNumber, previousMatch.range.endColumn);
 	}
 }
 
@@ -688,7 +688,7 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 			return;
 		}
 
-		let matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord);
+		let matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
 
 		if (matches.length > 0) {
 			let editorSelection = editor.getSelection();
@@ -844,7 +844,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 
-		let allMatches = model.findMatches(r.searchText, true, false, r.matchCase, r.wholeWord);
+		let allMatches = model.findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
 		allMatches.sort(Range.compareRangesUsingStarts);
 
 		selections.sort(Range.compareRangesUsingStarts);

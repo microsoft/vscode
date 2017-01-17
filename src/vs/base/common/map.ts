@@ -52,7 +52,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public keys(): K[] {
-		var keys: K[] = [];
+		const keys: K[] = [];
 		for (let key in this.map) {
 			keys.push(this.map[key].key);
 		}
@@ -60,7 +60,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public values(): T[] {
-		var values: T[] = [];
+		const values: T[] = [];
 		for (let key in this.map) {
 			values.push(this.map[key].value);
 		}
@@ -68,7 +68,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public entries(): Entry<K, T>[] {
-		var entries: Entry<K, T>[] = [];
+		const entries: Entry<K, T>[] = [];
 		for (let key in this.map) {
 			entries.push(this.map[key]);
 		}
@@ -299,9 +299,9 @@ export class LRUCache<T> extends BoundedLinkedMap<T> {
 
 // --- trie'ish datastructure
 
-interface Node<E> {
+class Node<E> {
 	element?: E;
-	children: { [key: string]: Node<E> };
+	readonly children = new Map<string, E>();
 }
 
 /**
@@ -310,10 +310,10 @@ interface Node<E> {
  */
 export class TrieMap<E> {
 
-	static PathSplitter = s => s.split(/[\\/]/).filter(s => !!s);
+	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
 
 	private _splitter: (s: string) => string[];
-	private _root: Node<E> = { children: Object.create(null) };
+	private _root = new Node<E>();
 
 	constructor(splitter: (s: string) => string[]) {
 		this._splitter = splitter;
@@ -337,7 +337,7 @@ export class TrieMap<E> {
 		// create new nodes
 		let newNode: Node<E>;
 		for (; i < parts.length; i++) {
-			newNode = { children: Object.create(null) };
+			newNode = new Node<E>();
 			node.children[parts[i]] = newNode;
 			node = newNode;
 		}

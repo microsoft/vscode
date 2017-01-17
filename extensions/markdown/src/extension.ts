@@ -180,6 +180,18 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
 			}
 		}).use(mdnh, {});
+
+		function addLineNumberRenderer(tokens: any, idx: number, options: any, env: any, self: any) {
+			const token = tokens[idx];
+			if (token.level === 0 && token.map && token.map.length) {
+				token.attrSet('data-line', token.map[0]);
+			}
+			return self.renderToken(tokens, idx, options, env, self);
+		}
+
+		md.renderer.rules.paragraph_open = addLineNumberRenderer;
+		md.renderer.rules.heading_open = addLineNumberRenderer;
+
 		return md;
 	}
 
@@ -244,6 +256,8 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		return vscode.workspace.openTextDocument(vscode.Uri.parse(uri.query)).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
+			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
+
 			const head = ([] as Array<string>).concat(
 				'<!DOCTYPE html>',
 				'<html>',
@@ -255,7 +269,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				this.computeCustomStyleSheetIncludes(uri),
 				`<base href="${document.uri.toString(true)}">`,
 				'</head>',
-				`<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''}">`
+				`<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''}">`
 			).join('\n');
 			const body = this._renderer.render(this.getDocumentContentForPreview(document));
 

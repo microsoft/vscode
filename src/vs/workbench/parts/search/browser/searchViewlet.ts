@@ -221,7 +221,7 @@ export class SearchViewlet extends Viewlet {
 		}).getHTMLElement();
 
 		this.messages = builder.div({ 'class': 'messages' }).hide().clone();
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 
@@ -410,7 +410,7 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
+				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick || (event.payload && event.payload.focusEditor);
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
@@ -447,6 +447,60 @@ export class SearchViewlet extends Viewlet {
 				}
 			}
 		}
+	}
+
+	public selectNextResult(): void {
+		const eventPayload = { focusEditor: true };
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+		let next = navigator.next();
+
+		if (!next) {
+			return;
+		}
+
+		// Expand and go past FileMatch nodes
+		if (!(next instanceof Match)) {
+			if (!this.tree.isExpanded(next)) {
+				this.tree.expand(next);
+			}
+
+			// Select the FileMatch's first child
+			next = navigator.next();
+		}
+
+		// Reveal the newly selected element
+		this.tree.setFocus(next, eventPayload);
+		this.tree.setSelection([next], eventPayload);
+		this.tree.reveal(next);
+	}
+
+	public selectPreviousResult(): void {
+		const eventPayload = { focusEditor: true };
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+
+		let prev = navigator.previous();
+		if (!prev) {
+			return;
+		}
+
+		// Expand and go past FileMatch nodes
+		if (!(prev instanceof Match)) {
+			prev = navigator.previous();
+			if (!(prev instanceof Match)) {
+				// There is a second non-Match result, which must be a collapsed FileMatch.
+				// Expand it then select its last child.
+				navigator.next();
+				this.tree.expand(prev);
+				prev = navigator.previous();
+			}
+		}
+
+		// Reveal the newly selected element
+		this.tree.setFocus(prev, eventPayload);
+		this.tree.setSelection([prev], eventPayload);
+		this.tree.reveal(prev);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -580,7 +634,7 @@ export class SearchViewlet extends Viewlet {
 	public clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 		this.searchWidget.clear();
@@ -748,7 +802,7 @@ export class SearchViewlet extends Viewlet {
 		let includes: IExpression = this.inputPatternIncludes.getGlob();
 
 		let options: IQueryOptions = {
-			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
@@ -774,8 +828,8 @@ export class SearchViewlet extends Viewlet {
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
 		this.viewModel.cancelSearch();
 
-		// Progress total is 100%
-		let progressTotal = 100;
+		// Progress total is 100.0% for more progress bar granularity
+		let progressTotal = 1000;
 		let progressRunner = this.progressService.show(progressTotal);
 		let progressWorked = 0;
 
@@ -882,7 +936,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						if (this.contextService.getWorkspace()) {
+						if (this.contextService.hasWorkspace()) {
 							this.preferencesService.openWorkspaceSettings().done(() => null, errors.onUnexpectedError);
 						} else {
 							this.preferencesService.openGlobalSettings().done(() => null, errors.onUnexpectedError);
@@ -890,7 +944,7 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 
-				if (!this.contextService.getWorkspace()) {
+				if (!this.contextService.hasWorkspace()) {
 					this.searchWithoutFolderMessage(div);
 				}
 			} else {
@@ -935,7 +989,7 @@ export class SearchViewlet extends Viewlet {
 			// Progress bar update
 			let fakeProgress = true;
 			if (total > 0 && worked > 0) {
-				let ratio = Math.round((worked / total) * 100);
+				let ratio = Math.round((worked / total) * progressTotal);
 				if (ratio > progressWorked) { // never show less progress than what we have already
 					progressRunner.worked(ratio - progressWorked);
 					progressWorked = ratio;
@@ -943,11 +997,17 @@ export class SearchViewlet extends Viewlet {
 				}
 			}
 
-			// Fake progress up to 90%
-			if (fakeProgress && progressWorked < 90) {
-				progressWorked++;
-				progressRunner.worked(1);
+			// Fake progress up to 90%, or when actual progress beats it
+			const fakeMax = 900;
+			const fakeMultiplier = 12;
+			if (fakeProgress && progressWorked < fakeMax) {
+				// Linearly decrease the rate of fake progress.
+				// 1 is the smallest allowed amount of progress.
+				const fakeAmt = Math.round((fakeMax - progressWorked) / fakeMax * fakeMultiplier) || 1;
+				progressWorked += fakeAmt;
+				progressRunner.worked(fakeAmt);
 			}
+
 			// Search result tree update
 			let count = this.viewModel.searchResult.fileCount();
 			if (visibleMatches !== count) {
@@ -962,7 +1022,7 @@ export class SearchViewlet extends Viewlet {
 					this.actionRegistry['vs.tree.collapse'].enabled = true;
 				}
 			}
-		}, 200);
+		}, 100);
 
 		this.searchWidget.setReplaceAllActionState(false);
 		// this.replaceService.disposeAllReplacePreviews();

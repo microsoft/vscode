@@ -7,9 +7,10 @@
 import 'vs/css!./lightBulbWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, any } from 'vs/base/common/event';
+import Severity from 'vs/base/common/severity';
 import * as dom from 'vs/base/browser/dom';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { QuickFixComputeEvent } from './quickFixModel';
+import { QuickFixComputeEvent } from 'vs/editor/contrib/quickFix/common/quickFixModel';
 
 
 export class LightBulbWidget implements IOverlayWidget, IDisposable {
@@ -57,7 +58,7 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 	getDomNode(): HTMLElement {
 		if (!this._domNode) {
 			this._domNode = document.createElement('div');
-			this._domNode.style.width = '20px';
+			this._domNode.style.width = '21px';
 			this._domNode.style.height = '20px';
 			this._domNode.className = 'lightbulb-glyph hidden';
 			this._toDispose.push(dom.addDisposableListener(this._domNode, 'mousedown', (e: MouseEvent) => {
@@ -86,7 +87,7 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 		const modelNow = this._model;
 		e.fixes.done(fixes => {
 			if (modelNow === this._model && fixes && fixes.length > 0) {
-				this.show(e.range.startLineNumber);
+				this.show(e);
 			} else {
 				this.hide();
 			}
@@ -99,7 +100,8 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 		return this._model;
 	}
 
-	show(line: number): void {
+	show(e: QuickFixComputeEvent): void {
+		const line = e.range.startLineNumber;
 		if (!this._hasSpaceInGlyphMargin(line)) {
 			return;
 		}
@@ -107,6 +109,7 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 			this._line = line;
 			this._visible = true;
 			this._layout();
+			this._domNode.dataset['severity'] = e.severity >= Severity.Warning ? 'high' : '';
 		}
 	}
 

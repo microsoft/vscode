@@ -100,7 +100,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
 
 		// Open editors view should always be visible in no folder workspace.
-		const openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
+		const openEditorsVisible = !this.contextService.hasWorkspace() || config.explorer.openEditors.visible !== 0;
 
 		// Create views on startup and if open editors visibility has changed #6919
 		if (this.openEditorsVisible !== openEditorsVisible) {
@@ -150,7 +150,7 @@ export class ExplorerViewlet extends Viewlet {
 		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
-		if (this.contextService.getWorkspace()) {
+		if (this.contextService.hasWorkspace()) {
 
 			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
 			// editors view above. This is a workaround for being able to double click on a file to make it pinned

@@ -92,7 +92,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		extHostDocuments.$acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
-			modeId: model.getModeId(),
+			modeId: model.getLanguageIdentifier().language,
 			url: model.uri,
 			value: {
 				EOL: model.getEOL(),
@@ -100,6 +100,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				BOM: '',
 				length: -1,
 				containsRTL: false,
+				isBasicASCII: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,

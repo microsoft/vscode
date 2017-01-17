@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-var path = require('path');
-var gulp = require('gulp');
-var sourcemaps = require('gulp-sourcemaps');
-var filter = require('gulp-filter');
-var minifyCSS = require('gulp-cssnano');
-var uglify = require('gulp-uglify');
-var es = require('event-stream');
-var concat = require('gulp-concat');
-var VinylFile = require('vinyl');
-var bundle = require('./bundle');
-var util = require('./util');
-var i18n = require('./i18n');
-var gulpUtil = require('gulp-util');
-var flatmap = require('gulp-flatmap');
-var pump = require('pump');
+var path = require("path");
+var gulp = require("gulp");
+var sourcemaps = require("gulp-sourcemaps");
+var filter = require("gulp-filter");
+var minifyCSS = require("gulp-cssnano");
+var uglify = require("gulp-uglify");
+var es = require("event-stream");
+var concat = require("gulp-concat");
+var VinylFile = require("vinyl");
+var bundle = require("./bundle");
+var util = require("./util");
+var i18n = require("./i18n");
+var gulpUtil = require("gulp-util");
+var flatmap = require("gulp-flatmap");
+var pump = require("pump");
 var REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
@@ -208,7 +208,7 @@ function uglifyWithCopyrights() {
     return es.duplex(input, output);
 }
 function minifyTask(src, sourceMapBaseUrl) {
-    var sourceMappingURL = sourceMapBaseUrl && (function (f) { return (sourceMapBaseUrl + "/" + f.relative + ".map"); });
+    var sourceMappingURL = sourceMapBaseUrl && (function (f) { return sourceMapBaseUrl + "/" + f.relative + ".map"; });
     return function (cb) {
         var jsFilter = filter('**/*.js', { restore: true });
         var cssFilter = filter('**/*.css', { restore: true });

@@ -11,6 +11,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { ILineMapping, IModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { Model } from 'vs/editor/common/model/model';
+import { toUint32Array } from 'vs/editor/common/core/uint';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -177,7 +178,10 @@ function createSplitLine(splitLengths: number[], wrappedLinesPrefix: string, isV
 }
 
 function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string): ILineMapping {
-	return new CharacterHardWrappingLineMapping(new PrefixSumComputer(breakingLengths), wrappedLinesPrefix);
+	return new CharacterHardWrappingLineMapping(
+		new PrefixSumComputer(toUint32Array(breakingLengths)),
+		wrappedLinesPrefix
+	);
 }
 
 function createModel(text: string): IModel {

@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -62,7 +62,7 @@ export class TerminalPanel extends Panel {
 
 		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
-		this._register(this._themeService.onDidColorThemeChange(themeId => this._updateTheme(themeId)));
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidUpdateConfiguration(() => this._updateFont()));
 		this._updateFont();
 		this._updateTheme();
@@ -149,25 +149,30 @@ export class TerminalPanel extends Panel {
 				// occurs on the selection itself.
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
-				// Trigger the context menu on right click
-				let anchor: HTMLElement | { x: number, y: number } = this._parentDomElement;
-				if (event instanceof MouseEvent) {
-					const standardEvent = new StandardMouseEvent(event);
-					anchor = { x: standardEvent.posx, y: standardEvent.posy };
-				}
-
-				this._contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => TPromise.as(this._getContextMenuActions()),
-					getActionsContext: () => this._parentDomElement,
-					getKeyBinding: (action) => {
-						const opts = this._keybindingService.lookupKeybindings(action.id);
-						if (opts.length > 0) {
-							return opts[0]; // only take the first one
-						}
-						return null;
+				if (this._terminalService.configHelper.getRightClickCopyPaste()) {
+					let terminal = this._terminalService.getActiveInstance();
+					if (terminal.hasSelection()) {
+						terminal.copySelection();
+						terminal.clearSelection();
+					} else {
+						terminal.paste();
 					}
-				});
+				} else {
+					const standardEvent = new StandardMouseEvent(event);
+					let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+					this._contextMenuService.showContextMenu({
+						getAnchor: () => anchor,
+						getActions: () => TPromise.as(this._getContextMenuActions()),
+						getActionsContext: () => this._parentDomElement,
+						getKeyBinding: (action) => {
+							const opts = this._keybindingService.lookupKeybindings(action.id);
+							if (opts.length > 0) {
+								return opts[0]; // only take the first one
+							}
+							return null;
+						}
+					});
+				}
 			}
 		}));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
@@ -187,11 +192,11 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	private _updateTheme(themeId?: string): void {
-		if (!themeId) {
-			themeId = this._themeService.getColorTheme();
+	private _updateTheme(colorTheme?: IColorTheme): void {
+		if (!colorTheme) {
+			colorTheme = this._themeService.getColorTheme();
 		}
-
+		let themeId = colorTheme.id;
 		let baseThemeId = getBaseThemeId(themeId);
 		if (baseThemeId === this._currentBaseThemeId) {
 			return;

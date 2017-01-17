@@ -156,7 +156,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			.div({ 'class': 'watermark' });
 		const box = $(watermark)
 			.div({ 'class': 'watermark-box' });
-		const folder = !!this.contextService.getWorkspace();
+		const folder = this.contextService.hasWorkspace();
 		const newUser = this.telemetryService.getExperiments().showNewUserWatermark;
 		const selected = (newUser ? newUserEntries : (folder ? folderEntries : noFolderEntries))
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);

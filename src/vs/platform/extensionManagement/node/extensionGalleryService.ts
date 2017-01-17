@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
-import { getCommonHttpHeaders } from 'vs/platform/environment/node/http';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -265,6 +265,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	_serviceBrand: any;
 
 	private extensionsGalleryUrl: string;
+
 	private readonly commonHTTPHeaders: TPromise<{ [key: string]: string; }>;
 
 	constructor(
@@ -274,7 +275,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.commonHTTPHeaders = getCommonHttpHeaders(this.telemetryService);
+		this.commonHTTPHeaders = getCommonHTTPHeaders();
 	}
 
 	private api(path = ''): string {

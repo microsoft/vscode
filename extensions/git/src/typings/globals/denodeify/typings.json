@@ -1,0 +1,8 @@
+{
+	"resolution": "main",
+	"tree": {
+		"src": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/56295f5058cac7ae458540423c50ac2dcf9fc711/denodeify/denodeify.d.ts",
+		"raw": "registry:dt/denodeify#1.2.1+20160316155526",
+		"typings": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/56295f5058cac7ae458540423c50ac2dcf9fc711/denodeify/denodeify.d.ts"
+	}
+}

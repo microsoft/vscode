@@ -42,18 +42,15 @@
 .search-viewlet .search-widget .replace-container {
 	margin-top: 6px;
 	position: relative;
+	display: inline-flex;
+	height: 25px;
 }
 
 .search-viewlet .search-widget .replace-container.disabled {
 	display: none;
 }
 
-.search-viewlet .search-widget .replace-container > * {
-	display: inline-block;
-}
-
 .search-viewlet .search-widget .replace-container .monaco-action-bar {
-	position: absolute;
 	margin-left: 3px;
 }
 

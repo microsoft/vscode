@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { getMachineId } from 'vs/base/node/id';
 import pkg from 'vs/platform/node/package';
 
-export function getCommonHttpHeaders(telemetryService: ITelemetryService): TPromise<{ [key: string]: string }> {
-	return telemetryService.getTelemetryInfo().then(info => ({
+export function getCommonHTTPHeaders(): TPromise<{ [key: string]: string; }> {
+	return getMachineId().then(machineId => ({
 		'X-Market-Client-Id': `VSCode ${pkg.version}`,
 		'User-Agent': `VSCode ${pkg.version}`,
-		'X-Market-User-Id': info.machineId
+		'X-Market-User-Id': machineId
 	}));
 }

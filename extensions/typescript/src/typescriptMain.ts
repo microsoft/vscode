@@ -25,6 +25,7 @@ import { ITypescriptServiceClientHost } from './typescriptService';
 
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
+import TypeDefinitionProvider from './features/TypeDefinitionProvider';
 import DocumentHighlightProvider from './features/documentHighlightProvider';
 import ReferenceProvider from './features/referenceProvider';
 import DocumentSymbolProvider from './features/documentSymbolProvider';
@@ -35,10 +36,12 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
+import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 
-import * as VersionStatus from './utils/versionStatus';
-import * as ProjectStatus from './utils/projectStatus';
 import * as BuildStatus from './utils/buildStatus';
+import * as ProjectStatus from './utils/projectStatus';
+import TypingsStatus from './utils/typingsStatus';
+import * as VersionStatus from './utils/versionStatus';
 
 interface LanguageDescription {
 	id: string;
@@ -105,6 +108,8 @@ class LanguageProvider {
 	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
 	private formattingProviderRegistration: Disposable | null;
+	private typingsStatus: TypingsStatus;
+	private referenceCodeLensProvider: ReferenceCodeLensProvider;
 
 	private _validate: boolean;
 
@@ -122,6 +127,7 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
+		this.typingsStatus = new TypingsStatus(client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
@@ -137,11 +143,12 @@ class LanguageProvider {
 	private registerProviders(client: TypeScriptServiceClient): void {
 		let config = workspace.getConfiguration(this.id);
 
-		this.completionItemProvider = new CompletionItemProvider(client);
+		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration(config);
 
 		let hoverProvider = new HoverProvider(client);
 		let definitionProvider = new DefinitionProvider(client);
+		let typeDefinitionProvider = new TypeDefinitionProvider(client);
 		let documentHighlightProvider = new DocumentHighlightProvider(client);
 		let referenceProvider = new ReferenceProvider(client);
 		let documentSymbolProvider = new DocumentSymbolProvider(client);
@@ -153,11 +160,18 @@ class LanguageProvider {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 		}
 
+		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
+		this.referenceCodeLensProvider.updateConfiguration(config);
+		if (client.apiVersion.has206Features()) {
+			languages.registerCodeLensProvider(this.description.modeIds, this.referenceCodeLensProvider);
+		}
+
 		this.description.modeIds.forEach(modeId => {
 			let selector: DocumentFilter = { scheme: 'file', language: modeId };
 			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
 			languages.registerHoverProvider(selector, hoverProvider);
 			languages.registerDefinitionProvider(selector, definitionProvider);
+			languages.registerTypeDefinitionProvider(selector, typeDefinitionProvider);
 			languages.registerDocumentHighlightProvider(selector, documentHighlightProvider);
 			languages.registerReferenceProvider(selector, referenceProvider);
 			languages.registerDocumentSymbolProvider(selector, documentSymbolProvider);
@@ -168,6 +182,7 @@ class LanguageProvider {
 			if (client.apiVersion.has213Features()) {
 				languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, modeId));
 			}
+
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
@@ -205,6 +220,23 @@ class LanguageProvider {
 					}
 				]
 			});
+
+			const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
+
+			languages.setLanguageConfiguration('jsx-tags', {
+				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
+				onEnterRules: [
+					{
+						beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+						afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+						action: { indentAction: IndentAction.IndentOutdent }
+					},
+					{
+						beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+						action: { indentAction: IndentAction.Indent }
+					}
+				],
+			});
 		});
 	}
 
@@ -213,6 +245,9 @@ class LanguageProvider {
 		this.updateValidate(config.get(validateSetting, true));
 		if (this.completionItemProvider) {
 			this.completionItemProvider.updateConfiguration(config);
+		}
+		if (this.referenceCodeLensProvider) {
+			this.referenceCodeLensProvider.updateConfiguration(config);
 		}
 		if (this.formattingProvider) {
 			this.formattingProvider.updateConfiguration(config);
