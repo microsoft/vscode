@@ -2757,9 +2757,9 @@
 												)
 											  | (							# Inline Link
 													\(						# Opening paren
-														[ \t]*+				# Optional whtiespace
+														[ \t]*+				# Optional whitespace
 														&lt;?(.*?)&gt;?			# URL
-														[ \t]*+				# Optional whtiespace
+														[ \t]*+				# Optional whitespace
 														(					# Optional Title
 															(?&lt;title&gt;['"])
 															(.*?)
