@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup } from 'vscode';
+import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable } from 'vscode';
 import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
-import { throttle, anyEvent } from './util';
-import { decorate, memoize } from 'core-decorators';
+import { throttle, anyEvent, eventToPromise } from './util';
+import { decorate, memoize, debounce } from 'core-decorators';
 import * as path from 'path';
 
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
@@ -164,6 +164,7 @@ export enum Operation {
 }
 
 export interface Operations {
+	isIdle(): boolean;
 	isRunning(operation: Operation): boolean;
 }
 
@@ -183,6 +184,10 @@ class OperationsImpl implements Operations {
 
 	isRunning(operation: Operation): boolean {
 		return (this.operations & operation) !== 0;
+	}
+
+	isIdle(): boolean {
+		return this.operations === 0;
 	}
 }
 
@@ -230,8 +235,14 @@ export class Model {
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
-	constructor(private _repositoryRoot: string, private repository: Repository) {
+	private disposables: Disposable[] = [];
 
+	constructor(
+		private _repositoryRoot: string,
+		private repository: Repository,
+		onWorkspaceChange: Event<Uri>
+	) {
+		onWorkspaceChange(this.onWorkspaceChange, this, this.disposables);
 	}
 
 	get repositoryRoot(): string {
@@ -435,6 +446,28 @@ export class Model {
 		} finally {
 			this._operations = this._operations.end(operation);
 			this._onDidRunOperation.fire(operation);
+		}
+	}
+
+	@debounce(1000)
+	private onWorkspaceChange(): void {
+		console.log('workspace changes!!!');
+		this.updateWhenIdleAndWait();
+	}
+
+	@decorate(throttle)
+	private async updateWhenIdleAndWait(): Promise<void> {
+		console.log('checking for idleness...');
+		await this.whenIdle();
+		console.log('idle now, lets do it');
+		await this.update();
+		console.log('update done, lets wait 7 seconds');
+		await new Promise(c => setTimeout(c, 7000));
+	}
+
+	private async whenIdle(): Promise<void> {
+		while (!this.operations.isIdle()) {
+			await eventToPromise(this.onDidRunOperation);
 		}
 	}
 }
