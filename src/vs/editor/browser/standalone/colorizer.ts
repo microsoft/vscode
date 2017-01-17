@@ -9,9 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { LineParts } from 'vs/editor/common/core/lineParts';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
@@ -95,15 +94,19 @@ export class Colorizer {
 		});
 	}
 
-	public static colorizeLine(line: string, tokens: ViewLineToken[], tabSize: number = 4): string {
-		let renderResult = renderLine(new RenderLineInput(
+	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: ViewLineToken[], tabSize: number = 4): string {
+		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			mightContainRTL,
+			0,
+			tokens,
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts(tokens, line.length + 1)
+			false
 		));
 		return renderResult.output;
 	}
@@ -112,7 +115,7 @@ export class Colorizer {
 		let content = model.getLineContent(lineNumber);
 		let tokens = model.getLineTokens(lineNumber, false);
 		let inflatedTokens = tokens.inflate();
-		return this.colorizeLine(content, inflatedTokens, tabSize);
+		return this.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 }
 
@@ -126,14 +129,18 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
 
-		let renderResult = renderLine(new RenderLineInput(
+		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			false,
+			0,
+			[new ViewLineToken(line.length, '')],
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts([], line.length + 1)
+			false
 		));
 
 		html = html.concat(renderResult.output);
@@ -152,14 +159,18 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		let line = lines[i];
 		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
 		let lineTokens = new LineTokens(colorMap, tokenizeResult.tokens, line);
-		let renderResult = renderLine(new RenderLineInput(
+		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			true/* check for RTL */,
+			0,
+			lineTokens.inflate(),
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts(lineTokens.inflate(), line.length + 1)
+			false
 		));
 
 		html = html.concat(renderResult.output);

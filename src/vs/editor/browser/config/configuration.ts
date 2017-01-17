@@ -81,6 +81,7 @@ class CSSBasedConfiguration extends Disposable {
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
 					lineHeight: readConfig.lineHeight,
+					isMonospace: readConfig.isMonospace,
 					typicalHalfwidthCharacterWidth: Math.max(readConfig.typicalHalfwidthCharacterWidth, 5),
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
@@ -127,26 +128,92 @@ class CSSBasedConfiguration extends Disposable {
 	private static _actualReadConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
 		let context = canvasElem.getContext('2d');
+
+		let getCharWidth = (char: string): number => {
+			return context.measureText(char).width;
+		};
+
 		context.font = `normal normal normal normal ${bareFontInfo.fontSize}px / ${bareFontInfo.lineHeight}px ${bareFontInfo.fontFamily}`;
+		const typicalHalfwidthCharacter = getCharWidth('n');
+		const typicalFullwidthCharacter = getCharWidth('\uff4d');
 
-		let typicalHalfwidthCharacter = context.measureText('n');
-		let typicalFullwidthCharacter = context.measureText('\uff4d');
-		let space = context.measureText(' ');
-		let digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(chr => context.measureText(chr));
+		let isMonospace = true;
+		let monospaceWidth = typicalHalfwidthCharacter;
 
-		let maxDigitWidth = 0;
-		for (let i = 0, len = digits.length; i < len; i++) {
-			maxDigitWidth = Math.max(maxDigitWidth, digits[i].width);
-		}
+		let getCharWidthAndCheckMonospace = (char: string): number => {
+			const charWidth = getCharWidth(char);
+			if (isMonospace) {
+				const diff = typicalHalfwidthCharacter - charWidth;
+				if (diff < -0.001 || diff > 0.001) {
+					isMonospace = false;
+				}
+			}
+			return charWidth;
+		};
+
+		let checkMonospace = (char: string): void => {
+			if (isMonospace) {
+				const charWidth = getCharWidth(char);
+				const diff = typicalHalfwidthCharacter - charWidth;
+				if (diff < -0.001 || diff > 0.001) {
+					isMonospace = false;
+				}
+			}
+		};
+
+		monospaceWidth = typicalHalfwidthCharacter;
+
+		const space = getCharWidthAndCheckMonospace(' ');
+		const digit0 = getCharWidthAndCheckMonospace('0');
+		const digit1 = getCharWidthAndCheckMonospace('1');
+		const digit2 = getCharWidthAndCheckMonospace('2');
+		const digit3 = getCharWidthAndCheckMonospace('3');
+		const digit4 = getCharWidthAndCheckMonospace('4');
+		const digit5 = getCharWidthAndCheckMonospace('5');
+		const digit6 = getCharWidthAndCheckMonospace('6');
+		const digit7 = getCharWidthAndCheckMonospace('7');
+		const digit8 = getCharWidthAndCheckMonospace('8');
+		const digit9 = getCharWidthAndCheckMonospace('9');
+		const maxDigitWidth = Math.max(digit0, digit1, digit2, digit3, digit4, digit5, digit6, digit7, digit8, digit9);
+
+		// monospace test: used for whitespace rendering
+		checkMonospace('→');
+		checkMonospace('·');
+
+		// monospace test: some characters
+		checkMonospace('|');
+		checkMonospace('/');
+		checkMonospace('-');
+		checkMonospace('_');
+		checkMonospace('i');
+		checkMonospace('l');
+		checkMonospace('m');
+
+		context.font = `italic normal normal normal ${bareFontInfo.fontSize}px / ${bareFontInfo.lineHeight}px ${bareFontInfo.fontFamily}`;
+		checkMonospace('|');
+		checkMonospace('_');
+		checkMonospace('i');
+		checkMonospace('l');
+		checkMonospace('m');
+		checkMonospace('n');
+
+		context.font = `normal normal bold normal ${bareFontInfo.fontSize}px / ${bareFontInfo.lineHeight}px ${bareFontInfo.fontFamily}`;
+		checkMonospace('|');
+		checkMonospace('_');
+		checkMonospace('i');
+		checkMonospace('l');
+		checkMonospace('m');
+		checkMonospace('n');
 
 		return new FontInfo({
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
 			lineHeight: bareFontInfo.lineHeight,
-			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
-			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
-			spaceWidth: space.width,
+			isMonospace: isMonospace,
+			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter,
+			typicalFullwidthCharacterWidth: typicalFullwidthCharacter,
+			spaceWidth: space,
 			maxDigitWidth: maxDigitWidth
 		});
 	}

@@ -38,6 +38,7 @@ export interface IStartupMetrics {
 	cpus: { count: number; speed: number; model: string; };
 	initialStartup: boolean;
 	hasAccessibilitySupport: boolean;
+	isVMLikelyhood: number;
 	emptyWorkbench: boolean;
 	loadavg: number[];
 }

@@ -6,7 +6,6 @@
 
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
-import processes = require('vs/base/node/processes');
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -266,4 +265,11 @@ export interface ITerminalInstance {
 	 * null means the process was killed as a result of the ITerminalInstance being disposed.
 	 */
 	onExit(listener: (exitCode: number) => void): void;
+
+	/**
+	 * Immediately kills the terminal's current pty process and launches a new one to replace it.
+	 *
+	 * @param shell The new launch configuration.
+	 */
+	reuseTerminal(shell?: IShellLaunchConfig): void;
 }
