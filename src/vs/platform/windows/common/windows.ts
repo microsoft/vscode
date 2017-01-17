@@ -93,4 +93,5 @@ export interface IWindowSettings {
 	titleBarStyle: 'native' | 'custom';
 	autoDetectHighContrast: boolean;
 	menuBarVisibility: 'visible' | 'toggle' | 'hidden';
+	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 }

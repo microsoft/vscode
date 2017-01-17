@@ -17,7 +17,7 @@ export class BaseBadge implements IBadge {
 		this.descriptorFn = descriptorFn;
 	}
 
-	/* protected */ public getDescription(): string {
+	public getDescription(): string {
 		return this.descriptorFn(null);
 	}
 }
@@ -31,7 +31,7 @@ export class NumberBadge extends BaseBadge {
 		this.number = number;
 	}
 
-	/* protected */ public getDescription(): string {
+	public getDescription(): string {
 		return this.descriptorFn(this.number);
 	}
 }
