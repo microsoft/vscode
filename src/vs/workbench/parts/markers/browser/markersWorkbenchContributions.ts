@@ -22,6 +22,7 @@ class StatusUpdater implements IWorkbenchContribution {
 	static ID = 'vs.markers.statusUpdater';
 
 	private toDispose: lifecycle.IDisposable[];
+	private badgeHandle: lifecycle.IDisposable;
 
 	constructor(
 		@IMarkerService private markerService: IMarkerService,
@@ -33,13 +34,14 @@ class StatusUpdater implements IWorkbenchContribution {
 	}
 
 	private updateActivityBadge(): void {
+
+		lifecycle.dispose(this.badgeHandle);
+
 		const stats = this.markerService.getStatistics();
 		const problemCount = stats.errors + stats.warnings + stats.infos + stats.unknowns;
 		if (problemCount > 0) {
 			const badge = new NumberBadge(problemCount, n => localize({ comment: ['Argument represents count (number) of errors and warnings.'], key: 'errorsAndWarnings' }, '{0} Errors and Warnings', n));
-			this.activityBarService.showActivity(Constants.MARKERS_PANEL_ID, badge);
-		} else {
-			this.activityBarService.showActivity(Constants.MARKERS_PANEL_ID, null);
+			this.badgeHandle = this.activityBarService.showActivity(Constants.MARKERS_PANEL_ID, badge);
 		}
 	}
 
