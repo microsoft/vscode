@@ -5,7 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
-// import * as strings from 'vs/base/common/strings';
+import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
@@ -151,19 +151,22 @@ export class ViewLine implements IVisibleLineData {
 		const output = renderViewLine(renderLineInput);
 
 		let renderedViewLine: IRenderedViewLine = null;
-		// if (this._fontIsMonospace && !output.containsForeignElements) {
-		// 	let isRegularASCII: boolean;
-		// 	if (model.mightContainNonBasicASCII()) {
-		// 		isRegularASCII = strings.isBasicASCII(lineContent);
-		// 	}
-		// 	if (isRegularASCII) {
-		// 		renderedViewLine = new FastRenderedViewLine(
-		// 			this._renderedViewLine ? this._renderedViewLine.domNode : null,
-		// 			renderLineInput,
-		// 			output
-		// 		);
-		// 	}
-		// }
+		if (this._fontIsMonospace && !output.containsForeignElements) {
+			let isRegularASCII = true;
+			if (model.mightContainNonBasicASCII()) {
+				isRegularASCII = strings.isBasicASCII(lineContent);
+			}
+
+			if (isRegularASCII && lineContent.length < 1000) {
+				// Browser rounding errors have been observed in Chrome and IE, so using the fast
+				// view line only for short lines. Please test before removing the length check...
+				renderedViewLine = new FastRenderedViewLine(
+					this._renderedViewLine ? this._renderedViewLine.domNode : null,
+					renderLineInput,
+					output
+				);
+			}
+		}
 
 		if (!renderedViewLine) {
 			let isWhitespaceOnly = /^\s*$/.test(renderLineInput.lineContent);
@@ -293,6 +296,10 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
 			endColumn = stopRenderingLineAfter;
+		}
+
+		if (this._charOffset.length === 0) {
+			return [new HorizontalRange(0, 0)];
 		}
 
 		const startCharOffset = this._charOffset[startColumn - 1];
