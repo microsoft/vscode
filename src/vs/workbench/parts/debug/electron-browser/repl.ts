@@ -12,6 +12,7 @@ import * as errors from 'vs/base/common/errors';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Dimension, Builder } from 'vs/base/browser/builder';
+import { Schemas } from 'vs/base/common/network';
 import * as dom from 'vs/base/browser/dom';
 import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -168,10 +169,10 @@ export class Repl extends Panel implements IPrivateReplService {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
-		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
+		const model = this.modelService.createModel('', null, uri.parse(`${Schemas.debug}:input`));
 		this.replInput.setModel(model);
 
-		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
+		modes.SuggestRegistry.register({ scheme: Schemas.debug }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
