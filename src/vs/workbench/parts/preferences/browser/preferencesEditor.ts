@@ -112,9 +112,9 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IModeService modeService: IModeService,
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 

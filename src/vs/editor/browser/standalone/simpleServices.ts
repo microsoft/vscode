@@ -375,7 +375,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		this._config = getDefaultConfiguration();
 	}
 
-	public getConfiguration<T>(section?: string): T {
+	public getConfiguration<T>(section?: any): T {
 		return this._config;
 	}
 

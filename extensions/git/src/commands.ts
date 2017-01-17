@@ -126,7 +126,7 @@ export class CommandCenter {
 	@CommandCenter.Command('git.refresh')
 	@CommandCenter.CatchErrors
 	async refresh(): Promise<void> {
-		await this.model.update();
+		await this.model.status();
 	}
 
 	@CommandCenter.Command('git.openChange')
