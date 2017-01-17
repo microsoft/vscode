@@ -5,43 +5,18 @@
 
 'use strict';
 
-import { ExtensionContext, workspace, Uri, window, Disposable, Event } from 'vscode';
+import { ExtensionContext, workspace, window, Disposable } from 'vscode';
 import { findGit, Git } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
 import { CheckoutStatusBar, SyncStatusBar } from './statusbar';
-import { filterEvent, anyEvent, throttle } from './util';
+import { filterEvent, anyEvent } from './util';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import * as nls from 'vscode-nls';
-import { decorate, debounce } from 'core-decorators';
 
 nls.config();
-
-class Watcher {
-
-	private listener: Disposable;
-
-	constructor(private model: Model, onWorkspaceChange: Event<Uri>) {
-		this.listener = onWorkspaceChange(this.eventuallyUpdateModel, this);
-	}
-
-	@debounce(1000)
-	private eventuallyUpdateModel(): void {
-		this.updateModelAndWait();
-	}
-
-	@decorate(throttle)
-	private async updateModelAndWait(): Promise<void> {
-		await this.model.update();
-		await new Promise(c => setTimeout(c, 8000));
-	}
-
-	dispose(): void {
-		this.listener.dispose();
-	}
-}
 
 async function init(disposables: Disposable[]): Promise<void> {
 	const rootPath = workspace.rootPath;
