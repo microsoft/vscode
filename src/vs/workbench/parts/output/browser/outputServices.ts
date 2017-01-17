@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { OutputEditors, IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, OutputEditors, IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -41,7 +41,6 @@ export class OutputService implements IOutputService {
 	private _onActiveOutputChannel: Emitter<string>;
 
 	private _outputLinkDetector: OutputLinkProvider;
-	private _outputContentProvider: OutputContentProvider;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -57,15 +56,13 @@ export class OutputService implements IOutputService {
 
 		this.receivedOutput = Object.create(null);
 
-		const channels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
+		const channels = this.getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 
 		this._outputLinkDetector = new OutputLinkProvider(contextService, modelService);
 
-		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
-
 		// Register as text model content provider for output
-		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this._outputContentProvider);
+		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, instantiationService.createInstance(OutputContentProvider, this));
 	}
 
 	public get onOutput(): Event<IOutputEvent> {
@@ -81,23 +78,8 @@ export class OutputService implements IOutputService {
 	}
 
 	public getChannel(id: string): IOutputChannel {
-		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels)
-			.getChannels()
-			.filter(channelData => channelData.id === id)
-			.pop();
-		return this.buildChannel(id, channelData);
-	}
+		const channelData = this.getChannels().filter(channelData => channelData.id === id).pop();
 
-	public getChannels(): IOutputChannel[] {
-		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels)
-			.getChannels()
-			.map(channelData => this.buildChannel(channelData.id, channelData));
-	}
-
-	private buildChannel(id: string, channelData?: {
-		id: string;
-		label: string;
-	}): IOutputChannel {
 		const self = this;
 		return {
 			id,
@@ -107,9 +89,12 @@ export class OutputService implements IOutputService {
 			},
 			append: (output: string) => this.append(id, output),
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
-			clear: () => this.clearOutput(id),
-			toggleAutoScrolling: () => this._outputContentProvider.toggleAutoScrolling(id)
+			clear: () => this.clearOutput(id)
 		};
+	}
+
+	public getChannels(): IOutputChannelIdentifier[] {
+		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
 	}
 
 	private append(channelId: string, output: string): void {
@@ -169,7 +154,6 @@ class OutputContentProvider implements ITextModelContentProvider {
 
 	private bufferedOutput: { [channel: string]: string; };
 	private appendOutputScheduler: { [channel: string]: RunOnceScheduler; };
-	private channelIdsWithSuppressedAutoScrolling: Set<string> = new Set();
 
 	private toDispose: IDisposable[];
 
@@ -281,25 +265,15 @@ class OutputContentProvider implements ITextModelContentProvider {
 			model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), bufferedOutput)]);
 		}
 
-		if (!this.channelIdsWithSuppressedAutoScrolling.has(channel)) {
-			// reveal last line
-			const panel = this.panelService.getActivePanel();
-			(<OutputPanel>panel).revealLastLine(true);
-		}
+		// reveal last line
+		const panel = this.panelService.getActivePanel();
+		(<OutputPanel>panel).revealLastLine(true);
 	}
 
 	private isVisible(channel: string): boolean {
 		const panel = this.panelService.getActivePanel();
 
 		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === channel;
-	}
-
-	public toggleAutoScrolling(channelId: string): void {
-		if (this.channelIdsWithSuppressedAutoScrolling.has(channelId)) {
-			this.channelIdsWithSuppressedAutoScrolling.delete(channelId);
-		} else {
-			this.channelIdsWithSuppressedAutoScrolling.add(channelId);
-		}
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {

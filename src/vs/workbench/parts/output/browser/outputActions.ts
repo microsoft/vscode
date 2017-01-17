@@ -6,9 +6,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import { Registry } from 'vs/platform/platform';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/parts/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -93,7 +92,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	}
 
 	protected getActionContext(option: string): string {
-		const channel = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().filter(channelData => channelData.label === option).pop();
+		const channel = this.outputService.getChannels().filter(channelData => channelData.label === option).pop();
 
 		return channel ? channel.id : option;
 	}
@@ -106,7 +105,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	}
 
 	private static getChannelLabels(outputService: IOutputService): string[] {
-		const contributedChannels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().map(channelData => channelData.label);
+		const contributedChannels = outputService.getChannels().map(channelData => channelData.label);
 
 		return contributedChannels.sort(); // sort by name
 	}

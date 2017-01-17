@@ -67,9 +67,9 @@ export interface IOutputService {
 	getChannel(id: string): IOutputChannel;
 
 	/**
-	 * Returns all output channels.
+	 * Returns an array of all known output channels as identifiers.
 	 */
-	getChannels(): IOutputChannel[];
+	getChannels(): IOutputChannelIdentifier[];
 
 	/**
 	 * Returns the currently active channel.
@@ -124,11 +124,11 @@ export interface IOutputChannel {
 	 * Clears all received output for this channel.
 	 */
 	clear(): void;
+}
 
-	/**
-	 * Toggles automatic scrolling for this channel.
-	 */
-	toggleAutoScrolling(): void;
+export interface IOutputChannelIdentifier {
+	id: string;
+	label: string;
 }
 
 export interface IOutputChannelRegistry {
@@ -141,11 +141,11 @@ export interface IOutputChannelRegistry {
 	/**
 	 * Returns the list of channels known to the output world.
 	 */
-	getChannels(): { id: string, label: string }[];
+	getChannels(): IOutputChannelIdentifier[];
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: { id: string, label: string }[];
+	private channels: IOutputChannelIdentifier[];
 
 	constructor() {
 		this.channels = [];
@@ -157,7 +157,7 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 		}
 	}
 
-	public getChannels(): { id: string, label: string }[] {
+	public getChannels(): IOutputChannelIdentifier[] {
 		return this.channels;
 	}
 }
