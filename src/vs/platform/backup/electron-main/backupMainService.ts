@@ -38,9 +38,9 @@ export class BackupMainService implements IBackupMainService {
 
 	public getWorkspaceBackupPaths(): string[] {
 		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
-		if (config && config.files && config.files.hotExit === HotExitConfiguration.APP_EXIT_AND_WINDOW_CLOSE) {
+		if (config && config.files && config.files.hotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 			// Only non-folder windows are restored on main process launch when
-			// hot exit is configured as appExitAndWindowClose.
+			// hot exit is configured as onExitAndWindowClose.
 			return [];
 		}
 		return this.backups.folderWorkspaces.slice(0); // return a copy
