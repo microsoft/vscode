@@ -644,11 +644,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 
 	let cssRules: string[] = [];
 
-	/*if (!hasFolderIcons) {
-		// as we only show file icons, unindent rows representing files
-		cssRules.push(`.explorer-folders-view .monaco-tree-row .sub-content::before { display: none; }`);
-	}*/
-
 	let fonts = iconThemeDocument.fonts;
 	if (Array.isArray(fonts)) {
 		fonts.forEach(font => {
