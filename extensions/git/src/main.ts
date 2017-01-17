@@ -16,7 +16,7 @@ import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import * as nls from 'vscode-nls';
 
-nls.config();
+const localize = nls.config()();
 
 async function init(disposables: Disposable[]): Promise<void> {
 	const rootPath = workspace.rootPath;
@@ -36,8 +36,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const repositoryRoot = await repository.getRoot();
 	const model = new Model(repositoryRoot, repository, onWorkspaceChange);
 
-	const outputChannel = window.createOutputChannel('git');
-	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
+	const outputChannel = window.createOutputChannel('Git');
+	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
 	const commandCenter = new CommandCenter(model, outputChannel);
