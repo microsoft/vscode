@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-// import { relative, isEqualOrParent } from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/paths';
 import { relative } from 'path';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
@@ -40,15 +40,15 @@ export class ExtHostWorkspace {
 		}
 
 		if (!path || !this._workspacePath) {
-			return path;
+			return normalize(path);
 		}
 
 		let result = relative(this._workspacePath, path);
 		if (!result || result.indexOf('..') === 0) {
-			return path;
+			return normalize(path);
 		}
 
-		return result;
+		return normalize(result);
 	}
 
 	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
