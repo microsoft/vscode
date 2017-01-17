@@ -142,6 +142,10 @@ class TestPanelService implements IPanelService {
 		return TPromise.as(null);
 	}
 
+	public getPanels(): any[] {
+		return [];
+	}
+
 	public getActivePanel(): IViewlet {
 		return activeViewlet;
 	}
