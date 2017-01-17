@@ -100,3 +100,16 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: S
 		.openEditor(input, { pinned: true }, position)
 		.then(editor => true);
 });
+
+CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
+	const activePreview = accessor.get(IWorkbenchEditorService).getVisibleEditors()
+		.filter(c => c instanceof HtmlPreviewPart)
+		.map(e => e as HtmlPreviewPart)
+		.filter(e => e.model.uri.scheme == uri.scheme && e.model.uri.path === uri.path);
+	if (activePreview.length) {
+		activePreview[0].sendMessage(message);
+		return true;
+	}
+	return false;
+});
