@@ -16,6 +16,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
+import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
@@ -36,16 +37,11 @@ import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/pref
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
-
 const REMOVE_INLINE_VALUES_DELAY = 100;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
-const MAX_INLINE_VALUE_LENGTH = 50; // Max string length of each inline 'x = y' string. If exceeded ... is added
-const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
+const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
-// LanguageConfigurationRegistry.getWordDefinition() return regexes that allow spaces and punctuation characters for languages like python
-// Using that approach is not viable so we are using a simple regex to look for word tokens.
-const WORD_REGEXP = /[\$\_A-Za-z][\$\_A-Za-z0-9]*/g;
 
 @editorContribution
 export class DebugEditorContribution implements IDebugEditorContribution {
@@ -376,14 +372,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private createAllInlineValueDecorations(expressions: IExpression[]): IDecorationOptions[] {
 		const nameValueMap = new Map<string, string>();
 		for (let expr of expressions) {
-			// Put ellipses in value if its too long. Preserve last char e.g "longstr…" or {a:true, b:true, …}
-			let value = expr.value;
-			if (value && value.length > MAX_INLINE_VALUE_LENGTH) {
-				value = value.substr(0, MAX_INLINE_VALUE_LENGTH) + '…' + value[value.length - 1];
-			}
-
-			nameValueMap.set(expr.name, value);
-
+			nameValueMap.set(expr.name, expr.value);
 			// Limit the size of map. Too large can have a perf impact
 			if (nameValueMap.size >= MAX_NUM_INLINE_VALUES) {
 				break;
@@ -418,11 +407,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private createInlineValueDecoration(lineNumber: number, contentText: string): IDecorationOptions {
-		const margin = '10px';
-		const backgroundColor = 'rgba(255, 200, 0, 0.2)';
-		const lightForegroundColor = 'rgba(0, 0, 0, 0.5)';
-		const darkForegroundColor = 'rgba(255, 255, 255, 0.5)';
-
 		// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 		if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
 			contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
@@ -436,20 +420,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				endColumn: Constants.MAX_SAFE_SMALL_INTEGER
 			},
 			renderOptions: {
+				after: {
+					contentText,
+					backgroundColor: 'rgba(255, 200, 0, 0.2)',
+					margin: '10px'
+				},
 				dark: {
 					after: {
-						contentText,
-						backgroundColor,
-						color: darkForegroundColor,
-						margin
+						color: 'rgba(255, 255, 255, 0.5)',
 					}
 				},
 				light: {
 					after: {
-						contentText,
-						backgroundColor,
-						color: lightForegroundColor,
-						margin
+						color: 'rgba(0, 0, 0, 0.5)',
 					}
 				}
 			}
@@ -476,8 +459,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 						// Token is a word and not a comment
 						if (token.tokenType === StandardTokenType.Other) {
-							WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
-							const wordMatch = WORD_REGEXP.exec(tokenStr);
+							DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+							const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
 							if (wordMatch) {
 								const word = wordMatch[0];
