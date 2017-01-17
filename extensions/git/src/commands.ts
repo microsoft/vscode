@@ -168,8 +168,12 @@ export class CommandCenter {
 			case Status.MODIFIED:
 				const uriString = resource.uri.toString();
 				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString);
-				const query = indexStatus ? '~' : 'HEAD';
-				return resource.uri.with({ scheme: 'git', query });
+
+				if (indexStatus) {
+					return resource.uri.with({ scheme: 'git' });
+				}
+
+				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
 		}
 	}
 
