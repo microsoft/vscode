@@ -14,30 +14,34 @@ export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
 
-export interface IThemeService {
-	_serviceBrand: any;
-	setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
-	getColorTheme(): string;
-	getColorThemeDocument(): IThemeDocument;
-	getColorThemes(): TPromise<IThemeData[]>;
-	onDidColorThemeChange: Event<string>;
-
-	setFileIconTheme(iconThemeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
-	getFileIconTheme(): string;
-	getFileIconThemes(): TPromise<IThemeData[]>;
-}
-
-export interface IThemeData {
+export class IColorTheme {
 	id: string;
 	label: string;
 	description?: string;
-	path: string;
+	isLoaded: boolean;
+	settings?: IThemeSetting[];
 }
 
-export interface IThemeDocument {
-	name: string;
-	include: string;
-	settings: IThemeSetting[];
+export interface IFileIconTheme {
+	id: string;
+	label: string;
+	description?: string;
+	isLoaded: boolean;
+	hasFileIcons?: boolean;
+	hasFolderIcons?: boolean;
+}
+
+export interface IThemeService {
+	_serviceBrand: any;
+	setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<IColorTheme>;
+	getColorTheme(): IColorTheme;
+	getColorThemes(): TPromise<IColorTheme[]>;
+	onDidColorThemeChange: Event<IColorTheme>;
+
+	setFileIconTheme(iconThemeId: string, broadcastToAllWindows: boolean): TPromise<IFileIconTheme>;
+	getFileIconTheme(): IFileIconTheme;
+	getFileIconThemes(): TPromise<IFileIconTheme[]>;
+	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
 export interface IThemeSetting {

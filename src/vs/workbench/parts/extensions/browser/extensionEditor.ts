@@ -325,7 +325,7 @@ export class ExtensionEditor extends BaseEditor {
 				webview.contents = [body];
 
 				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.themeService.onDidColorThemeChange(themeId => webview.style(themeId), null, this.contentDisposables);
+				this.themeService.onDidColorThemeChange(theme => webview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {

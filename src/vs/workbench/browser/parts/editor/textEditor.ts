@@ -112,7 +112,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		objects.assign(overrides, {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
-			theme: this.themeService.getColorTheme(),
+			theme: this.themeService.getColorTheme().id,
 			fixedOverflowWidgets: true
 		});
 		return overrides;
