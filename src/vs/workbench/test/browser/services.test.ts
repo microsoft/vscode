@@ -126,6 +126,10 @@ class TestViewletService implements IViewletService {
 	public getViewlet(id: string): ViewletDescriptor {
 		return null;
 	}
+
+	public getProgressIndicator(id: string) {
+		return null;
+	}
 }
 
 class TestPanelService implements IPanelService {

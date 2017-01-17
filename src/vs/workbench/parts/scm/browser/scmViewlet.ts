@@ -244,6 +244,7 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
+
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
 
