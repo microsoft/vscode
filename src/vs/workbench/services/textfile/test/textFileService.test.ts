@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as assert from 'assert';
+import * as platform from 'vs/base/common/platform';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
@@ -269,7 +270,12 @@ suite('Files - TextFileService', () => {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
+					if (platform.isMacintosh) {
+						// A single window CLOSE onMac does not imply an EXIT
+						assert.ok(veto);
+					} else {
+						assert.ok(!veto);
+					}
 				}, done);
 			});
 
