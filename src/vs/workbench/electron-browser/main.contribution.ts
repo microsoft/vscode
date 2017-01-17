@@ -224,7 +224,13 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'boolean',
 		'default': false,
 		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
-	}
+	},
+	'window.newWindowDimensions': {
+		'type': 'string',
+		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
+		'default': 'default',
+		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window. By default, a new window will open in the center of the screen with small dimensions. When set to  'inherit', the window will get the same dimensions as the last active one. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'.")
+	},
 };
 
 if (platform.isWindows || platform.isLinux) {
