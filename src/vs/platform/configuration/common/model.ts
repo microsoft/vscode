@@ -81,7 +81,7 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 	});
 }
 
-interface _IOverrides<T> extends IOverrides<T> {
+interface Overrides<T> extends IOverrides<T> {
 	raw: any;
 }
 
@@ -108,7 +108,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	}
 
 	public get keys(): string[] {
-		return Object.keys(this._raw)
+		return Object.keys(this._raw);
 	}
 
 	public get raw(): T {
@@ -136,17 +136,19 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	public languageConfig<V>(language: string): ConfigModel<V> {
 		const result = new ConfigModel<V>(null);
 		const contents = objects.clone<any>(this.contents);
-		for (const override of this._overrides) {
-			if (override.languages.indexOf(language) !== -1) {
-				merge(contents, override.contents, true);
+		if (this._overrides) {
+			for (const override of this._overrides) {
+				if (override.languages.indexOf(language) !== -1) {
+					merge(contents, override.contents, true);
+				}
 			}
+			result._contents = contents;
 		}
-		result._contents = contents;
 		return result;
 	}
 
 	public update(content: string): void {
-		let overrides: _IOverrides<T>[] = null;
+		let overrides: Overrides<T>[] = null;
 		let currentProperty: string = null;
 		let currentParent: any = [];
 		let previousParents: any[] = [];
@@ -169,7 +171,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 					languages: property.substring('languages:'.length).split(','),
 					raw: value,
 					contents: null
-				})
+				});
 			}
 		}
 
@@ -213,16 +215,15 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			json.visit(content, visitor);
 			this._raw = currentParent[0];
 		} catch (e) {
-			console.error(`Error while parsing settings file ${this.name}: ${e}`)
+			console.error(`Error while parsing settings file ${this.name}: ${e}`);
 			this._raw = <T>{};
 			this._parseErrors = [e];
 		}
 		this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
-		this._overrides = overrides ? overrides.map<_IOverrides<T>>(override => {
+		this._overrides = overrides ? overrides.map<IOverrides<T>>(override => {
 			return {
 				languages: override.languages,
-				contents: <T>toValuesTree(override.raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`)),
-				raw: override.raw
+				contents: <T>toValuesTree(override.raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
 			};
 		}) : null;
 	}
