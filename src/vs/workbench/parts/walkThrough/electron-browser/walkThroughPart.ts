@@ -120,10 +120,13 @@ export class WalkThroughPart extends BaseEditor {
 		const folder = new TPromise<string>((c, e) => mkdirp(folderName, null, err => err ? e(err) : c(folderName)));
 
 		return super.setInput(input, options)
-			.then(() => this.fileService.resolveContent(input.getResource(), { acceptTextOnly: true }))
-			.then(content => {
+			.then(() => {
+				return input.resolve(true);
+			})
+			.then(model => {
+				const content = model.textEditorModel.getLinesContent().join('\n');
 				if (strings.endsWith(input.getResource().path, '.html')) {
-					this.content.innerHTML = content.value;
+					this.content.innerHTML = content;
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content);
@@ -148,7 +151,7 @@ export class WalkThroughPart extends BaseEditor {
 					return `<div id=${id} class="walkThroughEditorContainer" ></div>`;
 				};
 				this.content.classList.add('walkThroughContent'); // only for markdown files
-				const markdown = this.expandMacros(content.value);
+				const markdown = this.expandMacros(content);
 				this.content.innerHTML = marked(markdown, { renderer });
 
 				// TODO: also create jsconfig.json and tsconfig.json
@@ -209,7 +212,7 @@ export class WalkThroughPart extends BaseEditor {
 			const keybinding = this.keybindingService.lookupKeybindings(kb)[0];
 			const shortcut = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
 			return `<span class="shortcut">${shortcut}</span>`;
-		})
+		});
 	}
 
 	private decorateContent() {
