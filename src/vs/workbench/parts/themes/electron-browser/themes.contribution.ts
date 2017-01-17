@@ -40,8 +40,7 @@ export class SelectColorThemeAction extends Action {
 
 	run(): TPromise<void> {
 		return this.themeService.getColorThemes().then(themes => {
-			const currentThemeId = this.themeService.getColorTheme();
-			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
+			const currentTheme = this.themeService.getColorTheme();
 
 			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
 
@@ -58,7 +57,7 @@ export class SelectColorThemeAction extends Action {
 			};
 
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme");
-			const autoFocusIndex = firstIndex(picks, p => p.id === currentThemeId);
+			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
 			if (this.extensionGalleryService.isEnabled()) {
@@ -94,8 +93,7 @@ class SelectIconThemeAction extends Action {
 
 	run(): TPromise<void> {
 		return this.themeService.getFileIconThemes().then(themes => {
-			const currentThemeId = this.themeService.getFileIconTheme();
-			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
+			const currentTheme = this.themeService.getFileIconTheme();
 
 			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme');
 
@@ -114,7 +112,7 @@ class SelectIconThemeAction extends Action {
 			};
 
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
-			const autoFocusIndex = firstIndex(picks, p => p.id === currentThemeId);
+			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
 
