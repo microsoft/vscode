@@ -186,8 +186,8 @@ export abstract class TextFileService implements ITextFileService {
 			let doBackup: boolean;
 			switch (reason) {
 				case ShutdownReason.CLOSE:
-					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.APP_EXIT_AND_WINDOW_CLOSE) {
-						doBackup = true; // backup if a folder is open and appExitAndWindowClose is configured
+					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
 					} else if (windowCount > 1 || platform.isMacintosh) {
 						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
 					} else {
@@ -355,12 +355,12 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		// Hot exit
-		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.APP_EXIT;
+		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.ON_EXIT;
 		// Handle the legacy case where hot exit was a boolean
 		if (<any>hotExitMode === false) {
 			this.configuredHotExit = HotExitConfiguration.OFF;
 		} else if (<any>hotExitMode === true) {
-			this.configuredHotExit = HotExitConfiguration.APP_EXIT;
+			this.configuredHotExit = HotExitConfiguration.ON_EXIT;
 		} else {
 			this.configuredHotExit = hotExitMode;
 		}
