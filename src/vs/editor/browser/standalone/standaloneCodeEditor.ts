@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -46,13 +46,13 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 export interface IStandaloneCodeEditor extends ICodeEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor: IActionDescriptor): void;
+	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor: IActionDescriptor): void;
+	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEditor {
@@ -130,7 +130,8 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		return this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
+		let r = this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
+		return r[0];
 	}
 
 	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
@@ -141,8 +142,8 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
-	public addAction(descriptor: IActionDescriptor): void {
-		super.addAction(descriptor);
+	public addAction(descriptor: IActionDescriptor): IDisposable {
+		let toDispose = [super.addAction(descriptor)];
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
 			return null;
@@ -151,10 +152,14 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 			let handler: ICommandHandler = (accessor) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
-			descriptor.keybindings.forEach((kb) => {
-				this._standaloneKeybindingService.addDynamicKeybinding(kb, handler, descriptor.keybindingContext, descriptor.id);
-			});
+			toDispose = toDispose.concat(
+				descriptor.keybindings.map((kb) => {
+					let r = this._standaloneKeybindingService.addDynamicKeybinding(kb, handler, descriptor.keybindingContext, descriptor.id);
+					return r[1];
+				})
+			);
 		}
+		return combinedDisposable(toDispose);
 	}
 
 	_attachModel(model: IModel): void {
@@ -216,7 +221,8 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		return this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
+		let r = this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
+		return r[0];
 	}
 
 	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
@@ -227,8 +233,8 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
-	public addAction(descriptor: IActionDescriptor): void {
-		super.addAction(descriptor);
+	public addAction(descriptor: IActionDescriptor): IDisposable {
+		let toDispose = [super.addAction(descriptor)];
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
 			return null;
@@ -237,9 +243,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			let handler: ICommandHandler = (ctx) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
-			descriptor.keybindings.forEach((kb) => {
-				this._standaloneKeybindingService.addDynamicKeybinding(kb, handler, descriptor.keybindingContext, descriptor.id);
-			});
+			toDispose = toDispose.concat(
+				descriptor.keybindings.map((kb) => {
+					let r = this._standaloneKeybindingService.addDynamicKeybinding(kb, handler, descriptor.keybindingContext, descriptor.id);
+					return r[1];
+				})
+			);
 		}
+		return combinedDisposable(toDispose);
 	}
 }

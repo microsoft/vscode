@@ -951,13 +951,13 @@ declare module monaco.editor {
     export interface IStandaloneCodeEditor extends ICodeEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
     }
 
     export interface IStandaloneDiffEditor extends IDiffEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
@@ -2891,7 +2891,7 @@ declare module monaco.editor {
         /**
          * Add a new action to this editor.
          */
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
         /**
          * Returns all actions associated with this editor.
          */

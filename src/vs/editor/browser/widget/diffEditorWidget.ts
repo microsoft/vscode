@@ -611,8 +611,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this.modifiedEditor.revealRangeInCenterIfOutsideViewport(range);
 	}
 
-	public addAction(descriptor: editorCommon.IActionDescriptor): void {
-		this.modifiedEditor.addAction(descriptor);
+	public addAction(descriptor: editorCommon.IActionDescriptor): IDisposable {
+		return this.modifiedEditor.addAction(descriptor);
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
