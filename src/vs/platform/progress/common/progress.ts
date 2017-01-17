@@ -35,6 +35,8 @@ export interface IProgress<T> {
 	report(item: T): void;
 }
 
+export const emptyProgress: IProgress<any> = Object.freeze({ report() { } });
+
 export class Progress<T> implements IProgress<T> {
 
 	private _callback: () => void;
