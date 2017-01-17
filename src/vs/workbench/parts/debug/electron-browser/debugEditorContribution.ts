@@ -397,7 +397,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 							lineToNamesMap.set(position.lineNumber, []);
 						}
 
-						lineToNamesMap.get(position.lineNumber).push(name);
+						if (lineToNamesMap.get(position.lineNumber).indexOf(name) === -1) {
+							lineToNamesMap.get(position.lineNumber).push(name);
+						}
 					}
 				}
 			}
@@ -406,8 +408,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const decorations: IDecorationOptions[] = [];
 		// Compute decorators for each line
 		lineToNamesMap.forEach((names, line) => {
-			// Wrap with 1em unicode space for readability
-			const contentText = '\u2003' + names.map(name => `${name} = ${nameValueMap.get(name)}`).join(', ') + '\u2003';
+			const contentText = names.map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
 			decorations.push(this.createInlineValueDecoration(line, contentText));
 		});
 
