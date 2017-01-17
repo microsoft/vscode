@@ -47,7 +47,7 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 	return {
 		width: 1024,
 		height: 768,
-		mode: mode
+		mode
 	};
 };
 
