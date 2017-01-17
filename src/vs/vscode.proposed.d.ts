@@ -29,6 +29,8 @@ declare module 'vscode' {
 		 */
 		export function withWindowProgress(task: (progress: Progress<string>, token: CancellationToken) => Thenable<any>): void;
 
+		export function withScmProgress(task: (progress: Progress<number>) => Thenable<any>): void;
+
 		export function sampleFunction(): Thenable<any>;
 	}
 

@@ -21,7 +21,7 @@ export class MainThreadProgress extends MainThreadProgressShape {
 	}
 
 
-	$progressStart(handle: number, where: string): void {
+	$progressStart(handle: number, extensionId: string, where: string): void {
 
 		const task = (progress: IProgress<any>) => {
 			return new TPromise<any>((resolve, reject) => {
@@ -34,7 +34,8 @@ export class MainThreadProgress extends MainThreadProgressShape {
 				this._progressService.withWindowProgress(task);
 				break;
 			case 'scm':
-				this._progressService.withViewletProgress('workbench.view.git', task);
+				this._progressService.withViewletProgress('workbench.view.scm', task);
+				break;
 		}
 
 	}
