@@ -204,7 +204,11 @@ export abstract class TextFileService implements ITextFileService {
 					break;
 
 				case ShutdownReason.LOAD:
-					doBackup = false; // do not backup because we are switching contexts
+					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
+					} else {
+						doBackup = false; // do not backup because we are switching contexts
+					}
 					break;
 			}
 
