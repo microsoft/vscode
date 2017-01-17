@@ -15,7 +15,7 @@ import * as _ from 'lodash';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle(__filename);
+const localize = nls.loadMessageBundle();
 const readdir = denodeify(fs.readdir);
 const readfile = denodeify<string, string, string>(fs.readFile);
 

@@ -29,7 +29,6 @@ export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLas
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
-export const DEBUG_SCHEME = 'debug';
 
 // raw
 
