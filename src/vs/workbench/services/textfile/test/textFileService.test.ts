@@ -7,21 +7,24 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as assert from 'assert';
 import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
 class ServiceAccessor {
 	constructor(
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledEditorService public untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService public untitledEditorService: IUntitledEditorService,
+		@IWindowsService public windowsService: TestWindowsService
 	) {
 	}
 }
@@ -92,7 +95,7 @@ suite('Files - TextFileService', () => {
 		}, error => onError(error, done));
 	});
 
-	test('confirm onWillShutdown - no veto if user does not want to save', function (done) {
+	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save', function (done) {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
@@ -109,11 +112,13 @@ suite('Files - TextFileService', () => {
 
 			const veto = event.value;
 			if (typeof veto === 'boolean') {
+				assert.ok(service.cleanupBackupsBeforeShutdownCalled);
 				assert.ok(!veto);
 
 				done();
 			} else {
 				veto.then(veto => {
+					assert.ok(service.cleanupBackupsBeforeShutdownCalled);
 					assert.ok(!veto);
 
 					done();
@@ -140,6 +145,114 @@ suite('Files - TextFileService', () => {
 			return (<TPromise<boolean>>event.value).then(veto => {
 				assert.ok(!veto);
 				assert.ok(!model.isDirty());
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('confirm onWillShutdown - hot exit onExit single window', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const service = accessor.textFileService;
+		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT } });
+		// Set cancel to force a veto under regular circumstances
+		service.setConfirmResult(ConfirmResult.CANCEL);
+
+		model.load().done(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.equal(service.getDirty().length, 1);
+
+			const event = new ShutdownEventImpl();
+			accessor.lifecycleService.fireWillShutdown(event);
+
+			return (<TPromise<boolean>>event.value).then(veto => {
+				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+				assert.ok(!veto);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('confirm onWillShutdown - hot exit onExit multiple windows', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const service = accessor.textFileService;
+		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT } });
+		// Set multiple windows
+		accessor.windowsService.windowCount = 2;
+		// Set cancel to force a veto under regular circumstances
+		service.setConfirmResult(ConfirmResult.CANCEL);
+
+		model.load().done(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.equal(service.getDirty().length, 1);
+
+			const event = new ShutdownEventImpl();
+			accessor.lifecycleService.fireWillShutdown(event);
+
+			return (<TPromise<boolean>>event.value).then(veto => {
+				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+				assert.ok(veto);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('confirm onWillShutdown - hot exit onExitAndWindowClose single window', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const service = accessor.textFileService;
+		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE } });
+		// Force veto when hot exit fails
+		service.setConfirmResult(ConfirmResult.CANCEL);
+
+		model.load().done(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.equal(service.getDirty().length, 1);
+
+			const event = new ShutdownEventImpl();
+			accessor.lifecycleService.fireWillShutdown(event);
+
+			return (<TPromise<boolean>>event.value).then(veto => {
+				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+				assert.ok(!veto);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('confirm onWillShutdown - hot exit onExitAndWindowClose multiple windows', function (done) {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const service = accessor.textFileService;
+		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE } });
+		// Set multiple windows
+		accessor.windowsService.windowCount = 2;
+		// Set cancel to force a veto under regular circumstances
+		service.setConfirmResult(ConfirmResult.CANCEL);
+
+		model.load().done(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.equal(service.getDirty().length, 1);
+
+			const event = new ShutdownEventImpl();
+			accessor.lifecycleService.fireWillShutdown(event);
+
+			return (<TPromise<boolean>>event.value).then(veto => {
+				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+				assert.ok(!veto);
 
 				done();
 			});

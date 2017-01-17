@@ -289,7 +289,7 @@ export abstract class TextFileService implements ITextFileService {
 		return this.cleanupBackupsBeforeShutdown().then(() => false, () => false);
 	}
 
-	private cleanupBackupsBeforeShutdown(): TPromise<void> {
+	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as(void 0);
 		}
@@ -309,7 +309,7 @@ export abstract class TextFileService implements ITextFileService {
 		}
 	}
 
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
+	protected onConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
 		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
