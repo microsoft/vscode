@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import fs = require('fs');
 import path = require('path');
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
+import * as Types from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
@@ -17,6 +19,7 @@ import Severity from 'vs/base/common/severity';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TerminateResponse } from 'vs/base/common/processes';
+import * as TPath from 'vs/base/common/paths';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ValidationStatus } from 'vs/base/common/parsers';
@@ -29,7 +32,7 @@ import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/work
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, CommandOptions } from 'vs/workbench/parts/tasks/common/taskSystem';
 import * as FileConfig from '../node/processRunnerConfiguration';
 
 interface TerminalData {
@@ -285,6 +288,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						startStopProblemMatcher.dispose();
 						this.emit(TaskSystemEvents.Inactive, event);
 						delete this.activeTasks[task.id];
+						terminal.reuseTerminal();
 						resolve({ exitCode });
 					});
 					this.terminalService.setActiveInstance(terminal);
@@ -303,13 +307,28 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private createTerminal(task: TaskDescription): ITerminalInstance {
+		let options = this.resolveOptions(this.configuration.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
 		let waitOnExit = task.showOutput !== ShowOutput.Never || !task.isBackground;
 		if (this.configuration.isShellCommand) {
-			// TODO@dirk: don't we want to use cmd.exe (32- or 64-bit) all the time? Also you can now
-			//   not set IShellLaunchConfig.executable which will grab it from settings.
+			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
+				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
+			}
 			let shellConfig: IShellLaunchConfig = { executable: null, args: null };
+			if (options.cwd) {
+				shellConfig.cwd = options.cwd;
+			}
+			if (options.env) {
+				let env: IStringDictionary<string> = Object.create(null);
+				Object.keys(process.env).forEach((key) => {
+					env[key] = process.env[key];
+				});
+				Object.keys(options.env).forEach((key) => {
+					env[key] = options.env[key];
+				});
+				shellConfig.env = env;
+			}
 			(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellConfig);
 			let shellArgs = shellConfig.args.slice(0);
 			let toAdd: string[] = [];
@@ -360,9 +379,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			};
 			return this.terminalService.createInstance(shellLaunchConfig);
 		} else {
+			let cwd = options && options.cwd ? options.cwd : process.cwd();
+			// On Windows executed process must be described absolute. Since we allowed command without an
+			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
+			let executable = Platform.isWindows && !this.configuration.isShellCommand ? this.findExecutable(command, cwd) : command;
 			const shellLaunchConfig: IShellLaunchConfig = {
 				name: terminalName,
-				executable: command,
+				executable: executable,
 				args,
 				waitOnExit
 			};
@@ -389,6 +412,44 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return { command, args };
 	}
 
+	private findExecutable(command: string, cwd: string): string {
+		// If we have an absolute path then we take it.
+		if (path.isAbsolute(command)) {
+			return command;
+		}
+		let dir = path.dirname(command);
+		if (dir !== '.') {
+			// We have a directory. So leave the command as is.
+			return command;
+		}
+		// We have a simple file name. We get the path variable from the env
+		// and try to find the executable on the path.
+		if (!process.env.PATH) {
+			return command;
+		}
+		let paths: string[] = (process.env.PATH as string).split(path.delimiter);
+		for (let pathEntry of paths) {
+			// The path entry is absolute.
+			let fullPath: string;
+			if (path.isAbsolute(pathEntry)) {
+				fullPath = path.join(pathEntry, command);
+			} else {
+				fullPath = path.join(cwd, pathEntry, command);
+			}
+			if (fs.existsSync(fullPath)) {
+				return fullPath;
+			}
+			let withExtension = fullPath + '.com';
+			if (fs.existsSync(withExtension)) {
+				return withExtension;
+			}
+			withExtension = fullPath + '.exe';
+			if (fs.existsSync(withExtension)) {
+				return withExtension;
+			}
+		}
+		return command;
+	}
 
 	private resolveVariables(value: string[]): string[] {
 		return value.map(s => this.resolveVariable(s));
@@ -413,6 +474,22 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 
 	private resolveVariable(value: string): string {
 		return this.configurationResolverService.resolve(value);
+	}
+
+	private resolveOptions(options: CommandOptions): CommandOptions {
+		let result: CommandOptions = { cwd: this.resolveVariable(options.cwd) };
+		if (options.env) {
+			result.env = Object.create(null);
+			Object.keys(options.env).forEach((key) => {
+				let value: any = options.env[key];
+				if (Types.isString(value)) {
+					result.env[key] = this.resolveVariable(value);
+				} else {
+					result.env[key] = value.toString();
+				}
+			});
+		}
+		return result;
 	}
 
 	private static doubleQuotes = /^[^"].* .*[^"]$/;
@@ -450,6 +527,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		'tsc': true,
 		'xbuild': true
 	};
+
 	public getSanitizedCommand(cmd: string): string {
 		let result = cmd.toLowerCase();
 		let index = result.lastIndexOf(path.sep);
