@@ -345,6 +345,19 @@ export class StackFrame implements debug.IStackFrame {
 		return this.scopes;
 	}
 
+	public getMostSpecificScopes(range: IRange): TPromise<debug.IScope[]> {
+		return this.getScopes().then(scopes => {
+			scopes = scopes.filter(s => !s.expensive);
+			const haveRangeInfo = scopes.some(s => !!s.range);
+			if (!haveRangeInfo) {
+				return scopes;
+			}
+
+			return [scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
+				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
+		});
+	}
+
 	public restart(): TPromise<any> {
 		return this.thread.process.session.restartFrame({ frameId: this.frameId });
 	}

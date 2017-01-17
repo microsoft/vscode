@@ -359,9 +359,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		stackFrame.getScopes()
+		stackFrame.getMostSpecificScopes(new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column))
 			// Get all top level children in the scope chain
-			.then(scopes => TPromise.join(scopes.filter(s => !s.expensive).map(scope => scope.getChildren()
+			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren()
 				.then(children => {
 					let range = new Range(0, 0, stackFrame.lineNumber, stackFrame.column);
 					if (scope.range) {
