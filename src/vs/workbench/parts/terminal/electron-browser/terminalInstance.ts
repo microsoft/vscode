@@ -440,7 +440,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.write('\n\x1b[G');
 
 		// Initialize new process
-		this._createProcess(this._contextService.getWorkspace(), shell.name, shell);
+		this._createProcess(this._contextService.getWorkspace(), shell);
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 
 		// Clean up waitOnExit state
