@@ -5,39 +5,16 @@
 'use strict';
 
 import 'vs/css!vs/workbench/services/progress/browser/media/progressService2';
-import { always } from 'vs/base/common/async';
+import * as dom from 'vs/base/browser/dom';
+import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/platform';
-import { IProgressService2, IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgress, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { Registry } from 'vs/platform/platform';
 import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import * as dom from 'vs/base/browser/dom';
-
-class ActivityBarProgress implements IProgress<number> {
-
-	private _handle: IDisposable;
-
-	constructor(
-		private _activityBar: IActivityBarService,
-		private _viewletId: string) {
-
-	}
-
-	dispose(): void {
-		if (this._handle) {
-			this._handle.dispose();
-			this._handle = undefined;
-		}
-	}
-
-	report(n: number): void {
-		if (!this._handle) {
-			this._handle = this._activityBar.showActivity(this._viewletId, new ProgressBadge(() => '...'), 'progress-badge');
-		}
-	}
-}
+import { always } from 'vs/base/common/async';
 
 class WindowProgressItem implements IStatusbarItem {
 
@@ -79,7 +56,8 @@ export class ProgressService2 implements IProgressService2 {
 	private _stack: Progress<string>[] = [];
 
 	constructor(
-		@IActivityBarService private _activityBar: IActivityBarService
+		@IActivityBarService private _activityBar: IActivityBarService,
+		@IViewletService private _viewletService: IViewletService
 	) {
 		//
 	}
@@ -98,11 +76,6 @@ export class ProgressService2 implements IProgressService2 {
 		});
 	}
 
-	withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void {
-		const progress = new ActivityBarProgress(this._activityBar, viewletId);
-		always(task(progress), () => progress.dispose());
-	}
-
 	private _updateProgress() {
 		if (this._stack.length === 0) {
 			WindowProgressItem.Instance.hide();
@@ -110,6 +83,26 @@ export class ProgressService2 implements IProgressService2 {
 			WindowProgressItem.Instance.show();
 			WindowProgressItem.Instance.text = this._stack[0].value;
 		}
+	}
+
+	withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void {
+
+		const promise = task(emptyProgress);
+
+		// show in viewlet
+		const viewletProgress = this._viewletService.getProgressIndicator(viewletId);
+		viewletProgress.showWhile(promise);
+
+		// show activity bar
+		const activityProgress = this._activityBar.showActivity(
+			viewletId,
+			new ProgressBadge(() => '...'),
+			'progress-badge'
+		);
+
+		always(promise, () => {
+			activityProgress.dispose();
+		});
 	}
 }
 
