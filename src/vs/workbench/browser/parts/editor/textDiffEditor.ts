@@ -33,6 +33,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -52,9 +53,10 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IModeService modeService: IModeService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
 	}
 
 	public getTitle(): string {

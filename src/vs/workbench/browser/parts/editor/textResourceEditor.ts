@@ -21,6 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -37,9 +38,10 @@ export class TextResourceEditor extends BaseTextEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IModeService modeService: IModeService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
 
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
