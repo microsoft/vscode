@@ -122,7 +122,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
 		const theme = this.themeService.getColorTheme();
-		const icon = isDarkTheme(theme) ? resource.decorations.iconDark : resource.decorations.icon;
+		const icon = isDarkTheme(theme.id) ? resource.decorations.iconDark : resource.decorations.icon;
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
