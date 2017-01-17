@@ -11,7 +11,9 @@ import { throttle, anyEvent, eventToPromise, filterEvent, mapEvent } from './uti
 import { watch } from './watch';
 import { decorate, memoize, debounce } from 'core-decorators';
 import * as path from 'path';
+import * as nls from 'vscode-nls';
 
+const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
 function getIconUri(iconName: string, theme: string): Uri {
@@ -129,7 +131,7 @@ export class MergeGroup extends ResourceGroup {
 	static readonly ID = 'merge';
 
 	constructor(resources: Resource[]) {
-		super(MergeGroup.ID, 'Merge Changes', resources);
+		super(MergeGroup.ID, localize('merge changes', "Merge Changes"), resources);
 	}
 }
 
@@ -138,7 +140,7 @@ export class IndexGroup extends ResourceGroup {
 	static readonly ID = 'index';
 
 	constructor(resources: Resource[]) {
-		super(IndexGroup.ID, 'Staged Changes', resources);
+		super(IndexGroup.ID, localize('staged changes', "Staged Changes"), resources);
 	}
 }
 
@@ -147,7 +149,7 @@ export class WorkingTreeGroup extends ResourceGroup {
 	static readonly ID = 'workingTree';
 
 	constructor(resources: Resource[]) {
-		super(WorkingTreeGroup.ID, 'Changes', resources);
+		super(WorkingTreeGroup.ID, localize('changes', "Changes"), resources);
 	}
 }
 

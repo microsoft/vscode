@@ -29,6 +29,11 @@ export namespace Schemas {
 	export const https: string = 'https';
 
 	export const file: string = 'file';
+
+	/**
+	 * A schema that is used for internal debug modules.
+	 */
+	export const debug: string = 'debug';
 }
 
 export interface IXHROptions {

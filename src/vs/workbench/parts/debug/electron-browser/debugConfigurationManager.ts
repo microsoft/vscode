@@ -407,7 +407,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: IModel): boolean {
-		if (model.uri.scheme === Schemas.inMemory) {
+		if (model.uri.scheme !== Schemas.file && model.uri.scheme !== Schemas.debug) {
 			return false;
 		}
 		if (this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
