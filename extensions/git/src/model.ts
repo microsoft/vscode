@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable } from 'vscode';
+import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window } from 'vscode';
 import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
 import { throttle, anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
 import { watch } from './watch';
@@ -365,16 +365,18 @@ export class Model {
 	}
 
 	private async run(operation: Operation, fn: () => Promise<void> = () => Promise.resolve()): Promise<void> {
-		this._operations = this._operations.start(operation);
-		this._onRunOperation.fire(operation);
+		window.withScmProgress(async () => {
+			this._operations = this._operations.start(operation);
+			this._onRunOperation.fire(operation);
 
-		try {
-			await fn();
-			await this.update();
-		} finally {
-			this._operations = this._operations.end(operation);
-			this._onDidRunOperation.fire(operation);
-		}
+			try {
+				await fn();
+				await this.update();
+			} finally {
+				this._operations = this._operations.end(operation);
+				this._onDidRunOperation.fire(operation);
+			}
+		});
 	}
 
 	@decorate(throttle)
