@@ -485,6 +485,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
 	}
 
+	public getProgressIndicator(id: string): IProgressService {
+		return this.mapProgressServiceToComposite[id];
+	}
+
 	protected getActions(): IAction[] {
 		return [];
 	}
