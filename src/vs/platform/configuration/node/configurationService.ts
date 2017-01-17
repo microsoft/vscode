@@ -5,13 +5,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import * as glob from 'vs/base/common/glob';
 import * as objects from 'vs/base/common/objects';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
 import { ConfigModel, DefaultConfigModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
