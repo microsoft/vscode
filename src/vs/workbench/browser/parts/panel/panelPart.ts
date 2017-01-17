@@ -143,8 +143,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			ariaLabel: nls.localize('panelSwitcherBarAriaLabel', "Active Panel Switcher"),
 			animated: false
 		});
+		this.toUnbind.push(this.panelSwitcherBar);
 
-		this.updatePanelSwitcher();
+		this.fillPanelSwitcher();
 
 		return {
 			updateTitle: (id, title, keybinding) => {
@@ -156,15 +157,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	private updatePanelSwitcher(): void {
+	private fillPanelSwitcher(): void {
 		const panels = this.getPanels();
 
 		this.panelSwitcherBar.push(panels.map(panel => {
 			const action = this.instantiationService.createInstance(PanelAction, panel);
 
 			this.panelIdToActions[panel.id] = action;
+			this.toUnbind.push(action);
 
 			return action;
-		}), { label: true });
+		}));
 	}
 }
