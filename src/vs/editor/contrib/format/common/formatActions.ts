@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
-import { OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits } from '../common/format';
 import { EditOperationsCommand } from './formatCommand';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -151,6 +151,87 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
+@commonEditorContribution
+class FormatOnPaste implements editorCommon.IEditorContribution {
+
+	private static ID = 'editor.contrib.formatOnPaste';
+
+	private editor: editorCommon.ICommonCodeEditor;
+	private workerService: IEditorWorkerService;
+	private callOnDispose: IDisposable[];
+	private callOnModel: IDisposable[];
+
+	constructor(editor: editorCommon.ICommonCodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
+		this.editor = editor;
+		this.workerService = workerService;
+		this.callOnDispose = [];
+		this.callOnModel = [];
+
+		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
+		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
+		this.callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
+		this.callOnDispose.push(DocumentRangeFormattingEditProviderRegistry.onDidChange(this.update, this));
+	}
+
+	private update(): void {
+
+		// clean up
+		this.callOnModel = dispose(this.callOnModel);
+
+		// we are disabled
+		if (!this.editor.getConfiguration().contribInfo.formatOnPaste) {
+			return;
+		}
+
+		// no model
+		if (!this.editor.getModel()) {
+			return;
+		}
+
+		var model = this.editor.getModel();
+
+		// no support
+		var [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
+		if (!support || !support.autoFormatTriggerCharacters) {
+			return;
+		}
+
+		this.callOnModel.push(this.editor.onDidPaste((range: Range) => {
+			this.trigger(range);
+		}));
+	}
+
+	private trigger(range: Range): void {
+		if (this.editor.getSelections().length > 1) {
+			return;
+		}
+
+		const model = this.editor.getModel();
+		const { tabSize, insertSpaces } = model.getOptions();
+		const state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+
+		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }).then(edits => {
+			return this.workerService.computeMoreMinimalEdits(model.uri, edits, []);
+		}).then(edits => {
+			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
+				return;
+			}
+			const command = new EditOperationsCommand(edits, this.editor.getSelection());
+			this.editor.executeCommand(this.getId(), command);
+			this.editor.focus();
+		});
+	}
+
+	public getId(): string {
+		return FormatOnPaste.ID;
+	}
+
+	public dispose(): void {
+		this.callOnDispose = dispose(this.callOnDispose);
+		this.callOnModel = dispose(this.callOnModel);
+	}
+}
+
 export abstract class AbstractFormatAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
@@ -233,41 +314,6 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces} = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
-	}
-}
-
-@editorAction
-export class PasteAndFormatAction extends AbstractFormatAction {
-	constructor() {
-		super({
-			id: 'editor.action.pasteAndFormat',
-			label: nls.localize('pasteAndFormat.label', "Paste and Format"),
-			alias: 'Paste and Format',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentSelectionFormattingProvider),
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_V)
-			},
-			menuOpts: {
-				group: '1_modification',
-				order: 1.32
-			}
-		});
-	}
-
-	protected _getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
-		const originalSelectionStart = editor.getSelection().getStartPosition();
-		editor.focus();
-		document.execCommand('paste');
-
-		// paste doesn't persist selection
-		const currentCursorPosition = editor.getSelection().getStartPosition();
-		const pastedContentRange = new Range(currentCursorPosition.lineNumber, currentCursorPosition.column, originalSelectionStart.lineNumber, originalSelectionStart.column);
-
-		const model = editor.getModel();
-		const { tabSize, insertSpaces} = model.getOptions();
-
-		return getDocumentRangeFormattingEdits(model, pastedContentRange, { tabSize, insertSpaces });
 	}
 }
 

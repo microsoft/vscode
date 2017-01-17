@@ -169,6 +169,7 @@ const configurationValueWhitelist = [
 	'editor.detectIndentation',
 	'editor.formatOnType',
 	'editor.formatOnSave',
+	'editor.formatOnPaste',
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
 	'editor.mouseWheelZoom',
