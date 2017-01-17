@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
+
+export interface IConfigurationOptions {
+	language?: string;
+	section?: string;
+}
 
 export interface IConfigurationService {
 	_serviceBrand: any;
@@ -17,6 +23,7 @@ export interface IConfigurationService {
 	 * This will be an object keyed off the section name.
 	 */
 	getConfiguration<T>(section?: string): T;
+	getConfiguration<T>(options?: IConfigurationOptions): T;
 
 	/**
 	 * Resolves a configuration key to its values in the different scopes
@@ -93,4 +100,21 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 	const result = accessSetting(config, path);
 
 	return typeof result === 'undefined' ? defaultValue : result;
+}
+
+export interface IConfigModel<T> {
+	contents: T;
+	overrides: IOverrides<T>[];
+	keys: string[];
+	raw: any;
+	errors: any[];
+
+	merge(other: IConfigModel<T>, overwrite?: boolean): IConfigModel<T>;
+	config<V>(section: string): IConfigModel<V>;
+	languageConfig<V>(language: string, section?: string): IConfigModel<V>;
+}
+
+export interface IOverrides<T> {
+	contents: T;
+	languages: string[];
 }
