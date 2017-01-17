@@ -413,6 +413,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.model.mightContainRTL();
 	}
 
+	public mightContainNonBasicASCII(): boolean {
+		return this.model.mightContainNonBasicASCII();
+	}
+
 	public getLineContent(lineNumber: number): string {
 		return this.lines.getOutputLineContent(lineNumber);
 	}

@@ -206,11 +206,13 @@ export class RenderLineOutput {
 	readonly characterMapping: CharacterMapping;
 	readonly output: string;
 	readonly containsRTL: boolean;
+	readonly containsForeignElements: boolean;
 
-	constructor(characterMapping: CharacterMapping, output: string, containsRTL: boolean) {
+	constructor(characterMapping: CharacterMapping, output: string, containsRTL: boolean, containsForeignElements: boolean) {
 		this.characterMapping = characterMapping;
 		this.output = output;
 		this.containsRTL = containsRTL;
+		this.containsForeignElements = containsForeignElements;
 	}
 }
 
@@ -220,6 +222,7 @@ export function renderViewLine(input: RenderLineInput): RenderLineOutput {
 			new CharacterMapping(0, 0),
 			// This is basically for IE's hit test to work
 			'<span><span>&nbsp;</span></span>',
+			false,
 			false
 		);
 	}
@@ -234,7 +237,7 @@ class ResolvedRenderLineInput {
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
 		public readonly tokens: ViewLineToken[],
-		public readonly lineDecorations: Decoration[],
+		public readonly containsForeignElements: boolean,
 		public readonly tabSize: number,
 		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
@@ -264,7 +267,15 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
 		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, fontIsMonospace, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
+	let containsForeignElements = false;
 	if (input.lineDecorations.length > 0) {
+		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
+			const lineDecoration = input.lineDecorations[i];
+			if (lineDecoration.insertsBeforeOrAfter) {
+				containsForeignElements = true;
+				break;
+			}
+		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
 	let containsRTL = false;
@@ -281,7 +292,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len,
 		isOverflowing,
 		tokens,
-		input.lineDecorations,
+		containsForeignElements,
 		input.tabSize,
 		containsRTL,
 		input.spaceWidth,
@@ -507,6 +518,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
  */
 function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
+	const containsForeignElements = input.containsForeignElements;
 	const lineContent = input.lineContent;
 	const len = input.len;
 	const isOverflowing = input.isOverflowing;
@@ -660,5 +672,5 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 
 	out += '</span>';
 
-	return new RenderLineOutput(characterMapping, out, containsRTL);
+	return new RenderLineOutput(characterMapping, out, containsRTL, containsForeignElements);
 }

@@ -25,6 +25,7 @@ export interface IViewModel extends IEventEmitter {
 
 	getLineCount(): number;
 	mightContainRTL(): boolean;
+	mightContainNonBasicASCII(): boolean;
 	getLineContent(lineNumber: number): string;
 	getLineIndentGuide(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
