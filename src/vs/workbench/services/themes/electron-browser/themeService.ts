@@ -101,13 +101,24 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 	}
 });
 
-interface IInternalColorThemeData extends IColorTheme {
+class IInternalColorThemeData implements IColorTheme {
+	id: string;
+	label: string;
+	description?: string;
+	settings?: IThemeSetting[];
+	isLoaded: boolean;
 	path?: string;
 	styleSheetContent?: string;
 	extensionData: ExtensionData;
 }
 
-interface IInternalIconThemeData extends IFileIconTheme {
+class IInternalIconThemeData implements IFileIconTheme {
+	id: string;
+	label: string;
+	description?: string;
+	hasFileIcons?: boolean;
+	hasFolderIcons?: boolean;
+	isLoaded: boolean;
 	path?: string;
 	styleSheetContent?: string;
 	extensionData: ExtensionData;
@@ -294,7 +305,6 @@ export class ThemeService implements IThemeService {
 				$(this.container).addClass(newThemeId);
 			}
 			this.currentColorTheme = newTheme;
-			newTheme.isLoaded = true;
 
 			this.storageService.store(COLOR_THEME_PREF, newThemeId, StorageScope.GLOBAL);
 			if (broadcastToAllWindows) {
@@ -462,7 +472,6 @@ export class ThemeService implements IThemeService {
 		let onApply = (newIconTheme: IInternalIconThemeData) => {
 			if (newIconTheme) {
 				this.currentIconTheme = newIconTheme;
-				newIconTheme.isLoaded = true;
 			} else {
 				this.currentIconTheme = noFileIconTheme;
 			}
@@ -510,6 +519,7 @@ function _applyIconTheme(data: IInternalIconThemeData, onApply: (theme: IInterna
 		data.styleSheetContent = result.content;
 		data.hasFileIcons = result.hasFileIcons;
 		data.hasFolderIcons = result.hasFolderIcons;
+		data.isLoaded = true;
 		_applyRules(data.styleSheetContent, iconThemeRulesClassName);
 		return onApply(data);
 	}, error => {
@@ -699,6 +709,7 @@ function applyTheme(theme: IInternalColorThemeData, onApply: (theme: IInternalCo
 		theme.settings = themeSettings;
 		let styleSheetContent = _processThemeObject(theme.id, themeSettings);
 		theme.styleSheetContent = styleSheetContent;
+		theme.isLoaded = true;
 		_applyRules(styleSheetContent, colorThemeRulesClassName);
 		return onApply(theme);
 	}, error => {
