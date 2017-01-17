@@ -247,7 +247,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 			'default': HotExitConfiguration.ON_EXIT,
-			'description': nls.localize('hotExit', "Whether hot exit is enabled which allows changes to unsaved files to be remembered between sessions, hiding the prompt t save when exiting the editor. Selecting \"{0}\" means that hot exit will only be triggered when the application is closed (workbench.action.quit command via command pallete, keybinding of menu) and ALL windows with backups will be restored upon next launch. Selecting \"{1}\" will trigger hot exit when any FOLDER window is closed, only NON-FOLDER windows will be restored when the application is restarted (not FOLDER workspaces).", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+			'description': nls.localize('hotExit', "Whether hot exit is enabled which allows changes to unsaved files to be remembered between sessions, skipping the prompt to save when exiting the editor. Selecting \"{0}\" means that hot exit will only be triggered when the application is closed (workbench.action.quit command via command pallete, keybinding of menu) and ALL windows with backups will be restored upon next launch. Selecting \"{1}\" will trigger hot exit when any FOLDER window is closed, only NON-FOLDER windows will be restored when the application is restarted (not FOLDER workspaces).", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 		}
 	}
 });
