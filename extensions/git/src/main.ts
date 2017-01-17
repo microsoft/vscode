@@ -16,7 +16,7 @@ import { filterEvent, anyEvent, throttle } from './util';
 import * as nls from 'vscode-nls';
 import { decorate, debounce } from 'core-decorators';
 
-nls.config();
+const localize = nls.config()();
 
 class TextDocumentContentProvider {
 
@@ -100,8 +100,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const model = new Model(repositoryRoot, repository);
 	const provider = new GitSCMProvider(model);
 
-	const outputChannel = window.createOutputChannel('git');
-	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
+	const outputChannel = window.createOutputChannel('Git');
+	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
 	const fsWatcher = workspace.createFileSystemWatcher('**');
