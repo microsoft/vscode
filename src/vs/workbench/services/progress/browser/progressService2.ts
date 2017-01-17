@@ -7,7 +7,7 @@
 import 'vs/css!vs/workbench/services/progress/browser/media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgress, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -94,14 +94,19 @@ export class ProgressService2 implements IProgressService2 {
 		viewletProgress.showWhile(promise);
 
 		// show activity bar
-		const activityProgress = this._activityBar.showActivity(
-			viewletId,
-			new ProgressBadge(() => '...'),
-			'progress-badge'
-		);
+		let activityProgress: IDisposable;
+		let delayHandle = setTimeout(() => {
+			delayHandle = undefined;
+			activityProgress = this._activityBar.showActivity(
+				viewletId,
+				new ProgressBadge(() => '...'),
+				'progress-badge'
+			);
+		}, 200);
 
 		always(promise, () => {
-			activityProgress.dispose();
+			clearTimeout(delayHandle);
+			dispose(activityProgress);
 		});
 	}
 }
