@@ -128,6 +128,7 @@ export class SyncStatusBar {
 		}
 
 		if (this.state.isSyncRunning) {
+			text = '';
 			command = '';
 			tooltip = 'Synchronizing changes...';
 		}
