@@ -335,16 +335,22 @@ export interface IRawAdapter extends IRawEnvAdapter {
 export interface IConfigurationManager {
 
 	/**
-	 * Returns a resolved debug configuration.
-	 * If nameOrConfig is null resolves the first configuration and returns it.
+	 * Returns a configuration with the specified name.
+	 * Returns null if there is no configuration with the specified name.
 	 */
-	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+	getConfiguration(name: string): IConfig;
 
 	/**
 	 * Returns the names of all configurations and compounds.
 	 * Ignores configurations which are invalid.
 	 */
 	getConfigurationNames(): string[];
+
+	/**
+	 * Returns the resolved configuration.
+	 * Replaces os specific values, system variables, interactive variables.
+	 */
+	resloveConfiguration(config: IConfig): TPromise<IConfig>;
 
 	/**
 	 * Returns a compound with the specified name.

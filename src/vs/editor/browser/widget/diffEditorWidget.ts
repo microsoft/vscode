@@ -1889,6 +1889,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
 		let r = renderViewLine(new RenderLineInput(
+			config.fontInfo.isMonospace,
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,

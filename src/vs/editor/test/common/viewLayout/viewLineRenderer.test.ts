@@ -17,6 +17,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[][], expectedPartLengts: number[]): void {
 		let _actual = renderViewLine(new RenderLineInput(
+			false,
 			lineContent,
 			false,
 			0,
@@ -63,6 +64,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[][], expectedPartLengts: number[]): void {
 		let _actual = renderViewLine(new RenderLineInput(
+			false,
 			lineContent,
 			false,
 			0,
@@ -98,6 +100,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 	test('overflow', () => {
 		let _actual = renderViewLine(new RenderLineInput(
+			false,
 			'Hello world!',
 			false,
 			0,
@@ -195,6 +198,7 @@ suite('viewLineRenderer.renderLine', () => {
 		];
 
 		let _actual = renderViewLine(new RenderLineInput(
+			false,
 			lineText,
 			false,
 			0,
@@ -253,6 +257,7 @@ suite('viewLineRenderer.renderLine', () => {
 		];
 
 		let _actual = renderViewLine(new RenderLineInput(
+			false,
 			lineText,
 			false,
 			0,
@@ -311,6 +316,7 @@ suite('viewLineRenderer.renderLine', () => {
 		];
 
 		let _actual = renderViewLine(new RenderLineInput(
+			false,
 			lineText,
 			false,
 			0,
@@ -346,6 +352,7 @@ suite('viewLineRenderer.renderLine', () => {
 		].join('');
 
 		let _actual = renderViewLine(new RenderLineInput(
+			false,
 			lineText,
 			true,
 			0,
@@ -371,6 +378,7 @@ suite('viewLineRenderer.renderLine', () => {
 		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
 			let lineParts = [createPart(lineText.length, 'mtk1')];
 			let actual = renderViewLine(new RenderLineInput(
+				false,
 				lineText,
 				false,
 				0,
@@ -464,6 +472,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span dir="ltr" class="mtk1">את&nbsp;גרמנית&nbsp;בהתייחסות&nbsp;שמו,&nbsp;שנתי&nbsp;המשפט&nbsp;אל&nbsp;חפש,&nbsp;אם&nbsp;כתב&nbsp;אחרים&nbsp;ולחבר.&nbsp;של&nbsp;התוכן&nbsp;אודות&nbsp;בויקיפדיה&nbsp;כלל,&nbsp;של&nbsp;עזרה&nbsp;כימיה&nbsp;היא.&nbsp;על&nbsp;עמוד&nbsp;יוצרים&nbsp;מיתולוגיה&nbsp;סדר,&nbsp;אם&nbsp;שכל&nbsp;שתפו&nbsp;לעברית&nbsp;שינויים,&nbsp;אם&nbsp;שאלות&nbsp;אנגלית&nbsp;עזה.&nbsp;שמות&nbsp;בקלות&nbsp;מה&nbsp;סדר.</span>'
 		];
 		let actual = renderViewLine(new RenderLineInput(
+			false,
 			lineText,
 			true,
 			0,

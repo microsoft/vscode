@@ -17,6 +17,7 @@ export const enum RenderWhitespace {
 
 export class RenderLineInput {
 
+	public readonly fontIsMonospace: boolean;
 	public readonly lineContent: string;
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
@@ -29,6 +30,7 @@ export class RenderLineInput {
 	public readonly renderControlCharacters: boolean;
 
 	constructor(
+		fontIsMonospace: boolean,
 		lineContent: string,
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
@@ -40,6 +42,7 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
 	) {
+		this.fontIsMonospace = fontIsMonospace;
 		this.lineContent = lineContent;
 		this.mightContainRTL = mightContainRTL;
 		this.fauxIndentLength = fauxIndentLength;
@@ -60,7 +63,8 @@ export class RenderLineInput {
 
 	public equals(other: RenderLineInput): boolean {
 		return (
-			this.lineContent === other.lineContent
+			this.fontIsMonospace === other.fontIsMonospace
+			&& this.lineContent === other.lineContent
 			&& this.mightContainRTL === other.mightContainRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
 			&& this.tabSize === other.tabSize
@@ -225,6 +229,7 @@ export function renderViewLine(input: RenderLineInput): RenderLineOutput {
 
 class ResolvedRenderLineInput {
 	constructor(
+		public readonly fontIsMonospace: boolean,
 		public readonly lineContent: string,
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
@@ -241,6 +246,7 @@ class ResolvedRenderLineInput {
 }
 
 function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput {
+	const fontIsMonospace = input.fontIsMonospace;
 	const lineContent = input.lineContent;
 
 	let isOverflowing: boolean;
@@ -256,7 +262,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 	let tokens = removeOverflowing(input.lineTokens, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
-		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, input.renderWhitespace === RenderWhitespace.Boundary);
+		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, fontIsMonospace, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
 	if (input.lineDecorations.length > 0) {
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
@@ -270,6 +276,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	}
 
 	return new ResolvedRenderLineInput(
+		fontIsMonospace,
 		lineContent,
 		len,
 		isOverflowing,
@@ -351,7 +358,7 @@ function splitLargeTokens(tokens: ViewLineToken[]): ViewLineToken[] {
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
-function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, onlyBoundary: boolean): ViewLineToken[] {
+function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, fontIsMonospace: boolean, onlyBoundary: boolean): ViewLineToken[] {
 
 	let result: ViewLineToken[] = [], resultLen = 0;
 	let tokenIndex = 0;
@@ -413,7 +420,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 
 		if (wasInWhitespace) {
 			// was in whitespace token
-			if (!isInWhitespace || tmpIndent >= tabSize) {
+			if (!isInWhitespace || (!fontIsMonospace && tmpIndent >= tabSize)) {
 				// leaving whitespace token or entering a new indent
 				result[resultLen++] = new ViewLineToken(charIndex, 'vs-whitespace');
 				tmpIndent = tmpIndent % tabSize;
@@ -499,6 +506,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
  * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
  */
 function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
+	const fontIsMonospace = input.fontIsMonospace;
 	const lineContent = input.lineContent;
 	const len = input.len;
 	const isOverflowing = input.isOverflowing;
@@ -555,7 +563,11 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 			}
 
 			characterMapping.setPartLength(tokenIndex, partContentCnt);
-			out += `<span class="${tokenType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
+			if (fontIsMonospace) {
+				out += `<span class="${tokenType}">${partContent}</span>`;
+			} else {
+				out += `<span class="${tokenType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
+			}
 
 		} else {
 
