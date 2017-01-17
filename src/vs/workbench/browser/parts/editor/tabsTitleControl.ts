@@ -280,8 +280,8 @@ export class TabsTitleControl extends TitleControl {
 		// Mark duplicates and shorten their descriptions
 		const labelDuplicates = mapLabelToDuplicates.values();
 		labelDuplicates.forEach(duplicates => {
-			if (duplicates.length > 1 && duplicates.every(duplicate => typeof duplicate.editor.getDescription() === 'string')) {
-				let shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+			if (duplicates.length > 1) {
+				const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
 				duplicates.forEach((duplicate, i) => {
 					duplicate.description = shortenedDescriptions[i];
 					duplicate.hasAmbiguousName = true;
