@@ -50,7 +50,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@IThemeService private themeService: IThemeService,
 		@IModeService private modeService: IModeService
 	) {
@@ -62,6 +62,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	protected get instantiationService(): IInstantiationService {
 		return this._instantiationService;
+	}
+
+	protected get configurationService(): IConfigurationService {
+		return this._configurationService;
 	}
 
 	private handleConfigurationChangeEvent(configuration: IEditorConfiguration): void {
@@ -94,22 +98,24 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Specific editor options always overwrite user configuration
 		const editorConfiguration = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
-		const language = this.getLanguage();
-		if (language) {
-			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ language, section: 'editor' }));
-		}
 		objects.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		return editorConfiguration;
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
-		return {
+		const overrides = {};
+		const language = this.getLanguage();
+		if (language) {
+			objects.assign(overrides, this.configurationService.getConfiguration<IEditorConfiguration>({ language, section: 'editor' }));
+		}
+		objects.assign(overrides, {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			theme: this.themeService.getColorTheme(),
 			fixedOverflowWidgets: true
-		};
+		});
+		return overrides;
 	}
 
 	protected createEditor(parent: Builder): void {
@@ -227,7 +233,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.editorControl.updateOptions(this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
 	}
 
-	private getLanguage(): string {
+	protected getLanguage(): string {
 		const codeEditor = getCodeEditor(this);
 		if (codeEditor) {
 			const model = codeEditor.getModel();

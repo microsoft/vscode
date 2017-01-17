@@ -203,6 +203,11 @@ export class TextDiffEditor extends BaseTextEditor {
 			objects.mixin(editorConfiguration, configuration.diffEditor);
 		}
 
+		const language = this.getLanguage();
+		if (language) {
+			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ language, section: 'diffEditor' }));
+		}
+
 		return editorConfiguration;
 	}
 
