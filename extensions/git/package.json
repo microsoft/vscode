@@ -23,7 +23,7 @@
     "commands": [
       {
         "command": "git.refresh",
-        "title": "Refresh",
+        "title": "%command.refresh%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/refresh.svg",
@@ -32,17 +32,17 @@
       },
       {
         "command": "git.openChange",
-        "title": "Open Change",
+        "title": "%command.openChange%",
         "category": "Git"
       },
       {
         "command": "git.openFile",
-        "title": "Open File",
+        "title": "%command.openFile%",
         "category": "Git"
       },
       {
         "command": "git.stage",
-        "title": "Stage",
+        "title": "%command.stage%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/stage.svg",
@@ -51,7 +51,7 @@
       },
       {
         "command": "git.stageAll",
-        "title": "Stage All",
+        "title": "%command.stageAll%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/stage.svg",
@@ -60,7 +60,7 @@
       },
       {
         "command": "git.unstage",
-        "title": "Unstage",
+        "title": "%command.unstage%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/unstage.svg",
@@ -69,7 +69,7 @@
       },
       {
         "command": "git.unstageAll",
-        "title": "Unstage All",
+        "title": "%command.unstageAll%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/unstage.svg",
@@ -78,7 +78,7 @@
       },
       {
         "command": "git.clean",
-        "title": "Clean",
+        "title": "%command.clean%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -87,7 +87,7 @@
       },
       {
         "command": "git.cleanAll",
-        "title": "Clean All",
+        "title": "%command.cleanAll%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -96,72 +96,72 @@
       },
       {
         "command": "git.commitStaged",
-        "title": "Commit Staged",
+        "title": "%command.commitStaged%",
         "category": "Git"
       },
       {
         "command": "git.commitStagedSigned",
-        "title": "Commit Staged (Signed Off)",
+        "title": "%command.commitStagedSigned%",
         "category": "Git"
       },
       {
         "command": "git.commitAll",
-        "title": "Commit All",
+        "title": "%command.commitAll%",
         "category": "Git"
       },
       {
         "command": "git.commitAllSigned",
-        "title": "Commit All (Signed Off)",
+        "title": "%command.commitAllSigned%",
         "category": "Git"
       },
       {
         "command": "git.undoCommit",
-        "title": "Undo Last Commit",
+        "title": "%command.undoCommit%",
         "category": "Git"
       },
       {
         "command": "git.checkout",
-        "title": "Checkout to...",
+        "title": "%command.checkout%",
         "category": "Git"
       },
       {
         "command": "git.branch",
-        "title": "Create Branch...",
+        "title": "%command.branch%",
         "category": "Git"
       },
       {
         "command": "git.pull",
-        "title": "Pull",
+        "title": "%command.pull%",
         "category": "Git"
       },
       {
         "command": "git.pullRebase",
-        "title": "Pull (Rebase)",
+        "title": "%command.pullRebase%",
         "category": "Git"
       },
       {
         "command": "git.push",
-        "title": "Push",
+        "title": "%command.push%",
         "category": "Git"
       },
       {
         "command": "git.pushTo",
-        "title": "Push to...",
+        "title": "%command.pushTo%",
         "category": "Git"
       },
       {
         "command": "git.sync",
-        "title": "Sync",
+        "title": "%command.sync%",
         "category": "Git"
       },
       {
         "command": "git.publish",
-        "title": "Publish",
+        "title": "%command.publish%",
         "category": "Git"
       },
       {
         "command": "git.showOutput",
-        "title": "Show Git Output",
+        "title": "%command.showOutput%",
         "category": "Git"
       }
     ],
@@ -352,7 +352,7 @@
       {
         "id": "git-commit",
         "aliases": [
-          "Git Commit Message",
+          "%language-alias.git-commit%",
           "git-commit"
         ],
         "filenames": [
@@ -364,7 +364,7 @@
       {
         "id": "git-rebase",
         "aliases": [
-          "Git Rebase Message",
+          "%language-alias.git-rebase%",
           "git-rebase"
         ],
         "filenames": [
