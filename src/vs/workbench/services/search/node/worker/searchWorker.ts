@@ -167,7 +167,7 @@ export class SearchWorkerEngine {
 		return new TPromise<void>((resolve, reject) => {
 			fs.open(filename, 'r', null, (error: Error, fd: number) => {
 				if (error) {
-					return reject(error);
+					return resolve(null);
 				}
 
 				let buffer = new Buffer(options.bufferLength);
@@ -177,7 +177,7 @@ export class SearchWorkerEngine {
 				let lineNumber = 0;
 				let lastBufferHadTraillingCR = false;
 
-				const decodeBuffer = (buffer: NodeBuffer, start, end): string => {
+				const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
 					if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
 						return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
 					}
@@ -275,7 +275,7 @@ export class SearchWorkerEngine {
 
 				readFile(/*isFirstRead=*/true, (error: Error) => {
 					if (error) {
-						return reject(error);
+						return resolve(null);
 					}
 
 					if (line.length) {
@@ -283,11 +283,7 @@ export class SearchWorkerEngine {
 					}
 
 					fs.close(fd, (error: Error) => {
-						if (error) {
-							reject(error);
-						} else {
-							resolve(null);
-						}
+						resolve(null);
 					});
 				});
 			});

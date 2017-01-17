@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as timer from 'vs/base/common/timer';
 import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
+import { virtualMachineHint } from 'vs/base/node/id';
 
 import * as os from 'os';
 
@@ -13,21 +13,15 @@ export class TimerService implements ITimerService {
 
 	public _serviceBrand: any;
 
-	public get start(): Date { return this._start; }
-	private _start: Date;
+	public readonly start: Date;
+	public readonly appReady: Date;
+	public readonly windowLoad: Date;
 
-	public get windowLoad(): Date { return this._windowLoad; };
-	private _windowLoad: Date;
+	public readonly beforeLoadWorkbenchMain: Date;
+	public readonly afterLoadWorkbenchMain: Date;
 
-	public get beforeLoadWorkbenchMain(): Date { return this._beforeLoadWorkbenchMain; };
-	private _beforeLoadWorkbenchMain: Date;
-	public get afterLoadWorkbenchMain(): Date { return this._afterLoadWorkbenchMain; };
-	private _afterLoadWorkbenchMain: Date;
-
-	public get isInitialStartup(): boolean { return this._isInitialStartup; };
-	private _isInitialStartup: boolean;
-	public get hasAccessibilitySupport(): boolean { return this._hasAccessibilitySupport; };
-	private _hasAccessibilitySupport: boolean;
+	public readonly isInitialStartup: boolean;
+	public readonly hasAccessibilitySupport: boolean;
 
 	public beforeDOMContentLoaded: Date;
 	public afterDOMContentLoaded: Date;
@@ -51,18 +45,15 @@ export class TimerService implements ITimerService {
 	private _startupMetrics: IStartupMetrics;
 
 	constructor(initData: IInitData, private isEmptyWorkbench: boolean) {
-		this._start = initData.start;
+		this.start = initData.start;
+		this.appReady = initData.appReady;
+		this.windowLoad = initData.windowLoad;
 
-		this._windowLoad = initData.windowLoad;
+		this.beforeLoadWorkbenchMain = initData.beforeLoadWorkbenchMain;
+		this.afterLoadWorkbenchMain = initData.afterLoadWorkbenchMain;
 
-		this._beforeLoadWorkbenchMain = initData.beforeLoadWorkbenchMain;
-		this._afterLoadWorkbenchMain = initData.afterLoadWorkbenchMain;
-
-		this._isInitialStartup = initData.isInitialStartup;
-		this._hasAccessibilitySupport = initData.hasAccessibilitySupport;
-
-		// forward start time to time keeper
-		timer.TimeKeeper.PARSE_TIME = initData.isInitialStartup ? initData.start : initData.windowLoad;
+		this.isInitialStartup = initData.isInitialStartup;
+		this.hasAccessibilitySupport = initData.hasAccessibilitySupport;
 	}
 
 	public computeStartupMetrics(): void {
@@ -77,6 +68,7 @@ export class TimerService implements ITimerService {
 		let release: string;
 		let loadavg: number[];
 		let meminfo: IMemoryInfo;
+		let isVMLikelyhood: number;
 
 		try {
 			totalmem = os.totalmem();
@@ -85,6 +77,8 @@ export class TimerService implements ITimerService {
 			release = os.release();
 			loadavg = os.loadavg();
 			meminfo = process.getProcessMemoryInfo();
+
+			isVMLikelyhood = Math.round((virtualMachineHint.value() * 100));
 
 			const rawCpus = os.cpus();
 			if (rawCpus && rawCpus.length > 0) {
@@ -115,12 +109,14 @@ export class TimerService implements ITimerService {
 			cpus,
 			loadavg,
 			initialStartup,
+			isVMLikelyhood,
 			hasAccessibilitySupport: !!this.hasAccessibilitySupport,
 			emptyWorkbench: this.isEmptyWorkbench
 		};
 
 		if (initialStartup) {
-			this._startupMetrics.timers.ellapsedWindowLoad = Math.round(this.windowLoad.getTime() - this.start.getTime());
+			this._startupMetrics.timers.ellapsedAppReady = Math.round(this.appReady.getTime() - this.start.getTime());
+			this._startupMetrics.timers.ellapsedWindowLoad = Math.round(this.windowLoad.getTime() - this.appReady.getTime());
 		}
 	}
 }

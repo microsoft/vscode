@@ -20,6 +20,8 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostTreeExplorers } from 'vs/workbench/api/node/extHostTreeExplorers';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
+import { ExtHostProgress } from 'vs/workbench/api/node/extHostProgress';
+import { ExtHostSCM } from 'vs/workbench/api/node/extHostSCM';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostStatusBar } from 'vs/workbench/api/node/extHostStatusBar';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -59,6 +61,33 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	}
 }
 
+function proposed(extension: IExtensionDescription): Function {
+	return (target: any, key: string, descriptor: any) => {
+		let fnKey: string = null;
+		let fn: Function = null;
+
+		if (typeof descriptor.value === 'function') {
+			fnKey = 'value';
+			fn = descriptor.value;
+		} else if (typeof descriptor.get === 'function') {
+			fnKey = 'get';
+			fn = descriptor.get;
+		}
+
+		if (!fn) {
+			throw new Error('not supported');
+		}
+
+		if (extension.enableProposedApi) {
+			return;
+		}
+
+		descriptor[fnKey] = () => {
+			throw new Error(`${extension.id} cannot access proposed api`);
+		};
+	};
+}
+
 /**
  * This method instantiates and returns the extension API surface
  */
@@ -78,14 +107,16 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 	const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
 	const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
 	const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
+	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService));
 	col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 	col.finish(false, threadService);
 
 	// Other instances
 	const extHostMessageService = new ExtHostMessageService(threadService);
 	const extHostStatusBar = new ExtHostStatusBar(threadService);
+	const extHostProgress = new ExtHostProgress(threadService.get(MainContext.MainThreadProgress));
 	const extHostOutputService = new ExtHostOutputService(threadService);
-	const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
+	const workspacePath = contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 	const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 	const extHostLanguages = new ExtHostLanguages(threadService);
 
@@ -96,7 +127,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 
 		if (extension.enableProposedApi) {
 
-			if (!initData.environment.enableProposedApi) {
+			if (!initData.environment.enableProposedApi && !extension.isBuiltin) {
 				extension.enableProposedApi = false;
 				console.warn('PROPOSED API is only available when developing an extension');
 
@@ -179,6 +210,9 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			},
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return languageFeatures.registerDefinitionProvider(selector, provider);
+			},
+			registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
+				return languageFeatures.registerTypeDefinitionProvider(selector, provider);
 			},
 			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
 				return languageFeatures.registerHoverProvider(selector, provider);
@@ -274,11 +308,20 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
 			},
+			withWindowProgress: proposedApiFunction(extension, <R>(task: (progress: vscode.Progress<string>, token: vscode.CancellationToken) => Thenable<R>): Thenable<R> => {
+				return extHostProgress.withWindowProgress(extension, task);
+			}),
+			withScmProgress: proposedApiFunction(extension, (task: (progress: vscode.Progress<number>) => Thenable<any>) => {
+				return extHostProgress.withScmProgress(extension, task);
+			}),
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
 			},
-			createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
-				return extHostTerminalService.createTerminal(name, shellPath, shellArgs);
+			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+				if (typeof nameOrOptions === 'object') {
+					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
+				}
+				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
@@ -358,6 +401,32 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 		};
 
+		class SCM {
+
+			@proposed(extension)
+			get activeProvider() {
+				return extHostSCM.activeProvider;
+			}
+
+			@proposed(extension)
+			get onDidChangeActiveProvider() {
+				return extHostSCM.onDidChangeActiveProvider;
+			}
+
+			@proposed(extension)
+			getResourceFromURI(uri) {
+				return extHostSCM.getResourceFromURI(uri);
+			}
+
+			@proposed(extension)
+			registerSCMProvider(id, provider) {
+				return extHostSCM.registerSCMProvider(id, provider);
+			}
+		}
+
+		// namespace: scm
+		const scm: typeof vscode.scm = new SCM();
+
 		return {
 			version: pkg.version,
 			// namespaces
@@ -367,6 +436,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			languages,
 			window,
 			workspace,
+			scm,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
@@ -466,7 +536,7 @@ function createExtensionPathIndex(extensionService: ExtHostExtensionService): TP
 function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
-	const extApiImpl: { [id: string]: typeof vscode } = Object.create(null);
+	const extApiImpl = new Map<string, typeof vscode>();
 	let defaultApiImpl: typeof vscode;
 
 	const node_module = <any>require.__$__nodeRequire('module');
@@ -479,9 +549,10 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExten
 		// get extension id from filename and api for extension
 		const ext = extensionPaths.findSubstr(parent.filename);
 		if (ext) {
-			let apiImpl = extApiImpl[ext.id];
+			let apiImpl = extApiImpl.get(ext.id);
 			if (!apiImpl) {
-				apiImpl = extApiImpl[ext.id] = factory(ext);
+				apiImpl = factory(ext);
+				extApiImpl.set(ext.id, apiImpl);
 			}
 			return apiImpl;
 		}

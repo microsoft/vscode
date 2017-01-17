@@ -19,7 +19,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { CloseEditorAction, KeybindingsReferenceAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext, NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -37,6 +37,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Switch
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issues', helpCategory);
 }
 if (KeybindingsReferenceAction.AVAILABLE) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(KeybindingsReferenceAction, KeybindingsReferenceAction.ID, KeybindingsReferenceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_R) }), 'Help: Keyboard Shortcuts Reference', helpCategory);
@@ -171,9 +172,36 @@ configurationRegistry.registerConfiguration({
 // Configuration: Window
 let properties: { [path: string]: IJSONSchema; } = {
 	'window.openFilesInNewWindow': {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
+		'type': 'string',
+		'enum': ['on', 'off', 'default'],
+		'default': 'default',
+		'description': platform.isMacintosh ?
+			nls.localize('openFilesInNewWindowMac',
+				`Controls if files should open in a new window or the last active window.
+- default: files will open in the last active window unless opened via the dock or from finder
+- on: files will open in a new window
+- off: files will open in the last active window
+Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
+			) :
+			nls.localize('openFilesInNewWindow',
+				`Controls if files should open in a new window or the last active window.
+- default: files will open in the last active window
+- on: files will open in a new window
+- off: files will open in the last active window
+Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
+			)
+	},
+	'window.openFoldersInNewWindow': {
+		'type': 'string',
+		'enum': ['on', 'off', 'default'],
+		'default': 'default',
+		'description': nls.localize('openFoldersInNewWindow',
+			`Controls if folders should open in a new window or the last active window.
+- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)
+- on: folders will open in a new window
+- off: folders will open in the last active window
+Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
+		)
 	},
 	'window.reopenFolders': {
 		'type': 'string',
@@ -186,11 +214,6 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'default': false,
 		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
 	},
-	'window.fullScreenZenMode': {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('fullScreenZenMode', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
-	},
 	'window.zoomLevel': {
 		'type': 'number',
 		'default': 0,
@@ -200,8 +223,23 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'boolean',
 		'default': false,
 		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
-	}
+	},
+	'window.newWindowDimensions': {
+		'type': 'string',
+		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
+		'default': 'default',
+		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window. By default, a new window will open in the center of the screen with small dimensions. When set to  'inherit', the window will get the same dimensions as the last active one. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'.")
+	},
 };
+
+if (platform.isWindows || platform.isLinux) {
+	properties['window.menuBarVisibility'] = {
+		'type': 'string',
+		'enum': ['visible', 'toggle', 'hidden'],
+		'default': 'visible',
+		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that a single press of the alt key will show and hide the menu bar.")
+	};
+}
 
 if (platform.isWindows) {
 	properties['window.autoDetectHighContrast'] = {
@@ -226,4 +264,29 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('windowConfigurationTitle', "Window"),
 	'type': 'object',
 	'properties': properties
+});
+
+// Configuration: Zen Mode
+configurationRegistry.registerConfiguration({
+	'id': 'zenMode',
+	'order': 9,
+	'title': nls.localize('zenModeConfigurationTitle', "Zen Mode"),
+	'type': 'object',
+	'properties': {
+		'zenMode.fullScreen': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.fullScreen', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
+		},
+		'zenMode.hideTabs': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideTabs', "Controls if turning on Zen Mode also hides workbench tabs.")
+		},
+		'zenMode.hideStatusBar': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+		}
+	}
 });

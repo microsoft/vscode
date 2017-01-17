@@ -69,7 +69,7 @@
 	"RunTaskAction.label": "运行任务",
 	"ShowLogAction.label": "显示任务日志",
 	"TaskSystem.active": "当前有正在运行的任务处于活动状态。请先终止它，然后执行另外一项任务。",
-	"TaskSystem.activeSame": "任务已处于活动状态并处于监视模式。若要终止任务，请使用“F1”>“终止任务”",
+	"TaskSystem.activeSame": "任务已处于活动状态并处于监视模式。若要终止任务，请使用 \"F1\" >“终止任务”",
 	"TaskSystem.exitAnyways": "仍然退出(&&E)",
 	"TaskSystem.invalidTaskJson": "错误: tasks.json 文件的内容具有语法错误。请先更正错误然后再执行任务。\n",
 	"TaskSystem.noBuildType": "未配置任何有效的任务运行程序。支持的任务运行程序是“服务”和“程序”。",

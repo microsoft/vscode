@@ -24,8 +24,11 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ExtensionsActions Test', () => {
 
@@ -46,6 +49,8 @@ suite('ExtensionsActions Test', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 

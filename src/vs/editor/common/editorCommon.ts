@@ -10,8 +10,8 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { IMode } from 'vs/editor/common/modes';
-import { LineTokens, StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -20,6 +20,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 
 /**
  * @internal
@@ -242,10 +243,9 @@ export interface IEditorOptions {
 	 */
 	roundedSelection?: boolean;
 	/**
-	 * Theme to be used for rendering. Consists of two parts, the UI theme and the syntax theme,
-	 * separated by a space.
-	 * The current available UI themes are: 'vs' (default), 'vs-dark', 'hc-black'
-	 * The syntax themes are contributed. The default is 'default-theme'
+	 * Theme to be used for rendering.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 */
 	theme?: string;
 	/**
@@ -403,6 +403,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	acceptSuggestionOnEnter?: boolean;
+	/**
+	 * Accept suggestions on provider defined characters.
+	 * Defaults to true.
+	 */
+	acceptSuggestionOnCommitCharacter?: boolean;
 	/**
 	 * Enable snippet suggestions. Default to 'true'.
 	 */
@@ -881,6 +886,7 @@ export class EditorContribOptions {
 	readonly formatOnType: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
+	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
@@ -905,6 +911,7 @@ export class EditorContribOptions {
 		formatOnType: boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
+		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
@@ -925,6 +932,7 @@ export class EditorContribOptions {
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
@@ -951,6 +959,7 @@ export class EditorContribOptions {
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion
@@ -1129,9 +1138,8 @@ export interface IModelDecorationOptions {
 	className?: string;
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
-	 * @internal
 	 */
-	glyphMarginHoverMessage?: string;
+	glyphMarginHoverMessage?: MarkedString | MarkedString[];
 	/**
 	 * Array of MarkedString to render as the decoration message.
 	 */
@@ -1294,7 +1302,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	readonly standardType: StandardTokenType;
+	readonly type: StandardTokenType;
 	readonly lineNumber: number;
 	readonly startColumn: number;
 	readonly endColumn: number;
@@ -1566,6 +1574,11 @@ export interface ITextModel {
 	 */
 	mightContainRTL(): boolean;
 
+	/**
+	 * @internal
+	 */
+	mightContainNonBasicASCII(): boolean;
+
 	getOptions(): TextModelResolvedOptions;
 
 	/**
@@ -1589,6 +1602,7 @@ export interface ITextModel {
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
+	 * @internal
 	 */
 	setValueFromRawText(newValue: IRawText): void;
 
@@ -1607,11 +1621,13 @@ export interface ITextModel {
 
 	/**
 	 * Get the raw text stored in this model.
+	 * @internal
 	 */
 	toRawText(): IRawText;
 
 	/**
 	 * Check if the raw text stored in this model equals another raw text.
+	 * @internal
 	 */
 	equals(other: IRawText): boolean;
 
@@ -1773,10 +1789,11 @@ export interface ITextModel {
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
 	 * @param wholeWord Force the matching to match entire words only.
+	 * @param captureMatches The result will contain the captured groups.
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if not matches have been found.
 	 */
-	findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+	findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1784,10 +1801,11 @@ export interface ITextModel {
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
 	 * @param wholeWord Force the matching to match entire words only.
+	 * @param captureMatches The result will contain the captured groups.
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if no matches have been found.
 	 */
-	findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+	findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 	/**
 	 * Search the model for the next match. Loops to the beginning of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1795,9 +1813,10 @@ export interface ITextModel {
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
 	 * @param wholeWord Force the matching to match entire words only.
+	 * @param captureMatches The result will contain the captured groups.
 	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
-	findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
+	findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
 	/**
 	 * Search the model for the previous match. Loops to the end of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1805,9 +1824,25 @@ export interface ITextModel {
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
 	 * @param wholeWord Force the matching to match entire words only.
+	 * @param captureMatches The result will contain the captured groups.
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
-	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
+	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
+}
+
+export class FindMatch {
+	_findMatchBrand: void;
+
+	public readonly range: Range;
+	public readonly matches: string[];
+
+	/**
+	 * @internal
+	 */
+	constructor(range: Range, matches: string[]) {
+		this.range = range;
+		this.matches = matches;
+	}
 }
 
 export interface IReadOnlyModel extends ITextModel {
@@ -1815,6 +1850,12 @@ export interface IReadOnlyModel extends ITextModel {
 	 * Gets the resource associated with this editor model.
 	 */
 	readonly uri: URI;
+
+	/**
+	 * Get the language associated with this model.
+	 * @internal
+	 */
+	getLanguageIdentifier(): LanguageIdentifier;
 
 	/**
 	 * Get the language associated with this model.
@@ -1862,9 +1903,10 @@ export interface ITokenizedModel extends ITextModel {
 	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
 
 	/**
-	 * Get the current language mode associated with the model.
+	 * Get the language associated with this model.
+	 * @internal
 	 */
-	getMode(): IMode;
+	getLanguageIdentifier(): LanguageIdentifier;
 
 	/**
 	 * Get the language associated with this model.
@@ -1875,13 +1917,13 @@ export interface ITokenizedModel extends ITextModel {
 	 * Set the current language mode associated with the model.
 	 * @internal
 	 */
-	setMode(languageId: string): void;
+	setMode(languageIdentifier: LanguageIdentifier): void;
 
 	/**
 	 * Returns the true (inner-most) language mode at a given position.
 	 * @internal
 	 */
-	getModeIdAtPosition(lineNumber: number, column: number): string;
+	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -2173,7 +2215,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * An event emitted when the language associated with the model has changed.
 	 * @event
 	 */
-	onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event
@@ -2223,15 +2265,15 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 /**
  * An event describing that the current mode associated with a model has changed.
  */
-export interface IModelModeChangedEvent {
+export interface IModelLanguageChangedEvent {
 	/**
-	 * Previous mode
+	 * Previous language
 	 */
-	readonly oldMode: IMode;
+	readonly oldLanguage: string;
 	/**
-	 * New mode
+	 * New language
 	 */
-	readonly newMode: IMode;
+	readonly newLanguage: string;
 }
 
 /**
@@ -2296,6 +2338,7 @@ export interface IModelContentChangedEvent {
 
 /**
  * The raw text backing a model.
+ * @internal
  */
 export interface IRawText {
 	/**
@@ -2318,6 +2361,10 @@ export interface IRawText {
 	 * The text contains Unicode characters classified as "R" or "AL".
 	 */
 	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
 	/**
 	 * The options associated with this text.
 	 */
@@ -3040,6 +3087,10 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
+	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
+	/**
+	 * @internal
+	 */
 	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
 	/**
 	 * @internal
@@ -3071,88 +3122,7 @@ export namespace ModeContextKeys {
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
 }
 
-export class BareFontInfo {
-	readonly _bareFontInfoBrand: void;
 
-	readonly fontFamily: string;
-	readonly fontWeight: string;
-	readonly fontSize: number;
-	readonly lineHeight: number;
-
-	/**
-	 * @internal
-	 */
-	constructor(opts: {
-		fontFamily: string;
-		fontWeight: string;
-		fontSize: number;
-		lineHeight: number;
-	}) {
-		this.fontFamily = String(opts.fontFamily);
-		this.fontWeight = String(opts.fontWeight);
-		this.fontSize = opts.fontSize;
-		this.lineHeight = opts.lineHeight | 0;
-	}
-
-	/**
-	 * @internal
-	 */
-	public getId(): string {
-		return this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight + '-';
-	}
-}
-
-export class FontInfo extends BareFontInfo {
-	readonly _editorStylingBrand: void;
-
-	readonly typicalHalfwidthCharacterWidth: number;
-	readonly typicalFullwidthCharacterWidth: number;
-	readonly spaceWidth: number;
-	readonly maxDigitWidth: number;
-
-	/**
-	 * @internal
-	 */
-	constructor(opts: {
-		fontFamily: string;
-		fontWeight: string;
-		fontSize: number;
-		lineHeight: number;
-		typicalHalfwidthCharacterWidth: number;
-		typicalFullwidthCharacterWidth: number;
-		spaceWidth: number;
-		maxDigitWidth: number;
-	}) {
-		super(opts);
-		this.typicalHalfwidthCharacterWidth = opts.typicalHalfwidthCharacterWidth;
-		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
-		this.spaceWidth = opts.spaceWidth;
-		this.maxDigitWidth = opts.maxDigitWidth;
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: FontInfo): boolean {
-		return (
-			this.fontFamily === other.fontFamily
-			&& this.fontWeight === other.fontWeight
-			&& this.fontSize === other.fontSize
-			&& this.lineHeight === other.lineHeight
-			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
-			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
-			&& this.spaceWidth === other.spaceWidth
-			&& this.maxDigitWidth === other.maxDigitWidth
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): FontInfo {
-		return new FontInfo(this);
-	}
-}
 
 /**
  * @internal
@@ -3426,7 +3396,7 @@ export interface IEditor {
 	 * An event emitted when the language of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the options of the current model has changed.
 	 * @event
@@ -3511,7 +3481,7 @@ export interface IEditor {
 	/**
 	 * Add a new action to this editor.
 	 */
-	addAction(descriptor: IActionDescriptor): void;
+	addAction(descriptor: IActionDescriptor): IDisposable;
 
 	/**
 	 * Returns all actions associated with this editor.
@@ -3838,6 +3808,20 @@ export interface ICommonCodeEditor extends IEditor {
 	onDidBlurEditor(listener: () => void): IDisposable;
 
 	/**
+	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * @event
+	 * @internal
+	 */
+	onWillType(listener: (text: string) => void): IDisposable;
+
+	/**
+	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * @event
+	 * @internal
+	 */
+	onDidType(listener: (text: string) => void): IDisposable;
+
+	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
 	 */
 	hasWidgetFocus(): boolean;
@@ -3939,11 +3923,12 @@ export interface ICommonCodeEditor extends IEditor {
 	pushUndoStop(): boolean;
 
 	/**
-	 * Execute a command on the editor.
+	 * Execute edits on the editor.
 	 * @param source The source of the call.
-	 * @param command The command to execute
+	 * @param edits The edits to execute.
+	 * @param endCursoState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concommitent) commands on the editor.
@@ -3977,16 +3962,6 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): EditorLayoutInfo;
-
-	/**
-	 * This listener is notified when a keypress produces a visible character.
-	 * The callback should not do operations on the view, as the view might not be updated to reflect previous typed characters.
-	 * @param character Character to listen to.
-	 * @param callback Function to call when `character` is typed.
-	 * @internal
-	 */
-	addTypingListener(character: string, callback: () => void): IDisposable;
-
 }
 
 export interface ICommonDiffEditor extends IEditor {
@@ -4104,7 +4079,7 @@ export var EventType = {
 	ModelChanged: 'modelChanged',
 
 	ModelTokensChanged: 'modelTokensChanged',
-	ModelModeChanged: 'modelsModeChanged',
+	ModelLanguageChanged: 'modelLanguageChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelRawContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',
@@ -4140,6 +4115,9 @@ export var EventType = {
 	MouseLeave: 'mouseleave',
 	KeyDown: 'keydown',
 	KeyUp: 'keyup',
+
+	WillType: 'willType',
+	DidType: 'didType',
 
 	EditorLayout: 'editorLayout',
 
@@ -4448,8 +4426,6 @@ export var Handler = {
 	ColumnSelect: 'columnSelect',
 	CreateCursor: 'createCursor',
 	LastCursorMoveToSelect: 'lastCursorMoveToSelect',
-
-	JumpToBracket: 'jumpToBracket',
 
 	Type: 'type',
 	ReplacePreviousChar: 'replacePreviousChar',

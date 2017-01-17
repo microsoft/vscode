@@ -14,7 +14,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ViewModelDecoration, IDecorationsViewportData, IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
 export interface ILinesCollection {
 	setTabSize(newTabSize: number, emit: (evenType: string, payload: any) => void): boolean;
@@ -30,7 +30,7 @@ export interface ILinesCollection {
 	getOutputIndentGuide(outputLineNumber: number): number;
 	getOutputLineMinColumn(outputLineNumber: number): number;
 	getOutputLineMaxColumn(outputLineNumber: number): number;
-	getOutputLineTokens(outputLineNumber: number): ViewLineTokens;
+	getOutputLineTokens(outputLineNumber: number): ViewLineToken[];
 	convertOutputPositionToInputPosition(viewLineNumber: number, viewColumn: number): Position;
 	convertInputPositionToOutputPosition(inputLineNumber: number, inputColumn: number): Position;
 	setHiddenAreas(ranges: editorCommon.IRange[], emit: (evenType: string, payload: any) => void): void;
@@ -235,7 +235,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					this.onModelTokensChanged(<editorCommon.IModelTokensChangedEvent>data);
 					break;
 
-				case editorCommon.EventType.ModelModeChanged:
+				case editorCommon.EventType.ModelLanguageChanged:
 					// That's ok, a model tokens changed event will follow shortly
 					break;
 
@@ -413,6 +413,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.model.mightContainRTL();
 	}
 
+	public mightContainNonBasicASCII(): boolean {
+		return this.model.mightContainNonBasicASCII();
+	}
+
 	public getLineContent(lineNumber: number): string {
 		return this.lines.getOutputLineContent(lineNumber);
 	}
@@ -445,7 +449,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return result + 2;
 	}
 
-	public getLineTokens(lineNumber: number): ViewLineTokens {
+	public getLineTokens(lineNumber: number): ViewLineToken[] {
 		return this.lines.getOutputLineTokens(lineNumber);
 	}
 

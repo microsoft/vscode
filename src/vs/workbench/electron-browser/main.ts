@@ -14,7 +14,6 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
-import timer = require('vs/base/common/timer');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -61,10 +60,6 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 		filesToCreate,
 		filesToDiff
 	};
-
-	if (configuration.performance) {
-		timer.ENABLE_TIMER = true;
-	}
 
 	// Resolve workspace
 	return getWorkspace(configuration.workspacePath).then(workspace => {
@@ -133,7 +128,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
-	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.getWorkspace());
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
@@ -145,7 +140,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 
 			// Open Shell
 			timerService.beforeWorkbenchOpen = new Date();
-			const shell = new WorkbenchShell(document.body, workspace, {
+			const shell = new WorkbenchShell(document.body, {
 				configurationService,
 				contextService,
 				environmentService,

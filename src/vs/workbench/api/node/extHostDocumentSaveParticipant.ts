@@ -18,13 +18,6 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 
-declare class WeakMap<K, V> {
-	// delete(key: K): boolean;
-	get(key: K): V;
-	// has(key: K): boolean;
-	set(key: K, value?: V): WeakMap<K, V>;
-}
-
 export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipantShape {
 
 	private _documents: ExtHostDocuments;

@@ -10,15 +10,14 @@ import URI from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -50,6 +49,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 class ReplacePreviewModel extends Disposable {
 	constructor(
 		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IReplaceService private replaceService: IReplaceService,
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
@@ -63,7 +63,8 @@ class ReplacePreviewModel extends Disposable {
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
 			ref = this._register(ref);
 			const sourceModel = ref.object.textEditorModel;
-			const replacePreviewModel = this.modelService.createModel(sourceModel.getValue(), sourceModel.getMode(), replacePreviewUri);
+			const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
+			const replacePreviewModel = this.modelService.createModel(sourceModel.getValue(), this.modeService.getOrCreateMode(sourceModelModeId), replacePreviewUri);
 			this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
 			this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
 			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose()));
@@ -99,7 +100,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		let bulkEdit: BulkEdit = createBulkEdit(this.fileService, this.textModelResolverService, null);
+		let bulkEdit: BulkEdit = createBulkEdit(this.textModelResolverService, null, this.fileService);
 		bulkEdit.progress(progress);
 
 		if (arg instanceof Match) {
@@ -128,16 +129,23 @@ export class ReplaceService implements IReplaceService {
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		this.telemetryService.publicLog('replace.open.previewEditor');
 		const fileMatch = element instanceof Match ? element.parent() : element;
-		return this.createInput(fileMatch).then((editorInput) => {
-			this.editorService.openEditor(editorInput, { preserveFocus, pinned, revealIfVisible: true })
-				.then(editor => {
-					this.updateReplacePreview(fileMatch).then(() => {
-						let editorControl = (<IDiffEditor>editor.getControl());
-						if (element instanceof Match) {
-							editorControl.revealLineInCenter(element.range().startLineNumber);
-						}
-					});
-				}, errors.onUnexpectedError);
+
+		return this.editorService.openEditor({
+			leftResource: fileMatch.resource(),
+			rightResource: this.getReplacePreviewUri(fileMatch),
+			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
+			options: {
+				preserveFocus,
+				pinned,
+				revealIfVisible: true
+			}
+		}).then(editor => {
+			this.updateReplacePreview(fileMatch).then(() => {
+				let editorControl = (<IDiffEditor>editor.getControl());
+				if (element instanceof Match) {
+					editorControl.revealLineInCenter(element.range().startLineNumber);
+				}
+			});
 		}, errors.onUnexpectedError);
 	}
 
@@ -147,14 +155,20 @@ export class ReplaceService implements IReplaceService {
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
 				const replaceModel = replaceModelRef.object.textEditorModel;
-				if (override) {
-					replaceModel.setValue(sourceModel.getValue());
-				} else {
-					replaceModel.undo();
+				let returnValue = TPromise.wrap(null);
+				// If model is disposed do not update
+				if (sourceModel && replaceModel) {
+					if (override) {
+						replaceModel.setValue(sourceModel.getValue());
+					} else {
+						replaceModel.undo();
+					}
+					returnValue = this.replace(fileMatch, null, replacePreviewUri);
 				}
-				sourceModelRef.dispose();
-				replaceModelRef.dispose();
-				return this.replace(fileMatch, null, replacePreviewUri);
+				return returnValue.then(() => {
+					sourceModelRef.dispose();
+					replaceModelRef.dispose();
+				});
 			});
 	}
 
@@ -166,13 +180,6 @@ export class ReplaceService implements IReplaceService {
 			newText: text
 		};
 		return resourceEdit;
-	}
-
-	private createInput(fileMatch: FileMatch): TPromise<DiffEditorInput> {
-		return TPromise.join([this.editorService.createInput({ resource: fileMatch.resource() }), this.editorService.createInput({ resource: this.getReplacePreviewUri(fileMatch) })])
-			.then(([left, right]) => {
-				return new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), '', <EditorInput>left, <EditorInput>right);
-			});
 	}
 
 	private getReplacePreviewUri(fileMatch: FileMatch): URI {

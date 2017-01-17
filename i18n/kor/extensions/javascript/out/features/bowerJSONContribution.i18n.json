@@ -6,6 +6,5 @@
 {
 	"json.bower.default": "기본 bower.json",
 	"json.bower.error.repoaccess": "Bower 리포지토리 요청 실패: {0}",
-	"json.bower.latest.version": "최신",
-	"json.bower.package.hover": "{0}"
+	"json.bower.latest.version": "최신"
 }

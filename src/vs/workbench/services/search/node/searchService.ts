@@ -139,13 +139,13 @@ export class SearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				let ranges = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch);
-				if (ranges.length) {
+				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch, false);
+				if (matches.length) {
 					let fileMatch = new FileMatch(resource);
 					localResults[resource.toString()] = fileMatch;
 
-					ranges.forEach((range) => {
-						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(range.startLineNumber), range.startLineNumber - 1, [[range.startColumn - 1, range.endColumn - range.startColumn]]));
+					matches.forEach((match) => {
+						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(match.range.startLineNumber), match.range.startLineNumber - 1, [[match.range.startColumn - 1, match.range.endColumn - match.range.startColumn]]));
 					});
 				} else {
 					localResults[resource.toString()] = false; // flag as empty result

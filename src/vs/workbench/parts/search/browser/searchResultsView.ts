@@ -149,7 +149,8 @@ export class SearchRenderer extends ActionsRenderer {
 			rightRenderer = (right: HTMLElement) => {
 				let len = fileMatch.count();
 
-				return new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				return null;
 			};
 
 			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
@@ -217,6 +218,8 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 export class SearchController extends DefaultController {
 
+	private _arrowKeyThrottler = new DumbThrottler(500);
+
 	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
@@ -282,7 +285,18 @@ export class SearchController extends DefaultController {
 			this.viewlet.moveFocusFromResults();
 			return true;
 		}
-		return super.onUp(tree, event);
+
+		const result = super.onUp(tree, event);
+		let focus = tree.getFocus();
+		this.selectOnScroll(tree, focus, event);
+		return result;
+	}
+
+	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
+		const result = super.onDown(tree, event);
+		let focus = tree.getFocus();
+		this.selectOnScroll(tree, focus, event);
+		return result;
 	}
 
 	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
@@ -291,6 +305,43 @@ export class SearchController extends DefaultController {
 			return this.onEnter(tree, event);
 		}
 		super.onSpace(tree, event);
+	}
+
+	private selectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
+		this._arrowKeyThrottler.trigger(() => this.doSelectOnScroll(tree, focus, event));
+	}
+
+	private doSelectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
+		if (focus instanceof Match) {
+			this.onEnter(tree, event);
+		} else {
+			tree.setSelection([focus]);
+		}
+	}
+}
+
+class DumbThrottler {
+	private waiting = false;
+
+	private callback: Function;
+
+	constructor(private timeout: number) {
+	}
+
+	trigger(callback: Function): void {
+		if (this.waiting) {
+			this.callback = callback;
+		} else {
+			callback();
+			this.waiting = true;
+			setTimeout(() => {
+				this.waiting = false;
+				if (this.callback) {
+					this.callback();
+					this.callback = null;
+				}
+			}, this.timeout);
+		}
 	}
 }
 

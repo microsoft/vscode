@@ -6,7 +6,6 @@
 
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
-import processes = require('vs/base/node/processes');
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +16,8 @@ export const TERMINAL_SERVICE_ID = 'terminalService';
 
 export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
-export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
+
+export const TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE = platform.isWindows;
 
 /**  A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
@@ -44,6 +44,7 @@ export interface ITerminalConfiguration {
 				osx: string[],
 				windows: string[]
 			},
+			rightClickCopyPaste: boolean,
 			cursorBlinking: boolean,
 			fontFamily: string,
 			fontLigatures: boolean,
@@ -62,6 +63,7 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	getFontLigaturesEnabled(): boolean;
 	getCursorBlink(): boolean;
+	getRightClickCopyPaste(): boolean;
 	getCommandsToSkipShell(): string[];
 	getScrollback(): number;
 	getCwd(): string;
@@ -75,11 +77,30 @@ export interface ITerminalFont {
 	charHeight: number;
 }
 
-export interface IShell {
-	executable: string;
-	args: string[];
-	/** Whether to ignore a custom cwd (if the shell is being launched by an extension) */
-	ignoreCustomCwd?: boolean;
+export interface IShellLaunchConfig {
+	/** The name of the terminal, this this is not set the name of the process will be used. */
+	name?: string;
+	/** The shell executable (bash, cmd, etc.). */
+	executable?: string;
+	/** The CLI arguments to use with executable. */
+	args?: string[];
+	/**
+	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
+	 * settings key.
+	 */
+	cwd?: string;
+	/**
+	 * A custom environment for the terminal, if this is not set the environment will be inherited
+	 * from the VS Code process.
+	 */
+	env?: { [key: string]: string };
+	/**
+	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
+	 * shell is being launched by an extension).
+	 */
+	ignoreConfigurationCwd?: boolean;
+	/** Whether to wait for a key press before closing the terminal. */
+	waitOnExit?: boolean;
 }
 
 export interface ITerminalService {
@@ -94,7 +115,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomCwd?: boolean): ITerminalInstance;
+	createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
@@ -147,9 +168,19 @@ export interface ITerminalInstance {
 	dispose(): void;
 
 	/**
+	 * Check if anything is selected in terminal.
+	 */
+	hasSelection(): boolean;
+
+	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
 	copySelection(): void;
+
+	/**
+	 * Clear current selection.
+	 */
+	clearSelection(): void;
 
 	/**
 	 * Focuses the terminal instance.
@@ -218,4 +249,27 @@ export interface ITerminalInstance {
 	 * @param visible Whether the element is visible.
 	 */
 	setVisible(visible: boolean): void;
+
+	/**
+	 * Attach a listener to the data stream from the terminal's pty process.
+	 *
+	 * @param listener The listener function which takes the processes' data stream (including
+	 * ANSI escape sequences).
+	 */
+	onData(listener: (data: string) => void): void;
+
+	/**
+	 * Attach a listener that fires when the terminal's pty process exits.
+	 *
+	 * @param listener The listener function which takes the processes' exit code, an exit code of
+	 * null means the process was killed as a result of the ITerminalInstance being disposed.
+	 */
+	onExit(listener: (exitCode: number) => void): void;
+
+	/**
+	 * Immediately kills the terminal's current pty process and launches a new one to replace it.
+	 *
+	 * @param shell The new launch configuration.
+	 */
+	reuseTerminal(shell?: IShellLaunchConfig): void;
 }

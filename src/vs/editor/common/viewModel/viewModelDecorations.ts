@@ -143,7 +143,7 @@ export class ViewModelDecorations implements IDisposable {
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName);
+				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, false);
 				let intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				let intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
@@ -155,7 +155,8 @@ export class ViewModelDecorations implements IDisposable {
 					// TODO: What happens if the startLineNumber and startColumn is at the end of a line?
 					let inlineDecoration = new InlineDecoration(
 						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn + 1),
-						decorationOptions.beforeContentClassName
+						decorationOptions.beforeContentClassName,
+						true
 					);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
 				}
@@ -164,7 +165,8 @@ export class ViewModelDecorations implements IDisposable {
 				if (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber && viewRange.endColumn > 1) {
 					let inlineDecoration = new InlineDecoration(
 						new Range(viewRange.endLineNumber, viewRange.endColumn - 1, viewRange.endLineNumber, viewRange.endColumn),
-						decorationOptions.afterContentClassName
+						decorationOptions.afterContentClassName,
+						true
 					);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}

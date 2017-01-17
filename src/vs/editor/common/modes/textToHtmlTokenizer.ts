@@ -4,17 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
-import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { NullState, nullTokenize } from 'vs/editor/common/modes/nullMode';
+import { IState, ITokenizationSupport, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
+import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
-export function tokenizeToHtmlContent(text: string, languageId: string): IHTMLContentElement {
-	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(languageId));
-}
-
-export function tokenizeToString(text: string, languageId: string, extraTokenClass?: string): string {
-	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId), extraTokenClass);
+export function tokenizeToString(text: string, languageId: string): string {
+	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));
 }
 
 function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
@@ -23,107 +19,37 @@ function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
 		return tokenizationSupport;
 	}
 	return {
-		getInitialState: () => new NullState(null, null),
-		tokenize: (buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
+		getInitialState: () => NULL_STATE,
+		tokenize: undefined,
+		tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
 	};
 }
 
-function _tokenizeToHtmlContent(text: string, tokenizationSupport: ITokenizationSupport): IHTMLContentElement {
-	var result: IHTMLContentElement = {
-		tagName: 'div',
-		style: 'white-space: pre-wrap',
-		children: []
-	};
+function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport): string {
+	let result = `<div class="monaco-tokenized-source">`;
+	let lines = text.split(/\r\n|\r|\n/);
+	let currentState = tokenizationSupport.getInitialState();
+	for (let i = 0, len = lines.length; i < len; i++) {
+		let line = lines[i];
 
-	var emitToken = (className: string, tokenText: string) => {
-		result.children.push({
-			tagName: 'span',
-			className: className,
-			text: tokenText
-		});
-	};
+		if (i > 0) {
+			result += `<br/>`;
+		}
 
-	var emitNewLine = () => {
-		result.children.push({
-			tagName: 'br'
-		});
-	};
+		let tokenizationResult = tokenizationSupport.tokenize2(line, currentState, 0);
+		let lineTokens = new LineTokens(null, tokenizationResult.tokens, line);
+		let viewLineTokens = lineTokens.inflate();
 
-	_tokenizeLines(text, tokenizationSupport, emitToken, emitNewLine);
+		let startOffset = 0;
+		for (let j = 0, lenJ = viewLineTokens.length; j < lenJ; j++) {
+			const viewLineToken = viewLineTokens[j];
+			result += `<span class="${viewLineToken.type}">${strings.escape(line.substring(startOffset, viewLineToken.endIndex))}</span>`;
+			startOffset = viewLineToken.endIndex;
+		}
 
+		currentState = tokenizationResult.endState;
+	}
+
+	result += `</div>`;
 	return result;
-}
-
-function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport, extraTokenClass: string = ''): string {
-	if (extraTokenClass && extraTokenClass.length > 0) {
-		extraTokenClass = ' ' + extraTokenClass;
-	}
-
-	var result = '';
-
-	var emitToken = (className: string, tokenText: string) => {
-		result += '<span class="' + className + extraTokenClass + '">' + strings.escape(tokenText) + '</span>';
-	};
-
-	var emitNewLine = () => {
-		result += '<br/>';
-	};
-
-	result = `<div class="monaco-tokenized-source">`;
-	_tokenizeLines(text, tokenizationSupport, emitToken, emitNewLine);
-	result += '</div>';
-
-	return result;
-}
-
-interface IEmitTokenFunc {
-	(className: string, innerText: string): void;
-}
-interface IEmitNewLineFunc {
-	(): void;
-}
-
-function _tokenizeLines(text: string, tokenizationSupport: ITokenizationSupport, emitToken: IEmitTokenFunc, emitNewLine: IEmitNewLineFunc): void {
-	var lines = text.split(/\r\n|\r|\n/);
-	var currentState = tokenizationSupport.getInitialState();
-	for (var i = 0; i < lines.length; i++) {
-		currentState = _tokenizeLine(lines[i], tokenizationSupport, emitToken, currentState);
-
-		// Keep new lines
-		if (i < lines.length - 1) {
-			emitNewLine();
-		}
-	}
-}
-
-function _tokenizeLine(line: string, tokenizationSupport: ITokenizationSupport, emitToken: IEmitTokenFunc, startState: IState): IState {
-	var tokenized = tokenizationSupport.tokenize(line, startState),
-		endState = tokenized.endState,
-		tokens = tokenized.tokens,
-		offset = 0,
-		tokenText: string;
-
-	// For each token inject spans with proper class names based on token type
-	for (var j = 0; j < tokens.length; j++) {
-		var token = tokens[j];
-
-		// Tokens only provide a startIndex from where they are valid from. As such, we need to
-		// look ahead the value of the token by advancing until the next tokens start inex or the
-		// end of the line.
-		if (j < tokens.length - 1) {
-			tokenText = line.substring(offset, tokens[j + 1].startIndex);
-			offset = tokens[j + 1].startIndex;
-		} else {
-			tokenText = line.substr(offset);
-		}
-
-		var className = 'token';
-		var safeType = token.type.replace(/[^a-z0-9\-]/gi, ' ');
-		if (safeType.length > 0) {
-			className += ' ' + safeType;
-		}
-		emitToken(className, tokenText);
-	}
-
-	return endState;
 }

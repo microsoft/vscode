@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/output.contribution';
+import 'vs/css!./media/output.contribution';
 import nls = require('vs/nls');
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import platform = require('vs/platform/platform');
+import { Registry } from 'vs/platform/platform';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -16,7 +16,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { OutputService } from 'vs/workbench/parts/output/browser/outputServices';
 import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService } from 'vs/workbench/parts/output/common/output';
-import panel = require('vs/workbench/browser/panel');
+import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -33,17 +33,17 @@ ModesRegistry.registerLanguage({
 });
 
 // Register Output Panel
-(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
 	'vs/workbench/parts/output/browser/outputPanel',
 	'OutputPanel',
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
 	'output',
-	20
+	10
 ));
 
 // register toggle output action globally
-let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
 	linux: {
@@ -64,14 +64,14 @@ interface IActionDescriptor {
 	iconClass?: string;
 	f1?: boolean;
 
-	//
+	// menus
 	menu?: {
 		menuId: MenuId,
 		when?: ContextKeyExpr;
 		group?: string;
 	};
 
-	//
+	// keybindings
 	keybinding?: {
 		when?: ContextKeyExpr;
 		weight: number;

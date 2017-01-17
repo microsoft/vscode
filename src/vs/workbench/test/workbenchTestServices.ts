@@ -12,7 +12,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -31,7 +32,7 @@ import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/li
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -64,6 +65,10 @@ export class TestContextService implements IWorkspaceContextService {
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.options = options || Object.create(null);
+	}
+
+	public hasWorkspace(): boolean {
+		return !!this.workspace;
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -106,15 +111,15 @@ export class TestTextFileService extends TextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, editorGroupService, windowsService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -269,13 +274,13 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setSideBarHidden(hidden: boolean): void { }
+	public setSideBarHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public isPanelHidden(): boolean {
 		return false;
 	}
 
-	public setPanelHidden(hidden: boolean): void { }
+	public setPanelHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public toggleMaximizedPanel(): void { }
 
@@ -336,12 +341,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onGroupOrientationChanged: Emitter<void>;
+	private _onTabOptionsChanged: Emitter<ITabOptions>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
+		this._onTabOptionsChanged = new Emitter<ITabOptions>();
 
 		let services = new ServiceCollection();
 
@@ -375,6 +382,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public get onGroupOrientationChanged(): Event<void> {
 		return this._onGroupOrientationChanged.event;
+	}
+
+	public get onTabOptionsChanged(): Event<ITabOptions> {
+		return this._onTabOptionsChanged.event;
 	}
 
 	public focusGroup(group: IEditorGroup): void;
@@ -424,6 +435,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public getStacksModel(): EditorStacksModel {
 		return this.stacksModel;
+	}
+
+	public getTabOptions(): ITabOptions {
+		return {};
 	}
 }
 
@@ -761,10 +776,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	toggleMenuBar(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	isMaximized(): TPromise<boolean> {
 		return TPromise.as(void 0);
 	}
@@ -866,16 +877,12 @@ export class TestWindowsService implements IWindowsService {
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-	toggleMenuBar(windowId: number): TPromise<void> {
-		return TPromise.as(void 0);
-	}
 	quit(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
 	// Global methods
-	// TODO@joao: rename, shouldn't this be openWindow?
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	openNewWindow(): TPromise<void> {

@@ -6,6 +6,26 @@
 
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
+class FloatHorizontalRange {
+	_floatHorizontalRangeBrand: void;
+
+	public readonly left: number;
+	public readonly width: number;
+
+	constructor(left: number, width: number) {
+		this.left = left;
+		this.width = width;
+	}
+
+	public toString(): string {
+		return `[${this.left},${this.width}]`;
+	}
+
+	public static compare(a: FloatHorizontalRange, b: FloatHorizontalRange): number {
+		return a.left - b.left;
+	}
+}
+
 export class RangeUtil {
 
 	/**
@@ -43,38 +63,55 @@ export class RangeUtil {
 		}
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList, clientRectDeltaLeft: number, scaleRatio: number): HorizontalRange[] {
-		if (!clientRects || clientRects.length === 0) {
-			return null;
+	private static _mergeAdjacentRanges(ranges: FloatHorizontalRange[]): HorizontalRange[] {
+		if (ranges.length === 1) {
+			// There is nothing to merge
+			return [new HorizontalRange(ranges[0].left, ranges[0].width)];
 		}
 
-		let result: HorizontalRange[] = [];
-		let prevLeft = Math.max(0, clientRects[0].left * scaleRatio - clientRectDeltaLeft);
-		let prevWidth = clientRects[0].width * scaleRatio;
+		ranges.sort(FloatHorizontalRange.compare);
 
-		for (let i = 1, len = clientRects.length; i < len; i++) {
-			let myLeft = Math.max(0, clientRects[i].left * scaleRatio - clientRectDeltaLeft);
-			let myWidth = clientRects[i].width * scaleRatio;
+		let result: HorizontalRange[] = [], resultLen = 0;
+		let prevLeft = ranges[0].left;
+		let prevWidth = ranges[0].width;
 
-			if (myLeft < prevLeft) {
-				console.error('Unexpected: RangeUtil._createHorizontalRangesFromClientRects: client rects are not sorted');
-			}
+		for (let i = 1, len = ranges.length; i < len; i++) {
+			const range = ranges[i];
+			const myLeft = range.left;
+			const myWidth = range.width;
 
 			if (prevLeft + prevWidth + 0.9 /* account for browser's rounding errors*/ >= myLeft) {
 				prevWidth = Math.max(prevWidth, myLeft + myWidth - prevLeft);
 			} else {
-				result.push(new HorizontalRange(prevLeft, prevWidth));
+				result[resultLen++] = new HorizontalRange(prevLeft, prevWidth);
 				prevLeft = myLeft;
 				prevWidth = myWidth;
 			}
 		}
 
-		result.push(new HorizontalRange(prevLeft, prevWidth));
+		result[resultLen++] = new HorizontalRange(prevLeft, prevWidth);
 
 		return result;
 	}
 
-	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, scaleRatio: number, endNode: HTMLElement): HorizontalRange[] {
+	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList, clientRectDeltaLeft: number): HorizontalRange[] {
+		if (!clientRects || clientRects.length === 0) {
+			return null;
+		}
+
+		// We go through FloatHorizontalRange because it has been observed in bi-di text
+		// that the clientRects are not coming in sorted from the browser
+
+		let result: FloatHorizontalRange[] = [];
+		for (let i = 0, len = clientRects.length; i < len; i++) {
+			const clientRect = clientRects[i];
+			result[i] = new FloatHorizontalRange(Math.max(0, clientRect.left - clientRectDeltaLeft), clientRect.width);
+		}
+
+		return this._mergeAdjacentRanges(result);
+	}
+
+	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 		// Panic check
 		let min = 0;
 		let max = domNode.children.length - 1;
@@ -104,6 +141,6 @@ export class RangeUtil {
 		endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
 
 		let clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
-		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft, scaleRatio);
+		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
 	}
 }

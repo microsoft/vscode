@@ -8,32 +8,39 @@
 import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace, ProviderResult } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
+import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, FileLocationRequestArgs } from '../protocol';
 import * as Previewer from './previewer';
 
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
+
 class MyCompletionItem extends CompletionItem {
-
-	document: TextDocument;
-	position: Position;
-
-	constructor(position: Position, document: TextDocument, entry: CompletionEntry) {
+	constructor(
+		public position: Position,
+		public document: TextDocument,
+		entry: CompletionEntry,
+		enableDotCompletions: boolean
+	) {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
-		this.document = document;
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, entry.kind);
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
 			// We convert to 0-based indexing.
 			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
 		} else {
+			// Try getting longer, prefix based range for completions that span words
+			const wordRange = document.getWordRangeAtPosition(position);
 			const text = document.getText(new Range(position.line, Math.max(0, position.character - entry.name.length), position.line, position.character)).toLowerCase();
 			const entryName = entry.name.toLowerCase();
 			for (let i = entryName.length; i >= 0; --i) {
-				if (text.endsWith(entryName.substr(0, i))) {
+				if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > position.character - i)) {
 					this.range = new Range(position.line, Math.max(0, position.character - i), position.line, position.character);
 					break;
 				}
@@ -79,6 +86,38 @@ class MyCompletionItem extends CompletionItem {
 
 		return CompletionItemKind.Property;
 	}
+
+	private static getCommitCharacters(enableDotCompletions: boolean, kind: string): string[] | undefined {
+		switch (kind) {
+			case PConst.Kind.externalModuleName:
+				return ['"', '\''];
+
+			case PConst.Kind.file:
+			case PConst.Kind.directory:
+				return ['/', '"', '\''];
+
+			case PConst.Kind.memberGetAccessor:
+			case PConst.Kind.memberSetAccessor:
+			case PConst.Kind.constructSignature:
+			case PConst.Kind.callSignature:
+			case PConst.Kind.indexSignature:
+			case PConst.Kind.enum:
+			case PConst.Kind.interface:
+				return enableDotCompletions ? ['.'] : undefined;
+
+			case PConst.Kind.module:
+			case PConst.Kind.alias:
+			case PConst.Kind.variable:
+			case PConst.Kind.localVariable:
+			case PConst.Kind.memberVariable:
+			case PConst.Kind.class:
+			case PConst.Kind.function:
+			case PConst.Kind.memberFunction:
+				return enableDotCompletions ? ['.', '('] : undefined;
+		}
+
+		return undefined;
+	}
 }
 
 interface Configuration {
@@ -91,15 +130,14 @@ namespace Configuration {
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
 
-	public triggerCharacters = ['.'];
-	public excludeTokens = ['string', 'comment', 'numeric'];
-	public sortBy = [{ type: 'reference', partSeparator: '/' }];
-
-	private client: ITypescriptServiceClient;
 	private config: Configuration;
 
-	constructor(client: ITypescriptServiceClient) {
+	constructor(
+		private client: ITypescriptServiceClient,
+		private typingsStatus: TypingsStatus
+	) {
 		this.client = client;
+		this.typingsStatus = typingsStatus;
 		this.config = { useCodeSnippetsOnMethodSuggest: false };
 	}
 
@@ -110,6 +148,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
+		if (this.typingsStatus.isAcquiringTypings) {
+			return Promise.reject<CompletionItem[]>({
+				label: localize('acquiringTypingsLabel', 'Acquiring typings...'),
+				detail: localize('acquiringTypingsDetail', 'Acquiring typings definitions for IntelliSense.')
+			});
+		}
+
 		let filepath = this.client.asAbsolutePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve<CompletionItem[]>([]);
@@ -143,9 +188,22 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			let completionItems: CompletionItem[] = [];
 			let body = msg.body;
 			if (body) {
+				// Only enable dot completions in TS files for now
+				let enableDotCompletions = document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact');
+
+				// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
+				// Only enable dot completions when previous character is an identifier.
+				// Prevents incorrectly completing while typing spread operators.
+				if (position.character > 0) {
+					const preText = document.getText(new Range(
+						new Position(position.line, 0),
+						new Position(position.line, position.character - 1)));
+					enableDotCompletions = preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
+				}
+
 				for (let i = 0; i < body.length; i++) {
 					let element = body[i];
-					let item = new MyCompletionItem(position, document, element);
+					let item = new MyCompletionItem(position, document, element, enableDotCompletions);
 					completionItems.push(item);
 				}
 			}
@@ -205,7 +263,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		// Don't complete function calls inside of destructive assigments or imports
 		return this.client.execute('quickinfo', args).then(infoResponse => {
 			const info = infoResponse.body;
-			console.log(info && info.kind);
 			switch (info && info.kind) {
 				case 'var':
 				case 'let':

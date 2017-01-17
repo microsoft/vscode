@@ -340,9 +340,9 @@ export class InsertSnippetController {
 	}
 
 	private doLinkEditing(): void {
-		var selections: editorCommon.ISelection[] = [];
-		for (var i = 0, len = this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges.length; i < len; i++) {
-			var range = this.model.getDecorationRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[i]);
+		const selections: editorCommon.ISelection[] = [];
+		for (let i = 0, len = this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges.length; i < len; i++) {
+			const range = this.model.getDecorationRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[i]);
 			selections.push({
 				selectionStartLineNumber: range.startLineNumber,
 				selectionStartColumn: range.startColumn,
@@ -351,6 +351,7 @@ export class InsertSnippetController {
 			});
 		}
 		this.editor.setSelections(selections);
+		this.editor.revealRangeInCenterIfOutsideViewport(this.editor.getSelection());
 	}
 
 	private stopAll(): void {

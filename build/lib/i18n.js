@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-var path = require('path');
-var fs = require('fs');
-var event_stream_1 = require('event-stream');
-var File = require('vinyl');
-var Is = require('is');
+var path = require("path");
+var fs = require("fs");
+var event_stream_1 = require("event-stream");
+var File = require("vinyl");
+var Is = require("is");
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
@@ -233,7 +233,7 @@ function processCoreBundleFormat(fileHeader, json, emitter) {
             var modules = bundleSection[bundle];
             var contents = [
                 fileHeader,
-                ("define(\"" + bundle + ".nls." + language.iso639_2 + "\", {")
+                "define(\"" + bundle + ".nls." + language.iso639_2 + "\", {"
             ];
             modules.forEach(function (module, index) {
                 contents.push("\t\"" + module + "\": [");

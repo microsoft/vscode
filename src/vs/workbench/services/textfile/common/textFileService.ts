@@ -10,12 +10,14 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
+import DOM = require('vs/base/browser/dom');
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration } from 'vs/platform/files/common/files';
@@ -23,7 +25,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -61,13 +62,13 @@ export abstract class TextFileService implements ITextFileService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 		@IEnvironmentService protected environmentService: IEnvironmentService,
 		@IBackupFileService private backupFileService: IBackupFileService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		this.toUnbind = [];
@@ -118,6 +119,11 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Configuration changes
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+
+		// Application & Editor focus change
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onEditorFocusChanged(), true));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
 	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
@@ -287,6 +293,18 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		return this.backupFileService.discardAllWorkspaceBackups();
+	}
+
+	private onWindowFocusLost(): void {
+		if (this.configuredAutoSaveOnWindowChange && this.isDirty()) {
+			this.saveAll(void 0, SaveReason.WINDOW_CHANGE).done(null, errors.onUnexpectedError);
+		}
+	}
+
+	private onEditorFocusChanged(): void {
+		if (this.configuredAutoSaveOnFocusChange && this.isDirty()) {
+			this.saveAll(void 0, SaveReason.FOCUS_CHANGE).done(null, errors.onUnexpectedError);
+		}
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -564,7 +582,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
 
 		// create the target file empty if it does not exist already
-		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.createFile(target)).then(stat => {
+		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.updateContent(target, '')).then(stat => {
 
 			// resolve a model for the file (which can be binary if the file is not a text file)
 			return this.models.loadOrCreate(target).then((targetModel: ITextFileEditorModel) => {

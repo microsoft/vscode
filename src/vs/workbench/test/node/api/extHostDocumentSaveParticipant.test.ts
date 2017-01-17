@@ -37,6 +37,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				BOM: '',
 				length: -1,
 				containsRTL: false,
+				isBasicASCII: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,
@@ -183,9 +184,6 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 			assert.equal(callCount, 2);
 			assert.equal(values.length, 2);
-			const [first, second] = values;
-			assert.equal(first, true);
-			assert.equal(second, true);
 		});
 	});
 

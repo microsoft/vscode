@@ -12,8 +12,6 @@ import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
 
 export class OverviewRulerImpl {
 
-	public static hasCanvas = (window.navigator.userAgent.indexOf('MSIE 8') === -1);
-
 	private _canvasLeftOffset: number;
 	private _domNode: HTMLCanvasElement;
 	private _lanesCount: number;
@@ -26,6 +24,7 @@ export class OverviewRulerImpl {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
+
 		this._domNode.className = cssClassName;
 		this._domNode.style.position = 'absolute';
 
@@ -139,9 +138,6 @@ export class OverviewRulerImpl {
 	}
 
 	public render(forceRender: boolean): boolean {
-		if (!OverviewRulerImpl.hasCanvas) {
-			return false;
-		}
 		if (this._zoneManager.getOuterHeight() === 0) {
 			return false;
 		}

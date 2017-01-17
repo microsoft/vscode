@@ -59,13 +59,15 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
+import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+
 import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
-import { LanguageServiceTaskSystem, LanguageServiceTaskConfiguration } from 'vs/workbench/parts/tasks/common/languageServiceTaskSystem';
 import * as FileConfig from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
 import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/node/processRunnerSystem';
+import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -92,7 +94,7 @@ class AbstractTaskAction extends Action {
 	}
 
 	protected canRun(): boolean {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('AbstractTaskAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return false;
 		}
@@ -197,7 +199,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 	}
 
 	public run(event?: any): TPromise<IEditor> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('ConfigureTaskRunnerAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return TPromise.as(undefined);
 		}
@@ -631,7 +633,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService) {
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
 
 		super();
 		this.modeService = modeService;
@@ -678,7 +682,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private get taskSystemPromise(): TPromise<ITaskSystem> {
 		if (!this._taskSystemPromise) {
-			if (!this.contextService.getWorkspace()) {
+			if (!this.contextService.hasWorkspace()) {
 				this._taskSystem = new NullTaskSystem();
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {
@@ -740,10 +744,15 @@ class TaskService extends EventEmitter implements ITaskService {
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
 						let result: ITaskSystem = null;
-						if (config.buildSystem === 'service') {
-							result = new LanguageServiceTaskSystem(<LanguageServiceTaskConfiguration>config, this.telemetryService, this.modeService);
-						} else if (this.isRunnerConfig(config)) {
+						if (this.isRunnerConfig(config)) {
 							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
+						} else if (this.isTerminalConfig(config)) {
+							result = new TerminalTaskSystem(
+								<FileConfig.ExternalTaskRunnerConfiguration>config,
+								this.terminalService, this.outputService, this.markerService,
+								this.modelService, this.configurationResolverService, this.telemetryService,
+								TaskService.OutputChannelId
+							);
 						}
 						if (result === null) {
 							this._taskSystemPromise = null;
@@ -776,7 +785,11 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private isRunnerConfig(config: TaskConfiguration): boolean {
-		return !config.buildSystem || config.buildSystem === 'program';
+		return !config._runner || config._runner === 'program';
+	}
+
+	private isTerminalConfig(config: TaskConfiguration): boolean {
+		return config._runner === 'terminal';
 	}
 
 	private hasDetectorSupport(config: FileConfig.ExternalTaskRunnerConfiguration): boolean {
@@ -819,14 +832,14 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskExecuteResult): TPromise<ITaskSummary> {
-		return this.textFileService.saveAll().then((value) => { 				// make sure all dirty files are saved
-			return this.configurationService.reloadConfiguration().then(() => { 	// make sure configuration is up to date
+		return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+			return this.configurationService.reloadConfiguration().then(() => { // make sure configuration is up to date
 				return this.taskSystemPromise.
 					then((taskSystem) => {
 						let executeResult = fn(taskSystem);
 						if (executeResult.kind === TaskExecuteKind.Active) {
 							let active = executeResult.active;
-							if (active.same && active.watching) {
+							if (active.same && active.background) {
 								this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
 							} else {
 								throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);

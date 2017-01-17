@@ -102,7 +102,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
-		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
+		this.list = new PagedList(this.extensionsBox, delegate, [renderer], {
+			ariaLabel: localize('extensions', "Extensions")
+		});
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
@@ -420,6 +422,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 export class StatusUpdater implements IWorkbenchContribution {
 
 	private disposables: IDisposable[];
+	private badgeHandle: IDisposable;
 
 	constructor(
 		@IActivityBarService private activityBarService: IActivityBarService,
@@ -433,21 +436,23 @@ export class StatusUpdater implements IWorkbenchContribution {
 	}
 
 	private onServiceChange(): void {
+
+		dispose(this.badgeHandle);
+
 		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
-			this.activityBarService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', "Extensions")), 'extensions-badge progress-badge');
 			return;
 		}
 
 		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
 		if (outdated > 0) {
 			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-			this.activityBarService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
-		} else {
-			this.activityBarService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
 		}
 	}
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+		dispose(this.badgeHandle);
 	}
 }

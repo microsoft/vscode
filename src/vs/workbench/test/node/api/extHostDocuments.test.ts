@@ -39,19 +39,17 @@ suite('ExtHostDocument', () => {
 	});
 
 	test('readonly-ness', function () {
-
-		assert.throws(() => data.document.uri = null);
-		assert.throws(() => data.document.fileName = 'foofile');
-		assert.throws(() => data.document.isDirty = false);
-		assert.throws(() => data.document.isUntitled = false);
-		assert.throws(() => data.document.languageId = 'dddd');
-		assert.throws(() => data.document.lineCount = 9);
+		assert.throws(() => (<any>data).document.uri = null);
+		assert.throws(() => (<any>data).document.fileName = 'foofile');
+		assert.throws(() => (<any>data).document.isDirty = false);
+		assert.throws(() => (<any>data).document.isUntitled = false);
+		assert.throws(() => (<any>data).document.languageId = 'dddd');
+		assert.throws(() => (<any>data).document.lineCount = 9);
 	});
 
 	test('lines', function () {
 
 		assert.equal(data.document.lineCount, 4);
-		assert.throws(() => data.document.lineCount = 9);
 
 		assert.throws(() => data.lineAt(-1));
 		assert.throws(() => data.lineAt(data.document.lineCount));
@@ -207,7 +205,7 @@ suite('ExtHostDocument', () => {
 
 	test('getWordRangeAtPosition', function () {
 		data = new ExtHostDocumentData(undefined, URI.file(''), [
-			'aaaa bbbb cccc abc'
+			'aaaa bbbb+cccc abc'
 		], '\n', 'text', 1, false);
 
 		let range = data.getWordRangeAtPosition(new Position(0, 2));
@@ -216,19 +214,20 @@ suite('ExtHostDocument', () => {
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 4);
 
+		// ignore bad regular expresson /.*/
 		range = data.getWordRangeAtPosition(new Position(0, 2), /.*/);
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 0);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 4);
 
-		range = data.getWordRangeAtPosition(new Position(0, 2), /a+.+?c/);
+		range = data.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/);
 		assert.equal(range.start.line, 0);
-		assert.equal(range.start.character, 0);
+		assert.equal(range.start.character, 5);
 		assert.equal(range.end.line, 0);
-		assert.equal(range.end.character, 11);
+		assert.equal(range.end.character, 14);
 
-		range = data.getWordRangeAtPosition(new Position(0, 17), /a+.+?c/);
+		range = data.getWordRangeAtPosition(new Position(0, 17), /[a-z+]+/);
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 15);
 		assert.equal(range.end.line, 0);

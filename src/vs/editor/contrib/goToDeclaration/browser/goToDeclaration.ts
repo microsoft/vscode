@@ -26,13 +26,14 @@ import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { getDeclarationsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import { getDeclarationsAtPosition, getTypeDefinitionAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import * as corePosition from 'vs/editor/common/core/position';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -64,7 +65,7 @@ export class DefinitionAction extends EditorAction {
 		let model = editor.getModel();
 		let pos = editor.getPosition();
 
-		return getDeclarationsAtPosition(model, pos).then(references => {
+		return this.getDeclarationsAtPosition(model, pos).then(references => {
 
 			if (!references) {
 				return;
@@ -76,7 +77,7 @@ export class DefinitionAction extends EditorAction {
 			let result: Location[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
-				if (!reference) {
+				if (!reference || !reference.range) {
 					continue;
 				}
 				let {uri, range} = reference;
@@ -104,13 +105,17 @@ export class DefinitionAction extends EditorAction {
 		});
 	}
 
+	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+		return getDeclarationsAtPosition(model, position);
+	}
+
 	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
 		} else {
 			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
 			this._openReference(editorService, next, this._configuration.openToSide).then(editor => {
-				if (model.references.length > 1) {
+				if (editor && model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
 				} else {
 					model.dispose();
@@ -128,7 +133,7 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
-			return <editorCommon.IEditor>editor.getControl();
+			return editor && <editorCommon.IEditor>editor.getControl();
 		});
 	}
 
@@ -214,6 +219,61 @@ export class PeekDefinitionAction extends DefinitionAction {
 				order: 1.2
 			}
 		});
+	}
+}
+
+
+@editorAction
+export class GoToImplementationAction extends DefinitionAction {
+
+	public static ID = 'editor.action.goToImplementation';
+
+	constructor() {
+		super(new DefinitionActionConfig(), {
+			id: GoToImplementationAction.ID,
+			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
+			alias: 'Go to Implementation',
+			precondition: ModeContextKeys.hasTypeDefinitionProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.F12
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.3
+			}
+		});
+	}
+
+	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+		return getTypeDefinitionAtPosition(model, position);
+	}
+}
+
+@editorAction
+export class PeekImplementationAction extends DefinitionAction {
+
+	public static ID = 'editor.action.peekImplementation';
+
+	constructor() {
+		super(new DefinitionActionConfig(false, true, false), {
+			id: PeekImplementationAction.ID,
+			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
+			alias: 'Peek Implementation',
+			precondition: ModeContextKeys.hasTypeDefinitionProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.3
+			}
+		});
+	}
+
+	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+		return getTypeDefinitionAtPosition(model, position);
 	}
 }
 
@@ -454,7 +514,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): boolean {
 		return this.editor.getModel() &&
-			(browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
+			(browser.isIE || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
 			mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());
