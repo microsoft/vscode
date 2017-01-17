@@ -193,6 +193,9 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _updateTheme(colorTheme?: IColorTheme): void {
+		if (!colorTheme) {
+			colorTheme = this._themeService.getColorTheme();
+		}
 		let themeId = colorTheme.id;
 		let baseThemeId = getBaseThemeId(themeId);
 		if (baseThemeId === this._currentBaseThemeId) {
