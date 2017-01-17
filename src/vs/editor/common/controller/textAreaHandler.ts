@@ -35,6 +35,13 @@ export interface ICompositionStartData {
 	showAtColumn: number;
 }
 
+// See https://github.com/Microsoft/monaco-editor/issues/320
+const isChromev55 = (
+	navigator.userAgent.indexOf('Chrome/55.') >= 0
+	/* Edge likes to impersonate Chrome sometimes */
+	&& navigator.userAgent.indexOf('Edge/') === -1
+);
+
 export class TextAreaHandler extends Disposable {
 
 	private _onKeyDown = this._register(new Emitter<IKeyboardEventWrapper>());
@@ -128,6 +135,15 @@ export class TextAreaHandler extends Disposable {
 		}));
 
 		this._register(this.textArea.onCompositionUpdate((e) => {
+			if (isChromev55) {
+				// See https://github.com/Microsoft/monaco-editor/issues/320
+				// where compositionupdate .data is broken in Chrome v55
+				// See https://bugs.chromium.org/p/chromium/issues/detail?id=677050#c9
+				e = {
+					locale: e.locale,
+					data: this.textArea.getValue()
+				};
+			}
 			this.textAreaState = this.textAreaState.fromText(e.data);
 			let typeInput = this.textAreaState.updateComposition();
 			this._onType.fire(typeInput);
