@@ -176,6 +176,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
 			this.wordToLineNumbersMap = null;
+			this.updateInlineDecorations(sf);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 	}
@@ -218,9 +219,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverWidget();
 		}
 
-		if (this.configurationService.getConfiguration<IDebugConfiguration>('debug').inlineValues) {
-			this.updateInlineDecorators(sf);
-		}
+		this.updateInlineDecorations(sf);
 	}
 
 	private hideHoverWidget(): void {
@@ -348,9 +347,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	};
 
 	// Inline Decorations
-
-	private updateInlineDecorators(stackFrame: IStackFrame): void {
-		if (!stackFrame) {
+	private updateInlineDecorations(stackFrame: IStackFrame): void {
+		const model = this.editor.getModel();
+		if (!this.configurationService.getConfiguration<IDebugConfiguration>('debug').inlineValues ||
+			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
 			}
@@ -443,33 +443,31 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (!this.wordToLineNumbersMap) {
 			this.wordToLineNumbersMap = new Map<string, number[]>();
 			const model = this.editor.getModel();
-			if (model) {
-				// For every word in every line, map its ranges for fast lookup
-				for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-					const lineContent = model.getLineContent(lineNumber);
+			// For every word in every line, map its ranges for fast lookup
+			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
+				const lineContent = model.getLineContent(lineNumber);
 
-					// If line is too long then skip the line
-					if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
-						continue;
-					}
+				// If line is too long then skip the line
+				if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+					continue;
+				}
 
-					const lineTokens = model.getLineTokens(lineNumber);
-					for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
-						const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
+				const lineTokens = model.getLineTokens(lineNumber);
+				for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
+					const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
 
-						// Token is a word and not a comment
-						if (token.tokenType === StandardTokenType.Other) {
-							DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
-							const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
+					// Token is a word and not a comment
+					if (token.tokenType === StandardTokenType.Other) {
+						DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+						const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
-							if (wordMatch) {
-								const word = wordMatch[0];
-								if (!this.wordToLineNumbersMap.has(word)) {
-									this.wordToLineNumbersMap.set(word, []);
-								}
-
-								this.wordToLineNumbersMap.get(word).push(lineNumber);
+						if (wordMatch) {
+							const word = wordMatch[0];
+							if (!this.wordToLineNumbersMap.has(word)) {
+								this.wordToLineNumbersMap.set(word, []);
 							}
+
+							this.wordToLineNumbersMap.get(word).push(lineNumber);
 						}
 					}
 				}
