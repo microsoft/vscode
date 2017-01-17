@@ -11,17 +11,16 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actionRegistry';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { PanelDescriptor } from 'vs/workbench/browser/panel';
 
 export class PanelAction extends Action {
 
 	constructor(
-		private panel: PanelDescriptor,
+		private panel: IPanelIdentifier,
 		@IPanelService private panelService: IPanelService
 	) {
-		super(panel.id, panel.name, panel.cssClass);
+		super(panel.id, panel.name);
 	}
 
 	public run(event): TPromise<any> {
