@@ -265,25 +265,69 @@ suite('Files - TextFileService', () => {
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
-			test('should hot exit (setting: onExit, reason: CLOSE, windows: single)', function (done) {
+			test('should hot exit (reason: CLOSE, windows: single)', function (done) {
 				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, function () {
-					// Set cancel to force a veto under regular circumstances
-					service.setConfirmResult(ConfirmResult.CANCEL);
-				}, function (veto) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
 					assert.ok(!veto);
 				}, done);
 			});
 
-			test('should NOT hot exit (setting: onExit, reason: CLOSE, windows: multiple)', function (done) {
+			test('should NOT hot exit (reason: CLOSE, windows: multiple)', function (done) {
 				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, function () {
-					// Set multiple windows
-					accessor.windowsService.windowCount = 2;
-					// Set cancel to force a veto under regular circumstances
-					service.setConfirmResult(ConfirmResult.CANCEL);
-				}, function (veto) {
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should NOT hot exit (reason: LOAD, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+
+			test('should NOT hot exit (reason: LOAD, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
 					assert.ok(veto);
 				}, done);
@@ -293,10 +337,7 @@ suite('Files - TextFileService', () => {
 		suite('"onExitAndWindowClose" setting', () => {
 			test('should hot exit (reason: CLOSE, windows: single)', function (done) {
 				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, function () {
-					// Force veto when hot exit fails
-					service.setConfirmResult(ConfirmResult.CANCEL);
-				}, function (veto) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
 					assert.ok(!veto);
 				}, done);
@@ -304,25 +345,73 @@ suite('Files - TextFileService', () => {
 
 			test('should hot exit (reason: CLOSE, windows: multiple)', function (done) {
 				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, function () {
-					// Set multiple windows
-					accessor.windowsService.windowCount = 2;
-					// Set cancel to force a veto under regular circumstances
-					service.setConfirmResult(ConfirmResult.CANCEL);
-				}, function (veto) {
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: LOAD, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: LOAD, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
 					assert.ok(!veto);
 				}, done);
 			});
 		});
 
-		function hotExitTest(setting: string, setup: () => void, assertions: (veto: boolean) => void, done): void {
+		function hotExitTest(setting: string, shutdownReason: ShutdownReason, assertions: (veto: boolean) => void, done): void {
 			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 			const service = accessor.textFileService;
 			service.onConfigurationChange({ files: { hotExit: setting } });
-			setup();
+			// Set cancel to force a veto under regular circumstances
+			service.setConfirmResult(ConfirmResult.CANCEL);
 
 			model.load().done(() => {
 				model.textEditorModel.setValue('foo');
@@ -330,6 +419,7 @@ suite('Files - TextFileService', () => {
 				assert.equal(service.getDirty().length, 1);
 
 				const event = new ShutdownEventImpl();
+				event.reason = shutdownReason;
 				accessor.lifecycleService.fireWillShutdown(event);
 
 				return (<TPromise<boolean>>event.value).then(veto => {
