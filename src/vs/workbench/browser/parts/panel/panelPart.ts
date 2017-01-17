@@ -13,8 +13,8 @@ import { Registry } from 'vs/platform/platform';
 import { Scope } from 'vs/workbench/browser/actionBarRegistry';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -110,6 +110,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return promise.then(() => this.openComposite(id, focus));
 	}
 
+	public getPanels(): IPanelIdentifier[] {
+		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
+			.sort((v1, v2) => v1.order - v2.order)
+			.map(p => { return { id: p.id, name: p.name }; });
+	}
+
 	protected getActions(): IAction[] {
 		return [this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)];
 	}
@@ -160,10 +166,5 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 			return action;
 		}), { label: true });
-	}
-
-	private getPanels(): PanelDescriptor[] {
-		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
-			.sort((v1, v2) => v1.order - v2.order);
 	}
 }
