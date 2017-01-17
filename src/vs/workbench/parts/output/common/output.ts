@@ -67,6 +67,11 @@ export interface IOutputService {
 	getChannel(id: string): IOutputChannel;
 
 	/**
+	 * Returns all output channels.
+	 */
+	getChannels(): IOutputChannel[];
+
+	/**
 	 * Returns the currently active channel.
 	 * Only one channel can be active at a given moment.
 	 */
@@ -119,6 +124,11 @@ export interface IOutputChannel {
 	 * Clears all received output for this channel.
 	 */
 	clear(): void;
+
+	/**
+	 * Toggles automatic scrolling for this channel.
+	 */
+	toggleAutoScrolling(): void;
 }
 
 export interface IOutputChannelRegistry {
