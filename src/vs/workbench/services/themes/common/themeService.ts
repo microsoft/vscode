@@ -14,21 +14,21 @@ export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
 
-export class IColorTheme {
-	id: string;
-	label: string;
-	description?: string;
-	isLoaded: boolean;
-	settings?: IThemeSetting[];
+export interface IColorTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly isLoaded: boolean;
+	readonly settings?: IThemeSetting[];
 }
 
 export interface IFileIconTheme {
-	id: string;
-	label: string;
-	description?: string;
-	isLoaded: boolean;
-	hasFileIcons?: boolean;
-	hasFolderIcons?: boolean;
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly isLoaded: boolean;
+	readonly hasFileIcons?: boolean;
+	readonly hasFolderIcons?: boolean;
 }
 
 export interface IThemeService {
