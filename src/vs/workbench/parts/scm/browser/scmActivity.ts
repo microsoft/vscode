@@ -6,7 +6,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, OneDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMProvider } from 'vs/workbench/services/scm/common/scm';
 import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
@@ -17,6 +17,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 	static ID = 'vs.scm.statusUpdater';
 
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	private badgeHandle = new OneDisposable();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -25,6 +26,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 	) {
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
 		this.setActiveProvider(this.scmService.activeProvider);
+		this.disposables.push(this.badgeHandle);
 	}
 
 	getId(): string {
@@ -40,9 +42,14 @@ export class StatusUpdater implements IWorkbenchContribution {
 	private update(): void {
 		const provider = this.scmService.activeProvider;
 		const count = provider ? provider.resources.reduce<number>((r, g) => r + g.resources.length, 0) : 0;
-		const badge = count > 0 ? new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num)) : null;
 
-		this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+
+		if (count > 0) {
+			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
+			this.badgeHandle.value = this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+		} else {
+			this.badgeHandle.value = null;
+		}
 	}
 
 	dispose(): void {
