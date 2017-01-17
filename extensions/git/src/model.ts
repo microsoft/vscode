@@ -451,17 +451,13 @@ export class Model {
 
 	@debounce(1000)
 	private onWorkspaceChange(): void {
-		console.log('workspace changes!!!');
 		this.updateWhenIdleAndWait();
 	}
 
 	@decorate(throttle)
 	private async updateWhenIdleAndWait(): Promise<void> {
-		console.log('checking for idleness...');
 		await this.whenIdle();
-		console.log('idle now, lets do it');
 		await this.update();
-		console.log('update done, lets wait 7 seconds');
 		await new Promise(c => setTimeout(c, 7000));
 	}
 
