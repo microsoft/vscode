@@ -136,8 +136,8 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	public languageConfig<V>(language: string): ConfigModel<V> {
 		const result = new ConfigModel<V>(null);
 		const contents = objects.clone<any>(this.contents);
-		if (this._overrides) {
-			for (const override of this._overrides) {
+		if (this.overrides) {
+			for (const override of this.overrides) {
 				if (override.languages.indexOf(language) !== -1) {
 					merge(contents, override.contents, true);
 				}
