@@ -55,6 +55,17 @@
 	border-bottom: 2px solid white;
 }
 
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 2px solid #007ACC;
+	outline: none !important;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 2px solid #f38518;
+	outline: none !important;
+}
+
 /** Actions */
 
 .monaco-workbench .hide-panel-action {

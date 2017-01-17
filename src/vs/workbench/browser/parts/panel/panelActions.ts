@@ -24,10 +24,6 @@ export class PanelAction extends Action {
 	}
 
 	public run(event): TPromise<any> {
-		if (event instanceof MouseEvent && event.button === 2) {
-			return TPromise.as(false); // do not run on right click
-		}
-
 		return this.panelService.openPanel(this.panel.id, true).then(() => this.activate());
 	}
 
