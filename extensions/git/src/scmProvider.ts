@@ -18,7 +18,6 @@ export class GitSCMProvider implements SCMProvider {
 	get label(): string { return 'Git'; }
 
 	constructor(private model: Model, private commandCenter: CommandCenter) {
-		model.update();
 		scm.registerSCMProvider('git', this);
 	}
 
