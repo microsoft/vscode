@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import * as arrays from 'vs/base/common/arrays';
+import { illegalArgument } from 'vs/base/common/errors';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -122,6 +123,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	public showActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable {
+		if (!badge) {
+			throw illegalArgument('badge');
+		}
 
 		const activity = <IViewletActivity>{ badge, clazz };
 		const stack = this.viewletIdToActivityStack[viewletId] || (this.viewletIdToActivityStack[viewletId] = []);
