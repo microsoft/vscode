@@ -394,6 +394,11 @@ export interface IEditorOptions {
 	 */
 	formatOnType?: boolean;
 	/**
+	 * Enable format on paste.
+	 * Defaults to false.
+	 */
+	formatOnPaste?: boolean;
+	/**
 	 * Enable the suggestion box to pop-up on trigger characters.
 	 * Defaults to true.
 	 */
@@ -879,6 +884,7 @@ export class EditorContribOptions {
 	readonly parameterHints: boolean;
 	readonly iconsInSuggestions: boolean;
 	readonly formatOnType: boolean;
+	readonly formatOnPaste: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
@@ -903,6 +909,7 @@ export class EditorContribOptions {
 		parameterHints: boolean;
 		iconsInSuggestions: boolean;
 		formatOnType: boolean;
+		formatOnPaste: boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
@@ -923,6 +930,7 @@ export class EditorContribOptions {
 		this.parameterHints = Boolean(source.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
 		this.formatOnType = Boolean(source.formatOnType);
+		this.formatOnPaste = Boolean(source.formatOnPaste);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
@@ -949,6 +957,7 @@ export class EditorContribOptions {
 			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
 			&& this.formatOnType === other.formatOnType
+			&& this.formatOnPaste === other.formatOnPaste
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
@@ -3801,6 +3810,13 @@ export interface ICommonCodeEditor extends IEditor {
 	onDidType(listener: (text: string) => void): IDisposable;
 
 	/**
+	 * An event emitted when users paste text in the editor.
+	 * @event
+	 * @internal
+	 */
+	onDidPaste(listener: (range: Range) => void): IDisposable;
+
+	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
 	 */
 	hasWidgetFocus(): boolean;
@@ -4097,6 +4113,8 @@ export var EventType = {
 
 	WillType: 'willType',
 	DidType: 'didType',
+
+	DidPaste: 'didPaste',
 
 	EditorLayout: 'editorLayout',
 
