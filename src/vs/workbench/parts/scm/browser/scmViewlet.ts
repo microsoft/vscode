@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { Throttler } from 'vs/base/common/async';
 import { domEvent } from 'vs/base/browser/event';
-import { IDisposable, dispose, empty as EmptyDisposable, OneDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
@@ -156,7 +156,6 @@ export class SCMViewlet extends Viewlet {
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
-	private badgeHandle = new OneDisposable();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -174,7 +173,7 @@ export class SCMViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
-		this.disposables.push(this.menus, this.badgeHandle);
+		this.disposables.push(this.menus);
 	}
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
