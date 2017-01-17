@@ -151,114 +151,6 @@ suite('Files - TextFileService', () => {
 		}, error => onError(error, done));
 	});
 
-	test('confirm onWillShutdown - hot exit onExit single window', function (done) {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-
-		const service = accessor.textFileService;
-		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT } });
-		// Set cancel to force a veto under regular circumstances
-		service.setConfirmResult(ConfirmResult.CANCEL);
-
-		model.load().done(() => {
-			model.textEditorModel.setValue('foo');
-
-			assert.equal(service.getDirty().length, 1);
-
-			const event = new ShutdownEventImpl();
-			accessor.lifecycleService.fireWillShutdown(event);
-
-			return (<TPromise<boolean>>event.value).then(veto => {
-				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-				assert.ok(!veto);
-
-				done();
-			});
-		}, error => onError(error, done));
-	});
-
-	test('confirm onWillShutdown - hot exit onExit multiple windows', function (done) {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-
-		const service = accessor.textFileService;
-		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT } });
-		// Set multiple windows
-		accessor.windowsService.windowCount = 2;
-		// Set cancel to force a veto under regular circumstances
-		service.setConfirmResult(ConfirmResult.CANCEL);
-
-		model.load().done(() => {
-			model.textEditorModel.setValue('foo');
-
-			assert.equal(service.getDirty().length, 1);
-
-			const event = new ShutdownEventImpl();
-			accessor.lifecycleService.fireWillShutdown(event);
-
-			return (<TPromise<boolean>>event.value).then(veto => {
-				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-				assert.ok(veto);
-
-				done();
-			});
-		}, error => onError(error, done));
-	});
-
-	test('confirm onWillShutdown - hot exit onExitAndWindowClose single window', function (done) {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-
-		const service = accessor.textFileService;
-		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE } });
-		// Force veto when hot exit fails
-		service.setConfirmResult(ConfirmResult.CANCEL);
-
-		model.load().done(() => {
-			model.textEditorModel.setValue('foo');
-
-			assert.equal(service.getDirty().length, 1);
-
-			const event = new ShutdownEventImpl();
-			accessor.lifecycleService.fireWillShutdown(event);
-
-			return (<TPromise<boolean>>event.value).then(veto => {
-				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-				assert.ok(!veto);
-
-				done();
-			});
-		}, error => onError(error, done));
-	});
-
-	test('confirm onWillShutdown - hot exit onExitAndWindowClose multiple windows', function (done) {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-
-		const service = accessor.textFileService;
-		service.onConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE } });
-		// Set multiple windows
-		accessor.windowsService.windowCount = 2;
-		// Set cancel to force a veto under regular circumstances
-		service.setConfirmResult(ConfirmResult.CANCEL);
-
-		model.load().done(() => {
-			model.textEditorModel.setValue('foo');
-
-			assert.equal(service.getDirty().length, 1);
-
-			const event = new ShutdownEventImpl();
-			accessor.lifecycleService.fireWillShutdown(event);
-
-			return (<TPromise<boolean>>event.value).then(veto => {
-				assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-				assert.ok(!veto);
-
-				done();
-			});
-		}, error => onError(error, done));
-	});
-
 	test('isDirty/getDirty - files and untitled', function (done) {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
@@ -369,5 +261,83 @@ suite('Files - TextFileService', () => {
 				done();
 			});
 		}, error => onError(error, done));
+	});
+
+	suite('Hot Exit', () => {
+		suite('"onExit" setting', () => {
+			test('should hot exit (setting: onExit, reason: CLOSE, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, function () {
+					// Set cancel to force a veto under regular circumstances
+					service.setConfirmResult(ConfirmResult.CANCEL);
+				}, function (veto) {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should NOT hot exit (setting: onExit, reason: CLOSE, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, function () {
+					// Set multiple windows
+					accessor.windowsService.windowCount = 2;
+					// Set cancel to force a veto under regular circumstances
+					service.setConfirmResult(ConfirmResult.CANCEL);
+				}, function (veto) {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+		});
+
+		suite('"onExitAndWindowClose" setting', () => {
+			test('should hot exit (reason: CLOSE, windows: single)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, function () {
+					// Force veto when hot exit fails
+					service.setConfirmResult(ConfirmResult.CANCEL);
+				}, function (veto) {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: CLOSE, windows: multiple)', function (done) {
+				const service = accessor.textFileService;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, function () {
+					// Set multiple windows
+					accessor.windowsService.windowCount = 2;
+					// Set cancel to force a veto under regular circumstances
+					service.setConfirmResult(ConfirmResult.CANCEL);
+				}, function (veto) {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+		});
+
+		function hotExitTest(setting: string, setup: () => void, assertions: (veto: boolean) => void, done): void {
+			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+			const service = accessor.textFileService;
+			service.onConfigurationChange({ files: { hotExit: setting } });
+			setup();
+
+			model.load().done(() => {
+				model.textEditorModel.setValue('foo');
+
+				assert.equal(service.getDirty().length, 1);
+
+				const event = new ShutdownEventImpl();
+				accessor.lifecycleService.fireWillShutdown(event);
+
+				return (<TPromise<boolean>>event.value).then(veto => {
+					assertions(veto);
+
+					done();
+				});
+			}, error => onError(error, done));
+		}
 	});
 });
