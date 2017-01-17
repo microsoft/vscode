@@ -355,7 +355,7 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		// Hot exit
-		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.ON_EXIT;
+		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.OFF;
 		// Handle the legacy case where hot exit was a boolean
 		if (<any>hotExitMode === false) {
 			this.configuredHotExit = HotExitConfiguration.OFF;
