@@ -35,11 +35,15 @@ export class ExtHostWorkspace {
 		let path: string;
 		if (typeof pathOrUri === 'string') {
 			path = pathOrUri;
-		} else {
+		} else if (typeof pathOrUri !== 'undefined') {
 			path = pathOrUri.fsPath;
 		}
 
-		if (!path || !this._workspacePath) {
+		if (!path) {
+			return path;
+		}
+
+		if (!this._workspacePath) {
 			return normalize(path);
 		}
 
