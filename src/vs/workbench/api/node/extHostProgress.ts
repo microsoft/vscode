@@ -6,6 +6,7 @@
 
 import { Progress, CancellationToken } from 'vscode';
 import { MainThreadProgressShape } from './extHost.protocol';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostProgress {
 
@@ -16,18 +17,18 @@ export class ExtHostProgress {
 		this._proxy = proxy;
 	}
 
-	withWindowProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
-		return this._withProgress('window', task);
+	withWindowProgress<R>(extension: IExtensionDescription, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+		return this._withProgress(extension, 'window', task);
 	}
 
-	withScmViewletProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R> {
-		return this._withProgress('scm', task);
+	withScmProgress<R>(extension: IExtensionDescription, task: (progress: Progress<number>) => Thenable<R>): Thenable<R> {
+		return this._withProgress(extension, 'scm', task);
 	}
 
-	private _withProgress<R>(type: string, task: (progress: Progress<any>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+	private _withProgress<R>(extension: IExtensionDescription, type: string, task: (progress: Progress<any>, token: CancellationToken) => Thenable<R>): Thenable<R> {
 		const handle = this._handles++;
 
-		this._proxy.$progressStart(handle, type);
+		this._proxy.$progressStart(handle, extension.id, type);
 		const progress = {
 			report: (message: string) => {
 				this._proxy.$progressReport(handle, message);

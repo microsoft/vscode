@@ -309,7 +309,10 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
 			},
 			withWindowProgress: proposedApiFunction(extension, <R>(task: (progress: vscode.Progress<string>, token: vscode.CancellationToken) => Thenable<R>): Thenable<R> => {
-				return extHostProgress.withWindowProgress(task);
+				return extHostProgress.withWindowProgress(extension, task);
+			}),
+			withScmProgress: proposedApiFunction(extension, (task: (progress: vscode.Progress<number>) => Thenable<any>) => {
+				return extHostProgress.withScmProgress(extension, task);
 			}),
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
