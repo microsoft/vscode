@@ -17,6 +17,10 @@ class FloatHorizontalRange {
 		this.width = width;
 	}
 
+	public toString(): string {
+		return `[${this.left},${this.width}]`;
+	}
+
 	public static compare(a: FloatHorizontalRange, b: FloatHorizontalRange): number {
 		return a.left - b.left;
 	}
