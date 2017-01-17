@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="../../../../src/vs/vscode.proposed.d.ts" />
+
 'use strict';
 
 import * as vscode from 'vscode';
@@ -53,5 +55,47 @@ export default class TypingsStatus extends vscode.Disposable {
 			clearTimeout(timer);
 		}
 		delete this._acquiringTypings[eventId];
+	}
+}
+
+export class AtaProgressReporter {
+
+	private _promises = new Map<number, Function>();
+	private _disposable: vscode.Disposable;
+
+	constructor(client: ITypescriptServiceClient) {
+		this._disposable = vscode.Disposable.from(
+			client.onDidBeginInstallTypings(e => this._onBegin(e.eventId, e.packages)),
+			client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId))
+		);
+	}
+
+	dispose(): void {
+		this._disposable.dispose();
+		this._promises.forEach(value => value());
+	}
+
+	private _onBegin(eventId: number, packages: ReadonlyArray<string>): void {
+
+		const handle = setTimeout(() => this._onEndOrTimeout(eventId), typingsInstallTimeout);
+		const promise = new Promise(resolve => {
+			this._promises.set(eventId, () => {
+				clearTimeout(handle);
+				resolve();
+			});
+		});
+
+		vscode.window.withWindowProgress(progress => {
+			progress.report('Installing packages...');
+			return promise;
+		});
+	}
+
+	private _onEndOrTimeout(eventId: number): void {
+		const resolve = this._promises.get(eventId);
+		if (resolve) {
+			this._promises.delete(eventId);
+			resolve();
+		}
 	}
 }
