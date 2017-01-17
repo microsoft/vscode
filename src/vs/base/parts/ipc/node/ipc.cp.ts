@@ -55,6 +55,12 @@ export interface IIPCOptions {
 	 * Allows to assign a debug port for debugging the application and breaking it on the first line.
 	 */
 	debugBrk?: number;
+
+	/**
+	 * Enables our createQueuedSender helper for this Client. Uses a queue when the internal Node.js queue is
+	 * full of messages - see notes on that method.
+	 */
+	useQueue?: boolean;
 }
 
 export class Client implements IChannelClient, IDisposable {
@@ -153,8 +159,8 @@ export class Client implements IChannelClient, IDisposable {
 				}
 			});
 
-			const queuedSender = createQueuedSender(this.child);
-			const send = r => this.child && this.child.connected && queuedSender.send(r);
+			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
+			const send = r => this.child && this.child.connected && sender.send(r);
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 
