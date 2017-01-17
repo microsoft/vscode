@@ -6,18 +6,14 @@
 import 'vs/css!./media/panelpart';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
-import { Builder } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/platform';
-import { ActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { Scope } from 'vs/workbench/browser/actionBarRegistry';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actionRegistry';
 import { IPanel } from 'vs/workbench/common/panel';
-import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
-import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
+import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -26,6 +22,8 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ClosePanelAction, PanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -34,6 +32,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public _serviceBrand: any;
 
 	private blockOpeningPanel: boolean;
+	private panelSwitcherBar: ActionBar;
+
+	private panelIdToActions: { [panelId: string]: PanelAction; };
 
 	constructor(
 		id: string,
@@ -61,6 +62,25 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			id,
 			{ hasTitle: true }
 		);
+
+		this.panelIdToActions = Object.create(null);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Activate panel action on opening of a panel
+		this.toUnbind.push(this.onDidPanelOpen(panel => this.updatePanelActions(panel.getId(), true)));
+
+		// Deactivate panel action on close
+		this.toUnbind.push(this.onDidPanelClose(panel => this.updatePanelActions(panel.getId(), false)));
+	}
+
+	private updatePanelActions(id: string, didOpen: boolean): void {
+		if (this.panelIdToActions[id]) {
+			didOpen ? this.panelIdToActions[id].activate() : this.panelIdToActions[id].deactivate();
+		}
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
@@ -69,10 +89,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public get onDidPanelClose(): Event<IPanel> {
 		return this._onDidCompositeClose.event;
-	}
-
-	public create(parent: Builder): void {
-		super.create(parent);
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
@@ -109,95 +125,45 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public hideActivePanel(): TPromise<void> {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
-}
 
+	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
+		let titleArea = $(parent).div({
+			'class': ['panel-switcher-container']
+		});
 
-class ClosePanelAction extends Action {
-	static ID = 'workbench.action.closePanel';
-	static LABEL = nls.localize('closePanel', "Close Panel");
+		// Show a panel switcher
+		this.panelSwitcherBar = new ActionBar(titleArea, {
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: nls.localize('panelSwitcherBarAriaLabel', "Active Panel Switcher"),
+			animated: false
+		});
 
-	constructor(
-		id: string,
-		name: string,
-		@IPartService private partService: IPartService
-	) {
-		super(id, name, 'hide-panel-action');
+		this.updatePanelSwitcher();
+
+		return {
+			updateTitle: (id, title, keybinding) => {
+				const action = this.panelIdToActions[id];
+				if (action) {
+					action.label = title;
+				}
+			}
+		};
 	}
 
-	public run(): TPromise<any> {
-		return this.partService.setPanelHidden(true);
-	}
-}
+	private updatePanelSwitcher(): void {
+		const panels = this.getPanels();
 
-export class TogglePanelAction extends ActivityAction {
-	static ID = 'workbench.action.togglePanel';
-	static LABEL = nls.localize('togglePanel', "Toggle Panel");
+		this.panelSwitcherBar.push(panels.map(panel => {
+			const action = this.instantiationService.createInstance(PanelAction, panel);
 
-	constructor(
-		id: string,
-		name: string,
-		@IPartService private partService: IPartService
-	) {
-		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
+			this.panelIdToActions[panel.id] = action;
+
+			return action;
+		}), { label: true });
 	}
 
-	public run(): TPromise<any> {
-		return this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
-	}
-}
-
-class FocusPanelAction extends Action {
-
-	public static ID = 'workbench.action.focusPanel';
-	public static LABEL = nls.localize('focusPanel', "Focus into Panel");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPanelService private panelService: IPanelService,
-		@IPartService private partService: IPartService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-
-		// Show panel
-		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return this.partService.setPanelHidden(false);
-		}
-
-		// Focus into active panel
-		let panel = this.panelService.getActivePanel();
-		if (panel) {
-			panel.focus();
-		}
-		return TPromise.as(true);
+	private getPanels(): PanelDescriptor[] {
+		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
+			.sort((v1, v2) => v1.order - v2.order);
 	}
 }
-
-class ToggleMaximizedPanelAction extends Action {
-
-	public static ID = 'workbench.action.toggleMaximizedPanel';
-	public static LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPartService private partService: IPartService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		// Show panel
-		return this.partService.setPanelHidden(false)
-			.then(() => this.partService.toggleMaximizedPanel());
-	}
-}
-
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel Visibility', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL), 'View: Toggle Maximized Panel', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
