@@ -44,6 +44,17 @@ export function done<T>(promise: Promise<T>): Promise<void> {
 	return promise.then<void>(() => void 0, () => void 0);
 }
 
+export function once<T>(event: Event<T>): Event<T> {
+	return (listener, thisArgs = null, disposables?) => {
+		const result = event(e => {
+			result.dispose();
+			return listener.call(thisArgs, e);
+		}, null, disposables);
+
+		return result;
+	};
+}
+
 export function throttle<T>(fn: (...args: any[]) => Promise<T>): () => Promise<T> {
 	let current: Promise<T> | undefined;
 	let next: Promise<T> | undefined;
@@ -72,4 +83,8 @@ export function throttle<T>(fn: (...args: any[]) => Promise<T>): () => Promise<T
 	};
 
 	return trigger;
+}
+
+export function eventToPromise<T>(event: Event<T>): Promise<T> {
+	return new Promise(c => once(event)(c));
 }

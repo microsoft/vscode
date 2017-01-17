@@ -50,12 +50,16 @@ async function init(disposables: Disposable[]): Promise<void> {
 		return;
 	}
 
+	const fsWatcher = workspace.createFileSystemWatcher('**');
+	const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+	const onGitChange = filterEvent(onWorkspaceChange, uri => /^\.git\//.test(workspace.asRelativePath(uri)));
+
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
 	const git = new Git({ gitPath: info.path, version: info.version });
 	const repository = git.open(rootPath);
 	const repositoryRoot = await repository.getRoot();
-	const model = new Model(repositoryRoot, repository);
+	const model = new Model(repositoryRoot, repository, onWorkspaceChange);
 
 	const outputChannel = window.createOutputChannel('git');
 	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
@@ -63,17 +67,9 @@ async function init(disposables: Disposable[]): Promise<void> {
 
 	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
-
-	const fsWatcher = workspace.createFileSystemWatcher('**');
-	const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
-	const onGitChange = filterEvent(onWorkspaceChange, uri => /^\.git\//.test(workspace.asRelativePath(uri)));
-
-	const watcher = new Watcher(model, onWorkspaceChange);
 	const contentProvider = new GitContentProvider(git, rootPath, onGitChange);
-
 	const checkoutStatusBar = new CheckoutStatusBar(model);
 	const syncStatusBar = new SyncStatusBar(model);
-
 	const autoFetcher = new AutoFetcher(model);
 
 	disposables.push(
@@ -82,7 +78,6 @@ async function init(disposables: Disposable[]): Promise<void> {
 		contentProvider,
 		outputChannel,
 		fsWatcher,
-		watcher,
 		checkoutStatusBar,
 		syncStatusBar,
 		autoFetcher
