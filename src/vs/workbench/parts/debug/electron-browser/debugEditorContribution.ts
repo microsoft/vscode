@@ -56,7 +56,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
-	private wordToLineNumbersMap: Map<string, number[]>;
+	private wordToLineNumbersMap: Map<string, IPosition[]>;
 
 	private configurationWidget: FloatingClickWidget;
 
@@ -361,15 +361,21 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		stackFrame.getScopes()
 			// Get all top level children in the scope chain
-			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren())))
-			.then(children => {
-				const expressions = children.reduce((previous, current) => previous.concat(current), []);
-				const decorations = this.createAllInlineValueDecorations(expressions);
-				this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, decorations);
-			});
+			.then(scopes => TPromise.join(scopes.filter(s => !s.expensive).map(scope => scope.getChildren()
+				.then(children => {
+					let range = new Range(0, 0, stackFrame.lineNumber, stackFrame.column);
+					if (scope.range) {
+						range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
+					}
+
+					return this.createInlineValueDecorationsInsideRange(children, range);
+				}))).then(decorationsPerScope => {
+					const allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
+					this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
+				}));
 	}
 
-	private createAllInlineValueDecorations(expressions: IExpression[]): IDecorationOptions[] {
+	private createInlineValueDecorationsInsideRange(expressions: IExpression[], range: Range): IDecorationOptions[] {
 		const nameValueMap = new Map<string, string>();
 		for (let expr of expressions) {
 			nameValueMap.set(expr.name, expr.value);
@@ -380,17 +386,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		const lineToNamesMap: Map<number, string[]> = new Map<number, string[]>();
-		const wordToLineNumbersMap = this.getWordToLineNumbersMap();
+		const wordToPositionsMap = this.getWordToPositionsMap();
 
 		// Compute unique set of names on each line
 		nameValueMap.forEach((value, name) => {
-			if (wordToLineNumbersMap.has(name)) {
-				for (let lineNumber of wordToLineNumbersMap.get(name)) {
-					if (!lineToNamesMap.has(lineNumber)) {
-						lineToNamesMap.set(lineNumber, []);
-					}
+			if (wordToPositionsMap.has(name)) {
+				for (let position of wordToPositionsMap.get(name)) {
+					if (range.containsPosition(position)) {
+						if (!lineToNamesMap.has(position.lineNumber)) {
+							lineToNamesMap.set(position.lineNumber, []);
+						}
 
-					lineToNamesMap.get(lineNumber).push(name);
+						lineToNamesMap.get(position.lineNumber).push(name);
+					}
 				}
 			}
 		});
@@ -439,9 +447,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		};
 	}
 
-	private getWordToLineNumbersMap(): Map<string, number[]> {
+	private getWordToPositionsMap(): Map<string, IPosition[]> {
 		if (!this.wordToLineNumbersMap) {
-			this.wordToLineNumbersMap = new Map<string, number[]>();
+			this.wordToLineNumbersMap = new Map<string, IPosition[]>();
 			const model = this.editor.getModel();
 			// For every word in every line, map its ranges for fast lookup
 			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
@@ -467,7 +475,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								this.wordToLineNumbersMap.set(word, []);
 							}
 
-							this.wordToLineNumbersMap.get(word).push(lineNumber);
+							this.wordToLineNumbersMap.get(word).push({ lineNumber, column: token.startOffset });
 						}
 					}
 				}
