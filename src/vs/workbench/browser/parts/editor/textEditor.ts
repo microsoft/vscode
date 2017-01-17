@@ -10,7 +10,7 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, toResource } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor, IEditorOptions } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -20,6 +20,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { Scope } from 'vs/workbench/common/memento';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -49,7 +51,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IModeService private modeService: IModeService
 	) {
 		super(id, telemetryService);
 
@@ -91,6 +94,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Specific editor options always overwrite user configuration
 		const editorConfiguration = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
+		const language = this.getLanguage();
+		if (language) {
+			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ language, section: 'editor' }));
+		}
 		objects.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		return editorConfiguration;
@@ -110,6 +117,11 @@ export abstract class BaseTextEditor extends BaseEditor {
 		// Editor for Text
 		this._editorContainer = parent;
 		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
+		const codeEditor = getCodeEditor(this);
+		if (codeEditor) {
+			this.toUnbind.push(codeEditor.onDidChangeModelLanguage(e => this.updateEditorConfiguration()));
+			this.toUnbind.push(codeEditor.onDidChangeModel(e => this.updateEditorConfiguration()));
+		}
 	}
 
 	/**
@@ -129,7 +141,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 			// Update editor options after having set the input. We do this because there can be
 			// editor input specific options (e.g. an ARIA label depending on the input showing)
-			this.editorControl.updateOptions(this.getConfigurationOverrides());
+			this.updateEditorConfiguration();
 		});
 	}
 
@@ -208,6 +220,30 @@ export abstract class BaseTextEditor extends BaseEditor {
 			}
 		}
 
+		return null;
+	}
+
+	private updateEditorConfiguration(): void {
+		this.editorControl.updateOptions(this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
+	}
+
+	private getLanguage(): string {
+		const codeEditor = getCodeEditor(this);
+		if (codeEditor) {
+			const model = codeEditor.getModel();
+			if (model) {
+				return model.getLanguageIdentifier().language;
+			}
+		}
+		if (this.input) {
+			const resource = toResource(this.input);
+			if (resource) {
+				const modeId = this.modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
+				if (modeId) {
+					return this.modeService.getLanguageName(modeId);
+				}
+			}
+		}
 		return null;
 	}
 
