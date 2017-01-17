@@ -24,6 +24,7 @@ import { MainThreadLanguageFeatures } from './mainThreadLanguageFeatures';
 import { MainThreadLanguages } from './mainThreadLanguages';
 import { MainThreadMessageService } from './mainThreadMessageService';
 import { MainThreadOutputService } from './mainThreadOutputService';
+import { MainThreadProgress } from './mainThreadProgress';
 import { MainThreadQuickOpen } from './mainThreadQuickOpen';
 import { MainThreadStatusBar } from './mainThreadStatusBar';
 import { MainThreadStorage } from './mainThreadStorage';
@@ -75,6 +76,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadLanguages).set(create(MainThreadLanguages));
 		col.define(MainContext.MainThreadMessageService).set(create(MainThreadMessageService));
 		col.define(MainContext.MainThreadOutputService).set(create(MainThreadOutputService));
+		col.define(MainContext.MainThreadProgress).set(create(MainThreadProgress));
 		col.define(MainContext.MainThreadQuickOpen).set(create(MainThreadQuickOpen));
 		col.define(MainContext.MainThreadStatusBar).set(create(MainThreadStatusBar));
 		col.define(MainContext.MainThreadStorage).set(create(MainThreadStorage));

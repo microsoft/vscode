@@ -73,6 +73,22 @@ export class Disposables extends Disposable {
 	}
 }
 
+export class OneDisposable implements IDisposable {
+
+	private _value: IDisposable;
+
+	set value(value: IDisposable) {
+		if (this._value) {
+			this._value.dispose();
+		}
+		this._value = value;
+	}
+
+	dispose() {
+		this.value = null;
+	}
+}
+
 export interface IReference<T> extends IDisposable {
 	readonly object: T;
 }
