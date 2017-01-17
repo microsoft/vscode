@@ -492,8 +492,8 @@ export const AutoSaveConfiguration = {
 
 export const HotExitConfiguration = {
 	OFF: 'off',
-	APP_EXIT: 'appExit',
-	APP_EXIT_AND_WINDOW_CLOSE: 'appExitAndWindowClose'
+	ON_EXIT: 'onExit',
+	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
 };
 
 export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
