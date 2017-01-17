@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IBadge {
@@ -64,12 +66,7 @@ export interface IActivityBarService {
 	/**
 	 * Show activity in the activitybar for the given viewlet.
 	 */
-	showActivity(viewletId: string, badge: IBadge, clazz?: string): void;
-
-	/**
-	 * Clears activity shown in the activitybar for the given viewlet.
-	 */
-	clearActivity(viewletId: string): void;
+	showActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable;
 
 	/**
 	 * Unpins a viewlet from the activitybar.

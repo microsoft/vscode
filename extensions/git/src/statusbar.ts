@@ -8,6 +8,9 @@
 import { window, Disposable, StatusBarItem, StatusBarAlignment } from 'vscode';
 import { RefType, IBranch } from './git';
 import { Model, Operation } from './model';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 export class CheckoutStatusBar {
 
@@ -116,11 +119,11 @@ export class SyncStatusBar {
 					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
 				}
 				command = 'git.sync';
-				tooltip = 'Synchronize changes';
+				tooltip = localize('sync changes', "Synchronize changes");
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';
-				tooltip = 'Publish changes';
+				tooltip = localize('publish changes', "Publish changes");
 			}
 		} else {
 			command = '';
@@ -128,8 +131,9 @@ export class SyncStatusBar {
 		}
 
 		if (this.state.isSyncRunning) {
+			text = '';
 			command = '';
-			tooltip = 'Synchronizing changes...';
+			tooltip = localize('syncing changes', "Synchronizing changes...");
 		}
 
 		this.raw.text = [icon, text].join(' ').trim();

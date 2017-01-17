@@ -10,6 +10,11 @@ import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/co
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
 
+export interface IPanelIdentifier {
+	id: string;
+	name: string;
+}
+
 export interface IPanelService {
 	_serviceBrand: ServiceIdentifier<any>;
 
@@ -26,4 +31,9 @@ export interface IPanelService {
 	 * Returns the current active panel or null if none
 	 */
 	getActivePanel(): IPanel;
+
+	/**
+	 * Returns all registered panels
+	 */
+	getPanels(): IPanelIdentifier[];
 }

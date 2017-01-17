@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -62,7 +62,7 @@ export class TerminalPanel extends Panel {
 
 		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
-		this._register(this._themeService.onDidColorThemeChange(themeId => this._updateTheme(themeId)));
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidUpdateConfiguration(() => this._updateFont()));
 		this._updateFont();
 		this._updateTheme();
@@ -192,11 +192,11 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	private _updateTheme(themeId?: string): void {
-		if (!themeId) {
-			themeId = this._themeService.getColorTheme();
+	private _updateTheme(colorTheme?: IColorTheme): void {
+		if (!colorTheme) {
+			colorTheme = this._themeService.getColorTheme();
 		}
-
+		let themeId = colorTheme.id;
 		let baseThemeId = getBaseThemeId(themeId);
 		if (baseThemeId === this._currentBaseThemeId) {
 			return;

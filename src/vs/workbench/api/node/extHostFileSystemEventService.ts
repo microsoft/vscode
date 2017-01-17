@@ -10,7 +10,7 @@ import { match } from 'vs/base/common/glob';
 import { Uri, FileSystemWatcher as _FileSystemWatcher } from 'vscode';
 import { FileSystemEvents, ExtHostFileSystemEventServiceShape } from './extHost.protocol';
 
-export class FileSystemWatcher implements _FileSystemWatcher {
+class FileSystemWatcher implements _FileSystemWatcher {
 
 	private _onDidCreate = new Emitter<Uri>();
 	private _onDidChange = new Emitter<Uri>();

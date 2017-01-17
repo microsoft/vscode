@@ -6,7 +6,6 @@
 
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents } from './extHost.protocol';
 
 export class MainThreadFileSystemEventService {
@@ -23,13 +22,6 @@ export class MainThreadFileSystemEventService {
 			deleted: []
 		};
 
-		const scheduler = new RunOnceScheduler(() => {
-			proxy.$onFileEvent(events);
-			events.created.length = 0;
-			events.changed.length = 0;
-			events.deleted.length = 0;
-		}, 100);
-
 		fileService.onFileChanges(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
@@ -44,7 +36,11 @@ export class MainThreadFileSystemEventService {
 						break;
 				}
 			}
-			scheduler.schedule();
+
+			proxy.$onFileEvent(events);
+			events.created.length = 0;
+			events.changed.length = 0;
+			events.deleted.length = 0;
 		});
 	}
 }

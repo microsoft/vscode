@@ -23,6 +23,7 @@ import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction } from 'v
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class OutputPanel extends TextResourceEditor {
 	private toDispose: IDisposable[];
@@ -38,9 +39,10 @@ export class OutputPanel extends TextResourceEditor {
 		@IOutputService private outputService: IOutputService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IModeService modeService: IModeService
 	) {
-		super(telemetryService, instantiationService, storageService, configurationService, themeService, untitledEditorService, editorGroupService);
+		super(telemetryService, instantiationService, storageService, configurationService, themeService, untitledEditorService, editorGroupService, modeService);
 
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];

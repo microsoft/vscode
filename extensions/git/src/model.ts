@@ -5,12 +5,15 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup } from 'vscode';
+import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window } from 'vscode';
 import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
-import { throttle, anyEvent } from './util';
-import { decorate, memoize } from 'core-decorators';
+import { throttle, anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
+import { watch } from './watch';
+import { decorate, memoize, debounce } from 'core-decorators';
 import * as path from 'path';
+import * as nls from 'vscode-nls';
 
+const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
 function getIconUri(iconName: string, theme: string): Uri {
@@ -128,7 +131,7 @@ export class MergeGroup extends ResourceGroup {
 	static readonly ID = 'merge';
 
 	constructor(resources: Resource[]) {
-		super(MergeGroup.ID, 'Merge Changes', resources);
+		super(MergeGroup.ID, localize('merge changes', "Merge Changes"), resources);
 	}
 }
 
@@ -137,7 +140,7 @@ export class IndexGroup extends ResourceGroup {
 	static readonly ID = 'index';
 
 	constructor(resources: Resource[]) {
-		super(IndexGroup.ID, 'Staged Changes', resources);
+		super(IndexGroup.ID, localize('staged changes', "Staged Changes"), resources);
 	}
 }
 
@@ -146,7 +149,7 @@ export class WorkingTreeGroup extends ResourceGroup {
 	static readonly ID = 'workingTree';
 
 	constructor(resources: Resource[]) {
-		super(WorkingTreeGroup.ID, 'Changes', resources);
+		super(WorkingTreeGroup.ID, localize('changes', "Changes"), resources);
 	}
 }
 
@@ -164,6 +167,7 @@ export enum Operation {
 }
 
 export interface Operations {
+	isIdle(): boolean;
 	isRunning(operation: Operation): boolean;
 }
 
@@ -183,6 +187,10 @@ class OperationsImpl implements Operations {
 
 	isRunning(operation: Operation): boolean {
 		return (this.operations & operation) !== 0;
+	}
+
+	isIdle(): boolean {
+		return this.operations === 0;
 	}
 }
 
@@ -230,8 +238,29 @@ export class Model {
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
-	constructor(private _repositoryRoot: string, private repository: Repository) {
+	private disposables: Disposable[] = [];
 
+	constructor(
+		private _repositoryRoot: string,
+		private repository: Repository,
+		onWorkspaceChange: Event<Uri>
+	) {
+		/* We use the native Node `watch` for faster, non debounced events.
+		 * That way we hopefully get the events during the operations we're
+		 * performing, thus sparing useless `git status` calls to refresh
+		 * the model's state.
+		 */
+		const gitPath = path.join(_repositoryRoot, '.git');
+		const { event, disposable } = watch(gitPath);
+		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(gitPath, filename)));
+		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
+		onRelevantGitChange(this.onFSChange, this, this.disposables);
+		this.disposables.push(disposable);
+
+		const onNonGitChange = filterEvent(onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
+		onNonGitChange(this.onFSChange, this, this.disposables);
+
+		this.status();
 	}
 
 	get repositoryRoot(): string {
@@ -254,90 +283,18 @@ export class Model {
 	}
 
 	@decorate(throttle)
-	async update(): Promise<void> {
-		await this.run(Operation.Status, async () => {
-			const status = await this.repository.getStatus();
-			let HEAD: IBranch | undefined;
-
-			try {
-				HEAD = await this.repository.getHEAD();
-
-				if (HEAD.name) {
-					try {
-						HEAD = await this.repository.getBranch(HEAD.name);
-					} catch (err) {
-						// noop
-					}
-				}
-			} catch (err) {
-				// noop
-			}
-
-			const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
-
-			this._HEAD = HEAD;
-			this._refs = refs;
-			this._remotes = remotes;
-
-			const index: Resource[] = [];
-			const workingTree: Resource[] = [];
-			const merge: Resource[] = [];
-
-			status.forEach(raw => {
-				const uri = Uri.file(path.join(this.repositoryRoot, raw.path));
-
-				switch (raw.x + raw.y) {
-					case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));
-					case '!!': return workingTree.push(new Resource(uri, Status.IGNORED));
-					case 'DD': return merge.push(new Resource(uri, Status.BOTH_DELETED));
-					case 'AU': return merge.push(new Resource(uri, Status.ADDED_BY_US));
-					case 'UD': return merge.push(new Resource(uri, Status.DELETED_BY_THEM));
-					case 'UA': return merge.push(new Resource(uri, Status.ADDED_BY_THEM));
-					case 'DU': return merge.push(new Resource(uri, Status.DELETED_BY_US));
-					case 'AA': return merge.push(new Resource(uri, Status.BOTH_ADDED));
-					case 'UU': return merge.push(new Resource(uri, Status.BOTH_MODIFIED));
-				}
-
-				let isModifiedInIndex = false;
-
-				switch (raw.x) {
-					case 'M': index.push(new Resource(uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-					case 'A': index.push(new Resource(uri, Status.INDEX_ADDED)); break;
-					case 'D': index.push(new Resource(uri, Status.INDEX_DELETED)); break;
-					case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED/*, raw.rename*/)); break;
-					case 'C': index.push(new Resource(uri, Status.INDEX_COPIED)); break;
-				}
-
-				switch (raw.y) {
-					case 'M': workingTree.push(new Resource(uri, Status.MODIFIED/*, raw.rename*/)); break;
-					case 'D': workingTree.push(new Resource(uri, Status.DELETED/*, raw.rename*/)); break;
-				}
-			});
-
-			this._mergeGroup = new MergeGroup(merge);
-			this._indexGroup = new IndexGroup(index);
-			this._workingTreeGroup = new WorkingTreeGroup(workingTree);
-
-			this._onDidChange.fire(this.resources);
-		});
+	async status(): Promise<void> {
+		await this.run(Operation.Status);
 	}
 
 	@decorate(throttle)
 	async stage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Stage, async () => {
-			const paths = resources.map(r => r.uri.fsPath);
-			await this.repository.add(paths);
-			await this.update();
-		});
+		await this.run(Operation.Stage, () => this.repository.add(resources.map(r => r.uri.fsPath)));
 	}
 
 	@decorate(throttle)
 	async unstage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Unstage, async () => {
-			const paths = resources.map(r => r.uri.fsPath);
-			await this.repository.revertFiles('HEAD', paths);
-			await this.update();
-		});
+		await this.run(Operation.Unstage, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
 	}
 
 	@decorate(throttle)
@@ -348,7 +305,6 @@ export class Model {
 			}
 
 			await this.repository.commit(message, opts);
-			await this.update();
 		});
 	}
 
@@ -382,59 +338,139 @@ export class Model {
 			}
 
 			await Promise.all(promises);
-			await this.update();
 		});
 	}
 
 	@decorate(throttle)
 	async branch(name: string): Promise<void> {
-		await this.run(Operation.Branch, async () => {
-			await this.repository.branch(name, true);
-			await this.update();
-		});
+		await this.run(Operation.Branch, () => this.repository.branch(name, true));
 	}
 
 	@decorate(throttle)
 	async checkout(treeish: string): Promise<void> {
-		await this.run(Operation.Checkout, async () => {
-			await this.repository.checkout(treeish, []);
-			await this.update();
-		});
+		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
 
 	@decorate(throttle)
 	async fetch(): Promise<void> {
-		await this.run(Operation.Fetch, async () => {
-			await this.repository.fetch();
-			await this.update();
-		});
+		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
 	@decorate(throttle)
 	async sync(): Promise<void> {
-		await this.run(Operation.Sync, async () => {
-			await this.repository.sync();
-			await this.update();
-		});
+		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
 	@decorate(throttle)
 	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
-		await this.run(Operation.Push, async () => {
-			await this.repository.push(remote, name, options);
-			await this.update();
+		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
+	}
+
+	private async run(operation: Operation, fn: () => Promise<void> = () => Promise.resolve()): Promise<void> {
+		window.withScmProgress(async () => {
+			this._operations = this._operations.start(operation);
+			this._onRunOperation.fire(operation);
+
+			try {
+				await fn();
+				await this.update();
+			} finally {
+				this._operations = this._operations.end(operation);
+				this._onDidRunOperation.fire(operation);
+			}
 		});
 	}
 
-	private async run(operation: Operation, fn: () => Promise<void>): Promise<void> {
-		this._operations = this._operations.start(operation);
-		this._onRunOperation.fire(operation);
+	@decorate(throttle)
+	private async update(): Promise<void> {
+		const status = await this.repository.getStatus();
+		let HEAD: IBranch | undefined;
 
 		try {
-			await fn();
-		} finally {
-			this._operations = this._operations.end(operation);
-			this._onDidRunOperation.fire(operation);
+			HEAD = await this.repository.getHEAD();
+
+			if (HEAD.name) {
+				try {
+					HEAD = await this.repository.getBranch(HEAD.name);
+				} catch (err) {
+					// noop
+				}
+			}
+		} catch (err) {
+			// noop
+		}
+
+		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
+
+		this._HEAD = HEAD;
+		this._refs = refs;
+		this._remotes = remotes;
+
+		const index: Resource[] = [];
+		const workingTree: Resource[] = [];
+		const merge: Resource[] = [];
+
+		status.forEach(raw => {
+			const uri = Uri.file(path.join(this.repositoryRoot, raw.path));
+
+			switch (raw.x + raw.y) {
+				case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));
+				case '!!': return workingTree.push(new Resource(uri, Status.IGNORED));
+				case 'DD': return merge.push(new Resource(uri, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new Resource(uri, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new Resource(uri, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new Resource(uri, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new Resource(uri, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new Resource(uri, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new Resource(uri, Status.BOTH_MODIFIED));
+			}
+
+			let isModifiedInIndex = false;
+
+			switch (raw.x) {
+				case 'M': index.push(new Resource(uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new Resource(uri, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new Resource(uri, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED/*, raw.rename*/)); break;
+				case 'C': index.push(new Resource(uri, Status.INDEX_COPIED)); break;
+			}
+
+			switch (raw.y) {
+				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED/*, raw.rename*/)); break;
+				case 'D': workingTree.push(new Resource(uri, Status.DELETED/*, raw.rename*/)); break;
+			}
+		});
+
+		this._mergeGroup = new MergeGroup(merge);
+		this._indexGroup = new IndexGroup(index);
+		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
+
+		this._onDidChange.fire(this.resources);
+	}
+
+	private onFSChange(uri: Uri): void {
+		if (!this.operations.isIdle()) {
+			return;
+		}
+
+		this.eventuallyUpdateWhenIdleAndWait();
+	}
+
+	@debounce(1000)
+	private eventuallyUpdateWhenIdleAndWait(): void {
+		this.updateWhenIdleAndWait();
+	}
+
+	@decorate(throttle)
+	private async updateWhenIdleAndWait(): Promise<void> {
+		await this.whenIdle();
+		await this.status();
+		await new Promise(c => setTimeout(c, 5000));
+	}
+
+	private async whenIdle(): Promise<void> {
+		while (!this.operations.isIdle()) {
+			await eventToPromise(this.onDidRunOperation);
 		}
 	}
 }

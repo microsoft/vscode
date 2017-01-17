@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
 import uuid = require('vs/base/common/uuid');
@@ -34,6 +36,14 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
+export interface ICompositeTitleLabel {
+
+	/**
+	 * Asks to update the title for the composite with the given ID.
+	 */
+	updateTitle(id: string, title: string, keybinding?: string): void;
+}
+
 export abstract class CompositePart<T extends Composite> extends Part {
 	private instantiatedCompositeListeners: IDisposable[];
 	private mapCompositeToCompositeContainer: { [compositeId: string]: Builder; };
@@ -42,7 +52,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private activeComposite: Composite;
 	private lastActiveCompositeId: string;
 	private instantiatedComposites: Composite[];
-	private titleLabel: Builder;
+	private titleLabel: ICompositeTitleLabel;
 	private toolBar: ToolBar;
 	private compositeLoaderPromises: { [compositeId: string]: TPromise<Composite>; };
 	private progressBar: ProgressBar;
@@ -319,7 +329,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 	}
 
-	protected updateTitle(compositeId: string, compositeTitle?: string): void {
+	private updateTitle(compositeId: string, compositeTitle?: string): void {
 		let compositeDescriptor = this.registry.getComposite(compositeId);
 		if (!compositeDescriptor) {
 			return;
@@ -335,8 +345,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			keybinding = keys[0];
 		}
 
-		this.titleLabel.safeInnerHtml(compositeTitle);
-		this.titleLabel.title(keybinding ? nls.localize('compositeTitleTooltip', "{0} ({1})", compositeTitle, keybinding) : compositeTitle);
+		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
 
 		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
@@ -404,11 +413,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		});
 
 		// Left Title Label
-		$(titleArea).div({
-			'class': 'title-label'
-		}, (div) => {
-			this.titleLabel = div.span();
-		});
+		this.titleLabel = this.createTitleLabel(titleArea);
 
 		// Right Actions Container
 		$(titleArea).div({
@@ -432,6 +437,22 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		});
 
 		return titleArea;
+	}
+
+	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
+		let titleLabel: Builder;
+		$(parent).div({
+			'class': 'title-label'
+		}, (div) => {
+			titleLabel = div.span();
+		});
+
+		return {
+			updateTitle: (id, title, keybinding) => {
+				titleLabel.safeInnerHtml(title);
+				titleLabel.title(keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
+			}
+		};
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
@@ -462,6 +483,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	private onError(error: any): void {
 		this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+	}
+
+	public getProgressIndicator(id: string): IProgressService {
+		return this.mapProgressServiceToComposite[id];
 	}
 
 	protected getActions(): IAction[] {
