@@ -38,7 +38,6 @@ import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { isDarkTheme } from 'vs/platform/theme/common/themes';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -170,8 +169,7 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
-		@IMenuService private menuService: IMenuService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IMenuService private menuService: IMenuService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -247,16 +245,6 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
-		const count = provider.resources
-			.reduce<number>((r, g) => r + g.resources.length, 0);
-
-		// TODO: make number contributable by provider
-		if (count > 0) {
-			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeHandle.value = this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
-		} else {
-			this.badgeHandle.value = null;
-		}
 
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);

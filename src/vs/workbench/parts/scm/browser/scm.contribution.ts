@@ -16,6 +16,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { StatusUpdater } from './scmActivity';
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffDecorator);
@@ -32,9 +33,13 @@ const viewletDescriptor = new ViewletDescriptor(
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
 
+Registry.as(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(StatusUpdater);
+
 class OpenSCMViewletAction extends ToggleViewletAction {
-	public static ID = VIEWLET_ID;
-	public static LABEL = localize('toggleGitViewlet', "Show Git");
+
+	static ID = VIEWLET_ID;
+	static LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, VIEWLET_ID, viewletService, editorService);

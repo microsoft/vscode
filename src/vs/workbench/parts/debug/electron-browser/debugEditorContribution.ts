@@ -432,7 +432,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			range: {
 				startLineNumber: lineNumber,
 				endLineNumber: lineNumber,
-				startColumn: Constants.MAX_SAFE_SMALL_INTEGER - 1,
+				startColumn: Constants.MAX_SAFE_SMALL_INTEGER,
 				endColumn: Constants.MAX_SAFE_SMALL_INTEGER
 			},
 			renderOptions: {
