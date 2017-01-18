@@ -596,11 +596,11 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	// ---- editing
 
 	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
-	edit(snippet: SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): void;
+	edit(snippet: SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
-	edit(callbackOrSnippet: ((edit: TextEditorEdit) => void) | SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> | void {
+	edit(callbackOrSnippet: ((edit: TextEditorEdit) => void) | SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (SnippetString.isSnippetString(callbackOrSnippet)) {
-			this._proxy.$tryInsertSnippet(this._id, callbackOrSnippet.value, options);
+			return this._proxy.$tryInsertSnippet(this._id, callbackOrSnippet.value, options);
 		} else {
 			let edit = new TextEditorEdit(this._documentData.document, options);
 			callbackOrSnippet(edit);

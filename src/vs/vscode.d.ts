@@ -941,8 +941,9 @@ declare module 'vscode' {
 		 *
 		 * @param snippet The snippet to insert in this edit.
 		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
+		 * @return A promise that resolves with a value indicating if the snippet could be inserted.
 		 */
-		edit(snippet: SnippetString, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): void;
+		edit(snippet: SnippetString, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with

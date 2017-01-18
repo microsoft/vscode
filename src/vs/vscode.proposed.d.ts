@@ -108,17 +108,6 @@ declare module 'vscode' {
 		getClickCommand?(node: T): string;
 	}
 
-	export interface TextEditor {
-		/**
-		 * Enters snippet mode in the editor with the specified snippet.
-		 *
-		 * @param snippet The snippet to insert in this edit.
-		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
-		 */
-		edit(snippet: SnippetString, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): void;
-
-	}
-
 	export interface SCMResourceThemableDecorations {
 		readonly iconPath?: string | Uri;
 	}
