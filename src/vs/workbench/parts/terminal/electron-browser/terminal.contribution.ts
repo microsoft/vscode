@@ -165,7 +165,8 @@ registerSingleton(ITerminalService, TerminalService);
 	TERMINAL_PANEL_ID,
 	nls.localize('terminal', "Terminal"),
 	'terminal',
-	40
+	40,
+	ToggleTerminalAction.ID
 ));
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl

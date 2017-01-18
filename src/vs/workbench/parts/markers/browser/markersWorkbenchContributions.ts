@@ -9,9 +9,9 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import * as panel from 'vs/workbench/browser/panel';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import { ToggleMarkersPanelAction, ToggleErrorsAndWarningsAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
 export function registerContributions(): void {
 
@@ -31,21 +31,22 @@ export function registerContributions(): void {
 	});
 
 	// markers panel
-	Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).registerPanel(new panel.PanelDescriptor(
+	Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
 		'vs/workbench/parts/markers/browser/markersPanel',
 		'MarkersPanel',
 		Constants.MARKERS_PANEL_ID,
 		Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 		'markersPanel',
-		20
+		20,
+		ToggleMarkersPanelAction.ID
 	));
 
 	// actions
 	const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, markersPanelActions.ToggleMarkersPanelAction.LABEL, {
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
 	}), 'View: Show Problems', Messages.MARKERS_PANEL_VIEW_CATEGORY);
 
 	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleErrorsAndWarningsAction, markersPanelActions.ToggleErrorsAndWarningsAction.ID, markersPanelActions.ToggleErrorsAndWarningsAction.LABEL), '');
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleErrorsAndWarningsAction, ToggleErrorsAndWarningsAction.ID, ToggleErrorsAndWarningsAction.LABEL), '');
 }
