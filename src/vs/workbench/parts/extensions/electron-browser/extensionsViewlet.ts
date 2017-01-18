@@ -341,7 +341,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private onEnter(): void {
-		this.list.setSelection(...this.list.getFocus());
+		this.list.setSelection(this.list.getFocus());
 	}
 
 	private onEscape(): void {

@@ -102,7 +102,7 @@ export class ListView<T> implements IDisposable {
 		return this._domNode;
 	}
 
-	splice(start: number, deleteCount: number, ...elements: T[]): T[] {
+	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		each(previousRenderRange, i => this.removeItemFromDOM(this.items[i]));
 

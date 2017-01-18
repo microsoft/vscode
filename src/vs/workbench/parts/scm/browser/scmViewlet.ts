@@ -248,7 +248,7 @@ export class SCMViewlet extends Viewlet {
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
 
-		this.list.splice(0, this.list.length, ...elements);
+		this.list.splice(0, this.list.length, elements);
 	}
 
 	layout(dimension: Dimension = this.cachedDimension): void {
