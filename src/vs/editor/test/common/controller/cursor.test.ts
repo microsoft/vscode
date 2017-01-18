@@ -2785,6 +2785,8 @@ suite('Editor Controller - Indentation Rules', () => {
 		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 	});
 
+	let emptyRulesMode = new OnEnterMode(IndentAction.None);
+
 	test('Enter honors increaseIndentPattern', () => {
 		usingCursor({
 			text: [
@@ -2812,13 +2814,13 @@ suite('Editor Controller - Indentation Rules', () => {
 		usingCursor({
 			text: [
 				'if (true) {',
-				'\t\t}'
+				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
-			moveTo(cursor, 2, 4, false);
-			assertCursor(cursor, new Selection(2, 4, 2, 4));
+			moveTo(cursor, 2, 3, false);
+			assertCursor(cursor, new Selection(2, 3, 2, 3));
 
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(3, 1, 3, 1));
@@ -2904,7 +2906,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(5, 1, 5, 1));
-			assert.equal(model.getLineContent(4), '\t}', '001');
+			assert.equal(model.getLineContent(4), '}', '001');
 		});
 	});
 
@@ -2975,7 +2977,6 @@ suite('Editor Controller - Indentation Rules', () => {
 			assert.equal(model.getLineContent(3), '\treturn x;');
 			assertCursor(cursor, new Position(3, 2));
 		});
-		mode.dispose();
 	});
 
 	test('issue Microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
@@ -3003,9 +3004,51 @@ suite('Editor Controller - Indentation Rules', () => {
 			assert.equal(model.getLineContent(3), '\treturn x;');
 			assertCursor(cursor, new Position(3, 2));
 		});
-		mode.dispose();
+	});
+
+	test('onEnter works if there are no indentation rules', () => {
+		usingCursor({
+			text: [
+				'<?',
+				'\tif (true) {',
+				'\t\techo $hi;',
+				'\t\techo $bye;',
+				'\t}',
+				'?>'
+			],
+			languageIdentifier: emptyRulesMode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 5, 3, false);
+			assertCursor(cursor, new Selection(5, 3, 5, 3));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getLineContent(6), '\t');
+			assertCursor(cursor, new Selection(6, 2, 6, 2));
+			assert.equal(model.getLineContent(5), '\t}');
+		});
+	});
+
+	test('onEnter works if there are no indentation rules 2', () => {
+		usingCursor({
+			text: [
+				'	if (5)',
+				'		return 5;',
+				'	'
+			],
+			languageIdentifier: emptyRulesMode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 2, false);
+			assertCursor(cursor, new Selection(3, 2, 3, 2));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 2, 4, 2));
+			assert.equal(model.getLineContent(4), '\t');
+		});
 	});
 });
+
 interface ICursorOpts {
 	text: string[];
 	languageIdentifier?: LanguageIdentifier;
