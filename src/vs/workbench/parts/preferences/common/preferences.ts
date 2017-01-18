@@ -61,11 +61,15 @@ export interface IPreferencesService {
 	_serviceBrand: any;
 
 	defaultSettingsResource: URI;
+	userSettingsResource: URI;
+	workspaceSettingsResource: URI;
 	defaultKeybindingsResource: URI;
 
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 
+	openSettings(): TPromise<void>;
+	switchSettings(): TPromise<void>;
 	openGlobalSettings(): TPromise<void>;
 	openWorkspaceSettings(): TPromise<void>;
 	openGlobalKeybindingSettings(): TPromise<void>;
