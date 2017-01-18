@@ -220,16 +220,17 @@ export class TypeOperations {
 		let beforeText = '';
 
 		if (!r.ignoreCurrentLine) {
+			// textBeforeEnter doesn't match unIndentPattern.
 			let goodIndent = this._goodIndentForLine(config, model, range.startLineNumber);
 
-			if (goodIndent !== null) {
+			if (goodIndent !== null && goodIndent === r.indentation) {
 				if (enterAction.outdentCurrentLine) {
 					goodIndent = TypeOperations.unshiftIndent(config, goodIndent);
 				}
 
 				let lineText = model.getLineContent(range.startLineNumber);
-				if (goodIndent !== config.normalizeIndentation(indentation)) {
-					beforeText = goodIndent + lineText.substring(indentation.length, range.startColumn - 1);
+				if (config.normalizeIndentation(goodIndent) !== config.normalizeIndentation(indentation)) {
+					beforeText = config.normalizeIndentation(goodIndent) + lineText.substring(indentation.length, range.startColumn - 1);
 					indentation = goodIndent;
 					range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
 				}
