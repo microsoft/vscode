@@ -29,6 +29,17 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri, line) => {
+		const documentUri = decodeURIComponent(uri);
+		const target = vscode.workspace.textDocuments.filter(x => x.uri.toString() === documentUri);
+		if (!target.length) {
+			return;
+		}
+		vscode.window.showTextDocument(target[0]).then(() => {
+			return vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'center' });
+		});
+	}));
+
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {
 			const uri = getMarkdownUri(document.uri);
@@ -50,6 +61,16 @@ export function activate(context: vscode.ExtensionContext) {
 				provider.update(document.uri);
 			}
 		});
+	}));
+
+	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
+		if (isMarkdownFile(event.textEditor.document)) {
+			vscode.commands.executeCommand('vscode.htmlPreview.postMessage',
+				getMarkdownUri(event.textEditor.document.uri),
+				{
+					line: event.selections[0].start.line
+				});
+		}
 	}));
 }
 
@@ -265,6 +286,12 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
 
+			let initialLine = 0;
+			const editor = vscode.window.activeTextEditor;
+			if (editor && editor.document.uri.path === sourceUri.path) {
+				initialLine = editor.selection.start.line;
+			}
+
 			const head = ([] as Array<string>).concat(
 				'<!DOCTYPE html>',
 				'<html>',
@@ -281,7 +308,18 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const body = this._renderer.render(this.getDocumentContentForPreview(document));
 
 			const tail = [
+<<<<<<< 0d996ceaea7df1e54e105f277a1e8cdc86600857
 				`<script src="${this.getMediaPath('main.js')}"></script>`,
+=======
+				`<script>
+					window.initialData = {
+						source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
+						line: ${initialLine}
+					};
+				</script>`,
+				`<script src="${this.getMediaPath('main.js')}"></script>`,
+
+>>>>>>> proto
 				'</body>',
 				'</html>'
 			].join('\n');
