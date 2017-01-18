@@ -481,7 +481,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.currentSuggestionDetails = item.resolve()
 			.then(() => {
-				this.list.setFocus(index);
+				this.list.setFocus([index]);
 				this.updateWidgetHeight();
 				this.list.reveal(index);
 
@@ -595,8 +595,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
 			this.telemetryService.publicLog('suggestWidget', stats);
 
-			this.list.splice(0, this.list.length, ...this.completionModel.items);
-			this.list.setFocus(this.completionModel.topScoreIdx);
+			this.list.splice(0, this.list.length, this.completionModel.items);
+			this.list.setFocus([this.completionModel.topScoreIdx]);
 			this.list.reveal(this.completionModel.topScoreIdx, 0);
 
 			this.setState(State.Open);
