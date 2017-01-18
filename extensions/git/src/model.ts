@@ -7,9 +7,9 @@
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window } from 'vscode';
 import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
-import { throttle, anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
+import { anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
+import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
-import { decorate, memoize, debounce } from 'core-decorators';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -282,22 +282,22 @@ export class Model {
 		return this._remotes;
 	}
 
-	@decorate(throttle)
+	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
 	}
 
-	@decorate(throttle)
+	@throttle
 	async stage(...resources: Resource[]): Promise<void> {
 		await this.run(Operation.Stage, () => this.repository.add(resources.map(r => r.uri.fsPath)));
 	}
 
-	@decorate(throttle)
+	@throttle
 	async unstage(...resources: Resource[]): Promise<void> {
 		await this.run(Operation.Unstage, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
 	}
 
-	@decorate(throttle)
+	@throttle
 	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
 		await this.run(Operation.Commit, async () => {
 			if (opts.all) {
@@ -308,7 +308,7 @@ export class Model {
 		});
 	}
 
-	@decorate(throttle)
+	@throttle
 	async clean(...resources: Resource[]): Promise<void> {
 		await this.run(Operation.Clean, async () => {
 			const toClean: string[] = [];
@@ -341,27 +341,27 @@ export class Model {
 		});
 	}
 
-	@decorate(throttle)
+	@throttle
 	async branch(name: string): Promise<void> {
 		await this.run(Operation.Branch, () => this.repository.branch(name, true));
 	}
 
-	@decorate(throttle)
+	@throttle
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
 
-	@decorate(throttle)
+	@throttle
 	async fetch(): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
-	@decorate(throttle)
+	@throttle
 	async sync(): Promise<void> {
 		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
-	@decorate(throttle)
+	@throttle
 	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
 	}
@@ -381,7 +381,7 @@ export class Model {
 		});
 	}
 
-	@decorate(throttle)
+	@throttle
 	private async update(): Promise<void> {
 		const status = await this.repository.getStatus();
 		let HEAD: IBranch | undefined;
@@ -461,7 +461,7 @@ export class Model {
 		this.updateWhenIdleAndWait();
 	}
 
-	@decorate(throttle)
+	@throttle
 	private async updateWhenIdleAndWait(): Promise<void> {
 		await this.whenIdle();
 		await this.status();
