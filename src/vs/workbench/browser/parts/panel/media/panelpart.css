@@ -14,15 +14,26 @@
 
 .monaco-workbench > .part.panel .title {
 	padding-right: 0px;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
-	height: 36px;
+	height: 35px;
+}
+
+.vs-dark .monaco-workbench > .part.panel .title {
+	background: #2D2D2D;
+}
+
+.vs .monaco-workbench > .part.panel .title {
+	background: #ECECEC;
+}
+
+.hc-black .monaco-workbench > .part.panel .title {
+	border-top: 1px solid #6FC3DF;
 }
 
 /** Panel Switcher */
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
 	padding-left: 12px;
-	line-height: 36px;
+	line-height: 35px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
@@ -41,13 +52,13 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-	color: #6C6C6C;
-	border-bottom: 2px solid #6C6C6C;
+	color: #333;
+	border-bottom: 2px solid #333;
 }
 
 .vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-	color: #CCC;
-	border-bottom: 2px solid #CCC;
+	color: white;
+	border-bottom: 2px solid white;
 }
 
 .hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
@@ -69,15 +80,10 @@
 /** Actions */
 
 .monaco-workbench .hide-panel-action {
-	background: url('hide.svg') center center no-repeat;
+	background: url('close.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .hide-panel-action,
 .hc-black .monaco-workbench .hide-panel-action {
-	background: url('hide-inverse.svg') center center no-repeat;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .part.panel > .title {
-	border-top-color: #6FC3DF;
+	background: url('close-inverse.svg') center center no-repeat;
 }
