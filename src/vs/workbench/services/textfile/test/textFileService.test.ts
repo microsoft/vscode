@@ -323,7 +323,7 @@ suite('Files - TextFileService', () => {
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, true, false, done);
 			});
 			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, false, false, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, false, !!platform.isMacintosh, done);
 			});
 			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function (done) {
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, true, false, done);
