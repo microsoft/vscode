@@ -68,10 +68,6 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine: EndOfLine;
 }
 
-export interface IInsertSnippetOptions extends IUndoStopOptions {
-
-}
-
 /**
  * Text Editor that is permanently bound to the same model.
  * It can be bound or not to a CodeEditor.
@@ -392,8 +388,12 @@ export class MainThreadTextEditor {
 		return false;
 	}
 
-	insertSnippet(template: string, opts: IInsertSnippetOptions) {
+	insertSnippet(template: string, opts: IUndoStopOptions) {
 		const snippetController = SnippetController.get(this._codeEditor);
+
+		if (!this._codeEditor) {
+			return false;
+		}
 
 		this._codeEditor.focus();
 
@@ -406,6 +406,8 @@ export class MainThreadTextEditor {
 		if (opts.undoStopAfter) {
 			this._codeEditor.pushUndoStop();
 		}
+
+		return true;
 	}
 }
 
