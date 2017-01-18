@@ -269,8 +269,7 @@ export enum State {
 	Inactive,
 	Initializing,
 	Stopped,
-	Running,
-	RunningNoDebug
+	Running
 }
 
 // Debug configuration interfaces
