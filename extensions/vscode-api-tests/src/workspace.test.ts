@@ -85,6 +85,21 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('openTextDocument, untitled without path', function () {
+		return workspace.openTextDocument().then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.ok(doc.isDirty);
+		});
+	});
+
+	test('openTextDocument, untitled without path but language ID', function () {
+		return workspace.openTextDocument({ language: 'xml' }).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.equal(doc.languageId, 'xml');
+			assert.ok(doc.isDirty);
+		});
+	});
+
 	test('openTextDocument, untitled closes on save', function (done) {
 		const path = join(workspace.rootPath, './newfile.txt');
 
