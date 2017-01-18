@@ -367,7 +367,7 @@ export class Model {
 	}
 
 	private async run(operation: Operation, fn: () => Promise<void> = () => Promise.resolve()): Promise<void> {
-		window.withScmProgress(async () => {
+		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
