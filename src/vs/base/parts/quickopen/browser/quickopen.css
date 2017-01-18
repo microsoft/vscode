@@ -56,6 +56,7 @@
 	display: inline-block;
 	vertical-align: middle;
 	flex-shrink: 0;
+	margin-top: 3px;
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
