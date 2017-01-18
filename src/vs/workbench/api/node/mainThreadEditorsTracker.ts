@@ -12,7 +12,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
@@ -60,10 +59,17 @@ export enum TextEditorRevealType {
 	InCenterIfOutsideViewport = 2
 }
 
-export interface IApplyEditsOptions {
+export interface IUndoStopOptions {
 	undoStopBefore: boolean;
 	undoStopAfter: boolean;
+}
+
+export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine: EndOfLine;
+}
+
+export interface IInsertSnippetOptions extends IUndoStopOptions {
+
 }
 
 /**
@@ -386,24 +392,22 @@ export class MainThreadTextEditor {
 		return false;
 	}
 
-	insertSnippet(template: string, posOrRange: EditorCommon.IPosition | EditorCommon.IRange) {
+	insertSnippet(template: string, opts: IInsertSnippetOptions) {
 		const snippetController = SnippetController.get(this._codeEditor);
 		if (snippetController.inSnippetMode) {
 			return false;
 		}
 
-		const range = Range.isIRange(posOrRange) ? Range.lift(posOrRange) : null;
-		const position = Position.isIPosition(posOrRange) ? Position.lift(posOrRange) : range.getStartPosition();
-
-		this._codeEditor.setPosition(position);
-		this._codeEditor.revealLine(position.lineNumber);
 		this._codeEditor.focus();
 
-		if (range) {
-			snippetController.insertSnippetWithReplaceRange(template, range);
+		if (opts.undoStopBefore) {
+			this._codeEditor.pushUndoStop();
 		}
-		else {
-			snippetController.insertSnippet(template, 0, 0);
+
+		snippetController.insertSnippet(template, 0, 0);
+
+		if (opts.undoStopAfter) {
+			this._codeEditor.pushUndoStop();
 		}
 
 		return true;

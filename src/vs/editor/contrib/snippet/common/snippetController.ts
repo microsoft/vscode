@@ -476,11 +476,6 @@ export class SnippetController {
 		this.run(snippet, overwriteBefore, overwriteAfter);
 	}
 
-	public insertSnippetWithReplaceRange(template: string, replaceRange: Range): void {
-		const snippet = CodeSnippet.fromTextmate(template, this._variableResolver);
-		this.runWithReplaceRange(snippet, replaceRange);
-	}
-
 	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
 		this._runAndRestoreController(() => {
 			if (snippet.isInsertOnly || snippet.isSingleTabstopOnly) {
