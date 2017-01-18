@@ -75,6 +75,10 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
+	public setWorkspace(workspace: any): void {
+		this.workspace = workspace;
+	}
+
 	public getOptions() {
 		return this.options;
 	}
