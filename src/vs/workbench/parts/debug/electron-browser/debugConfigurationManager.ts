@@ -75,6 +75,10 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				description: nls.localize('vscode.extension.contributes.debuggers.languages', "List of languages for which the debug extension could be considered the \"default debugger\"."),
 				type: 'array'
 			},
+			adapterExecutableCommand: {
+				description: nls.localize('vscode.extension.contributes.debuggers.adapterExecutableCommand', "If specified VS Code will call this command to determine the executable path of the debug adapter and the arguments to pass."),
+				type: 'string'
+			},
 			startSessionCommand: {
 				description: nls.localize('vscode.extension.contributes.debuggers.startSessionCommand', "If specified VS Code will call this command for the \"debug\" or \"run\" actions targeted for this extension."),
 				type: 'string'
