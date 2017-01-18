@@ -7,7 +7,7 @@
 import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
-import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

@@ -5,7 +5,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
 import { WalkThroughPart } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart';
 import { WalkThroughContentProvider } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughContentProvider';
 import { EditorWalkThroughAction } from 'vs/workbench/parts/walkThrough/electron-browser/editor/editorWalkThrough';
