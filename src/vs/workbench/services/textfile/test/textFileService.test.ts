@@ -280,17 +280,17 @@ suite('Files - TextFileService', () => {
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function (done) {
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, false, true, done);
 			});
-			test('should hot exit (reason: EXIT, windows: single, workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false, done);
+			test('should hot exit (reason: QUIT, windows: single, workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, true, false, done);
 			});
-			test('should hot exit (reason: EXIT, windows: single, empty workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, false, false, done);
+			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, false, false, done);
 			});
-			test('should hot exit (reason: EXIT, windows: multiple, workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, true, false, done);
+			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, true, false, done);
 			});
-			test('should hot exit (reason: EXIT, windows: multiple, empty workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, false, false, done);
+			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, false, false, done);
 			});
 			test('should hot exit (reason: RELOAD, windows: single, workspace)', function (done) {
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false, done);
@@ -331,17 +331,17 @@ suite('Files - TextFileService', () => {
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function (done) {
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, false, true, done);
 			});
-			test('should hot exit (reason: EXIT, windows: single, workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false, done);
+			test('should hot exit (reason: QUIT, windows: single, workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, true, false, done);
 			});
-			test('should hot exit (reason: EXIT, windows: single, empty workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, false, false, done);
+			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, false, false, done);
 			});
-			test('should hot exit (reason: EXIT, windows: multiple, workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, true, false, done);
+			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, true, false, done);
 			});
-			test('should hot exit (reason: EXIT, windows: multiple, empty workspace)', function (done) {
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, false, false, done);
+			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function (done) {
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, false, false, done);
 			});
 			test('should hot exit (reason: RELOAD, windows: single, workspace)', function (done) {
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false, done);
