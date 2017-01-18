@@ -504,6 +504,10 @@ export class Process implements debug.IProcess {
 		return this.configuration.name;
 	}
 
+	public isAttach(): boolean {
+		return this.configuration.type === 'attach';
+	}
+
 	public getThread(threadId: number): Thread {
 		return this.threads.get(threadId);
 	}
