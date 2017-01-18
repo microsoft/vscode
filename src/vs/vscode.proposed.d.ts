@@ -27,9 +27,9 @@ declare module 'vscode' {
 		 *
 		 * @param task A function callback that represents a long running operation.
 		 */
-		export function withWindowProgress(task: (progress: Progress<string>, token: CancellationToken) => Thenable<any>): void;
+		export function withWindowProgress<R>(task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
-		export function withScmProgress(task: (progress: Progress<number>) => Thenable<any>): void;
+		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
 		export function sampleFunction(): Thenable<any>;
 	}
