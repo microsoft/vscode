@@ -374,7 +374,7 @@ export interface IConfigurationManager {
 	 * If no type is specified will try to automatically pick an adapter by looking at
 	 * the active editor language and matching it against the "languages" contribution of an adapter.
 	 */
-	getStartSessionCommand(type?: string): string;
+	getStartSessionCommand(type?: string): TPromise<string>;
 }
 
 // Debug service interfaces

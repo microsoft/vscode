@@ -127,12 +127,15 @@ export class StartAction extends AbstractDebugAction {
 		}
 
 		const configuration = manager.getConfiguration(configName);
-		const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
-		if (command) {
-			return this.commandService.executeCommand(command, configuration || this.getDefaultConfiguration());
-		}
+		return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(command => {
+			if (command) {
+				return this.commandService.executeCommand(command, configuration || this.getDefaultConfiguration());
+			}
 
-		return this.commandService.executeCommand('_workbench.startDebug', configName);
+			if (configName) {
+				return this.commandService.executeCommand('_workbench.startDebug', configName);
+			}
+		});
 	}
 
 	protected getDefaultConfiguration(): any {
