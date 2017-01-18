@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -19,13 +19,15 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class ServiceAccessor {
 	constructor(
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IUntitledEditorService public untitledEditorService: IUntitledEditorService,
-		@IWindowsService public windowsService: TestWindowsService
+		@IWindowsService public windowsService: TestWindowsService,
+		@IWorkspaceContextService public contextService: TestContextService
 	) {
 	}
 }
@@ -266,7 +268,7 @@ suite('Files - TextFileService', () => {
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
-			test('should hot exit (reason: CLOSE, windows: single)', function (done) {
+			test('should hot exit on non-Mac (reason: CLOSE, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -278,8 +280,21 @@ suite('Files - TextFileService', () => {
 					}
 				}, done);
 			});
+			test('should hot exit on non-Mac (reason: CLOSE, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					if (platform.isMacintosh) {
+						// A single window CLOSE onMac does not imply an EXIT
+						assert.ok(veto);
+					} else {
+						assert.ok(!veto);
+					}
+				}, done);
+			});
 
-			test('should NOT hot exit (reason: CLOSE, windows: multiple)', function (done) {
+			test('should NOT hot exit (reason: CLOSE, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
@@ -288,7 +303,17 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: EXIT, windows: single)', function (done) {
+			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -296,7 +321,16 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: EXIT, windows: multiple)', function (done) {
+			test('should hot exit (reason: EXIT, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
@@ -305,7 +339,17 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: RELOAD, windows: single)', function (done) {
+			test('should hot exit (reason: EXIT, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -313,7 +357,16 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: RELOAD, windows: multiple)', function (done) {
+			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
@@ -322,7 +375,17 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should NOT hot exit (reason: LOAD, windows: single)', function (done) {
+			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should NOT hot exit (reason: LOAD, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -330,9 +393,27 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should NOT hot exit (reason: LOAD, windows: multiple)', function (done) {
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+
+			test('should NOT hot exit (reason: LOAD, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
 					assert.ok(veto);
@@ -341,7 +422,7 @@ suite('Files - TextFileService', () => {
 		});
 
 		suite('"onExitAndWindowClose" setting', () => {
-			test('should hot exit (reason: CLOSE, windows: single)', function (done) {
+			test('should hot exit (reason: CLOSE, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -349,7 +430,16 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: CLOSE, windows: multiple)', function (done) {
+			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
@@ -358,7 +448,17 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: EXIT, windows: single)', function (done) {
+			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -366,7 +466,16 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: EXIT, windows: multiple)', function (done) {
+			test('should hot exit (reason: EXIT, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: EXIT, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
@@ -375,7 +484,17 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: RELOAD, windows: single)', function (done) {
+			test('should hot exit (reason: EXIT, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -383,7 +502,16 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: RELOAD, windows: multiple)', function (done) {
+			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
@@ -392,7 +520,17 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: LOAD, windows: single)', function (done) {
+			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: LOAD, windows: single, workspace)', function (done) {
 				const service = accessor.textFileService;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
@@ -400,12 +538,31 @@ suite('Files - TextFileService', () => {
 				}, done);
 			});
 
-			test('should hot exit (reason: LOAD, windows: multiple)', function (done) {
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
+				}, done);
+			});
+
+			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function (done) {
 				const service = accessor.textFileService;
 				accessor.windowsService.windowCount = 2;
 				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
 					assert.ok(!veto);
+				}, done);
+			});
+
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function (done) {
+				const service = accessor.textFileService;
+				accessor.windowsService.windowCount = 2;
+				accessor.contextService.setWorkspace(null);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.ok(veto);
 				}, done);
 			});
 		});
