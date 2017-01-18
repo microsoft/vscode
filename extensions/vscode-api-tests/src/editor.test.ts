@@ -55,7 +55,7 @@ suite('editor tests', () => {
 
 		return withRandomFileEditor('This will be replaced', (editor, doc) => {
 			editor.selection = new Selection(
-				new Position(0, 4),
+				new Position(0, 5),
 				new Position(0, 12)
 			);
 
