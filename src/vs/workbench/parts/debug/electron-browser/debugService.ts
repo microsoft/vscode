@@ -665,7 +665,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
-			const process = this.model.addProcess(configuration.name, session);
+			const process = this.model.addProcess(configuration, session);
 
 			if (!this.viewModel.focusedProcess) {
 				this.focusStackFrameAndEvaluate(null, process);
@@ -825,13 +825,13 @@ export class DebugService implements debug.IDebugService {
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createProcess(process.name).then(() => c(null), err => e(err));
+					this.createProcess(process.configuration).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		).then(() => {
 			if (preserveFocus) {
 				// Restart should preserve the focused process
-				const restartedProcess = this.model.getProcesses().filter(p => p.name === process.name).pop();
+				const restartedProcess = this.model.getProcesses().filter(p => p.getId() === process.getId()).pop();
 				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
 					this.focusStackFrameAndEvaluate(null, restartedProcess);
 				}

@@ -102,6 +102,7 @@ export interface ISession {
 
 export interface IProcess extends ITreeElement {
 	name: string;
+	configuration: IConfig;
 	session: ISession;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
