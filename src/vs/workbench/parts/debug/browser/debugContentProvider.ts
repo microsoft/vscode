@@ -7,13 +7,12 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
+import { DEBUG_SCHEME, IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
@@ -26,7 +25,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
 	) {
-		textModelResolverService.registerTextModelContentProvider(Schemas.debug, this);
+		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 		this.modelsToDispose = [];
 		this.debugService.onDidChangeState(() => {
 			if (this.debugService.state === State.Inactive) {

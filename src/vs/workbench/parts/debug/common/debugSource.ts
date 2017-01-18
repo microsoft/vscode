@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
+import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 
 export class Source {
 
 	public uri: uri;
 
-	private static INTERNAL_URI_PREFIX = `${Schemas.debug}://internal/`;
+	private static INTERNAL_URI_PREFIX = `${DEBUG_SCHEME}://internal/`;
 
 	constructor(public raw: DebugProtocol.Source, public deemphasize: boolean) {
 		const path = raw.path || raw.name;
