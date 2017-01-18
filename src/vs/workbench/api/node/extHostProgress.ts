@@ -48,7 +48,7 @@ export class ExtHostProgress {
 			this._proxy.$progressEnd(handle);
 			return result;
 		}, err => {
-			this._proxy.$progressEnd(handle, err);
+			this._proxy.$progressEnd(handle);
 			throw err;
 		});
 	}
