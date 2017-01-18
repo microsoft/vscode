@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
+import { HierarchicalEditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
@@ -42,12 +42,15 @@ export class WalkThroughModel extends EditorModel {
 	}
 }
 
-export class WalkThroughInput extends EditorInput {
+export class WalkThroughInput extends HierarchicalEditorInput {
 
 	static ID: string = 'workbench.editors.walkThroughInput';
 
 	private promise: TPromise<WalkThroughModel>;
 	private resource: URI;
+
+	private futurePromise: TPromise<WalkThroughModel>;
+	private resolveFuturePromise: (p: TPromise<WalkThroughModel>) => void;
 
 	private name: string;
 	private description: string;
@@ -65,6 +68,10 @@ export class WalkThroughInput extends EditorInput {
 		this.name = name;
 		this.description = description;
 		this.resource = resource;
+
+		this.futurePromise = new TPromise(complete => {
+			this.resolveFuturePromise = complete;
+		});
 	}
 
 	getResource(): URI {
@@ -117,6 +124,7 @@ export class WalkThroughInput extends EditorInput {
 					return TPromise.join(snippets)
 						.then(refs => new WalkThroughModel(ref, refs));
 				});
+			this.resolveFuturePromise(this.promise);
 		}
 
 		return this.promise;
@@ -136,6 +144,10 @@ export class WalkThroughInput extends EditorInput {
 
 		// 	return model;
 		// });
+	}
+
+	getEmbeddedResources() {
+		return this.futurePromise.then(model => model.snippets.map(snippet =>  snippet.textEditorModel.uri));
 	}
 
 	matches(otherInput: any): boolean {

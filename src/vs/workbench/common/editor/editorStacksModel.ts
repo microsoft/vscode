@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions, EditorInput, HierarchicalEditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -554,6 +554,14 @@ export class EditorGroup implements IEditorGroup {
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
 		const resource = toResource(editor, { supportSideBySide: true });
+		this._updateResourceMap(resource, remove);
+		if (editor instanceof HierarchicalEditorInput) {
+			editor.getEmbeddedResources()
+				.then(resources => resources.forEach(resource => this._updateResourceMap(resource, remove)));
+		}
+	}
+
+	private _updateResourceMap(resource: URI, remove: boolean): void {
 		if (resource) {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
