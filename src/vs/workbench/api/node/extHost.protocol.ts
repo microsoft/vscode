@@ -137,7 +137,7 @@ export abstract class MainThreadEditorsShape {
 	$tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
-	$tryInsertSnippet(id: string, template: string, opts: IInsertSnippetOptions): TPromise<boolean> { throw ni(); }
+	$tryInsertSnippet(id: string, template: string, opts: IInsertSnippetOptions): TPromise<any> { throw ni(); }
 }
 
 export abstract class MainThreadTreeExplorersShape {

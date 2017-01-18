@@ -112,11 +112,11 @@ declare module 'vscode' {
 		/**
 		 * Enters snippet mode in the editor with the specified snippet.
 		 *
-		 * @param snippet The snippet to insert
+		 * @param snippet The snippet to insert in this edit.
 		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
-		 * @return A promise that resolves with a value indicating if the editor entered snippet mode.
 		 */
-		edit(snippet: SnippetString, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		edit(snippet: SnippetString, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): void;
+
 	}
 
 	export interface SCMResourceThemableDecorations {

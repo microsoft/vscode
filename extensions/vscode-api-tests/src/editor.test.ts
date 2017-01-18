@@ -41,8 +41,9 @@ suite('editor tests', () => {
 			.appendText(' snippet');
 
 		return withRandomFileEditor('', (editor, doc) => {
-			return editor.edit(snippetString).then(inserted => {
-				assert.ok(inserted);
+			editor.edit(snippetString);
+
+			return editor.edit(() => {}).then(() => {
 				assert.equal(doc.getText(), 'This is a placeholder snippet');
 				assert.ok(doc.isDirty);
 			});
@@ -59,8 +60,9 @@ suite('editor tests', () => {
 				new Position(0, 12)
 			);
 
-			return editor.edit(snippetString).then(inserted => {
-				assert.ok(inserted);
+			editor.edit(snippetString);
+
+			return editor.edit(() => {}).then(() => {
 				assert.equal(doc.getText(), 'This has been replaced');
 				assert.ok(doc.isDirty);
 			});

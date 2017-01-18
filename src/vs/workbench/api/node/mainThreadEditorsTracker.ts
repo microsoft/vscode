@@ -394,9 +394,6 @@ export class MainThreadTextEditor {
 
 	insertSnippet(template: string, opts: IInsertSnippetOptions) {
 		const snippetController = SnippetController.get(this._codeEditor);
-		if (snippetController.inSnippetMode) {
-			return false;
-		}
 
 		this._codeEditor.focus();
 
@@ -409,8 +406,6 @@ export class MainThreadTextEditor {
 		if (opts.undoStopAfter) {
 			this._codeEditor.pushUndoStop();
 		}
-
-		return true;
 	}
 }
 
