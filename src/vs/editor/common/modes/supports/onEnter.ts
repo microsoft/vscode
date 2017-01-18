@@ -125,14 +125,18 @@ export class OnEnterSupport {
 		return null;
 	}
 
-	public shouldIgnore(text: string): boolean {
+	public containNonWhitespace(text: string): boolean {
 		// the text doesn't contain any non-whitespace character.
 		let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(text);
 
-		if (nonWhitespaceIdx < 0) {
+		if (nonWhitespaceIdx >= 0) {
 			return true;
 		}
 
+		return false;
+	}
+
+	public shouldIgnore(text: string): boolean {
 		// the text matches `unIndentedLinePattern`
 		if (this._indentationRules && this._indentationRules.unIndentedLinePattern && this._indentationRules.unIndentedLinePattern.test(text)) {
 			return true;
