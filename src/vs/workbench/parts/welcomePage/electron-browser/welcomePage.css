@@ -49,6 +49,9 @@
 	padding: 0;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .splash .recent {
+	display: none;
+}
 .monaco-workbench > .part.editor > .content .welcomePage .splash .recent li {
 	white-space: nowrap;
 	overflow: hidden;

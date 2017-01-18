@@ -97,6 +97,11 @@ class WelcomePage {
 		});
 
 		recentlyOpened.then(({folders}) => {
+			if (!folders.length) {
+				return;
+			}
+			const recent = container.querySelector('.recent') as HTMLElement;
+			recent.style.display = 'block';
 			const ul = container.querySelector('.recent ul');
 			if (this.contextService.hasWorkspace()) {
 				const current = this.contextService.getWorkspace().resource.fsPath;
