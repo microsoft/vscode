@@ -41,7 +41,7 @@ suite('StandaloneKeybindingService', () => {
 		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, messageService, domElement);
 
 		let commandInvoked = false;
-		keybindingService.addDynamicKeybinding(KeyCode.F9, () => {
+		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
 			commandInvoked = true;
 		}, null);
 
