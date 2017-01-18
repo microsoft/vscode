@@ -777,6 +777,13 @@ declare module monaco.editor {
     export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
     /**
+     * Emitted when an editor is created.
+     * Creating a diff editor might cause this listener to be invoked with the two editors.
+     * @event
+     */
+    export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable;
+
+    /**
      * Create a new diff editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
