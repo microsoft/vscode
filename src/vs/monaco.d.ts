@@ -2889,10 +2889,6 @@ declare module monaco.editor {
          */
         isFocused(): boolean;
         /**
-         * Add a new action to this editor.
-         */
-        addAction(descriptor: IActionDescriptor): IDisposable;
-        /**
          * Returns all actions associated with this editor.
          */
         getActions(): IEditorAction[];
