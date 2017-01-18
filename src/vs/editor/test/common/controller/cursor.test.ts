@@ -2952,6 +2952,77 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
+	test('Enter honors tabSize and insertSpaces 1', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 12, false);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 5, 2, 5));
+
+			moveTo(cursor, 3, 13, false);
+			assertCursor(cursor, new Selection(3, 13, 3, 13));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 9, 4, 9));
+		});
+	});
+
+	test('Enter honors tabSize and insertSpaces 2', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'    if (true) {'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 12, false);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 5, 2, 5));
+
+			moveTo(cursor, 3, 16, false);
+			assertCursor(cursor, new Selection(3, 16, 3, 16));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getLineContent(3), "    if (true) {");
+			assertCursor(cursor, new Selection(4, 9, 4, 9));
+		});
+	});
+
+	test('Enter honors tabSize and insertSpaces 3', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'    if (true) {'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 12, false);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 2, 2, 2));
+
+			moveTo(cursor, 3, 16, false);
+			assertCursor(cursor, new Selection(3, 16, 3, 16));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getLineContent(3), "    if (true) {");
+			assertCursor(cursor, new Selection(4, 3, 4, 3));
+		});
+	});
+
 	test('Enter supports intentional indentation', () => {
 		usingCursor({
 			text: [
