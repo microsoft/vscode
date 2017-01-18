@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs = require('fs');
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import fs = require('fs');
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IRawAdapter, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -37,17 +37,17 @@ export class Adapter {
 			});
 		}
 
-		const ad = <IAdapterExecutable>{
+		const adapterExecutable = <IAdapterExecutable>{
 			command: this.getProgram(),
 			args: this.getAttributeBasedOnPlatform('args')
 		};
 		const runtime = this.getRuntime();
 		if (runtime) {
 			const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
-			ad.args = (runtimeArgs || []).concat([ad.command]).concat(ad.args || []);
-			ad.command = runtime;
+			adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
+			adapterExecutable.command = runtime;
 		}
-		return this.verifyAdapterDetails(ad, verifyAgainstFS);
+		return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
 	}
 
 	private verifyAdapterDetails(details: IAdapterExecutable, verifyAgainstFS: boolean): TPromise<IAdapterExecutable> {
