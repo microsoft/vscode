@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
+import { IRawAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import debug = require('vs/workbench/parts/debug/common/debug');
 
 suite('Debug - Adapter', () => {
 	let adapter: Adapter;
@@ -77,7 +77,7 @@ suite('Debug - Adapter', () => {
 
 	test('merge', () => {
 
-		const da: debug.IRawAdapter = {
+		const da: IRawAdapter = {
 			type: 'mock',
 			win: {
 				runtime: 'winRuntime'

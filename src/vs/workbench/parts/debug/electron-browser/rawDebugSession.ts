@@ -430,7 +430,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	private startServer(): TPromise<any> {
-		return this.adapter.getAdapterExecutable().then(d => this.launchServer(d).then(() => {
+		return this.adapter.getAdapterExecutable().then(ae => this.launchServer(ae).then(() => {
 			this.serverProcess.on('error', (err: Error) => this.onServerError(err));
 			this.serverProcess.on('exit', (code: number, signal: string) => this.onServerExit());
 
