@@ -20,7 +20,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		'properties': {
 			'workbench.welcome.enabled': {
 				'type': 'boolean',
-				'default': true,
+				'default': null,
 				'description': localize('welcomePage.enabled', "When enabled, will show the Welcome experience on startup.")
 			},
 		}
