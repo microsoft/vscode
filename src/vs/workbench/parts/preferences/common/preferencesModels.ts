@@ -459,7 +459,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return <ISettingsGroup>{
 			id: 'mostCommonlyUsed',
 			range: null,
-			title: nls.localize('commonlyUsed', "Most Commonly Used"),
+			title: nls.localize('commonlyUsed', "Commonly Used"),
 			titleRange: null,
 			sections: [
 				{
