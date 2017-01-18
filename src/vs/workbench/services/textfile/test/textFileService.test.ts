@@ -269,311 +269,122 @@ suite('Files - TextFileService', () => {
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
 			test('should hot exit on non-Mac (reason: CLOSE, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					if (platform.isMacintosh) {
-						// A single window CLOSE onMac does not imply an EXIT
-						assert.ok(veto);
-					} else {
-						assert.ok(!veto);
-					}
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, true, !!platform.isMacintosh, done);
 			});
 			test('should hot exit on non-Mac (reason: CLOSE, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					if (platform.isMacintosh) {
-						// A single window CLOSE onMac does not imply an EXIT
-						assert.ok(veto);
-					} else {
-						assert.ok(!veto);
-					}
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, false, !!platform.isMacintosh, done);
 			});
-
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, true, true, done);
 			});
-
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, false, true, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, false, false, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, true, false, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, false, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, false, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, true, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, false, false, done);
 			});
-
 			test('should NOT hot exit (reason: LOAD, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, true, true, done);
 			});
-
 			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, false, true, done);
 			});
-
 			test('should NOT hot exit (reason: LOAD, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, true, true, done);
 			});
 			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, false, true, done);
 			});
 		});
 
 		suite('"onExitAndWindowClose" setting', () => {
 			test('should hot exit (reason: CLOSE, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, true, false, done);
 			});
-
 			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, false, false, done);
 			});
-
 			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, true, false, done);
 			});
-
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, false, true, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, false, false, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, true, false, done);
 			});
-
 			test('should hot exit (reason: EXIT, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, false, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, false, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, true, false, done);
 			});
-
 			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, false, false, done);
 			});
-
 			test('should hot exit (reason: LOAD, windows: single, workspace)', function (done) {
-				const service = accessor.textFileService;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, true, false, done);
 			});
-
 			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, false, true, done);
 			});
-
 			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, true, false, done);
 			});
-
 			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function (done) {
-				const service = accessor.textFileService;
-				accessor.windowsService.windowCount = 2;
-				accessor.contextService.setWorkspace(null);
-				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, (veto) => {
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(veto);
-				}, done);
+				hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, false, true, done);
 			});
 		});
 
-		function hotExitTest(setting: string, shutdownReason: ShutdownReason, assertions: (veto: boolean) => void, done): void {
+		function hotExitTest(setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean, done: () => void): void {
 			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 			const service = accessor.textFileService;
+			// Set hot exit config
 			service.onConfigurationChange({ files: { hotExit: setting } });
-			// Set cancel to force a veto under regular circumstances
+			// Set empty workspace if required
+			if (!workspace) {
+				accessor.contextService.setWorkspace(null);
+			}
+			// Set multiple windows if required
+			if (multipleWindows) {
+				accessor.windowsService.windowCount = 2;
+			}
+			// Set cancel to force a veto if hot exit does not trigger
 			service.setConfirmResult(ConfirmResult.CANCEL);
 
 			model.load().done(() => {
@@ -586,7 +397,9 @@ suite('Files - TextFileService', () => {
 				accessor.lifecycleService.fireWillShutdown(event);
 
 				return (<TPromise<boolean>>event.value).then(veto => {
-					assertions(veto);
+					// When hot exit is set, backups should never be cleaned since the confirm result is cancel
+					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
+					assert.equal(veto, shouldVeto);
 
 					done();
 				});
