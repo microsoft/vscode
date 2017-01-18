@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp } from './utils';
 
 suite('editor tests', () => {
@@ -41,7 +41,7 @@ suite('editor tests', () => {
 			.appendText(' snippet');
 
 		return withRandomFileEditor('', (editor, doc) => {
-			return editor.insertSnippet(snippetString.value, new Position(0, 0)).then(inserted => {
+			return editor.edit(snippetString).then(inserted => {
 				assert.ok(inserted);
 				assert.equal(doc.getText(), 'This is a placeholder snippet');
 				assert.ok(doc.isDirty);
@@ -54,7 +54,12 @@ suite('editor tests', () => {
 			.appendText('has been');
 
 		return withRandomFileEditor('This will be replaced', (editor, doc) => {
-			return editor.insertSnippet(snippetString.value, new Range(0, 5, 0, 12)).then(inserted => {
+			editor.selection = new Selection(
+				new Position(0, 4),
+				new Position(0, 12)
+			);
+
+			return editor.edit(snippetString).then(inserted => {
 				assert.ok(inserted);
 				assert.equal(doc.getText(), 'This has been replaced');
 				assert.ok(doc.isDirty);
