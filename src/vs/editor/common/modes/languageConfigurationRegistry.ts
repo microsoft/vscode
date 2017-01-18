@@ -356,7 +356,7 @@ export class LanguageConfigurationRegistryImpl {
 
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
 				let lineText = model.getLineContent(lastLineNumber);
-				if (!onEnterSupport.shouldIgnore(lineText)) {
+				if (!onEnterSupport.shouldIgnore(lineText) && onEnterSupport.containNonWhitespace(lineText)) {
 					break;
 				}
 			}
