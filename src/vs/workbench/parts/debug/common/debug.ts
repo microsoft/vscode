@@ -308,6 +308,11 @@ export interface ICompound {
 	configurations: string[];
 }
 
+export interface IAdapterExecutable {
+	command?: string;
+	args?: string[];
+}
+
 export interface IRawEnvAdapter {
 	type?: string;
 	label?: string;
@@ -318,6 +323,7 @@ export interface IRawEnvAdapter {
 }
 
 export interface IRawAdapter extends IRawEnvAdapter {
+	adapterExecutableCommand?: string;
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];

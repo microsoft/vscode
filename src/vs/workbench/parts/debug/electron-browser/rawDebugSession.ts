@@ -5,7 +5,6 @@
 
 import nls = require('vs/nls');
 import cp = require('child_process');
-import fs = require('fs');
 import net = require('net');
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
@@ -431,11 +430,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	private startServer(): TPromise<any> {
-		if (!this.adapter.program) {
-			return TPromise.wrapError(new Error(nls.localize('noDebugAdapterExtensionInstalled', "No extension installed for '{0}' debugging.", this.adapter.type)));
-		}
-
-		return this.getLaunchDetails().then(d => this.launchServer(d).then(() => {
+		return this.adapter.getAdapterExecutable().then(d => this.launchServer(d).then(() => {
 			this.serverProcess.on('error', (err: Error) => this.onServerError(err));
 			this.serverProcess.on('exit', (code: number, signal: string) => this.onServerExit());
 
@@ -451,18 +446,18 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		}));
 	}
 
-	private launchServer(launch: { command: string, argv: string[] }): TPromise<void> {
+	private launchServer(launch: debug.IAdapterExecutable): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			if (launch.command === 'node') {
-				stdfork.fork(launch.argv[0], launch.argv.slice(1), {}, (err, child) => {
+				stdfork.fork(launch.args[0], launch.args.slice(1), {}, (err, child) => {
 					if (err) {
-						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.argv[0])));
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.args[0])));
 					}
 					this.serverProcess = child;
 					c(null);
 				});
 			} else {
-				this.serverProcess = cp.spawn(launch.command, launch.argv, {
+				this.serverProcess = cp.spawn(launch.command, launch.args, {
 					stdio: [
 						'pipe', 	// stdin
 						'pipe', 	// stdout
@@ -508,30 +503,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		}
 
 		return ret;
-	}
-
-	private getLaunchDetails(): TPromise<{ command: string; argv: string[]; }> {
-		return new TPromise((c, e) => {
-			fs.exists(this.adapter.program, exists => {
-				if (exists) {
-					c(null);
-				} else {
-					e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' not found.", this.adapter.program)));
-				}
-			});
-		}).then(() => {
-			if (this.adapter.runtime) {
-				return {
-					command: this.adapter.runtime,
-					argv: (this.adapter.runtimeArgs || []).concat([this.adapter.program]).concat(this.adapter.args || [])
-				};
-			}
-
-			return {
-				command: this.adapter.program,
-				argv: this.adapter.args || []
-			};
-		});
 	}
 
 	protected onServerError(err: Error): void {
