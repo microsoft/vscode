@@ -181,16 +181,25 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			}
 		}).use(mdnh, {});
 
-		function addLineNumberRenderer(tokens: any, idx: number, options: any, env: any, self: any) {
-			const token = tokens[idx];
-			if (token.level === 0 && token.map && token.map.length) {
-				token.attrSet('data-line', token.map[0]);
-			}
-			return self.renderToken(tokens, idx, options, env, self);
+		function createLineNumberRenderer(ruleName: string) {
+			const original = md.renderer.rules[ruleName];
+			return (tokens: any, idx: number, options: any, env: any, self: any) => {
+				const token = tokens[idx];
+				if (token.level === 0 && token.map && token.map.length) {
+					token.attrSet('data-line', token.map[0]);
+					token.attrJoin('class', 'code-line');
+				}
+				if (original) {
+					return original(tokens, idx, options, env, self);
+				} else {
+					return self.renderToken(tokens, idx, options, env, self);
+				}
+			};
 		}
 
-		md.renderer.rules.paragraph_open = addLineNumberRenderer;
-		md.renderer.rules.heading_open = addLineNumberRenderer;
+		md.renderer.rules.paragraph_open = createLineNumberRenderer('paragraph_open');
+		md.renderer.rules.heading_open = createLineNumberRenderer('heading_open');
+		md.renderer.rules.image = createLineNumberRenderer('image');
 
 		return md;
 	}
