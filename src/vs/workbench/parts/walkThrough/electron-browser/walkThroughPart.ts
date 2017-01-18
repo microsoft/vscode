@@ -12,26 +12,22 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { IEditorOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import * as uuid from 'vs/base/common/uuid';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as path from 'path';
-import { tmpdir } from 'os';
-import { mkdirp } from 'vs/base/node/extfs';
-import { IMode } from 'vs/editor/common/modes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
 
@@ -116,15 +112,12 @@ export class WalkThroughPart extends BaseEditor {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 
-		const folderName = path.join(tmpdir(), 'vscode-walk-through', uuid.generateUuid());
-		const folder = new TPromise<string>((c, e) => mkdirp(folderName, null, err => err ? e(err) : c(folderName)));
-
 		return super.setInput(input, options)
 			.then(() => {
 				return input.resolve(true);
 			})
 			.then(model => {
-				const content = model.textEditorModel.getLinesContent().join('\n');
+				const content = model.main.textEditorModel.getLinesContent().join('\n');
 				if (strings.endsWith(input.getResource().path, '.html')) {
 					this.content.innerHTML = content;
 					this.decorateContent();
@@ -135,19 +128,10 @@ export class WalkThroughPart extends BaseEditor {
 					return;
 				}
 
-				const files: TPromise<any>[] = [];
-				const codes: { id: string; model: IModel }[] = [];
+				let i = 0;
 				const renderer = new marked.Renderer();
 				renderer.code = (code, lang) => {
-					const id = `code-${uuid.generateUuid()}`;
-					const mode = this.getModeForLanguage(lang);
-					const resource = URI.file(path.join(folderName, `${id}.${lang}`));
-					const model = this.modelService.createModel(code, mode, resource);
-					codes.push({ id, model });
-
-					// E.g., the TypeScript service needs files on disk.
-					files.push(folder.then(() => this.fileService.createFile(resource, code)));
-
+					const id = path.basename(model.snippets[i++].textEditorModel.uri.fsPath);
 					return `<div id=${id} class="walkThroughEditorContainer" ></div>`;
 				};
 				this.content.classList.add('walkThroughContent'); // only for markdown files
@@ -155,56 +139,37 @@ export class WalkThroughPart extends BaseEditor {
 				this.content.innerHTML = marked(markdown, { renderer });
 
 				// TODO: also create jsconfig.json and tsconfig.json
-				return TPromise.join(files).then(() => {
-					codes.forEach(({ id, model }) => {
-						const div = this.content.querySelector(`#${id}`) as HTMLElement;
+				model.snippets.forEach(snippet => {
+					const model = snippet.textEditorModel;
+					const id = path.basename(model.uri.fsPath);
+					const div = this.content.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
-						var options: IEditorOptions = {
-							scrollBeyondLastLine: false,
-							scrollbar: DefaultConfig.editor.scrollbar,
-							overviewRulerLanes: 3,
-							fixedOverflowWidgets: true,
-							lineNumbersMinChars: 1,
-							theme: this.themeService.getColorTheme().id,
-						};
+					var options: IEditorOptions = {
+						scrollBeyondLastLine: false,
+						scrollbar: DefaultConfig.editor.scrollbar,
+						overviewRulerLanes: 3,
+						fixedOverflowWidgets: true,
+						lineNumbersMinChars: 1,
+						theme: this.themeService.getColorTheme().id,
+					};
 
-						const editor = this.instantiationService.createInstance(CodeEditor, div, options);
-						editor.setModel(model);
-						this.contentDisposables.push(editor);
+					const editor = this.instantiationService.createInstance(CodeEditor, div, options);
+					editor.setModel(model);
+					this.contentDisposables.push(editor);
 
-						const lineHeight = editor.getConfiguration().lineHeight;
-						const height = model.getLineCount() * lineHeight;
-						div.style.height = height + 'px';
+					const lineHeight = editor.getConfiguration().lineHeight;
+					const height = model.getLineCount() * lineHeight;
+					div.style.height = height + 'px';
 
-						this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
+					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
 
-						editor.layout();
-					});
-					if (input.onReady) {
-						input.onReady(this.content);
-					}
-					this.scrollbar.scanDomNode();
+					editor.layout();
 				});
-			});
-	}
-
-	private getModeForLanguage(lang: string): TPromise<IMode> {
-		return new TPromise(c => {
-			const that = this;
-			function tryGetMode() {
-				const modeId = that.modeService.getModeIdForLanguageName(lang);
-				const mode = modeId && that.modeService.getOrCreateMode(modeId);
-				if (mode) {
-					c(mode);
-				} else {
-					const subscription = that.modeService.onDidAddModes(() => {
-						subscription.dispose();
-						tryGetMode();
-					});
+				if (input.onReady) {
+					input.onReady(this.content);
 				}
-			}
-			tryGetMode();
-		});
+				this.scrollbar.scanDomNode();
+			});
 	}
 
 	private expandMacros(input: string) {
