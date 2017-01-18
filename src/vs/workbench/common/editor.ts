@@ -290,7 +290,7 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
-export abstract class HierarchicalEditorInput extends EditorInput {
+export abstract class EmbeddedResourceEditorInput extends EditorInput {
 
 	abstract getEmbeddedResources(): TPromise<URI[]>;
 }

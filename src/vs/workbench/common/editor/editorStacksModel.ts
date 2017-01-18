@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, HierarchicalEditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions, EditorInput, EmbeddedResourceEditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -555,7 +555,7 @@ export class EditorGroup implements IEditorGroup {
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
 		const resource = toResource(editor, { supportSideBySide: true });
 		this._updateResourceMap(resource, remove);
-		if (editor instanceof HierarchicalEditorInput) {
+		if (editor instanceof EmbeddedResourceEditorInput) {
 			editor.getEmbeddedResources()
 				.then(resources => resources.forEach(resource => this._updateResourceMap(resource, remove)));
 		}

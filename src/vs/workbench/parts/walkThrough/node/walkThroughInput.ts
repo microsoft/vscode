@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { HierarchicalEditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
+import { EmbeddedResourceEditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
@@ -42,7 +42,7 @@ export class WalkThroughModel extends EditorModel {
 	}
 }
 
-export class WalkThroughInput extends HierarchicalEditorInput {
+export class WalkThroughInput extends EmbeddedResourceEditorInput {
 
 	static ID: string = 'workbench.editors.walkThroughInput';
 
