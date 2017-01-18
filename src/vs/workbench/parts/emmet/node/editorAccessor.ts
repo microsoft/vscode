@@ -162,7 +162,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
+		if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(syntax)) { // treat tsx like jsx
 			return 'jsx';
 		}
 		if (syntax === 'sass-indented') { // map sass-indented to sass
