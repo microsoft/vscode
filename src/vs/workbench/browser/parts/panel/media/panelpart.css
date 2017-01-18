@@ -37,10 +37,13 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-	color: #6f6f6f;
 	text-transform: uppercase;
 	margin-right: 20px;
 	font-size: 11px;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #6f6f6f;
 }
 
 .vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
@@ -51,9 +54,12 @@
 	color: #fff;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-	color: #333;
-	border-bottom: 2px solid #333;
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+	color: white;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 2px solid #6f6f6f;
 }
 
 .vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
