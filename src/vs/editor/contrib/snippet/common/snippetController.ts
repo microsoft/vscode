@@ -467,10 +467,6 @@ export class SnippetController {
 		return SnippetController.ID;
 	}
 
-	public get inSnippetMode() {
-		return this._inSnippetMode.get();
-	}
-
 	public insertSnippet(template: string, overwriteBefore: number, overwriteAfter: number): void {
 		const snippet = CodeSnippet.fromTextmate(template, this._variableResolver);
 		this.run(snippet, overwriteBefore, overwriteAfter);
