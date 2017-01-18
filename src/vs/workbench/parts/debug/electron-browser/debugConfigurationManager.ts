@@ -343,21 +343,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(picked => {
-					if (picked instanceof Adapter) {
-						return picked ? picked.getInitialConfigurationContent() : null;
-					}
-					if (picked) {
-						return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-							.then(viewlet => viewlet as IExtensionsViewlet)
-							.then(viewlet => {
-								viewlet.search('tag:debuggers');
-								viewlet.focus();
-								return null;
-							});
-					}
-				})
+			this.guessAdapter().then(adapter => adapter ? adapter.getInitialConfigurationContent() : undefined)
 				.then(content => {
 					if (!content) {
 						return false;
@@ -385,25 +371,46 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			});
 	}
 
-	public getStartSessionCommand(type?: string): string {
-		if (type) {
-			const adapter = this.adapters.filter(a => a.type === type).pop();
+	public getStartSessionCommand(type?: string): TPromise<string> {
+		return this.guessAdapter(type).then(adapter => {
 			if (adapter) {
 				return adapter.startSessionCommand;
 			}
-		} else {
-			const editor = this.editorService.getActiveEditor();
-			if (editor) {
-				const model = (<ICommonCodeEditor>editor.getControl()).getModel();
-				const language = model ? model.getLanguageIdentifier().language : undefined;
-				const adapter = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0).pop();
-				if (adapter) {
-					return adapter.startSessionCommand;
-				}
+		});
+	}
+
+	private guessAdapter(type?: string): TPromise<Adapter> {
+		if (type) {
+			const adapter = this.getAdapter(type);
+			if (adapter) {
+				return TPromise.as(adapter);
 			}
 		}
 
-		return undefined;
+		const editor = this.editorService.getActiveEditor();
+		if (editor) {
+			const model = (<ICommonCodeEditor>editor.getControl()).getModel();
+			const language = model ? model.getLanguageIdentifier().language : undefined;
+			const adapter = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0).pop();
+			if (adapter) {
+				return TPromise.as(adapter);
+			}
+		}
+
+		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+			.then(picked => {
+				if (picked instanceof Adapter) {
+					return picked;
+				}
+				if (picked) {
+					return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+						.then(viewlet => viewlet as IExtensionsViewlet)
+						.then(viewlet => {
+							viewlet.search('tag:debuggers');
+							viewlet.focus();
+						});
+				}
+			});
 	}
 
 	public canSetBreakpointsIn(model: IModel): boolean {
