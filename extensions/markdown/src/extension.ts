@@ -23,37 +23,34 @@ export function activate(context: vscode.ExtensionContext) {
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	let provider = new MDDocumentContentProvider(context);
-	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
+	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('markdown', provider));
 
-	let d1 = vscode.commands.registerCommand('markdown.showPreview', showPreview);
-	let d2 = vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true));
-	let d3 = vscode.commands.registerCommand('markdown.showSource', showSource);
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', showPreview));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
-	context.subscriptions.push(d1, d2, d3, registration);
-
-	vscode.workspace.onDidSaveTextDocument(document => {
+	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {
 			const uri = getMarkdownUri(document.uri);
 			provider.update(uri);
 		}
-	});
+	}));
 
-	vscode.workspace.onDidChangeTextDocument(event => {
+	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
 		if (isMarkdownFile(event.document)) {
 			const uri = getMarkdownUri(event.document.uri);
 			provider.update(uri);
-
 		}
-	});
+	}));
 
-	vscode.workspace.onDidChangeConfiguration(() => {
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		vscode.workspace.textDocuments.forEach(document => {
 			if (document.uri.scheme === 'markdown') {
 				// update all generated md documents
 				provider.update(document.uri);
 			}
 		});
-	});
+	}));
 }
 
 function isMarkdownFile(document: vscode.TextDocument) {
@@ -263,7 +260,8 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	}
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
-		return vscode.workspace.openTextDocument(vscode.Uri.parse(uri.query)).then(document => {
+		const sourceUri = vscode.Uri.parse(uri.query);
+		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
 
@@ -283,6 +281,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const body = this._renderer.render(this.getDocumentContentForPreview(document));
 
 			const tail = [
+				`<script src="${this.getMediaPath('main.js')}"></script>`,
 				'</body>',
 				'</html>'
 			].join('\n');
