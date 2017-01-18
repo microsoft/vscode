@@ -21,6 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const enabledKey = 'workbench.welcome.enabled';
 
@@ -30,8 +31,10 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IPartService partService: IPartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		const enabled = configurationService.lookup<boolean>(enabledKey).value;
+		const configured = configurationService.lookup<boolean>(enabledKey).value;
+		const enabled = typeof configured === 'boolean' ? configured : telemetryService.getExperiments().enableWelcomePage;
 		if (enabled) {
 			partService.joinCreation().then(() => {
 				instantiationService.createInstance(WelcomePage);
@@ -72,7 +75,8 @@ class WelcomePage {
 		@IWindowsService private windowsService: IWindowsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.create();
 	}
@@ -86,7 +90,8 @@ class WelcomePage {
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; folders: string[]; }>): void {
-		const enabled = this.configurationService.lookup<boolean>(enabledKey).value;
+		const configured = this.configurationService.lookup<boolean>(enabledKey).value;
+		const enabled = typeof configured === 'boolean' ? configured : this.telemetryService.getExperiments().enableWelcomePage;
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
 			showOnStartup.setAttribute('checked', 'checked');

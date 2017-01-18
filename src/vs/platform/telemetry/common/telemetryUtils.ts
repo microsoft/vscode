@@ -15,10 +15,13 @@ import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const defaultExperiments: ITelemetryExperiments = {
 	showNewUserWatermark: false,
-	openUntitledFile: true
+	openUntitledFile: true,
+	enableWelcomePage: true
 };
 
 export const NullTelemetryService = {
@@ -43,7 +46,11 @@ export const NullTelemetryService = {
 const beginGettingStartedExp = Date.UTC(2017, 0, 9);
 const endGettingStartedExp = Date.UTC(2017, 0, 16);
 
-export function loadExperiments(contextService: IWorkspaceContextService, storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
+export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperiments {
+	const contextService = accessor.get(IWorkspaceContextService);
+	const storageService = accessor.get(IStorageService);
+	const configurationService = accessor.get(IConfigurationService);
+	const environmentService = accessor.get(IEnvironmentService);
 
 	const key = 'experiments.randomness';
 	let valueString = storageService.get(key);
@@ -56,6 +63,7 @@ export function loadExperiments(contextService: IWorkspaceContextService, storag
 	let [random2, showNewUserWatermark] = splitRandom(random1);
 	let [random3, openUntitledFile] = splitRandom(random2);
 	let [, openGettingStarted] = splitRandom(random3);
+	let enableWelcomePage = isWelcomePageEnabled(configurationService, environmentService);
 
 	const newUserDuration = 24 * 60 * 60 * 1000;
 	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
@@ -74,8 +82,14 @@ export function loadExperiments(contextService: IWorkspaceContextService, storag
 	return applyOverrides(configurationService, {
 		showNewUserWatermark,
 		openUntitledFile,
-		openGettingStarted
+		openGettingStarted,
+		enableWelcomePage
 	});
+}
+
+export function isWelcomePageEnabled(configurationService: IConfigurationService, environmentService: IEnvironmentService) {
+	const override = configurationService.lookup('telemetry.experiments.enableWelcomePage').value;
+	return typeof override === 'boolean' ? override : !environmentService.isBuilt;
 }
 
 export function applyOverrides(configurationService: IConfigurationService, experiments: ITelemetryExperiments): ITelemetryExperiments {
