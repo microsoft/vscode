@@ -32,7 +32,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionItem } from 'vs/base/common/actions';
+import { Action, IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -142,6 +142,52 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 
 	getTemplateId(element: ISCMResourceGroup | ISCMResource) {
 		return (element as ISCMResource).uri ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
+	}
+}
+
+/**
+ * HACK
+ */
+class CommitAction extends Action {
+
+	private activeProvider: ISCMProvider;
+	private isRunning = false;
+	private throttler = new Throttler();
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private inputBox: InputBox,
+		@ISCMService scmService: ISCMService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super('scm.commit', localize('commit', "Commit"), 'scm-commit');
+
+		this.setActiveProvider(scmService.activeProvider);
+		scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
+		inputBox.onDidChange(this.updateEnablement, this, this.disposables);
+	}
+
+	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
+		this.activeProvider = activeProvider;
+		this.updateEnablement();
+	}
+
+	private updateEnablement(): void {
+		this.enabled = !!this.activeProvider && !this.isRunning && !!this.inputBox.value;
+	}
+
+	run(): TPromise<any> {
+		return this.throttler
+			.queue(() => {
+				this.isRunning = true;
+				return this.activeProvider.commit(this.inputBox.value);
+			})
+			.then(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err))
+			.then(() => this.isRunning = false);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -287,7 +333,10 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		return this.menus.getTitleActions();
+		return [
+			this.instantiationService.createInstance(CommitAction, this.inputBox),
+			...this.menus.getTitleActions()
+		];
 	}
 
 	getSecondaryActions(): IAction[] {
