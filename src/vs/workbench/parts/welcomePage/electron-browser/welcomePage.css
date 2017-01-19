@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .part.editor > .content .welcomePage {
-	font-family: "Lucida Grande", sans-serif;
+	font-family: 'Segoe UI'; /*TEMP*/
+	font-size: 10px;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .keyboard {
+	font-family: "Lucida Grande", sans-serif;/* Keyboard shortcuts */
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage a {
@@ -19,30 +23,33 @@
 	transform: translate(-50%, -50%);
 	width: 35%;
 }
-.monaco-workbench > .part.editor > .content .welcomePage .splash h1,
-.monaco-workbench > .part.editor > .content .welcomePage .splash h2 {
-	text-align: center;
+.monaco-workbench > .part.editor > .content .welcomePage .splash h1 {
 	padding: 0;
 	margin: 0;
 	border: none;
+	/*font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Light", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;*/
+	font-weight: normal;
+	font-size: 3.6em;
 }
-.monaco-workbench > .part.editor > .content .welcomePage .splash .vscode-icon {
-	width: 1.5em;
-	height: 1.5em;
-	vertical-align: middle;
-	padding-right: 0.5em;
-}
-
-.monaco-workbench > .part.editor > .content .welcomePage .splash .title {
+.monaco-workbench > .part.editor > .content .welcomePage .title {
 	margin-bottom: 2em;
 }
+.monaco-workbench > .part.editor > .content .welcomePage .subtitle {
+	margin-top: .8em;
+	color: rgba(255,255,255,.46);
+	font-size: 2.6em;
+	display: block;
+}
 
-.monaco-workbench > .part.editor > .content .welcomePage .splash p {
+.monaco-workbench > .part.editor > .content .welcomePage .splash h3 {
+	font-weight: 200;
 	margin-top: 17px;
 	margin-bottom: 5px;
+	font-size: 1.9em;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .splash ul {
 	margin: 0;
+	font-size: 1.3em;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .splash ul {
 	list-style: none;
@@ -71,9 +78,7 @@
 	transform: translate(-50%, -50%);
 	width: 35%;
 }
-.monaco-workbench > .part.editor > .content .welcomePage .commands h3 {
-	text-align: center;
-}
+
 .monaco-workbench > .part.editor > .content .welcomePage .commands ul {
 	list-style: none;
 	padding: 0;
