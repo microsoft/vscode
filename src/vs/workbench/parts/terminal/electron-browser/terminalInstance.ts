@@ -20,6 +20,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -28,9 +29,19 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
 
+class StandardTerminalProcessFactory implements ITerminalProcessFactory {
+	public create(env: { [key: string]: string }): cp.ChildProcess {
+		return cp.fork('./terminalProcess', [], {
+			env,
+			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
+		});
+	}
+}
+
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
+	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _idCounter = 1;
 
 	private _id: number;
@@ -336,7 +347,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig) {
+	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
@@ -563,5 +574,9 @@ export class TerminalInstance implements ITerminalInstance {
 				rows: rows
 			});
 		}
+	}
+
+	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
+		this._terminalProcessFactory = factory;
 	}
 }
