@@ -51,9 +51,6 @@ export class ClearOutputAction extends Action {
 
 export class ToggleOutputScrollLockAction extends Action {
 
-	public static ID = 'workbench.output.action.toggleOutputScrollLock';
-	public static LABEL = nls.localize('toggleOutputScrollLock', "Toggle Output Scroll Lock");
-
 	private toDispose: IDisposable[] = [];
 
 	constructor(id: string, label: string,
@@ -64,8 +61,10 @@ export class ToggleOutputScrollLockAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeChannel = this.outputService.getActiveChannel();
-		activeChannel.scrollLock = !activeChannel.scrollLock;
-		this._setChecked(activeChannel.scrollLock);
+		if (activeChannel) {
+			activeChannel.scrollLock = !activeChannel.scrollLock;
+			this._setChecked(activeChannel.scrollLock);
+		}
 
 		return TPromise.as(true);
 	}
