@@ -25,11 +25,8 @@ suite('ExtHostTypes', function () {
 		assert.deepEqual(data, {
 			$mid: 1,
 			scheme: 'file',
-			authority: '',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
-			query: '',
-			fragment: '',
 			external: 'file:///path/test.file'
 		});
 	});

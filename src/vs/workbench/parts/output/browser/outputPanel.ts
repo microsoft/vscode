@@ -22,8 +22,8 @@ import { OutputEditors, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } fro
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class OutputPanel extends TextResourceEditor {
 	private toDispose: IDisposable[];
@@ -40,9 +40,9 @@ export class OutputPanel extends TextResourceEditor {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@IModeService modeService: IModeService
 	) {
-		super(telemetryService, instantiationService, storageService, configurationService, themeService, untitledEditorService, editorGroupService, textFileService);
+		super(telemetryService, instantiationService, storageService, configurationService, themeService, untitledEditorService, editorGroupService, modeService);
 
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];

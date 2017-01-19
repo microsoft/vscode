@@ -153,6 +153,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> { throw ni(); }
 	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any> { throw ni(); }
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
+	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
@@ -181,6 +182,12 @@ export abstract class MainThreadOutputServiceShape {
 	$clear(channelId: string, label: string): TPromise<void> { throw ni(); }
 	$reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> { throw ni(); }
 	$close(channelId: string): TPromise<void> { throw ni(); }
+}
+
+export abstract class MainThreadProgressShape {
+	$progressStart(handle: number, extensionId: string, location: string): void { throw ni(); }
+	$progressReport(handle: number, message: string): void { throw ni(); }
+	$progressEnd(handle: number): void { throw ni(); }
 }
 
 export abstract class MainThreadTerminalServiceShape {
@@ -227,6 +234,27 @@ export abstract class MainProcessExtensionServiceShape {
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$onExtensionActivated(extensionId: string): void { throw ni(); }
 	$onExtensionActivationFailed(extensionId: string): void { throw ni(); }
+}
+
+export interface SCMProviderFeatures {
+	label: string;
+	supportsCommit: boolean;
+	supportsOpen: boolean;
+	supportsDrag: boolean;
+	supportsOriginalResource: boolean;
+}
+
+export type SCMRawResource = [
+	string /*uri*/,
+	string[] /*icons: light, dark*/,
+	boolean /*strike through*/
+];
+export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
+
+export abstract class MainThreadSCMShape {
+	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
+	$unregister(id: string): void { throw ni(); }
+	$onChange(id: string, resources: SCMRawResourceGroup[]): void { throw ni(); }
 }
 
 // -- extension host
@@ -329,6 +357,7 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> { throw ni(); }
 	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> { throw ni(); }
 	$provideDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideTypeDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
 	$provideHover(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Hover> { throw ni(); }
 	$provideDocumentHighlights(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
 	$provideReferences(handle: number, resource: URI, position: editorCommon.IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
@@ -356,6 +385,13 @@ export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
 }
 
+export abstract class ExtHostSCMShape {
+	$commit(id: string, message: string): TPromise<void> { throw ni(); }
+	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
+	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
+	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -370,6 +406,7 @@ export const MainContext = {
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages', MainThreadLanguagesShape),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', MainThreadMessageServiceShape),
 	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService', MainThreadOutputServiceShape),
+	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress', MainThreadProgressShape),
 	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen', MainThreadQuickOpenShape),
 	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar', MainThreadStatusBarShape),
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage', MainThreadStorageShape),
@@ -377,6 +414,7 @@ export const MainContext = {
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
+	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape)
 };
 
 export const ExtHostContext = {
@@ -392,5 +430,6 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
-	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape)
+	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
+	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape)
 };

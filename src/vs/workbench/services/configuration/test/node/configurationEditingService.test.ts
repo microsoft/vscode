@@ -36,6 +36,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -60,9 +61,10 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService, editorGroupService);
 	}
 
 	public isDirty(resource?: URI): boolean {

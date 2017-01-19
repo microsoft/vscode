@@ -122,6 +122,29 @@ class DefinitionAdapter {
 	}
 }
 
+class ImplementationAdapter {
+
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.TypeDefinitionProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.TypeDefinitionProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+		let doc = this._documents.getDocumentData(resource).document;
+		let pos = TypeConverters.toPosition(position);
+		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(TypeConverters.location.from);
+			} else if (value) {
+				return TypeConverters.location.from(value);
+			}
+		});
+	}
+}
+
 class HoverAdapter {
 
 	private _documents: ExtHostDocuments;
@@ -614,7 +637,7 @@ class LinkProviderAdapter {
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter;
 
 export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
@@ -711,6 +734,17 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(resource, position));
+	}
+
+	registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new ImplementationAdapter(this._documents, provider));
+		this._proxy.$registerImplementationSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
+		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideTypeDefinition(resource, position));
 	}
 
 	// --- extra info

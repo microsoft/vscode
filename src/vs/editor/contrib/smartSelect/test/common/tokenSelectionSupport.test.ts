@@ -68,7 +68,7 @@ suite('TokenSelectionSupport', () => {
 	let mode: MockJSMode = null;
 
 	setup(() => {
-		modelService = new ModelServiceImpl(null, new TestConfigurationService(), null);
+		modelService = new ModelServiceImpl(null, new TestConfigurationService());
 		tokenSelectionSupport = new TokenSelectionSupport(modelService);
 		mode = new MockJSMode();
 	});

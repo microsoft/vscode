@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { OutputEditors, IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, OutputEditors, IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -56,7 +56,7 @@ export class OutputService implements IOutputService {
 
 		this.receivedOutput = Object.create(null);
 
-		const channels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
+		const channels = this.getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 
 		this._outputLinkDetector = new OutputLinkProvider(contextService, modelService);
@@ -78,7 +78,7 @@ export class OutputService implements IOutputService {
 	}
 
 	public getChannel(id: string): IOutputChannel {
-		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().filter(channelData => channelData.id === id).pop();
+		const channelData = this.getChannels().filter(channelData => channelData.id === id).pop();
 
 		const self = this;
 		return {
@@ -91,6 +91,10 @@ export class OutputService implements IOutputService {
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
 			clear: () => this.clearOutput(id)
 		};
+	}
+
+	public getChannels(): IOutputChannelIdentifier[] {
+		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
 	}
 
 	private append(channelId: string, output: string): void {
@@ -243,6 +247,7 @@ class OutputContentProvider implements ITextModelContentProvider {
 		}
 
 		const bufferedOutput = this.bufferedOutput[channel];
+		this.bufferedOutput[channel] = '';
 		if (!bufferedOutput) {
 			return; // return if nothing to append
 		}

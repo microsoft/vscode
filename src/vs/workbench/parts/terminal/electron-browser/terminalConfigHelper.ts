@@ -152,12 +152,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return config.terminal.integrated.commandsToSkipShell;
 	}
 
-	public getShell(): IShellLaunchConfig {
+	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): IShellLaunchConfig {
 		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		const shell: IShellLaunchConfig = {
-			executable: '',
-			args: []
-		};
+
+		shell.executable = '';
+		shell.args = [];
+
 		const integrated = config && config.terminal && config.terminal.integrated;
 		if (integrated && integrated.shell && integrated.shellArgs) {
 			if (this._platform === Platform.Windows) {

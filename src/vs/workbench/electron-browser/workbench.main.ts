@@ -44,11 +44,12 @@ import 'vs/workbench/parts/search/browser/searchViewlet'; // can be packaged sep
 import 'vs/workbench/parts/search/browser/openAnythingHandler'; // can be packaged separately
 
 import 'vs/workbench/parts/scm/browser/scm.contribution';
+import 'vs/workbench/parts/scm/browser/scmViewlet'; // can be packaged separately
 
-import 'vs/workbench/parts/git/electron-browser/git.contribution';
-import 'vs/workbench/parts/git/browser/gitQuickOpen';
-import 'vs/workbench/parts/git/browser/gitActions.contribution';
-import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separately
+// import 'vs/workbench/parts/git/electron-browser/git.contribution';
+// import 'vs/workbench/parts/git/browser/gitQuickOpen';
+// import 'vs/workbench/parts/git/browser/gitActions.contribution';
+// import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
 import 'vs/workbench/parts/debug/electron-browser/repl';
@@ -81,7 +82,6 @@ import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/node/emmet.contribution';
 
 // Code Editor enhacements
-import 'vs/workbench/parts/indentation/common/indentation';
 import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';

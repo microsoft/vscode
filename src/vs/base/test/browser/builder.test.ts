@@ -792,14 +792,14 @@ suite('Builder', () => {
 		b.div();
 
 		b.show();
-		assert(!b.hasClass('hidden'));
+		assert(!b.hasClass('builder-hidden'));
 		assert(!b.isHidden());
 		b.toggleVisibility();
 		assert(!b.isHidden());
 		assert(b.hasClass('builder-visible'));
 		b.toggleVisibility();
 		b.hide();
-		assert(b.hasClass('hidden'));
+		assert(b.hasClass('builder-hidden'));
 		assert(b.isHidden());
 	});
 
@@ -808,10 +808,10 @@ suite('Builder', () => {
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('hidden'));
+		assert(b.hasClass('builder-hidden'));
 
 		TPromise.timeout(30).then(() => {
-			assert(!b.hasClass('hidden'));
+			assert(!b.hasClass('builder-hidden'));
 			done();
 		});
 	});
@@ -821,12 +821,12 @@ suite('Builder', () => {
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('hidden'));
+		assert(b.hasClass('builder-hidden'));
 
 		b.hide(); // Should cancel the visibility promise
 
 		TPromise.timeout(30).then(() => {
-			assert(b.hasClass('hidden'));
+			assert(b.hasClass('builder-hidden'));
 			done();
 		});
 	});

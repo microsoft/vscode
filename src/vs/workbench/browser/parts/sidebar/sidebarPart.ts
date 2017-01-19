@@ -25,16 +25,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
-export interface ISidebar {
-	onDidViewletOpen: Event<IViewlet>;
-	onDidViewletClose: Event<IViewlet>;
-	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
-	getActiveViewlet(): IViewlet;
-	getLastActiveViewletId(): string;
-	hideActiveViewlet(): TPromise<void>;
-}
-
-export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
+export class SidebarPart extends CompositePart<Viewlet> {
 
 	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 

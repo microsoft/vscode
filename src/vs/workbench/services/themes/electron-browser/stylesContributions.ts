@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeDocument, IThemeSetting } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeSetting } from 'vs/workbench/services/themes/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { getBaseThemeId, getSyntaxThemeId } from 'vs/platform/theme/common/themes';
 
@@ -59,9 +59,9 @@ class Theme {
 	private settings: IThemeSetting[];
 	private globalSettings: ThemeGlobalSettings = null;
 
-	constructor(private themeId: string, themeDocument: IThemeDocument) {
+	constructor(private themeId: string, themeSettings: IThemeSetting[]) {
 		this.selector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
-		this.settings = themeDocument.settings;
+		this.settings = themeSettings;
 		let settings = this.settings[0];
 		if (!settings.scope) {
 			this.globalSettings = settings.settings;
@@ -92,7 +92,7 @@ abstract class StyleRules {
 
 export class EditorStylesContribution {
 
-	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]) {
+	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]) {
 		let editorStyleRules = [
 			new EditorBackgroundStyleRules(),
 			new EditorCursorStyleRules(),
@@ -106,7 +106,7 @@ export class EditorStylesContribution {
 			new EditorHoverHighlightStyleRules(),
 			new EditorLinkStyleRules()
 		];
-		let theme = new Theme(themeId, themeDocument);
+		let theme = new Theme(themeId, themeSettings);
 		if (theme.hasGlobalSettings()) {
 			editorStyleRules.forEach((editorStyleRule => {
 				editorStyleRule.getCssRules(theme, cssRules);
@@ -117,8 +117,8 @@ export class EditorStylesContribution {
 
 export class SearchViewStylesContribution {
 
-	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
-		let theme = new Theme(themeId, themeDocument);
+	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]): void {
+		let theme = new Theme(themeId, themeSettings);
 		if (theme.hasGlobalSettings()) {
 			if (theme.getGlobalSettings().findMatchHighlight) {
 				let color = new Color(theme.getGlobalSettings().findMatchHighlight);
@@ -160,8 +160,8 @@ export class TerminalStylesContribution {
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
-	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
-		const theme = new Theme(themeId, themeDocument);
+	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]): void {
+		const theme = new Theme(themeId, themeSettings);
 		if (theme.hasGlobalSettings()) {
 			const keys = Object.keys(theme.getGlobalSettings());
 			keys.filter(key => key.indexOf('ansi') === 0).forEach(key => {
@@ -300,7 +300,7 @@ class EditorWhiteSpaceStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme, cssRules: string[]): void {
 		if (theme.getGlobalSettings().invisibles) {
 			let invisibles = new Color(theme.getGlobalSettings().invisibles);
-			cssRules.push(`.vs-whitespace { color: ${invisibles} !important; }`);
+			cssRules.push(`.vs-whitespace { color: ${invisibles}; }`);
 		}
 	}
 }

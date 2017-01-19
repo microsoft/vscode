@@ -12,7 +12,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -74,6 +75,10 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
+	public setWorkspace(workspace: any): void {
+		this.workspace = workspace;
+	}
+
 	public getOptions() {
 		return this.options;
 	}
@@ -100,6 +105,8 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends TextFileService {
+	public cleanupBackupsBeforeShutdownCalled: boolean;
+
 	private promptPath: string;
 	private confirmResult: ConfirmResult;
 	private resolveTextContentError: IFileOperationResult;
@@ -115,9 +122,10 @@ export class TestTextFileService extends TextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, editorGroupService, windowsService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -163,6 +171,15 @@ export class TestTextFileService extends TextFileService {
 		return this.confirmResult;
 	}
 
+	public onConfigurationChange(configuration: any): void {
+		super.onConfigurationChange(configuration);
+	}
+
+	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
+		this.cleanupBackupsBeforeShutdownCalled = true;
+		return TPromise.as(void 0);
+	}
+
 	public showHotExitMessage(): void { }
 }
 
@@ -184,9 +201,9 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
-	instantiationService.stub(IWindowsService, new TestWindowsService());
 
 	return instantiationService;
 }
@@ -820,6 +837,8 @@ export class TestWindowsService implements IWindowsService {
 
 	_serviceBrand: any;
 
+	public windowCount = 1;
+
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 
@@ -893,7 +912,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 	getWindowCount(): TPromise<number> {
-		return TPromise.as(void 0);
+		return TPromise.as(this.windowCount);
 	}
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		return TPromise.as(void 0);

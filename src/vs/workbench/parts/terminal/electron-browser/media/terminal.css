@@ -40,7 +40,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
 	/* Align the viewport to the bottom of the panel, just like the terminal */
 	position: absolute;
-	right: 0;
+	right: -20px;
 	bottom: 0;
 	left: 0;
 }

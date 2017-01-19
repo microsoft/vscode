@@ -13,6 +13,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FastDomNode } from 'vs/base/browser/styleMutator';
+import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 
 class CSSBasedConfigurationCache {
 
@@ -81,6 +82,7 @@ class CSSBasedConfiguration extends Disposable {
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
 					lineHeight: readConfig.lineHeight,
+					isMonospace: readConfig.isMonospace,
 					typicalHalfwidthCharacterWidth: Math.max(readConfig.typicalHalfwidthCharacterWidth, 5),
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
@@ -124,19 +126,74 @@ class CSSBasedConfiguration extends Disposable {
 		}
 	}
 
+	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[]): CharWidthRequest {
+		let result = new CharWidthRequest(chr, type);
+		all.push(result);
+		if (monospace) {
+			monospace.push(result);
+		}
+		return result;
+	}
+
 	private static _actualReadConfiguration(bareFontInfo: BareFontInfo): FontInfo {
-		let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
-		let context = canvasElem.getContext('2d');
-		context.font = `normal normal normal normal ${bareFontInfo.fontSize}px / ${bareFontInfo.lineHeight}px ${bareFontInfo.fontFamily}`;
+		let all: CharWidthRequest[] = [];
+		let monospace: CharWidthRequest[] = [];
 
-		let typicalHalfwidthCharacter = context.measureText('n');
-		let typicalFullwidthCharacter = context.measureText('\uff4d');
-		let space = context.measureText(' ');
-		let digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(chr => context.measureText(chr));
+		const typicalHalfwidthCharacter = this.createRequest('n', CharWidthRequestType.Regular, all, monospace);
+		const typicalFullwidthCharacter = this.createRequest('\uff4d', CharWidthRequestType.Regular, all, null);
+		const space = this.createRequest(' ', CharWidthRequestType.Regular, all, monospace);
+		const digit0 = this.createRequest('0', CharWidthRequestType.Regular, all, monospace);
+		const digit1 = this.createRequest('1', CharWidthRequestType.Regular, all, monospace);
+		const digit2 = this.createRequest('2', CharWidthRequestType.Regular, all, monospace);
+		const digit3 = this.createRequest('3', CharWidthRequestType.Regular, all, monospace);
+		const digit4 = this.createRequest('4', CharWidthRequestType.Regular, all, monospace);
+		const digit5 = this.createRequest('5', CharWidthRequestType.Regular, all, monospace);
+		const digit6 = this.createRequest('6', CharWidthRequestType.Regular, all, monospace);
+		const digit7 = this.createRequest('7', CharWidthRequestType.Regular, all, monospace);
+		const digit8 = this.createRequest('8', CharWidthRequestType.Regular, all, monospace);
+		const digit9 = this.createRequest('9', CharWidthRequestType.Regular, all, monospace);
 
-		let maxDigitWidth = 0;
-		for (let i = 0, len = digits.length; i < len; i++) {
-			maxDigitWidth = Math.max(maxDigitWidth, digits[i].width);
+		// monospace test: used for whitespace rendering
+		this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
+		this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
+
+		// monospace test: some characters
+		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
+		this.createRequest('/', CharWidthRequestType.Regular, all, monospace);
+		this.createRequest('-', CharWidthRequestType.Regular, all, monospace);
+		this.createRequest('_', CharWidthRequestType.Regular, all, monospace);
+		this.createRequest('i', CharWidthRequestType.Regular, all, monospace);
+		this.createRequest('l', CharWidthRequestType.Regular, all, monospace);
+		this.createRequest('m', CharWidthRequestType.Regular, all, monospace);
+
+		// monospace italic test
+		this.createRequest('|', CharWidthRequestType.Italic, all, monospace);
+		this.createRequest('_', CharWidthRequestType.Italic, all, monospace);
+		this.createRequest('i', CharWidthRequestType.Italic, all, monospace);
+		this.createRequest('l', CharWidthRequestType.Italic, all, monospace);
+		this.createRequest('m', CharWidthRequestType.Italic, all, monospace);
+		this.createRequest('n', CharWidthRequestType.Italic, all, monospace);
+
+		// monospace bold test
+		this.createRequest('|', CharWidthRequestType.Bold, all, monospace);
+		this.createRequest('_', CharWidthRequestType.Bold, all, monospace);
+		this.createRequest('i', CharWidthRequestType.Bold, all, monospace);
+		this.createRequest('l', CharWidthRequestType.Bold, all, monospace);
+		this.createRequest('m', CharWidthRequestType.Bold, all, monospace);
+		this.createRequest('n', CharWidthRequestType.Bold, all, monospace);
+
+		readCharWidths(bareFontInfo, all);
+
+		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
+
+		let isMonospace = true;
+		let referenceWidth = monospace[0].width;
+		for (let i = 1, len = monospace.length; i < len; i++) {
+			const diff = referenceWidth - monospace[i].width;
+			if (diff < -0.001 || diff > 0.001) {
+				isMonospace = false;
+				break;
+			}
 		}
 
 		return new FontInfo({
@@ -144,6 +201,7 @@ class CSSBasedConfiguration extends Disposable {
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
 			lineHeight: bareFontInfo.lineHeight,
+			isMonospace: isMonospace,
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
 			spaceWidth: space.width,

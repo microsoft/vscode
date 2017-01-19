@@ -52,6 +52,7 @@ export interface IProductConfiguration {
 	npsSurveyUrl: string;
 	checksums: { [path: string]: string; };
 	checksumFailMoreInfoUrl: string;
+	extraNodeModules: string[];
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);

@@ -465,7 +465,7 @@ export interface IContextKeyService {
 	contextMatchesRules(rules: ContextKeyExpr): boolean;
 	getContextKeyValue<T>(key: string): T;
 
-	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
+	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
 	getContextValue(target: IContextKeyServiceTarget): any;
 }
 
