@@ -90,10 +90,15 @@ export class OutputService implements IOutputService {
 			get output() {
 				return self.getOutput(id);
 			},
+			get hasScrollLock() {
+				return self._outputContentProvider.hasScrollLock(id);
+			},
+			set hasScrollLock(value: boolean) {
+				self._outputContentProvider.setScrollLock(id, value);
+			},
 			append: (output: string) => this.append(id, output),
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
-			clear: () => this.clearOutput(id),
-			toggleScrollLock: () => this._outputContentProvider.toggleScrollLock(id)
+			clear: () => this.clearOutput(id)
 		};
 	}
 
@@ -283,14 +288,16 @@ class OutputContentProvider implements ITextModelContentProvider {
 		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === channel;
 	}
 
-	public toggleScrollLock(channelId: string): boolean {
-		let channelHadScrollLock = this.channelIdsWithScrollLock.has(channelId);
-		if (channelHadScrollLock) {
-			this.channelIdsWithScrollLock.delete(channelId)
-		} else {
+	public hasScrollLock(channelId): boolean {
+		return this.channelIdsWithScrollLock.has(channelId);
+	}
+
+	public setScrollLock(channelId: string, value: boolean): void {
+		if (value) {
 			this.channelIdsWithScrollLock.add(channelId);
+		} else {
+			this.channelIdsWithScrollLock.delete(channelId);
 		}
-		return !channelHadScrollLock;
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {

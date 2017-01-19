@@ -12,6 +12,7 @@ import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -53,15 +54,25 @@ export class ToggleOutputScrollLockAction extends Action {
 	public static ID = 'workbench.output.action.toggleOutputScrollLock';
 	public static LABEL = nls.localize('toggleOutputScrollLock', "Toggle Output Scroll Lock");
 
+	private toDispose: IDisposable[] = [];
+
 	constructor(id: string, label: string,
 		@IOutputService private outputService: IOutputService) {
 		super(id, label, 'output-action toggle-output-scroll-lock');
+		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this._setChecked(this.outputService.getActiveChannel().hasScrollLock)));
 	}
 
 	public run(): TPromise<any> {
-		this.outputService.getActiveChannel().toggleScrollLock();
+		const activeChannel = this.outputService.getActiveChannel();
+		activeChannel.hasScrollLock = !activeChannel.hasScrollLock;
+		this._setChecked(activeChannel.hasScrollLock);
 
 		return TPromise.as(true);
+	}
+
+	public dispose() {
+		super.dispose();
+		this.toDispose = dispose(this.toDispose);
 	}
 }
 
