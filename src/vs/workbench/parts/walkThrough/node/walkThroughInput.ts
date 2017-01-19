@@ -12,11 +12,8 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
-import * as uuid from 'vs/base/common/uuid';
-import * as path from 'path';
-import { tmpdir } from 'os';
-import { mkdirp } from 'vs/base/node/extfs';
 import { marked } from 'vs/base/common/marked/marked';
+import { WALK_THROUGH_SNIPPET_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -97,17 +94,12 @@ export class WalkThroughInput extends EditorInput {
 						return new WalkThroughModel(ref, []);
 					}
 
-					const folderName = path.join(tmpdir(), 'vscode-walk-through', uuid.generateUuid());
-					const folder = new TPromise<string>((c, e) => mkdirp(folderName, null, err => err ? e(err) : c(folderName)));
-
 					const snippets: TPromise<IReference<ITextEditorModel>>[] = [];
+					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const id = `code-${uuid.generateUuid()}`;
-						const resource = URI.file(path.join(folderName, `${id}.${lang}`));
-						// E.g., the TypeScript service needs files on disk.
-						snippets.push(folder.then(() => this.fileService.createFile(resource, code))
-							.then(() => this.textModelResolverService.createModelReference(resource)));
+						const resource = this.resource.with({ scheme: WALK_THROUGH_SNIPPET_SCHEME, fragment: String(i++) });
+						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return '';
 					};
 

@@ -131,7 +131,7 @@ export class WalkThroughPart extends BaseEditor {
 				let i = 0;
 				const renderer = new marked.Renderer();
 				renderer.code = (code, lang) => {
-					const id = path.basename(model.snippets[i++].textEditorModel.uri.fsPath);
+					const id = `snippet-${model.snippets[i++].textEditorModel.uri.fragment}`;
 					return `<div id=${id} class="walkThroughEditorContainer" ></div>`;
 				};
 				this.content.classList.add('walkThroughContent'); // only for markdown files
@@ -141,8 +141,8 @@ export class WalkThroughPart extends BaseEditor {
 				// TODO: also create jsconfig.json and tsconfig.json
 				model.snippets.forEach(snippet => {
 					const model = snippet.textEditorModel;
-					const id = path.basename(model.uri.fsPath);
-					const div = this.content.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
+					const id = `snippet-${model.uri.fragment}`;
+					const div = this.content.querySelector(`#${id}`) as HTMLElement;
 
 					var options: IEditorOptions = {
 						scrollBeyondLastLine: false,
