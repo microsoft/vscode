@@ -90,10 +90,10 @@ export class OutputService implements IOutputService {
 			get output() {
 				return self.getOutput(id);
 			},
-			get hasScrollLock() {
-				return self._outputContentProvider.hasScrollLock(id);
+			get scrollLock() {
+				return self._outputContentProvider.scrollLock(id);
 			},
-			set hasScrollLock(value: boolean) {
+			set scrollLock(value: boolean) {
 				self._outputContentProvider.setScrollLock(id, value);
 			},
 			append: (output: string) => this.append(id, output),
@@ -288,7 +288,7 @@ class OutputContentProvider implements ITextModelContentProvider {
 		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === channel;
 	}
 
-	public hasScrollLock(channelId): boolean {
+	public scrollLock(channelId): boolean {
 		return this.channelIdsWithScrollLock.has(channelId);
 	}
 
