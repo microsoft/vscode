@@ -74,9 +74,9 @@ export class ProgressService2 implements IProgressService2 {
 			title
 		};
 
-		this._stack.unshift(task);
-
 		const promise = callback(task.progress);
+		this._stack.unshift(task);
+		this._updateProgress();
 
 		always(promise, () => {
 			const idx = this._stack.indexOf(task);
