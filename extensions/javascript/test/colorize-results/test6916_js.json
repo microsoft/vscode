@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "i",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "j",
-		"t": "source.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",

@@ -98,7 +98,7 @@
 					"begin": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n    ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)",
 					"beginCaptures": {
 						"1": {
-							"name": "entity.name.function.js"
+							"name": "meta.definition.variable.js entity.name.function.js"
 						}
 					},
 					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
@@ -113,7 +113,7 @@
 					"begin": "([[:upper:]][_$[:digit:][:upper:]]*)(?![_$[:alnum:]])",
 					"beginCaptures": {
 						"1": {
-							"name": "variable.other.constant.js"
+							"name": "meta.definition.variable.js variable.other.constant.js"
 						}
 					},
 					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
@@ -128,7 +128,7 @@
 					"begin": "([_$[:alpha:]][_$[:alnum:]]*)",
 					"beginCaptures": {
 						"1": {
-							"name": "variable.other.readwrite.js"
+							"name": "meta.definition.variable.js variable.other.readwrite.js"
 						}
 					},
 					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
@@ -267,7 +267,7 @@
 					"name": "keyword.operator.rest.js"
 				},
 				"2": {
-					"name": "variable.other.readwrite.js"
+					"name": "meta.definition.variable.js variable.other.readwrite.js"
 				}
 			}
 		},
@@ -1121,11 +1121,11 @@
 							"include": "#comment"
 						},
 						{
-							"name": "entity.name.function.js",
+							"name": "meta.definition.property.js entity.name.function.js",
 							"match": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=(\\?\\s*)?\\s*\n  (=\\s*(\n    (async\\s+) |\n    (function\\s*[(<]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>) |\n    ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n    ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n    ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))\n  ) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    )))\n  )\n)"
 						},
 						{
-							"name": "variable.object.property.js",
+							"name": "meta.definition.property.js variable.object.property.js",
 							"match": "[_$[:alpha:]][_$[:alnum:]]*"
 						},
 						{
@@ -1195,7 +1195,7 @@
 					"include": "#array-literal"
 				},
 				{
-					"name": "entity.name.function.js",
+					"name": "meta.definition.method.js entity.name.function.js",
 					"match": "[_$[:alpha:]][_$[:alnum:]]*"
 				},
 				{
@@ -1341,7 +1341,7 @@
 					"name": "keyword.generator.asterisk.js"
 				},
 				"5": {
-					"name": "entity.name.function.js"
+					"name": "meta.definition.function.js entity.name.function.js"
 				}
 			},
 			"end": "(?=$|;)|(?<=\\})",
@@ -1377,7 +1377,7 @@
 					"name": "keyword.generator.asterisk.js"
 				},
 				"4": {
-					"name": "entity.name.function.js"
+					"name": "meta.definition.function.js entity.name.function.js"
 				}
 			},
 			"end": "(?<=\\})",

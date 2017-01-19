@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "x",
-		"t": "source.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
