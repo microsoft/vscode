@@ -113,7 +113,7 @@ class LanguageProvider {
 
 	private _validate: boolean;
 
-	constructor(client: TypeScriptServiceClient, description: LanguageDescription) {
+	constructor(private client: TypeScriptServiceClient, description: LanguageDescription) {
 		this.description = description;
 		this.extensions = Object.create(null);
 		description.extensions.forEach(extension => this.extensions[extension] = true);
@@ -121,7 +121,7 @@ class LanguageProvider {
 
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
-				this.currentDiagnostics.delete(Uri.file(file));
+				this.currentDiagnostics.delete(client.asUrl(file));
 			}
 		}, this.extensions);
 		this.syntaxDiagnostics = Object.create(null);
@@ -167,7 +167,7 @@ class LanguageProvider {
 		}
 
 		this.description.modeIds.forEach(modeId => {
-			let selector: DocumentFilter = { scheme: 'file', language: modeId };
+			let selector: DocumentFilter = modeId;
 			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
 			languages.registerHoverProvider(selector, hoverProvider);
 			languages.registerDefinitionProvider(selector, definitionProvider);
@@ -316,11 +316,11 @@ class LanguageProvider {
 			delete this.syntaxDiagnostics[file];
 			diagnostics = syntaxMarkers.concat(diagnostics);
 		}
-		this.currentDiagnostics.set(Uri.file(file), diagnostics);
+		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.currentDiagnostics.set(Uri.file(file), diagnostics);
+		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 	}
 }
 

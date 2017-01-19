@@ -140,7 +140,7 @@ export class WalkThroughPart extends BaseEditor {
 				model.snippets.forEach(snippet => {
 					const model = snippet.textEditorModel;
 					const id = `snippet-${model.uri.fragment}`;
-					const div = this.content.querySelector(`#${id}`) as HTMLElement;
+					const div = this.content.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
 					var options: IEditorOptions = {
 						scrollBeyondLastLine: false,

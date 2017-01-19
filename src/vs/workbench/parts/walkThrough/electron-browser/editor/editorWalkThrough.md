@@ -68,7 +68,7 @@ It's very common to want to work with the entire text in a line we provide a set
 ### Rename Refactoring
 It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol `Book` to rename all instances - this will occur across all files in a project.  You can also see refactoring in the right click context menu.
 
-```ts
+```js
 // Reference the function
 Book("War of the Worlds", "H G Wells");
 Book("The Martian", "Andy Weir");
@@ -122,7 +122,7 @@ In a large file it can often be useful to collapse sections of code to increase 
 ### Errors and Warnings
 Errors and warnings are highlighted as you edit your code with `squiggles`.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.next) you can navigate across them in sequence and see the detailed error message.  As you correct them the `squiggles` and `scrollbar indicators` will update.
 
-```ts
+```js
 // This code has a few syntax errors
 Console.log(add(1, 1.5));
 
