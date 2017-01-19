@@ -7,7 +7,7 @@
 import { localize } from 'vs/nls';
 import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
 import { WalkThroughPart } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart';
-import { WalkThroughContentProvider } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughContentProvider';
+import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 import { EditorWalkThroughAction } from 'vs/workbench/parts/walkThrough/electron-browser/editor/editorWalkThrough';
 import { Registry } from 'vs/platform/platform';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -28,3 +28,6 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WalkThroughContentProvider);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(WalkThroughSnippetContentProvider);
