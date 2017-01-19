@@ -40,19 +40,19 @@ export interface IFilterResult {
 	matches: Map<string, IRange[]>;
 }
 
-export interface IPreferencesEditorModel {
+export interface IPreferencesEditorModel<T> {
 	uri: URI;
 	content: string;
+	getPreference(key: string): T;
 }
 
-export interface ISettingsEditorModel extends IPreferencesEditorModel {
+export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	getSetting(key: string): ISetting;
 	filterSettings(filter: string): IFilterResult;
 }
 
-export interface IKeybindingsEditorModel extends IPreferencesEditorModel {
+export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
 }
 
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
@@ -65,8 +65,8 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	defaultKeybindingsResource: URI;
 
-	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
-	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
+	createDefaultPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
+	resolvePreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openSettings(): TPromise<void>;
 	switchSettings(): TPromise<void>;

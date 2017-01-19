@@ -42,7 +42,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	_serviceBrand: any;
 
 	// TODO:@sandy merge these models into editor inputs by extending resource editor model
-	private defaultPreferencesEditorModels: Map<URI, IPreferencesEditorModel>;
+	private defaultPreferencesEditorModels: Map<URI, IPreferencesEditorModel<any>>;
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
 	constructor(
@@ -62,7 +62,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
-		this.defaultPreferencesEditorModels = new Map<URI, IPreferencesEditorModel>();
+		this.defaultPreferencesEditorModels = new Map<URI, IPreferencesEditorModel<any>>();
 		this.editorGroupService.onEditorsChanged(() => {
 			const activeEditorInput = this.editorService.getActiveEditorInput();
 			if (activeEditorInput instanceof PreferencesEditorInput) {
@@ -82,7 +82,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 	}
 
-	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
+	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
 		const editorModel = this.defaultPreferencesEditorModels.get(uri);
 		if (editorModel) {
 			return TPromise.as(editorModel);
@@ -107,7 +107,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return null;
 	}
 
-	public resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
+	public resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
 		const model = this.defaultPreferencesEditorModels.get(uri);
 		if (model) {
 			return TPromise.wrap(model);

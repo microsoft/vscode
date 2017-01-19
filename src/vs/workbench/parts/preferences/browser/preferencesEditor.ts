@@ -217,17 +217,17 @@ export class PreferencesEditor extends BaseEditor {
 		}
 	}
 
-	private getDefaultPreferencesRenderer(): IPreferencesRenderer {
+	private getDefaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
 		const detailsEditor = this.sideBySidePreferencesWidget.getDefaultPreferencesEditor();
 		if (detailsEditor) {
-			return (<CodeEditor>this.sideBySidePreferencesWidget.getDefaultPreferencesEditor().getControl()).getContribution<PreferencesEditorContribution>(DefaultSettingsEditorContribution.ID).getPreferencesRenderer();
+			return (<CodeEditor>this.sideBySidePreferencesWidget.getDefaultPreferencesEditor().getControl()).getContribution<PreferencesEditorContribution<ISetting>>(DefaultSettingsEditorContribution.ID).getPreferencesRenderer();
 		}
 		return null;
 	}
 
-	private getEditablePreferencesRenderer(): IPreferencesRenderer {
+	private getEditablePreferencesRenderer(): IPreferencesRenderer<ISetting> {
 		if (this.sideBySidePreferencesWidget.getEditablePreferencesEditor()) {
-			return (<CodeEditor>this.sideBySidePreferencesWidget.getEditablePreferencesEditor().getControl()).getContribution<PreferencesEditorContribution>(SettingsEditorContribution.ID).getPreferencesRenderer();
+			return (<CodeEditor>this.sideBySidePreferencesWidget.getEditablePreferencesEditor().getControl()).getContribution<PreferencesEditorContribution<ISetting>>(SettingsEditorContribution.ID).getPreferencesRenderer();
 		}
 		return null;
 	}
@@ -443,7 +443,7 @@ class DefaultPreferencesCodeEditor extends CodeEditor {
 	}
 }
 
-export interface IPreferencesRenderer {
+export interface IPreferencesRenderer<T> {
 	iterator: IIterator<ISetting>;
 	onFocusPreference: Event<ISetting>;
 	onClearFocusPreference: Event<ISetting>;
@@ -456,9 +456,9 @@ export interface IPreferencesRenderer {
 	dispose();
 }
 
-export abstract class PreferencesEditorContribution extends Disposable implements editorCommon.IEditorContribution {
+export abstract class PreferencesEditorContribution<T> extends Disposable implements editorCommon.IEditorContribution {
 
-	private preferencesRenderer: IPreferencesRenderer;
+	private preferencesRenderer: IPreferencesRenderer<T>;
 
 	constructor(protected editor: ICodeEditor,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -484,11 +484,11 @@ export abstract class PreferencesEditorContribution extends Disposable implement
 		}
 	}
 
-	getPreferencesRenderer(): IPreferencesRenderer {
+	getPreferencesRenderer(): IPreferencesRenderer<T> {
 		return this.preferencesRenderer;
 	}
 
-	protected abstract createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer
+	protected abstract createPreferencesRenderer(editorModel: IPreferencesEditorModel<any>): IPreferencesRenderer<T>
 	abstract getId(): string;
 
 	private disposePreferencesRenderer() {
@@ -504,11 +504,11 @@ export abstract class PreferencesEditorContribution extends Disposable implement
 	}
 }
 
-export class DefaultSettingsEditorContribution extends PreferencesEditorContribution implements editorCommon.IEditorContribution {
+export class DefaultSettingsEditorContribution extends PreferencesEditorContribution<ISetting> implements editorCommon.IEditorContribution {
 
 	static ID: string = 'editor.contrib.defaultsettings';
 
-	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer {
+	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel<ISetting>): IPreferencesRenderer<ISetting> {
 		if (editorModel instanceof DefaultSettingsEditorModel) {
 			return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
 		}
@@ -521,7 +521,7 @@ export class DefaultSettingsEditorContribution extends PreferencesEditorContribu
 }
 
 @editorContribution
-export class SettingsEditorContribution extends PreferencesEditorContribution implements editorCommon.IEditorContribution {
+export class SettingsEditorContribution extends PreferencesEditorContribution<ISetting> implements editorCommon.IEditorContribution {
 
 	static ID: string = 'editor.contrib.settings';
 
@@ -529,7 +529,7 @@ export class SettingsEditorContribution extends PreferencesEditorContribution im
 		return SettingsEditorContribution.ID;
 	}
 
-	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer {
+	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel<ISetting>): IPreferencesRenderer<ISetting> {
 		if (editorModel instanceof SettingsEditorModel) {
 			return this.instantiationService.createInstance(SettingsRenderer, this.editor, editorModel);
 		}
@@ -537,7 +537,7 @@ export class SettingsEditorContribution extends PreferencesEditorContribution im
 	}
 }
 
-export class SettingsRenderer extends Disposable implements IPreferencesRenderer {
+export class SettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
 	private initializationPromise: TPromise<void>;
 	private settingHighlighter: SettingHighlighter;
@@ -602,10 +602,10 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 
 	private onSettingUpdated(setting: ISetting) {
 		this.editor.focus();
-		setting = this.preferencesModel.getSetting(setting.key);
+		setting = this.preferencesModel.getPreference(setting.key);
 		// TODO:@sandy Selection range should be template range
 		this.editor.setSelection(setting.valueRange);
-		this.settingHighlighter.highlight(this.preferencesModel.getSetting(setting.key), true);
+		this.settingHighlighter.highlight(this.preferencesModel.getPreference(setting.key), true);
 	}
 
 	public filterPreferences(filterResult: IFilterResult): void {
@@ -615,7 +615,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 			const settings = distinct(filterResult.filteredGroups.reduce((settings: ISetting[], settingsGroup: ISettingsGroup) => {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
-						const s = this.preferencesModel.getSetting(setting.key);
+						const s = this.preferencesModel.getPreference(setting.key);
 						if (s) {
 							settings.push(s);
 						}
@@ -628,7 +628,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	}
 
 	public focusPreference(setting: ISetting): void {
-		const s = this.preferencesModel.getSetting(setting.key);
+		const s = this.preferencesModel.getPreference(setting.key);
 		if (s) {
 			this.settingHighlighter.highlight(s, true);
 		} else {
@@ -641,7 +641,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	}
 }
 
-export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer {
+export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
 
@@ -722,7 +722,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public updatePreference(setting: ISetting, value: any): void {
 		const settingsEditor = this.getEditableSettingsEditor();
 		if (settingsEditor) {
-			settingsEditor.getContribution<PreferencesEditorContribution>(SettingsEditorContribution.ID).getPreferencesRenderer().updatePreference(setting, value);
+			settingsEditor.getContribution<PreferencesEditorContribution<ISetting>>(SettingsEditorContribution.ID).getPreferencesRenderer().updatePreference(setting, value);
 		}
 	}
 
@@ -1222,7 +1222,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private getDefaultActions(setting: ISetting): IAction[] {
-		const settingInOtherModel = this.otherSettingsModel().getSetting(setting.key);
+		const settingInOtherModel = this.otherSettingsModel().getPreference(setting.key);
 		if (this.isDefaultSettings()) {
 			return [<IAction>{
 				id: 'setDefaultValue',
@@ -1279,7 +1279,7 @@ class SettingHighlighter extends Disposable {
 	}
 }
 
-const DefaultSettingsEditorCommand = EditorCommand.bindToContribution<PreferencesEditorContribution>((editor: editorCommon.ICommonCodeEditor) => <PreferencesEditorContribution>editor.getContribution(DefaultSettingsEditorContribution.ID));
+const DefaultSettingsEditorCommand = EditorCommand.bindToContribution<PreferencesEditorContribution<ISetting>>((editor: editorCommon.ICommonCodeEditor) => <PreferencesEditorContribution<ISetting>>editor.getContribution(DefaultSettingsEditorContribution.ID));
 
 CommonEditorRegistry.registerEditorCommand(new DefaultSettingsEditorCommand({
 	id: DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL,
