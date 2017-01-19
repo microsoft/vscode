@@ -21,7 +21,6 @@ import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 import Webview from './webview';
 
