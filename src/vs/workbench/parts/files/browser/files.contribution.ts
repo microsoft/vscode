@@ -220,7 +220,8 @@ configurationRegistry.registerConfiguration({
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file.")
+			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
+			'overridable': true
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
