@@ -168,7 +168,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		function onOverrideSettingsValue(property: string, value: any): void {
 			overrides = overrides || [];
 			overrides.push({
-				identifiers: property.substring(1, property.length - 1).split(',').map(p => p.trim()),
+				identifiers: [property.substring(1, property.length - 1).trim()],
 				raw: value,
 				contents: null
 			});
