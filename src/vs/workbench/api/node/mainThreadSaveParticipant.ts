@@ -99,7 +99,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
-		if (this.configurationService.lookup('files.insertFinalNewline').value) {
+		if (this.configurationService.lookup('files.insertFinalNewline', model.textEditorModel.getLanguageIdentifier().language).value) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
