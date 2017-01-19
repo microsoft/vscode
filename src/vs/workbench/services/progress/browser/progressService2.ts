@@ -101,7 +101,9 @@ export class ProgressService2 implements IProgressService2 {
 
 		// show in viewlet
 		const viewletProgress = this._viewletService.getProgressIndicator(viewletId);
-		viewletProgress.showWhile(promise);
+		if (viewletProgress) {
+			viewletProgress.showWhile(promise);
+		}
 
 		// show activity bar
 		let activityProgress: IDisposable;
@@ -109,7 +111,7 @@ export class ProgressService2 implements IProgressService2 {
 			delayHandle = undefined;
 			activityProgress = this._activityBar.showActivity(
 				viewletId,
-				new ProgressBadge(() => '...'),
+				new ProgressBadge(() => ''),
 				'progress-badge'
 			);
 		}, 200);
