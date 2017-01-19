@@ -69,7 +69,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		// First validate before making any edits
 		return this.validate(target, operation, options).then(validation => {
-			if (!options.writeToBuffer && typeof validation.error === 'number') {
+			if (typeof validation.error === 'number') {
 				// Target cannot contain JSON errors if writing to disk
 				return this.wrapError(validation.error, target);
 			}
