@@ -75,7 +75,7 @@ export interface ITerminalFont {
 }
 
 export interface IShellLaunchConfig {
-	/** The name of the terminal, this this is not set the name of the process will be used. */
+	/** The name of the terminal, if this is not set the name of the process will be used. */
 	name?: string;
 	/** The shell executable (bash, cmd, etc.). */
 	executable?: string;
