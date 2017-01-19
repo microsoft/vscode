@@ -47,31 +47,31 @@ function _memoize(fn: Function, key: string): Function {
 
 export const memoize = decorate(_memoize);
 
-function _throttle<T>(fn: Function): Function {
-	let current: Promise<T> | undefined;
-	let next: Promise<T> | undefined;
+function _throttle<T>(fn: Function, key: string): Function {
+	const currentKey = `$throttle$current$${key}`;
+	const nextKey = `$throttle$next$${key}`;
 
 	const trigger = function (...args: any[]) {
-		if (next) {
-			return next;
+		if (this[nextKey]) {
+			return this[nextKey];
 		}
 
-		if (current) {
-			next = done(current).then(() => {
-				next = undefined;
+		if (this[currentKey]) {
+			this[nextKey] = done(this[currentKey]).then(() => {
+				this[nextKey] = undefined;
 				return trigger.apply(this, args);
 			});
 
-			return next;
+			return this[nextKey];
 		}
 
-		current = fn.apply(this, args) as Promise<T>;
+		this[currentKey] = fn.apply(this, args) as Promise<T>;
 
-		done(current).then(() => {
-			current = undefined;
+		done(this[currentKey]).then(() => {
+			this[currentKey] = undefined;
 		});
 
-		return current;
+		return this[currentKey];
 	};
 
 	return trigger;
