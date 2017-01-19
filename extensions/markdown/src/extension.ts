@@ -269,14 +269,13 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			return '';
 		}
 		const {fontFamily, fontSize, lineHeight} = previewSettings;
-		return [
-			'<style>',
-			'body {',
-			fontFamily ? `font-family: ${fontFamily};` : '',
-			+fontSize > 0 ? `font-size: ${fontSize}px;` : '',
-			+lineHeight > 0 ? `line-height: ${lineHeight};` : '',
-			'}',
-			'</style>'].join('\n');
+		return `<style>
+			body {
+				${fontFamily ? `font-family: ${fontFamily};` : ''}
+				${+fontSize > 0 ? `font-size: ${fontSize}px;` : ''}
+				${+lineHeight > 0 ? `line-height: ${lineHeight};` : ''}
+			}
+		</style>`;
 	}
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
@@ -284,6 +283,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
+			const enablePreviewSync = vscode.workspace.getConfiguration('markdown')['experimental.preview.syncronization'];
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
@@ -306,7 +306,8 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 					<script>
 						window.initialData = {
 							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
-							line: ${initialLine}
+							line: ${initialLine},
+							enablePreviewSync: ${!!enablePreviewSync}
 						};
 					</script>
 					<script src="${this.getMediaPath('main.js')}"></script>
