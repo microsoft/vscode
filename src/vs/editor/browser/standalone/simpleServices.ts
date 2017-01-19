@@ -24,7 +24,7 @@ import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configu
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IDisposable, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -275,8 +275,13 @@ export class StandaloneCommandService implements ICommandService {
 		this._dynamicCommands = Object.create(null);
 	}
 
-	public addCommand(id: string, command: ICommand): void {
+	public addCommand(id: string, command: ICommand): IDisposable {
 		this._dynamicCommands[id] = command;
+		return {
+			dispose: () => {
+				delete this._dynamicCommands[id];
+			}
+		};
 	}
 
 	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
@@ -295,8 +300,6 @@ export class StandaloneCommandService implements ICommandService {
 }
 
 export class StandaloneKeybindingService extends AbstractKeybindingService {
-	private static LAST_GENERATED_ID = 0;
-
 	private _cachedResolver: KeybindingResolver;
 	private _dynamicKeybindings: IKeybindingItem[];
 
@@ -320,11 +323,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(keybinding: number, handler: ICommandHandler, when: string, commandId: string = null): string {
-		if (commandId === null) {
-			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService.LAST_GENERATED_ID);
-		}
+	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: string): IDisposable {
+		let toDispose: IDisposable[] = [];
+
 		let parsedContext = IOSupport.readKeybindingWhen(when);
+
 		this._dynamicKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
@@ -333,16 +336,30 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			weight2: 0
 		});
 
+		toDispose.push({
+			dispose: () => {
+				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
+					let kb = this._dynamicKeybindings[i];
+					if (kb.command === commandId) {
+						this._dynamicKeybindings.splice(i, 1);
+						this.updateResolver({ source: KeybindingSource.Default });
+						return;
+					}
+				}
+			}
+		});
+
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
-			commandService.addCommand(commandId, {
+			toDispose.push(commandService.addCommand(commandId, {
 				handler: handler
-			});
+			}));
 		} else {
 			throw new Error('Unknown command service!');
 		}
 		this.updateResolver({ source: KeybindingSource.Default });
-		return commandId;
+
+		return combinedDisposable(toDispose);
 	}
 
 	private updateResolver(event: IKeybindingEvent): void {

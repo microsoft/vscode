@@ -55,36 +55,6 @@ export function once<T>(event: Event<T>): Event<T> {
 	};
 }
 
-export function throttle<T>(fn: (...args: any[]) => Promise<T>): () => Promise<T> {
-	let current: Promise<T> | undefined;
-	let next: Promise<T> | undefined;
-
-	const trigger = (...args: any[]) => {
-		if (next) {
-			return next;
-		}
-
-		if (current) {
-			next = done(current).then(() => {
-				next = undefined;
-				return trigger();
-			});
-
-			return next;
-		}
-
-		current = fn.apply(this, args) as Promise<T>;
-
-		done(current).then(() => {
-			current = undefined;
-		});
-
-		return current;
-	};
-
-	return trigger;
-}
-
 export function eventToPromise<T>(event: Event<T>): Promise<T> {
 	return new Promise(c => once(event)(c));
 }

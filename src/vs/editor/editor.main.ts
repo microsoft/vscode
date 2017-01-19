@@ -25,3 +25,12 @@ var global: any = self;
 global.monaco = createMonacoBaseAPI();
 global.monaco.editor = createMonacoEditorAPI();
 global.monaco.languages = createMonacoLanguagesAPI();
+
+if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
+	global.require.config({
+		ignoreDuplicateModules: [
+			'vscode-languageserver-types',
+			'vscode-languageserver-types/main',
+		]
+	});
+}

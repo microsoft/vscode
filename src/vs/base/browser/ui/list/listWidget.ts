@@ -84,7 +84,7 @@ class Trait<T> implements IDisposable {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
-	set(...indexes: number[]): number[] {
+	set(indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
 		this._onChange.fire({ indexes });
@@ -154,14 +154,14 @@ class Controller<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
-		this.list.setFocus(e.index);
-		this.list.setSelection(e.index);
+		this.list.setFocus([e.index]);
+		this.list.setSelection([e.index]);
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
-		this.list.setSelection(...this.list.getFocus());
+		this.list.setSelection(this.list.getFocus());
 	}
 
 	private onUpArrow(e: StandardKeyboardEvent): void {
@@ -267,11 +267,11 @@ export class List<T> implements IDisposable {
 		}
 	}
 
-	splice(start: number, deleteCount: number, ...elements: T[]): void {
+	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		this.eventBufferer.bufferEvents(() => {
 			this.focus.splice(start, deleteCount, elements.length);
 			this.selection.splice(start, deleteCount, elements.length);
-			this.view.splice(start, deleteCount, ...elements);
+			this.view.splice(start, deleteCount, elements);
 		});
 	}
 
@@ -295,10 +295,10 @@ export class List<T> implements IDisposable {
 		this.view.layout(height);
 	}
 
-	setSelection(...indexes: number[]): void {
+	setSelection(indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.selection.set(...indexes));
-			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+			indexes = indexes.concat(this.selection.set(indexes));
+			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -306,7 +306,7 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) { return; }
 		const selection = this.selection.get();
 		let index = selection.length > 0 ? selection[0] + n : 0;
-		this.setSelection(loop ? index % this.length : Math.min(index, this.length - 1));
+		this.setSelection(loop ? [index % this.length] : [Math.min(index, this.length - 1)]);
 	}
 
 	selectPrevious(n = 1, loop = false): void {
@@ -316,17 +316,17 @@ export class List<T> implements IDisposable {
 		if (loop && index < 0) {
 			index = this.length + (index % this.length);
 		}
-		this.setSelection(Math.max(index, 0));
+		this.setSelection([Math.max(index, 0)]);
 	}
 
 	getSelection(): number[] {
 		return this.selection.get();
 	}
 
-	setFocus(...indexes: number[]): void {
+	setFocus(indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.focus.set(...indexes));
-			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+			indexes = indexes.concat(this.focus.set(indexes));
+			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -334,7 +334,7 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) { return; }
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] + n : 0;
-		this.setFocus(loop ? index % this.length : Math.min(index, this.length - 1));
+		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)]);
 	}
 
 	focusPrevious(n = 1, loop = false): void {
@@ -342,7 +342,7 @@ export class List<T> implements IDisposable {
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
 		if (loop && index < 0) { index = (this.length + (index % this.length)) % this.length; }
-		this.setFocus(Math.max(index, 0));
+		this.setFocus([Math.max(index, 0)]);
 	}
 
 	focusNextPage(): void {
@@ -352,7 +352,7 @@ export class List<T> implements IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
-			this.setFocus(lastPageIndex);
+			this.setFocus([lastPageIndex]);
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
 			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
@@ -378,7 +378,7 @@ export class List<T> implements IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
-			this.setFocus(firstPageIndex);
+			this.setFocus([firstPageIndex]);
 		} else {
 			const previousScrollTop = scrollTop;
 			this.view.setScrollTop(scrollTop - this.view.renderHeight);

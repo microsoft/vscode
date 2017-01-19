@@ -112,8 +112,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public getPanels(): IPanelIdentifier[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
-			.sort((v1, v2) => v1.order - v2.order)
-			.map(p => { return { id: p.id, name: p.name }; });
+			.sort((v1, v2) => v1.order - v2.order);
 	}
 
 	protected getActions(): IAction[] {

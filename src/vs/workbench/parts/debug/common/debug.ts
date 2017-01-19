@@ -29,6 +29,7 @@ export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLas
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
+export const DEBUG_SCHEME = 'debug';
 
 // raw
 
@@ -67,14 +68,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	type?: string;
 }
 
-export enum SessionRequestType {
-	LAUNCH,
-	ATTACH,
-	LAUNCH_NO_DEBUG
-}
-
 export interface ISession {
-	requestType: SessionRequestType;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
@@ -101,7 +95,9 @@ export interface ISession {
 
 export interface IProcess extends ITreeElement {
 	name: string;
+	configuration: IConfig;
 	session: ISession;
+	isAttach(): boolean;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
@@ -267,8 +263,7 @@ export enum State {
 	Inactive,
 	Initializing,
 	Stopped,
-	Running,
-	RunningNoDebug
+	Running
 }
 
 // Debug configuration interfaces
@@ -307,6 +302,11 @@ export interface ICompound {
 	configurations: string[];
 }
 
+export interface IAdapterExecutable {
+	command?: string;
+	args?: string[];
+}
+
 export interface IRawEnvAdapter {
 	type?: string;
 	label?: string;
@@ -317,6 +317,7 @@ export interface IRawEnvAdapter {
 }
 
 export interface IRawAdapter extends IRawEnvAdapter {
+	adapterExecutableCommand?: string;
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
@@ -373,7 +374,7 @@ export interface IConfigurationManager {
 	 * If no type is specified will try to automatically pick an adapter by looking at
 	 * the active editor language and matching it against the "languages" contribution of an adapter.
 	 */
-	getStartSessionCommand(type?: string): string;
+	getStartSessionCommand(type?: string): TPromise<string>;
 }
 
 // Debug service interfaces

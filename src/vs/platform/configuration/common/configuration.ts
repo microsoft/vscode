@@ -10,7 +10,7 @@ import Event from 'vs/base/common/event';
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
 export interface IConfigurationOptions {
-	language?: string;
+	overrideIdentifier?: string;
 	section?: string;
 }
 
@@ -110,10 +110,10 @@ export interface IConfigModel<T> {
 
 	merge(other: IConfigModel<T>, overwrite?: boolean): IConfigModel<T>;
 	config<V>(section: string): IConfigModel<V>;
-	languageConfig<V>(language: string, section?: string): IConfigModel<V>;
+	configWithOverrides<V>(identifier: string, section?: string): IConfigModel<V>;
 }
 
 export interface IOverrides<T> {
 	contents: T;
-	languages: string[];
+	identifiers: string[];
 }
