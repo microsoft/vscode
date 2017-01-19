@@ -17,14 +17,17 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(WalkThroughPart.ID,
-	localize('walkThrough.editor.label', "Walk-Through"),
-	'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart',
-	'WalkThroughPart'),
-	[new SyncDescriptor(WalkThroughInput)]);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors)
+	.registerEditor(new EditorDescriptor(WalkThroughPart.ID,
+		localize('walkThrough.editor.label', "Walk-Through"),
+		'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart',
+		'WalkThroughPart'),
+		[new SyncDescriptor(WalkThroughInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL), 'Help: Editor Walk-Through', localize('help', "Help"));
+	.registerWorkbenchAction(
+		new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
+		'Help: Editor Walk-Through', localize('help', "Help"));
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WalkThroughContentProvider);
