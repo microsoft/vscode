@@ -278,7 +278,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
-			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('preview.experimentalSyncronization', true);
+			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('preview.experimentalSyncronizationEnabled', true);
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;

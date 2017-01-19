@@ -146,10 +146,10 @@
 					"default": 1.6,
 					"description": "%markdown.preview.lineHeight.desc%"
 				},
-				"markdown.preview.experimentalSyncronization": {
+				"markdown.preview.experimentalSyncronizationEnabled": {
 					"type": "boolean",
 					"default": true,
-					"description": "EXPERIMENTAL - Syncronization between markdown preview and editor"
+					"description": "%markdown.preview.experimentalSyncronizationEnabled.desc%"
 				}
 			}
 		}
