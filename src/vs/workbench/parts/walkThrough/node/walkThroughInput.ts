@@ -96,7 +96,7 @@ export class WalkThroughInput extends EditorInput {
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const resource = this.resource.with({ scheme: WALK_THROUGH_SNIPPET_SCHEME, fragment: String(i++) });
+						const resource = this.resource.with({ scheme: WALK_THROUGH_SNIPPET_SCHEME, fragment: `${i++}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return '';
 					};
