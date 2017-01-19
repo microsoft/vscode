@@ -142,8 +142,8 @@ export class ConfigModel<T> implements IConfigModel<T> {
 					merge(contents, override.contents, true);
 				}
 			}
-			result._contents = contents;
 		}
+		result._contents = contents;
 		return result;
 	}
 
