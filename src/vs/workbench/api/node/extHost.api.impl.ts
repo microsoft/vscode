@@ -361,18 +361,25 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			set textDocuments(value) {
 				throw errors.readonly();
 			},
-			openTextDocument(uriOrFileName: vscode.Uri | string) {
-				let uri: URI;
-				if (typeof uriOrFileName === 'string') {
-					uri = URI.file(uriOrFileName);
-				} else if (uriOrFileName instanceof URI) {
-					uri = <URI>uriOrFileName;
+			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language: string; }) {
+				let uriPromise: TPromise<URI>;
+
+				let options = uriOrFileNameOrOptions as { language: string; };
+				if (!options || typeof options.language === 'string') {
+					uriPromise = extHostDocuments.createDocumentData(options);
+				} else if (typeof uriOrFileNameOrOptions === 'string') {
+					uriPromise = TPromise.as(URI.file(uriOrFileNameOrOptions));
+				} else if (uriOrFileNameOrOptions instanceof URI) {
+					uriPromise = TPromise.as(<URI>uriOrFileNameOrOptions);
 				} else {
-					throw new Error('illegal argument - uriOrFileName');
+					throw new Error('illegal argument - uriOrFileNameOrOptions');
 				}
-				return extHostDocuments.ensureDocumentData(uri).then(() => {
-					const data = extHostDocuments.getDocumentData(uri);
-					return data && data.document;
+
+				return uriPromise.then(uri => {
+					return extHostDocuments.ensureDocumentData(uri).then(() => {
+						const data = extHostDocuments.getDocumentData(uri);
+						return data && data.document;
+					});
 				});
 			},
 			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
