@@ -598,12 +598,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.cursor.trigger(source, handlerId, payload);
 			const endPosition = this.cursor.getSelection().getStartPosition();
 			if (source === 'keyboard') {
-				this.emit(editorCommon.EventType.DidPaste, {
-					startLineNumber: startPosition.lineNumber,
-					startColumn: startPosition.column,
-					endLineNumber: endPosition.lineNumber,
-					endColumn: endPosition.column
-				});
+				this.emit(editorCommon.EventType.DidPaste, new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column));
 			}
 			return;
 		}
