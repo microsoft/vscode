@@ -140,8 +140,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		}, err => {
 			this.cachedInitServer = null;
 			return TPromise.wrapError(err);
-		}
-		);
+		});
 
 		return this.cachedInitServer;
 	}
@@ -161,10 +160,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 					if (this.customTelemetryService) {
 						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					}
-				}
-				if (errors.isPromiseCanceledError(errorResponse) || (error && error.showUser === false)) {
-					// Do not show error message to user if showUser === false or 'canceled' error message #7906
-					return TPromise.as(null);
 				}
 
 				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
