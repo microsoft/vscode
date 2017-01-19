@@ -58,6 +58,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
 	public readonly onWillType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.WillType);
 	public readonly onDidType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.DidType);
+	public readonly onDidPaste: Event<Range> = fromEventEmitter<Range>(this, editorCommon.EventType.DidPaste);
 
 	protected domElement: IContextKeyServiceTarget;
 
@@ -600,6 +601,20 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.cursor.trigger(source, handlerId, payload);
 			if (source === 'keyboard') {
 				this.emit(editorCommon.EventType.DidType, payload.text);
+			}
+			return;
+		}
+
+		if (handlerId === editorCommon.Handler.Paste) {
+			if (!this.cursor || typeof payload.text !== 'string' || payload.text.length === 0) {
+				// nothing to do
+				return;
+			}
+			const startPosition = this.cursor.getSelection().getStartPosition();
+			this.cursor.trigger(source, handlerId, payload);
+			const endPosition = this.cursor.getSelection().getStartPosition();
+			if (source === 'keyboard') {
+				this.emit(editorCommon.EventType.DidPaste, new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column));
 			}
 			return;
 		}
