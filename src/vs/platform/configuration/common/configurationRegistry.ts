@@ -43,8 +43,12 @@ export interface IConfigurationRegistry {
 	/**
 	 * Returns all configurations settings of all configuration nodes contributed to this registry.
 	 */
-	getConfigurationProperties(): { [qualifiedKey: string]: IJSONSchema };
+	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
 
+}
+
+export interface IConfigurationPropertySchema extends IJSONSchema {
+	overridable?: boolean;
 }
 
 export interface IConfigurationNode {
@@ -53,8 +57,9 @@ export interface IConfigurationNode {
 	type?: string | string[];
 	title?: string;
 	description?: string;
-	properties?: { [path: string]: IJSONSchema; };
+	properties?: { [path: string]: IConfigurationPropertySchema; };
 	allOf?: IConfigurationNode[];
+	overridable?: boolean;
 }
 
 const schemaId = 'vscode://schemas/settings';
@@ -95,7 +100,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidRegisterConfiguration.fire(this);
 	}
 
-	private registerProperties(configuration: IConfigurationNode) {
+	private registerProperties(configuration: IConfigurationNode, overridable: boolean = false) {
+		overridable = configuration.overridable || overridable;
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
@@ -105,6 +111,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (types.isUndefined(defaultValue)) {
 					property.default = getDefaultValue(property.type);
 				}
+				// Inherit overridable property from parent
+				if (overridable) {
+					property.overridable = true;
+				}
 				// add to properties map
 				this.configurationProperties[key] = properties[key];
 			}
@@ -112,7 +122,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				this.registerProperties(node);
+				this.registerProperties(node, overridable);
 			}
 		}
 	}
@@ -121,7 +131,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		return this.configurationContributors;
 	}
 
-	getConfigurationProperties(): { [qualifiedKey: string]: IJSONSchema } {
+	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
 		return this.configurationProperties;
 	}
 
@@ -154,12 +164,23 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (!patternProperties.properties) {
 					patternProperties.properties = {};
 				}
-				if (configuration.properties) {
-					for (const key in configuration.properties) {
-						patternProperties.properties[key] = this.getConfigurationProperties()[key];
-					}
+				this.update(configuration, patternProperties);
+			}
+		}
+	}
+
+	private update(configuration: IConfigurationNode, overridePropertiesSchema: IJSONSchema): void {
+		let properties = configuration.properties;
+		if (properties) {
+			for (let key in properties) {
+				if (properties[key].overridable) {
+					overridePropertiesSchema.properties[key] = this.getConfigurationProperties()[key];
 				}
 			}
+		}
+		let subNodes = configuration.allOf;
+		if (subNodes) {
+			subNodes.forEach(subNode => this.update(subNode, overridePropertiesSchema));
 		}
 	}
 
@@ -167,7 +188,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		const properties = {
 			'[]': {
 				type: 'object',
-				description: nls.localize('overrideSettings.description', "Configure settings to be overridden for a set of language identifiers.")
+				description: nls.localize('overrideSettings.description', "Configure settings to be overridden for a set of language identifiers."),
+				additionalProperties: false,
+				errorMessage: 'Unknown configuration setting'
 			}
 		};
 		this.registerConfiguration({
