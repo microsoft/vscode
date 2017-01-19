@@ -216,11 +216,10 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
-				if (this.tabOptions.showTabCloseButton) {
-					DOM.removeClass(tabContainer, 'no-close-button');
-				} else {
-					DOM.addClass(tabContainer, 'no-close-button');
-				}
+				['off', 'left'].forEach(option => {
+					const domAction = this.tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
+					domAction(tabContainer, `close-button-${option}`);
+				});
 
 				// Label
 				const tabLabel = this.editorLabels[index];
@@ -275,7 +274,7 @@ export class TabsTitleControl extends TitleControl {
 		const labelDuplicates = mapLabelToDuplicates.values();
 		labelDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
-				let shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+				const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
 				duplicates.forEach((duplicate, i) => {
 					duplicate.description = shortenedDescriptions[i];
 					duplicate.hasAmbiguousName = true;

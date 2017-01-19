@@ -12,7 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, IThemeDocument } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
@@ -40,11 +40,11 @@ interface IThemesResult {
 }
 
 class ThemeDocument {
-	private readonly _theme: IThemeDocument;
+	private readonly _theme: IColorTheme;
 	private readonly _cache: { [scopes: string]: ThemeRule; };
 	private readonly _defaultColor: string;
 
-	constructor(theme: IThemeDocument) {
+	constructor(theme: IColorTheme) {
 		this._theme = theme;
 		this._cache = Object.create(null);
 		this._defaultColor = '#000000';
@@ -68,7 +68,7 @@ class ThemeDocument {
 			let expected = this._defaultColor.toUpperCase();
 			// No matching rule
 			if (actual !== expected) {
-				throw new Error(`[${this._theme.name}]: Unexpected color ${actual} for ${scopes}. Expected default ${expected}`);
+				throw new Error(`[${this._theme.label}]: Unexpected color ${actual} for ${scopes}. Expected default ${expected}`);
 			}
 			return this._generateExplanation('default', color);
 		}
@@ -76,7 +76,7 @@ class ThemeDocument {
 		let actual = color.toUpperCase();
 		let expected = matchingRule.settings.foreground.toUpperCase();
 		if (actual !== expected) {
-			throw new Error(`[${this._theme.name}]: Unexpected color ${actual} for ${scopes}. Expected ${expected} coming in from ${matchingRule.rawSelector}`);
+			throw new Error(`[${this._theme.label}]: Unexpected color ${actual} for ${scopes}. Expected ${expected} coming in from ${matchingRule.rawSelector}`);
 		}
 		return this._generateExplanation(matchingRule.rawSelector, color);
 	}
@@ -187,14 +187,14 @@ class Snapper {
 					if (success) {
 						let themeName = getThemeName(themeId);
 						result[themeName] = {
-							document: new ThemeDocument(this.themeService.getColorThemeDocument()),
+							document: new ThemeDocument(this.themeService.getColorTheme()),
 							tokens: this._themedTokenize(grammar, lines)
 						};
 					}
 				});
 			}));
 		}).then(_ => {
-			return this.themeService.setColorTheme(currentTheme, false).then(_ => {
+			return this.themeService.setColorTheme(currentTheme.id, false).then(_ => {
 				return result;
 			});
 		});

@@ -262,4 +262,11 @@ export interface ITerminalInstance {
 	 * null means the process was killed as a result of the ITerminalInstance being disposed.
 	 */
 	onExit(listener: (exitCode: number) => void): void;
+
+	/**
+	 * Immediately kills the terminal's current pty process and launches a new one to replace it.
+	 *
+	 * @param shell The new launch configuration.
+	 */
+	reuseTerminal(shell?: IShellLaunchConfig): void;
 }

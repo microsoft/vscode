@@ -7,7 +7,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -34,6 +34,11 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let EDITOR_ID = 0;
+
+export interface IAddedAction {
+	uniqueId: string;
+	disposable: IDisposable;
+}
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
@@ -510,7 +515,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return <T>(this._contributions[id] || null);
 	}
 
-	public addAction(descriptor: editorCommon.IActionDescriptor): void {
+	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
 		if (
 			(typeof descriptor.id !== 'string')
 			|| (typeof descriptor.label !== 'string')
@@ -518,6 +523,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		) {
 			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
 		}
+		let toDispose: IDisposable[] = [];
 
 		// Generate a unique id to allow the same descriptor.id across multiple editor instances
 		let uniqueId = this.getId() + ':' + descriptor.id;
@@ -525,7 +531,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		let action = new DynamicEditorAction(descriptor, this);
 
 		// Register the command
-		CommandsRegistry.registerCommand(uniqueId, () => action.run());
+		toDispose.push(CommandsRegistry.registerCommand(uniqueId, () => action.run()));
 
 		if (descriptor.contextMenuGroupId) {
 			let menuItem: IMenuItem = {
@@ -539,10 +545,20 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			};
 
 			// Register the menu item
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
+			toDispose.push(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
 		}
 
 		this._actions[action.id] = action;
+		toDispose.push({
+			dispose: () => {
+				delete this._actions[action.id];
+			}
+		});
+
+		return {
+			uniqueId: uniqueId,
+			disposable: combinedDisposable(toDispose)
+		};
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {

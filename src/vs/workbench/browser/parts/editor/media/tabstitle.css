@@ -55,6 +55,12 @@
 	padding-left: 10px;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-left {
+	flex-direction: row-reverse;
+	padding-left: 0;
+	padding-right: 10px;
+}
+
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
 	background-color: #ECECEC;
 }
@@ -156,7 +162,7 @@
 	width: 28px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button > .tab-close {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off > .tab-close {
 	display: none; /* hide the close action bar when we are configured to hide it */
 }
 
@@ -213,22 +219,22 @@
 
 /* No Tab Close Button */
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
 	padding-right: 28px; /* make room for dirty indication when we are running without close button */
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
 	background-repeat: no-repeat;
 	background-position-y: center;
 	background-position-x: calc(100% - 6px); /* to the right of the tab label */
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
 	background-image: url('close-dirty.svg');
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
 	background-image: url('close-dirty-inverse.svg');
 }
 

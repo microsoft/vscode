@@ -67,7 +67,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return diagnostics.map(diag => {
 				return {
 					range: convertRange(currentTextDocument, diag),
-					severity: DiagnosticSeverity.Error,
+					severity: <DiagnosticSeverity>DiagnosticSeverity.Error,
 					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
 				};
 			});
@@ -165,7 +165,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return occurrences.map(entry => {
 					return {
 						range: convertRange(currentTextDocument, entry.textSpan),
-						kind: entry.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Text
+						kind: <DocumentHighlightKind>(entry.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Text)
 					};
 				});
 			};

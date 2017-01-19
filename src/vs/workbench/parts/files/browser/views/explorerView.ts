@@ -39,6 +39,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
+import { IThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/themeService';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -81,7 +82,8 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
@@ -114,6 +116,13 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (this.toolBar) {
 			this.toolBar.setActions(prepareActions(this.getActions()), [])();
 		}
+
+		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
+			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+		};
+
+		this.themeService.onDidFileIconThemeChange(onFileIconThemeChange);
+		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
 	public getActions(): IAction[] {
@@ -331,7 +340,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		}, {
 				autoExpandSingleChildren: true,
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
-				twistiePixels: 16,
+				twistiePixels: 12,
 				showTwistie: false
 			});
 
