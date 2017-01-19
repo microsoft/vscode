@@ -158,6 +158,10 @@ export default class Webview {
 		this._send('focus');
 	}
 
+	public sendMessage(data: any): void {
+		this._send('message', data);
+	}
+
 	style(theme: IColorTheme): void {
 		let themeId = theme.id;
 		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(this._styleElement);

@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { Dimension } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -17,6 +16,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -176,11 +177,51 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class DefaultSettingsHeaderWidget extends Widget {
+export class SettingsTabsWidget extends Widget {
+
+	private userSettingsTab: HTMLElement;
+	private workspaceSettingsTab: HTMLElement;
+
+	private _onSwitch: Emitter<void> = new Emitter<void>();
+	public readonly onSwitch: Event<void> = this._onSwitch.event;
+
+	constructor(parent: HTMLElement, @IWorkspaceContextService private contextService: IWorkspaceContextService, ) {
+		super();
+		this.create(parent);
+	}
+
+	private create(parent: HTMLElement): void {
+		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
+		this.userSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
+		DOM.append(this.userSettingsTab, DOM.$('')).textContent = localize('userSettings', "User Settings");
+		this.onclick(this.userSettingsTab, () => this.onClick(this.userSettingsTab));
+
+		this.workspaceSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
+		DOM.append(this.workspaceSettingsTab, DOM.$('')).textContent = localize('workspaceSettings', "Workspace Settings");
+		if (!this.contextService.hasWorkspace()) {
+			DOM.addClass(this.workspaceSettingsTab, 'disabled');
+		} else {
+			this.onclick(this.workspaceSettingsTab, () => this.onClick(this.workspaceSettingsTab));
+		}
+	}
+
+	public show(configurationTarget: ConfigurationTarget): void {
+		DOM.toggleClass(this.userSettingsTab, 'active', ConfigurationTarget.USER === configurationTarget);
+		DOM.toggleClass(this.workspaceSettingsTab, 'active', ConfigurationTarget.WORKSPACE === configurationTarget);
+	}
+
+	private onClick(element: HTMLElement): void {
+		if (!DOM.hasClass(element, 'active')) {
+			this._onSwitch.fire();
+		}
+	}
+}
+
+export class SearchWidget extends Widget {
 
 	public domNode: HTMLElement;
 
-	private headerContainer: HTMLElement;
+	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
 
@@ -201,38 +242,36 @@ export class DefaultSettingsHeaderWidget extends Widget {
 
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
-		this.headerContainer = DOM.append(this.domNode, DOM.$('div.settings-header-container'));
-		const titleContainer = DOM.append(this.headerContainer, DOM.$('div.settings-title-container'));
-		this.createInfoContainer(DOM.append(titleContainer, DOM.$('div.settings-info-container')));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
-	}
-
-	private createInfoContainer(infoContainer: HTMLElement) {
-		DOM.append(infoContainer, DOM.$('span.title-label')).textContent = localize('defaultSettingsTitle', "Default Settings");
-		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', " - Overwrite these by placing them into your settings file to the right");
+		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this._register(new InputBox(searchInput, this.contextViewService, {
-			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search default settings"),
-			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Default Settings")
+			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search settings"),
+			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Settings")
 		}));
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
+	}
+
+	public showMessage(message: string, count: number): void {
+		this.countElement.textContent = message;
+		DOM.toggleClass(this.countElement, 'no-results', count === 0);
 	}
 
 	public focus() {
 		this.inputBox.focus();
 	}
 
-	public layout(dimension: Dimension): void {
-		this.inputBox.width = dimension.width - 62;
-	}
-
 	public clear() {
 		this.inputBox.value = '';
+	}
+
+	public value(): string {
+		return this.inputBox.value;
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
@@ -296,55 +335,6 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	public getPosition(): IOverlayWidgetPosition {
 		return {
 			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-		};
-	}
-}
-
-export class SettingsCountWidget extends Widget implements IOverlayWidget {
-
-	private _domNode: HTMLElement;
-
-	constructor(private editor: ICodeEditor, private total: number
-	) {
-		super();
-	}
-
-	public render() {
-		this._domNode = DOM.$('.settings-count-widget');
-		this.editor.addOverlayWidget(this);
-	}
-
-	public show(count: number) {
-		if (count === this.total) {
-			DOM.removeClass(this._domNode, 'show');
-		} else {
-			if (count === 0) {
-				this._domNode.textContent = localize('noSettings', "No settings found");
-				DOM.addClass(this._domNode, 'no-results');
-			} else {
-				this._domNode.textContent = localize('showCount', "Showing {0} of {1} Settings", count, this.total);
-				DOM.removeClass(this._domNode, 'no-results');
-			}
-			DOM.addClass(this._domNode, 'show');
-		}
-	}
-
-	public dispose(): void {
-		this.editor.removeOverlayWidget(this);
-		super.dispose();
-	}
-
-	public getId(): string {
-		return 'editor.overlayWidget.settingsCountWidget';
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: null
 		};
 	}
 }

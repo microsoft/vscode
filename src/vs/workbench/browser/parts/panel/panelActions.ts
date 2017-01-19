@@ -13,14 +13,18 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actionRegistry';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class PanelAction extends Action {
 
 	constructor(
 		private panel: IPanelIdentifier,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IPanelService private panelService: IPanelService
 	) {
 		super(panel.id, panel.name);
+
+		this.tooltip = nls.localize('panelActionTooltip', "{0} ({1})", panel.name, this.getKeybindingLabel(panel.commandId));
 	}
 
 	public run(event): TPromise<any> {
@@ -37,6 +41,15 @@ export class PanelAction extends Action {
 		if (this.checked) {
 			this._setChecked(false);
 		}
+	}
+
+	private getKeybindingLabel(id: string): string {
+		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
+		if (keys && keys.length) {
+			return keys[0];
+		}
+
+		return null;
 	}
 }
 

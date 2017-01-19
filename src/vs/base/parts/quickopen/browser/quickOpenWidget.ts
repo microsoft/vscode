@@ -333,12 +333,12 @@ export class QuickOpenWidget implements IModelProvider {
 		this.callbacks.onType(value);
 	}
 
-	public quickNavigate(configuration: IQuickNavigateConfiguration, next: boolean): void {
+	public navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
 		if (this.isVisible) {
 
 			// Transition into quick navigate mode if not yet done
 			if (!this.quickNavigateConfiguration) {
-				this.quickNavigateConfiguration = configuration;
+				this.quickNavigateConfiguration = quickNavigate;
 				this.tree.DOMFocus();
 			}
 

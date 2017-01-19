@@ -39,7 +39,8 @@ Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
 	'output',
-	10
+	10,
+	ToggleOutputAction.ID
 ));
 
 // register toggle output action globally
