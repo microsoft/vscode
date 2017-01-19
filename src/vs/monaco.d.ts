@@ -1311,6 +1311,11 @@ declare module monaco.editor {
          */
         formatOnType?: boolean;
         /**
+         * Enable format on paste.
+         * Defaults to false.
+         */
+        formatOnPaste?: boolean;
+        /**
          * Enable the suggestion box to pop-up on trigger characters.
          * Defaults to true.
          */
@@ -1533,6 +1538,7 @@ declare module monaco.editor {
         readonly parameterHints: boolean;
         readonly iconsInSuggestions: boolean;
         readonly formatOnType: boolean;
+        readonly formatOnPaste: boolean;
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
         readonly acceptSuggestionOnCommitCharacter: boolean;
