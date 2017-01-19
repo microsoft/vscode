@@ -162,7 +162,8 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 	}
 
 	private _updateTheme(): void {
-		this._grammarRegistry.setTheme(this._themeService.getColorThemeDocument());
+		let colorTheme = this._themeService.getColorTheme();
+		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.settings });
 		let colorMap = this._grammarRegistry.getColorMap();
 		let cssRules = MainProcessTextMateSyntax._generateCSS(colorMap);
 		this._styleElement.innerHTML = cssRules;

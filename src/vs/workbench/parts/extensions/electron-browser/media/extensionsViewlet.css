@@ -27,6 +27,12 @@
 	height: calc(100% - 38px);
 }
 
+.extensions-viewlet > .extensions.hidden,
+.extensions-viewlet > .message.hidden {
+	display: none;
+	visibility: hidden;
+}
+
 .extensions-viewlet > .message {
 	padding: 5px 9px 5px 16px;
 	cursor: default;

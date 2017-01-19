@@ -345,6 +345,19 @@ export class StackFrame implements debug.IStackFrame {
 		return this.scopes;
 	}
 
+	public getMostSpecificScopes(range: IRange): TPromise<debug.IScope[]> {
+		return this.getScopes().then(scopes => {
+			scopes = scopes.filter(s => !s.expensive);
+			const haveRangeInfo = scopes.some(s => !!s.range);
+			if (!haveRangeInfo) {
+				return scopes;
+			}
+
+			return [scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
+				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
+		});
+	}
+
 	public restart(): TPromise<any> {
 		return this.thread.process.session.restartFrame({ frameId: this.frameId });
 	}
@@ -381,7 +394,7 @@ export class Thread implements debug.IThread {
 	}
 
 	public getId(): string {
-		return `thread:${this.process.getId()}:${this.name}:${this.threadId}`;
+		return `thread:${this.process.getId()}:${this.threadId}`;
 	}
 
 	public clearCallStack(): void {
@@ -479,12 +492,20 @@ export class Process implements debug.IProcess {
 
 	private threads: Map<number, Thread>;
 
-	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
+	constructor(public configuration: debug.IConfig, private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = new Map<number, Thread>();
 	}
 
 	public get session(): debug.ISession {
 		return this._session;
+	}
+
+	public get name(): string {
+		return this.configuration.name;
+	}
+
+	public isAttach(): boolean {
+		return this.configuration.type === 'attach';
 	}
 
 	public getThread(threadId: number): Thread {
@@ -506,6 +527,9 @@ export class Process implements debug.IProcess {
 		if (data.thread && !this.threads.has(data.threadId)) {
 			// A new thread came in, initialize it.
 			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
+		} else if (data.thread && data.thread.name) {
+			// Just the thread name got updated #18244
+			this.threads.get(data.threadId).name = data.thread.name;
 		}
 
 		if (data.stoppedDetails) {
@@ -556,7 +580,7 @@ export class Process implements debug.IProcess {
 		}
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
+	public deemphasizeSource(uri: uri): void {
 		this.threads.forEach(thread => {
 			thread.getCallStack().forEach(stackFrame => {
 				if (stackFrame.source.uri.toString() === uri.toString()) {
@@ -677,8 +701,8 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
-	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): Process {
-		const process = new Process(name, session);
+	public addProcess(configuration: debug.IConfig, session: debug.ISession & debug.ITreeElement): Process {
+		const process = new Process(configuration, session);
 		this.processes.push(process);
 
 		return process;
@@ -926,8 +950,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public sourceIsUnavailable(uri: uri): void {
-		this.processes.forEach(p => p.sourceIsUnavailable(uri));
+	public deemphasizeSource(uri: uri): void {
+		this.processes.forEach(p => p.deemphasizeSource(uri));
 		this._onDidChangeCallStack.fire();
 	}
 

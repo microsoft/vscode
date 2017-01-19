@@ -7,7 +7,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
@@ -47,9 +46,8 @@ export function getLanguages(): ILanguageExtensionPoint[] {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	const desired = 'onLanguage:' + languageId;
-	let disposable = onWillActivate.event((activationEvent) => {
-		if (activationEvent === desired) {
+	let disposable = StaticServices.modeService.get().onDidCreateMode((mode) => {
+		if (mode.getId() === languageId) {
 			// stop listening
 			disposable.dispose();
 			// invoke actual listener
@@ -274,6 +272,13 @@ export function registerDocumentHighlightProvider(languageId: string, provider: 
  */
 export function registerDefinitionProvider(languageId: string, provider: modes.DefinitionProvider): IDisposable {
 	return modes.DefinitionProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a type definition provider (used by e.g. go to implementation).
+ */
+export function registerTypeDefinitionProvider(languageId: string, provider: modes.TypeDefinitionProvider): IDisposable {
+	return modes.TypeDefinitionProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -633,6 +638,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentSymbolProvider: registerDocumentSymbolProvider,
 		registerDocumentHighlightProvider: registerDocumentHighlightProvider,
 		registerDefinitionProvider: registerDefinitionProvider,
+		registerTypeDefinitionProvider: registerTypeDefinitionProvider,
 		registerCodeLensProvider: registerCodeLensProvider,
 		registerCodeActionProvider: registerCodeActionProvider,
 		registerDocumentFormattingEditProvider: registerDocumentFormattingEditProvider,

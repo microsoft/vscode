@@ -16,6 +16,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import { readAndRegisterSnippets } from 'vs/editor/node/textMate/TMSnippets';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { watch, FSWatcher } from 'fs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
@@ -30,14 +31,16 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IModeService private modeService: IModeService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		this.snippetFolder = paths.join(environmentService.appSettingsHome, 'snippets');
 
 		this.toDispose = [];
 		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
 
-		mkdirp(this.snippetFolder)
+		extensionService.onReady()
+			.then(() => mkdirp(this.snippetFolder))
 			.then(() => this.scanUserSnippets())
 			.then(() => this.registerListeners())
 			.done(undefined, onUnexpectedError);

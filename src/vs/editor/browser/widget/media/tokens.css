@@ -9,6 +9,6 @@
 .monaco-editor.hc-black .view-line {
 	mix-blend-mode: difference;
 }
-.monaco-editor.vs .vs-whitespace		{ color: rgba(51, 51, 51, 0.2) !important; }
-.monaco-editor.vs-dark .vs-whitespace	{ color: rgba(227, 228, 226, 0.16) !important; }
-.monaco-editor.hc-black .vs-whitespace	{ color: rgba(227, 228, 226, 0.16) !important; }
+.monaco-editor.vs .vs-whitespace		{ color: rgba(51, 51, 51, 0.2); }
+.monaco-editor.vs-dark .vs-whitespace	{ color: rgba(227, 228, 226, 0.16); }
+.monaco-editor.hc-black .vs-whitespace	{ color: rgba(227, 228, 226, 0.16); }

@@ -35,6 +35,7 @@ function toRawText(lines: string[]): IRawText {
 		EOL: '\n',
 		length: 0,
 		containsRTL: false,
+		isBasicASCII: true,
 		options: null
 	};
 }
@@ -135,5 +136,12 @@ suite('ModelBuilder', () => {
 
 	test('RTL handling 3', () => {
 		testModelBuilder(['Hello world!זוהי \nעובדה מבוססת שדעתו']);
+	});
+
+	test('ASCII handling 1', () => {
+		testModelBuilder(['Hello world!!\nHow do you do?']);
+	});
+	test('ASCII handling 1', () => {
+		testModelBuilder(['Hello world!!\nHow do you do?Züricha📚📚b']);
 	});
 });

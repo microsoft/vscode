@@ -14,7 +14,7 @@ import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
+	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
 }
 
 // this method is called when vs code is activated

@@ -13,6 +13,7 @@ import { ScrollManager } from 'vs/editor/browser/viewLayout/scrollManager';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
+import { ILayoutProvider as IRenderingLayoutProvider } from 'vs/editor/common/view/renderingContext';
 
 export interface IWhitespaceManager {
 	/**
@@ -101,7 +102,7 @@ export interface IVerticalLayoutProvider {
 
 }
 
-export class LayoutProvider extends ViewEventHandler implements IDisposable, ILayoutProvider, IWhitespaceManager {
+export class LayoutProvider extends ViewEventHandler implements IDisposable, ILayoutProvider, IWhitespaceManager, IRenderingLayoutProvider {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 

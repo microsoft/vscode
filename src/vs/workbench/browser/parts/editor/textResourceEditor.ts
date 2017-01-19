@@ -20,8 +20,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -39,9 +39,9 @@ export class TextResourceEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@IModeService modeService: IModeService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
 
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
@@ -138,14 +138,6 @@ export class TextResourceEditor extends BaseTextEditor {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
 			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
-		}
-
-		const model = this.editorGroupService.getStacksModel();
-		if (model.groups.length > 1) {
-			const group = model.groupAt(this.position);
-			if (group) {
-				ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
-			}
 		}
 
 		options.ariaLabel = ariaLabel;

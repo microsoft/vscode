@@ -32,8 +32,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -54,9 +54,9 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@IModeService modeService: IModeService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
 	}
 
 	public getTitle(): string {
@@ -203,6 +203,11 @@ export class TextDiffEditor extends BaseTextEditor {
 			objects.mixin(editorConfiguration, configuration.diffEditor);
 		}
 
+		const language = this.getLanguage();
+		if (language) {
+			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ language, section: 'diffEditor' }));
+		}
+
 		return editorConfiguration;
 	}
 
@@ -222,14 +227,6 @@ export class TextDiffEditor extends BaseTextEditor {
 				ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 			} else {
 				ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
-			}
-
-			const model = this.editorGroupService.getStacksModel();
-			if (model.groups.length > 1) {
-				const group = model.groupAt(this.position);
-				if (group) {
-					ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
-				}
 			}
 
 			options.ariaLabel = ariaLabel;

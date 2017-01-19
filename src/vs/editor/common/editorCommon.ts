@@ -243,10 +243,9 @@ export interface IEditorOptions {
 	 */
 	roundedSelection?: boolean;
 	/**
-	 * Theme to be used for rendering. Consists of two parts, the UI theme and the syntax theme,
-	 * separated by a space.
-	 * The current available UI themes are: 'vs' (default), 'vs-dark', 'hc-black'
-	 * The syntax themes are contributed. The default is 'default-theme'
+	 * Theme to be used for rendering.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 */
 	theme?: string;
 	/**
@@ -404,6 +403,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	acceptSuggestionOnEnter?: boolean;
+	/**
+	 * Accept suggestions on provider defined characters.
+	 * Defaults to true.
+	 */
+	acceptSuggestionOnCommitCharacter?: boolean;
 	/**
 	 * Enable snippet suggestions. Default to 'true'.
 	 */
@@ -882,6 +886,7 @@ export class EditorContribOptions {
 	readonly formatOnType: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
+	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
@@ -906,6 +911,7 @@ export class EditorContribOptions {
 		formatOnType: boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
+		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
@@ -926,6 +932,7 @@ export class EditorContribOptions {
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
@@ -952,6 +959,7 @@ export class EditorContribOptions {
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion
@@ -1130,9 +1138,8 @@ export interface IModelDecorationOptions {
 	className?: string;
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
-	 * @internal
 	 */
-	glyphMarginHoverMessage?: string;
+	glyphMarginHoverMessage?: MarkedString | MarkedString[];
 	/**
 	 * Array of MarkedString to render as the decoration message.
 	 */
@@ -1567,6 +1574,11 @@ export interface ITextModel {
 	 */
 	mightContainRTL(): boolean;
 
+	/**
+	 * @internal
+	 */
+	mightContainNonBasicASCII(): boolean;
+
 	getOptions(): TextModelResolvedOptions;
 
 	/**
@@ -1590,6 +1602,7 @@ export interface ITextModel {
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
+	 * @internal
 	 */
 	setValueFromRawText(newValue: IRawText): void;
 
@@ -1608,11 +1621,13 @@ export interface ITextModel {
 
 	/**
 	 * Get the raw text stored in this model.
+	 * @internal
 	 */
 	toRawText(): IRawText;
 
 	/**
 	 * Check if the raw text stored in this model equals another raw text.
+	 * @internal
 	 */
 	equals(other: IRawText): boolean;
 
@@ -2323,6 +2338,7 @@ export interface IModelContentChangedEvent {
 
 /**
  * The raw text backing a model.
+ * @internal
  */
 export interface IRawText {
 	/**
@@ -2345,6 +2361,10 @@ export interface IRawText {
 	 * The text contains Unicode characters classified as "R" or "AL".
 	 */
 	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
 	/**
 	 * The options associated with this text.
 	 */
@@ -3067,6 +3087,10 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
+	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
+	/**
+	 * @internal
+	 */
 	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
 	/**
 	 * @internal
@@ -3453,11 +3477,6 @@ export interface IEditor {
 	 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
 	 */
 	isFocused(): boolean;
-
-	/**
-	 * Add a new action to this editor.
-	 */
-	addAction(descriptor: IActionDescriptor): void;
 
 	/**
 	 * Returns all actions associated with this editor.
@@ -4402,8 +4421,6 @@ export var Handler = {
 	ColumnSelect: 'columnSelect',
 	CreateCursor: 'createCursor',
 	LastCursorMoveToSelect: 'lastCursorMoveToSelect',
-
-	JumpToBracket: 'jumpToBracket',
 
 	Type: 'type',
 	ReplacePreviousChar: 'replacePreviousChar',
