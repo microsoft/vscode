@@ -11,7 +11,6 @@ import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { marked } from 'vs/base/common/marked/marked';
 import { WALK_THROUGH_SNIPPET_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 
@@ -54,7 +53,6 @@ export class WalkThroughInput extends EditorInput {
 		description: string,
 		resource: URI,
 		public readonly onReady: (container: HTMLElement) => void,
-		@IFileService private fileService: IFileService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
 		super();
