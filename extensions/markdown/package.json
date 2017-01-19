@@ -133,7 +133,7 @@
 				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
-					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light', sans-serif, 'Droid Sans Fallback'",
+					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light', sans-serif",
 					"description": "%markdown.preview.fontFamily.desc%"
 				},
 				"markdown.preview.fontSize": {
