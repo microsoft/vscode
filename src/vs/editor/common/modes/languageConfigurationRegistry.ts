@@ -17,7 +17,7 @@ import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
@@ -39,6 +39,7 @@ export class RichEditSupport {
 	public readonly wordDefinition: RegExp;
 	public readonly onEnter: OnEnterSupport;
 	public readonly brackets: RichEditBrackets;
+	public readonly indentationRules: IndentationRule;
 
 	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
@@ -61,6 +62,8 @@ export class RichEditSupport {
 		this.electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
+
+		this.indentationRules = this._conf.indentationRules;
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
@@ -150,6 +153,16 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
 		return this._entries[languageId] || null;
+	}
+
+	public getIndentationRules(languageId: LanguageId) {
+		let value = this._entries[languageId];
+
+		if (!value) {
+			return null;
+		}
+
+		return value.indentationRules || null;
 	}
 
 	// begin electricCharacter
