@@ -466,9 +466,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		if (this.socket !== null) {
 			this.socket.end();
 			this.cachedInitServer = null;
-			this.onEvent({ event: 'exit', type: 'event', seq: 0 });
 		}
 
+		this.onEvent({ event: 'exit', type: 'event', seq: 0 });
 		if (!this.serverProcess) {
 			return TPromise.as(null);
 		}
