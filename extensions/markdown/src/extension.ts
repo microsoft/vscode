@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 		vscode.window.showTextDocument(target[0]).then(() => {
-			return vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'center' });
+			return vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'top' });
 		});
 	}));
 
@@ -173,13 +173,11 @@ interface IRenderer {
 }
 
 class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
-	private _context: vscode.ExtensionContext;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean;
 	private _renderer: IRenderer;
 
-	constructor(context: vscode.ExtensionContext) {
-		this._context = context;
+	constructor(private context: vscode.ExtensionContext) {
 		this._waiting = false;
 		this._renderer = this.createRenderer();
 	}
@@ -218,12 +216,13 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		md.renderer.rules.paragraph_open = createLineNumberRenderer('paragraph_open');
 		md.renderer.rules.heading_open = createLineNumberRenderer('heading_open');
 		md.renderer.rules.image = createLineNumberRenderer('image');
+		md.renderer.rules.code_block = createLineNumberRenderer('code_block');
 
 		return md;
 	}
 
 	private getMediaPath(mediaFile: string): string {
-		return this._context.asAbsolutePath(path.join('media', mediaFile));
+		return this.context.asAbsolutePath(path.join('media', mediaFile));
 	}
 
 	private isAbsolute(p: string): boolean {
@@ -292,39 +291,27 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				initialLine = editor.selection.start.line;
 			}
 
-			const head = ([] as Array<string>).concat(
-				'<!DOCTYPE html>',
-				'<html>',
-				'<head>',
-				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
-				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
-				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
-				this.getSettingsOverrideStyles(),
-				this.computeCustomStyleSheetIncludes(uri),
-				`<base href="${document.uri.toString(true)}">`,
-				'</head>',
-				`<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''}">`
-			).join('\n');
-			const body = this._renderer.render(this.getDocumentContentForPreview(document));
-
-			const tail = [
-<<<<<<< 0d996ceaea7df1e54e105f277a1e8cdc86600857
-				`<script src="${this.getMediaPath('main.js')}"></script>`,
-=======
-				`<script>
-					window.initialData = {
-						source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
-						line: ${initialLine}
-					};
-				</script>`,
-				`<script src="${this.getMediaPath('main.js')}"></script>`,
-
->>>>>>> proto
-				'</body>',
-				'</html>'
-			].join('\n');
-
-			return head + body + tail;
+			return `<!DOCTYPE html>
+				<html>
+				<head>
+					<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}">
+					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}">
+					${this.getSettingsOverrideStyles()}
+					${this.computeCustomStyleSheetIncludes(uri)}
+					<base href="${document.uri.toString(true)}">
+				</head>
+				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''}">
+					${this._renderer.render(this.getDocumentContentForPreview(document))}
+					<script>
+						window.initialData = {
+							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
+							line: ${initialLine}
+						};
+					</script>
+					<script src="${this.getMediaPath('main.js')}"></script>
+				</body>
+				</html>`;
 		});
 	}
 

@@ -5,7 +5,7 @@
 
 'use strict';
 
-let pageHeight = 0;
+var pageHeight = 0;
 
 function updateScrollPosition(line) {
 	const lines = document.getElementsByClassName('code-line');
@@ -87,4 +87,5 @@ document.onclick = (e) => {
 /*
 window.onscroll = () => {
 	didUpdateScrollPosition(window.scrollY);
-};*/
+};
+*/
