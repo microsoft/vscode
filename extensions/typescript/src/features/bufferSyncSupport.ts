@@ -178,9 +178,6 @@ export default class BufferSyncSupport {
 		if (!this.modeIds[document.languageId]) {
 			return;
 		}
-		if (document.isUntitled) {
-			return;
-		}
 		let resource = document.uri;
 		let filepath = this.client.asAbsolutePath(resource);
 		if (!filepath) {
