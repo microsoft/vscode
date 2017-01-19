@@ -81,16 +81,27 @@ export class WalkThroughPart extends BaseEditor {
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					this.openerService.open(URI.parse(node.href));
+					const uri = this.addFrom(URI.parse(node.href));
+					this.openerService.open(uri);
 				}
 				event.preventDefault();
 			} else if (node instanceof HTMLButtonElement) {
 				const href = node.getAttribute('data-href');
 				if (href) {
-					this.openerService.open(URI.parse(href));
+					const uri = this.addFrom(URI.parse(href));
+					this.openerService.open(uri);
 				}
 			}
 		});
+	}
+
+	private addFrom(uri: URI) {
+		if (uri.scheme !== 'command') {
+			return uri;
+		}
+		const query = uri.query ? JSON.parse(uri.query) : {};
+		query.from = (<WalkThroughInput>this.input).getTelemetryFrom();
+		return uri.with({ query: JSON.stringify(query) });
 	}
 
 	layout({ width, height }: Dimension): void {
