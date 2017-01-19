@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
-import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughContentProvider';
+import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 
 export class EditorWalkThroughAction extends Action {
 

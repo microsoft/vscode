@@ -22,7 +22,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughContentProvider';
+import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 
 const enabledKey = 'workbench.welcome.enabled';
 

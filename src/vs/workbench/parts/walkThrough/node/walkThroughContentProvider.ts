@@ -13,8 +13,10 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { marked } from 'vs/base/common/marked/marked';
 
 export const WALK_THROUGH_SCHEME = 'walkThrough';
+export const WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
@@ -42,5 +44,53 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 
 	public getId(): string {
 		return 'vs.walkThroughContentProvider';
+	}
+}
+
+export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+
+	constructor(
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
+	) {
+		this.textModelResolverService.registerTextModelContentProvider(WALK_THROUGH_SNIPPET_SCHEME, this);
+	}
+
+	public provideTextContent(resource: URI): TPromise<IModel> {
+		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
+			let codeEditorModel = this.modelService.getModel(resource);
+			if (!codeEditorModel) {
+				const j = parseInt(resource.fragment);
+
+				let codeSnippet = '';
+				let languageName = '';
+				let i = 0;
+				const renderer = new marked.Renderer();
+				renderer.code = (code, lang) => {
+					if (i++ === j) {
+						codeSnippet = code;
+						languageName = lang;
+					}
+					return '';
+				};
+
+				const markdown = content.value.lines.join('\n');
+				marked(markdown, { renderer });
+
+				const modeId = this.modeService.getModeIdForLanguageName(languageName);
+				const mode = this.modeService.getOrCreateMode(modeId);
+				codeEditorModel = this.modelService.createModel(codeSnippet, mode, resource);
+			} else {
+				codeEditorModel.setValueFromRawText(content.value);
+			}
+
+			return codeEditorModel;
+		});
+	}
+
+	public getId(): string {
+		return 'vs.walkThroughSnippetContentProvider';
 	}
 }
