@@ -36,9 +36,6 @@
 					"include": "#comment"
 				},
 				{
-					"include": "#literal"
-				},
-				{
 					"include": "#declaration"
 				},
 				{
@@ -107,13 +104,7 @@
 					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
-							"include": "#type-annotation"
-						},
-						{
-							"include": "#string"
-						},
-						{
-							"include": "#comment"
+							"include": "#var-single-variable-type-annotation"
 						}
 					]
 				},
@@ -125,7 +116,12 @@
 							"name": "variable.other.constant.js"
 						}
 					},
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))"
+					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"patterns": [
+						{
+							"include": "#var-single-variable-type-annotation"
+						}
+					]
 				},
 				{
 					"name": "meta.var-single-variable.expr.js",
@@ -138,15 +134,22 @@
 					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
-							"include": "#type-annotation"
-						},
-						{
-							"include": "#string"
-						},
-						{
-							"include": "#comment"
+							"include": "#var-single-variable-type-annotation"
 						}
 					]
+				}
+			]
+		},
+		"var-single-variable-type-annotation": {
+			"patterns": [
+				{
+					"include": "#type-annotation"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"include": "#comment"
 				}
 			]
 		},
@@ -335,7 +338,6 @@
 			]
 		},
 		"expression": {
-			"name": "meta.expression.js",
 			"patterns": [
 				{
 					"include": "#jsx"
@@ -353,10 +355,7 @@
 					"include": "#comment"
 				},
 				{
-					"include": "#literal"
-				},
-				{
-					"include": "#function-declaration"
+					"include": "#function-expression"
 				},
 				{
 					"include": "#class-or-interface-declaration"
@@ -381,6 +380,9 @@
 				},
 				{
 					"include": "#function-call"
+				},
+				{
+					"include": "#literal"
 				},
 				{
 					"include": "#support-objects"
@@ -414,17 +416,6 @@
 					"match": "(?<!\\.|\\$)\\b(return)\\b(?!\\$)"
 				},
 				{
-					"match": "(?<!\\.|\\$)\\b(yield)\\b(?!\\$)(?:\\s*(\\*))?",
-					"captures": {
-						"1": {
-							"name": "keyword.control.flow.js"
-						},
-						"2": {
-							"name": "keyword.generator.asterisk.js"
-						}
-					}
-				},
-				{
 					"name": "keyword.control.switch.js",
 					"match": "(?<!\\.|\\$)\\b(case|default|switch)\\b(?!\\$)"
 				},
@@ -447,7 +438,6 @@
 			]
 		},
 		"declaration": {
-			"name": "meta.declaration.js",
 			"patterns": [
 				{
 					"include": "#decorator"
@@ -884,7 +874,7 @@
 		},
 		"class-or-interface-declaration": {
 			"name": "meta.class.js",
-			"begin": "(?<!\\.|\\$)\\b(?:(export)\\s+)?\\b(?:(abstract)\\s+)?\\b(?:(class)|(interface))\\b",
+			"begin": "(?<!\\.|\\$)\\b(?:(export)\\s+)?\\b(?:(abstract)\\s+)?\\b(?:(class)|(interface))\\b(?=\\s+|/[/*])",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1354,7 +1344,43 @@
 					"name": "entity.name.function.js"
 				}
 			},
-			"end": "(?=$|;|\\})|(?<=\\})",
+			"end": "(?=$|;)|(?<=\\})",
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#type-parameters"
+				},
+				{
+					"include": "#function-parameters"
+				},
+				{
+					"include": "#return-type"
+				},
+				{
+					"include": "#decl-block"
+				}
+			]
+		},
+		"function-expression": {
+			"name": "meta.function.expression.js",
+			"begin": "(?<!\\.|\\$)\\b(?:(async)\\s+)?(function\\b)(?:\\s*(\\*))?(?:(?:\\s+|(?<=\\*))([_$[:alpha:]][_$[:alnum:]]*))?\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.modifier.async.js"
+				},
+				"2": {
+					"name": "storage.type.function.js"
+				},
+				"3": {
+					"name": "keyword.generator.asterisk.js"
+				},
+				"4": {
+					"name": "entity.name.function.js"
+				}
+			},
+			"end": "(?<=\\})",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1642,7 +1668,7 @@
 					"name": "keyword.operator.type.annotation.js"
 				}
 			},
-			"end": "(?<!:)((?=$)|(?=\\{|;|//|\\}))",
+			"end": "(?<!:)((?=$)|(?=[{};,]|//))",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1698,7 +1724,6 @@
 			]
 		},
 		"type": {
-			"name": "meta.type.js",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1830,16 +1855,6 @@
 							"name": "keyword.control.new.js"
 						}
 					},
-					"end": "(?<=\\))",
-					"patterns": [
-						{
-							"include": "#function-parameters"
-						}
-					]
-				},
-				{
-					"name": "meta.type.function.js",
-					"begin": "(?<=\\>)\\s*(?=\\()",
 					"end": "(?<=\\))",
 					"patterns": [
 						{
@@ -2297,11 +2312,17 @@
 			]
 		},
 		"function-call": {
-			"begin": "(?=(\\.\\s*)?([_$[:alpha:]][_$[:alnum:]]*)\\s*(<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\()",
-			"end": "(?<=\\))(?!(\\.\\s*)?([_$[:alpha:]][_$[:alnum:]]*)\\s*(<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\()",
+			"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\()",
+			"end": "(?<=\\))(?!(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\()",
 			"patterns": [
 				{
+					"include": "#literal"
+				},
+				{
 					"include": "#support-objects"
+				},
+				{
+					"include": "#object-identifiers"
 				},
 				{
 					"include": "#punctuation-accessor"
@@ -2344,22 +2365,7 @@
 		"identifiers": {
 			"patterns": [
 				{
-					"name": "support.class.js",
-					"match": "([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\\.\\s*prototype\\b(?!\\$))"
-				},
-				{
-					"match": "(?x)(\\.)\\s*(?:\n  ([[:upper:]][_$[:digit:][:upper:]]*) |\n  ([_$[:alpha:]][_$[:alnum:]]*)\n)(?=\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)",
-					"captures": {
-						"1": {
-							"name": "punctuation.accessor.js"
-						},
-						"2": {
-							"name": "variable.other.constant.object.property.js"
-						},
-						"3": {
-							"name": "variable.other.object.property.js"
-						}
-					}
+					"include": "#object-identifiers"
 				},
 				{
 					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*(\n  (async\\s+)|(function\\s*[(<])|(function\\s+)|\n  ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)|\n  ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n  ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n  ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)))",
@@ -2395,6 +2401,36 @@
 					}
 				},
 				{
+					"name": "variable.other.constant.js",
+					"match": "([[:upper:]][_$[:digit:][:upper:]]*)(?![_$[:alnum:]])"
+				},
+				{
+					"name": "variable.other.readwrite.js",
+					"match": "[_$[:alpha:]][_$[:alnum:]]*"
+				}
+			]
+		},
+		"object-identifiers": {
+			"patterns": [
+				{
+					"name": "support.class.js",
+					"match": "([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\\.\\s*prototype\\b(?!\\$))"
+				},
+				{
+					"match": "(?x)(\\.)\\s*(?:\n  ([[:upper:]][_$[:digit:][:upper:]]*) |\n  ([_$[:alpha:]][_$[:alnum:]]*)\n)(?=\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)",
+					"captures": {
+						"1": {
+							"name": "punctuation.accessor.js"
+						},
+						"2": {
+							"name": "variable.other.constant.object.property.js"
+						},
+						"3": {
+							"name": "variable.other.object.property.js"
+						}
+					}
+				},
+				{
 					"match": "(?x)(?:\n  ([[:upper:]][_$[:digit:][:upper:]]*) |\n  ([_$[:alpha:]][_$[:alnum:]]*)\n)(?=\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
@@ -2404,14 +2440,6 @@
 							"name": "variable.other.object.js"
 						}
 					}
-				},
-				{
-					"name": "variable.other.constant.js",
-					"match": "([[:upper:]][_$[:digit:][:upper:]]*)(?![_$[:alnum:]])"
-				},
-				{
-					"name": "variable.other.readwrite.js",
-					"match": "[_$[:alpha:]][_$[:alnum:]]*"
 				}
 			]
 		},
@@ -2554,6 +2582,17 @@
 					"match": "(?<!\\.|\\$)\\b(await)\\b(?!\\$)"
 				},
 				{
+					"match": "(?<!\\.|\\$)\\b(yield)\\b(?!\\$)(?:\\s*(\\*))?",
+					"captures": {
+						"1": {
+							"name": "keyword.control.flow.js"
+						},
+						"2": {
+							"name": "keyword.generator.asterisk.js"
+						}
+					}
+				},
+				{
 					"name": "keyword.operator.expression.delete.js",
 					"match": "(?<!\\.|\\$)\\bdelete\\b(?!\\$)"
 				},
@@ -2672,13 +2711,13 @@
 				},
 				{
 					"name": "meta.arrow.js",
-					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)(?=\\s*[<(])\n) | (\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n    (\n      [(]\\s*\n      (\n        ([)]\\s*:) |                               # ():\n        ([_$[:alpha:]][_$[:alnum:]]*\\s*:) |       # [(]param:\n        (\\.\\.\\.)                                  # [(]...\n      )\n    ) |\n    (\n      [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\n      (\n        (\\s+extends\\s*[^=>]) |                    # < typeparam extends \n        (\\s*[,])                                  # < typeparam,\n      )\n    ) |\n    # arrow function possible to detect only with => on same line\n    (\n      (<([^<>]|\\<[^<>]+\\>)+>\\s*)?                 # typeparameters\n      \\(([^()]|\\([^()]*\\))*\\)                     # parameteres\n      (\\s*:\\s*(.)*)?                              # return type\n      \\s*=>                                       # arrow operator\n    )\n  )\n)",
+					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)(?=\\s*[<(])\n) | ((?<![})\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n    (\n      [(]\\s*\n      (\n        ([)]\\s*:) |                               # ():\n        ([_$[:alpha:]][_$[:alnum:]]*\\s*:) |       # [(]param:\n        (\\.\\.\\.)                                  # [(]...\n      )\n    ) |\n    (\n      [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>] # < typeparam extends \n    ) |\n    # arrow function possible to detect only with => on same line\n    (\n      (<([^<>]|\\<[^<>]+\\>)+>\\s*)?                 # typeparameters\n      \\(([^()]|\\([^()]*\\))*\\)                     # parameteres\n      (\\s*:\\s*(.)*)?                              # return type\n      \\s*=>                                       # arrow operator\n    )\n  )\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.async.js"
 						}
 					},
-					"end": "(?==>)",
+					"end": "(?==>|\\{)",
 					"patterns": [
 						{
 							"include": "#comment"
@@ -2722,8 +2761,28 @@
 					"name": "keyword.operator.type.annotation.js"
 				}
 			},
-			"end": "(?<!:)((?=$)|(?==>|;|//))",
+			"end": "(?==>|\\{)",
 			"patterns": [
+				{
+					"name": "meta.object.type.js",
+					"begin": "(?<=:)\\s*(\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.block.js"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.block.js"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#type-object-members"
+						}
+					]
+				},
 				{
 					"include": "#type-predicate-operator"
 				},
@@ -3065,7 +3124,6 @@
 			]
 		},
 		"literal": {
-			"name": "literal.js",
 			"patterns": [
 				{
 					"include": "#numeric-literal"
@@ -3648,5 +3706,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/f97fcdbb2f80123605982ca63b9ba68bb837df87"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/e47681d06a4db46d286c53b14ab0a5ab17e71cd8"
 }
