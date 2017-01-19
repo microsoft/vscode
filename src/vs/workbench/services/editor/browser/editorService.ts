@@ -210,7 +210,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
 			return this.createInput({ resource: resourceSideBySideInput.masterResource }).then(masterInput => {
 				return this.createInput({ resource: resourceSideBySideInput.detailResource }).then(detailInput => {
-					return new SideBySideEditorInput(resourceSideBySideInput.label || masterInput.getName(), resourceSideBySideInput.description || masterInput.getDescription(), detailInput, masterInput);
+					return new SideBySideEditorInput(resourceSideBySideInput.label || masterInput.getName(), typeof resourceSideBySideInput.description === 'string' ? resourceSideBySideInput.description : masterInput.getDescription(), detailInput, masterInput);
 				});
 			});
 		}
@@ -245,7 +245,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return TPromise.as(this.instantiationService.createInstance(
 				ResourceEditorInput,
 				resourceInput.label || basename(resourceInput.resource.fsPath),
-				resourceInput.description || dirname(resourceInput.resource.fsPath),
+				typeof resourceInput.description === 'string' ? resourceInput.description : dirname(resourceInput.resource.fsPath),
 				resourceInput.resource
 			));
 		}
