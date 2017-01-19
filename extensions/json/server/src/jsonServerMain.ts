@@ -59,11 +59,12 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	if (params.initializationOptions) {
 		filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
 	}
+	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
+			completionProvider: snippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
 			hoverProvider: true,
 			documentSymbolProvider: true,
 			documentRangeFormattingProvider: !params.initializationOptions || params.initializationOptions['format.enable']
