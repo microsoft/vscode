@@ -161,7 +161,11 @@ export class HorizontalRange {
 	public width: number;
 
 	constructor(left: number, width: number) {
-		this.left = left | 0;
-		this.width = width | 0;
+		this.left = Math.round(left);
+		this.width = Math.round(width);
+	}
+
+	public toString(): string {
+		return `[${this.left},${this.width}]`;
 	}
 }

@@ -9,6 +9,9 @@ import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, 
 import { IRef, RefType } from './git';
 import { Model, Resource, Status } from './model';
 import * as path from 'path';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 function resolveGitURI(uri: Uri): SCMResource | SCMResourceGroup | undefined {
 	if (uri.authority !== 'git') {
@@ -50,12 +53,16 @@ class CheckoutItem implements QuickPickItem {
 
 class CheckoutTagItem extends CheckoutItem {
 
-	get description(): string { return `Tag at ${this.shortCommit}`; }
+	get description(): string {
+		return localize('tag at', "Tag at {0}", this.shortCommit);
+	}
 }
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	get description(): string { return `Remote branch at ${this.shortCommit}`; }
+	get description(): string {
+		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
+	}
 
 	protected get treeish(): string | undefined {
 		if (!this.ref.name) {
@@ -93,7 +100,7 @@ export class CommandCenter {
 
 				switch (err.gitErrorCode) {
 					case 'DirtyWorkTree':
-						message = 'Please clean your repository working tree before checkout.';
+						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					default:
 						message = (err.stderr || err.message).replace(/^error: /, '');
@@ -106,7 +113,7 @@ export class CommandCenter {
 				}
 
 				const outputChannel = this.outputChannel as OutputChannel;
-				const openOutputChannelChoice = 'Open Git Log';
+				const openOutputChannelChoice = localize('open git log', "Open Git Log");
 				const choice = await window.showErrorMessage(message, openOutputChannelChoice);
 
 				if (choice === openOutputChannelChoice) {
@@ -126,7 +133,7 @@ export class CommandCenter {
 	@CommandCenter.Command('git.refresh')
 	@CommandCenter.CatchErrors
 	async refresh(): Promise<void> {
-		await this.model.update();
+		await this.model.status();
 	}
 
 	@CommandCenter.Command('git.openChange')
@@ -168,8 +175,12 @@ export class CommandCenter {
 			case Status.MODIFIED:
 				const uriString = resource.uri.toString();
 				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString);
-				const query = indexStatus ? '~' : 'HEAD';
-				return resource.uri.with({ scheme: 'git', query });
+
+				if (indexStatus) {
+					return resource.uri.with({ scheme: 'git' });
+				}
+
+				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
 		}
 	}
 
@@ -266,9 +277,9 @@ export class CommandCenter {
 		}
 
 		const basename = path.basename(resource.uri.fsPath);
-		const message = `Are you sure you want to clean changes in ${basename}?`;
-		const yes = 'Yes';
-		const no = 'No, keep them';
+		const message = localize('confirm clean', "Are you sure you want to clean changes in {0}?", basename);
+		const yes = localize('yes', "Yes");
+		const no = localize('no, keep them', "No, keep them");
 		const pick = await window.showQuickPick([yes, no], { placeHolder: message });
 
 		if (pick !== yes) {
@@ -281,9 +292,9 @@ export class CommandCenter {
 	@CommandCenter.Command('git.cleanAll')
 	@CommandCenter.CatchErrors
 	async cleanAll(): Promise<void> {
-		const message = `Are you sure you want to clean all changes?`;
-		const yes = 'Yes';
-		const no = 'No, keep them';
+		const message = localize('confirm clean all', "Are you sure you want to clean all changes?");
+		const yes = localize('yes', "Yes");
+		const no = localize('no, keep them', "No, keep them");
 		const pick = await window.showQuickPick([yes, no], { placeHolder: message });
 
 		if (pick !== yes) {
@@ -355,8 +366,8 @@ export class CommandCenter {
 	@CommandCenter.CatchErrors
 	async branch(): Promise<void> {
 		const result = await window.showInputBox({
-			placeHolder: 'Branch name',
-			prompt: 'Please provide a branch name'
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name")
 		});
 
 		if (!result) {
@@ -402,7 +413,7 @@ export class CommandCenter {
 	async publish(): Promise<void> {
 		const branchName = this.model.HEAD && this.model.HEAD.name || '';
 		const picks = this.model.remotes.map(r => r.name);
-		const placeHolder = `Pick a remote to publish the branch '${branchName}' to:`;
+		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {

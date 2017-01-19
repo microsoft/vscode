@@ -38,7 +38,6 @@ import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { isDarkTheme } from 'vs/platform/theme/common/themes';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -123,7 +122,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
 		const theme = this.themeService.getColorTheme();
-		const icon = isDarkTheme(theme) ? resource.decorations.iconDark : resource.decorations.icon;
+		const icon = isDarkTheme(theme.id) ? resource.decorations.iconDark : resource.decorations.icon;
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
@@ -169,8 +168,7 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
-		@IMenuService private menuService: IMenuService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IMenuService private menuService: IMenuService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -246,20 +244,11 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
-		const count = provider.resources
-			.reduce<number>((r, g) => r + g.resources.length, 0);
-
-		// TODO: make number contributable by provider
-		const badge = count > 0
-			? new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num))
-			: null;
-
-		this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
 
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
 
-		this.list.splice(0, this.list.length, ...elements);
+		this.list.splice(0, this.list.length, elements);
 	}
 
 	layout(dimension: Dimension = this.cachedDimension): void {

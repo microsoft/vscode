@@ -73,6 +73,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.configurationProperties = {};
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+		this.registerOverrideSettingsConfiguration();
 	}
 
 	public get onDidRegisterConfiguration() {
@@ -88,6 +89,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			this.registerProperties(configuration); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
+			this.updateSchemaForOverrideSettingsConfiguration(configuration);
 		});
 
 		this._onDidRegisterConfiguration.fire(this);
@@ -140,7 +142,57 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		register(configuration);
 		contributionRegistry.registerSchema(schemaId, configurationSchema);
 	}
+
+	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
+		if (this.configurationSchema.properties[SETTINGS_OVERRIDE]) {
+			const propertyPattern = '.*';
+			if (!this.configurationSchema.properties[SETTINGS_OVERRIDE].patternProperties) {
+				const patternProperties = {};
+				patternProperties[propertyPattern] = {
+					type: 'object',
+					properties: {}
+				};
+				this.configurationSchema.properties[SETTINGS_OVERRIDE].patternProperties = patternProperties;
+			}
+			const properties = this.configurationSchema.properties[SETTINGS_OVERRIDE].patternProperties[propertyPattern].properties;
+			if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
+				if (configuration.properties) {
+					for (const key in configuration.properties) {
+						properties[key] = this.getConfigurationProperties()[key];
+					}
+				}
+			}
+		}
+	}
+
+	private registerOverrideSettingsConfiguration(): void {
+		const properties = {};
+		properties[SETTINGS_OVERRIDE] = {
+			type: 'object',
+			description: nls.localize('overrideSettings.description',
+				`Configure settings to be overridden for language modes. To override, use the language id, or language ids separated by ',' as the key to group settings. Example:
+"settings.overrides" = {
+		"markdown" = {
+			"editor.wrappingColumn": 0
+		},
+		"css,scss" = {
+			"editor.formatOnSave": true
+		}
 }
+`
+			),
+		};
+		this.registerConfiguration({
+			id: SETTINGS_OVERRRIDE_NODE_ID,
+			type: 'object',
+			title: nls.localize('overrideSettings.title', "Override Settings"),
+			properties
+		});
+	}
+}
+
+const SETTINGS_OVERRRIDE_NODE_ID = 'overrideSettings';
+export const SETTINGS_OVERRIDE = 'settings.override';
 
 function getDefaultValue(type: string | string[]): any {
 	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;

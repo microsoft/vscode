@@ -96,7 +96,9 @@ class WorkerManager extends Disposable {
 		this._editorWorkerClient = null;
 
 		let stopWorkerInterval = this._register(new IntervalTimer());
-		stopWorkerInterval.cancelAndSet(() => this._checkStopWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
+		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
+
+		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
 	}
 
 	public dispose(): void {
@@ -107,7 +109,26 @@ class WorkerManager extends Disposable {
 		super.dispose();
 	}
 
-	private _checkStopWorker(): void {
+	/**
+	 * Check if the model service has no more models and stop the worker if that is the case.
+	 */
+	private _checkStopEmptyWorker(): void {
+		if (!this._editorWorkerClient) {
+			return;
+		}
+
+		let models = this._modelService.getModels();
+		if (models.length === 0) {
+			// There are no more models => nothing possible for me to do
+			this._editorWorkerClient.dispose();
+			this._editorWorkerClient = null;
+		}
+	}
+
+	/**
+	 * Check if the worker has been idle for a while and then stop it.
+	 */
+	private _checkStopIdleWorker(): void {
 		if (!this._editorWorkerClient) {
 			return;
 		}

@@ -20,7 +20,7 @@ import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -55,7 +55,7 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
 
-	private configuredHotExit: boolean;
+	private configuredHotExit: string;
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -186,7 +186,9 @@ export abstract class TextFileService implements ITextFileService {
 			let doBackup: boolean;
 			switch (reason) {
 				case ShutdownReason.CLOSE:
-					if (windowCount > 1 || platform.isMacintosh) {
+					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
+					} else if (windowCount > 1 || platform.isMacintosh) {
 						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
 					} else {
 						doBackup = true; // backup if last window is closed on win/linux where the application quits right after
@@ -202,7 +204,11 @@ export abstract class TextFileService implements ITextFileService {
 					break;
 
 				case ShutdownReason.LOAD:
-					doBackup = false; // do not backup because we are switching contexts
+					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
+					} else {
+						doBackup = false; // do not backup because we are switching contexts
+					}
 					break;
 			}
 
@@ -287,7 +293,7 @@ export abstract class TextFileService implements ITextFileService {
 		return this.cleanupBackupsBeforeShutdown().then(() => false, () => false);
 	}
 
-	private cleanupBackupsBeforeShutdown(): TPromise<void> {
+	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as(void 0);
 		}
@@ -307,7 +313,7 @@ export abstract class TextFileService implements ITextFileService {
 		}
 	}
 
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
+	protected onConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
 		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
@@ -353,7 +359,15 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		// Hot exit
-		this.configuredHotExit = configuration && configuration.files && configuration.files.hotExit;
+		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.OFF;
+		// Handle the legacy case where hot exit was a boolean
+		if (<any>hotExitMode === false) {
+			this.configuredHotExit = HotExitConfiguration.OFF;
+		} else if (<any>hotExitMode === true) {
+			this.configuredHotExit = HotExitConfiguration.ON_EXIT;
+		} else {
+			this.configuredHotExit = hotExitMode;
+		}
 	}
 
 	public getDirty(resources?: URI[]): URI[] {
@@ -690,7 +704,7 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public get isHotExitEnabled(): boolean {
-		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit;
+		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit !== HotExitConfiguration.OFF;
 	}
 
 	public dispose(): void {

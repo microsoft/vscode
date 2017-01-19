@@ -114,10 +114,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 			'default': true
 		},
-		'workbench.editor.showTabCloseButton': {
-			'type': 'boolean',
-			'description': nls.localize('showEditorTabCloseButton', "Controls if editor tabs should have a visible close button or not."),
-			'default': true
+		'workbench.editor.tabCloseButton': {
+			'type': 'string',
+			'enum': ['left', 'right', 'off'],
+			'default': 'right',
+			'description': nls.localize('editorTabCloseButton', "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
 		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',
@@ -223,7 +224,13 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'boolean',
 		'default': false,
 		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
-	}
+	},
+	'window.newWindowDimensions': {
+		'type': 'string',
+		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
+		'default': 'default',
+		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window. By default, a new window will open in the center of the screen with small dimensions. When set to  'inherit', the window will get the same dimensions as the last active one. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'.")
+	},
 };
 
 if (platform.isWindows || platform.isLinux) {

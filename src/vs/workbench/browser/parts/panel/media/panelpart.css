@@ -3,35 +3,93 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.nopanel > .panel {
+.monaco-workbench.nopanel > .part.panel {
 	display: none !important;
 	visibility: hidden !important;
-}
-
-.monaco-workbench > .part.panel .title {
-	padding-right: 0px;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
-	height: 36px;
-}
-
-.monaco-workbench > .part.panel > .title > .title-label > span {
-	vertical-align: top;
 }
 
 .monaco-workbench > .part.panel {
 	z-index: initial;
 }
 
+.monaco-workbench > .part.panel .title {
+	padding-right: 0px;
+	height: 35px;
+}
+
+.vs-dark .monaco-workbench > .part.panel .title {
+	background: #2D2D2D;
+}
+
+.vs .monaco-workbench > .part.panel .title {
+	background: #ECECEC;
+}
+
+.hc-black .monaco-workbench > .part.panel .title {
+	border-top: 1px solid #6FC3DF;
+}
+
+/** Panel Switcher */
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
+	padding-left: 12px;
+	line-height: 35px;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	text-transform: uppercase;
+	margin-right: 20px;
+	font-size: 11px;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #6f6f6f;
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #bbbbbb;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #fff;
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+	color: white;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 2px solid #6f6f6f;
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	color: white;
+	border-bottom: 2px solid white;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	color: white;
+	border-bottom: 2px solid white;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 2px solid #007ACC;
+	outline: none !important;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 2px solid #f38518;
+	outline: none !important;
+}
+
+/** Actions */
+
 .monaco-workbench .hide-panel-action {
-	background: url('hide.svg') center center no-repeat;
+	background: url('close.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .hide-panel-action,
 .hc-black .monaco-workbench .hide-panel-action {
-	background: url('hide-inverse.svg') center center no-repeat;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .part.panel > .title {
-	border-top-color: #6FC3DF;
+	background: url('close-inverse.svg') center center no-repeat;
 }

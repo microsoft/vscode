@@ -16,6 +16,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
+import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
@@ -36,16 +37,11 @@ import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/pref
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
-
 const REMOVE_INLINE_VALUES_DELAY = 100;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
-const MAX_INLINE_VALUE_LENGTH = 50; // Max string length of each inline 'x = y' string. If exceeded ... is added
-const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
+const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
-// LanguageConfigurationRegistry.getWordDefinition() return regexes that allow spaces and punctuation characters for languages like python
-// Using that approach is not viable so we are using a simple regex to look for word tokens.
-const WORD_REGEXP = /[\$\_A-Za-z][\$\_A-Za-z0-9]*/g;
 
 @editorContribution
 export class DebugEditorContribution implements IDebugEditorContribution {
@@ -60,7 +56,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
-	private wordToLineNumbersMap: Map<string, number[]>;
+	private wordToLineNumbersMap: Map<string, IPosition[]>;
 
 	private configurationWidget: FloatingClickWidget;
 
@@ -180,6 +176,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
 			this.wordToLineNumbersMap = null;
+			this.updateInlineDecorations(sf);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 	}
@@ -222,9 +219,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverWidget();
 		}
 
-		if (this.configurationService.getConfiguration<IDebugConfiguration>('debug').inlineValues) {
-			this.updateInlineDecorators(sf);
-		}
+		this.updateInlineDecorations(sf);
 	}
 
 	private hideHoverWidget(): void {
@@ -352,9 +347,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	};
 
 	// Inline Decorations
-
-	private updateInlineDecorators(stackFrame: IStackFrame): void {
-		if (!stackFrame) {
+	private updateInlineDecorations(stackFrame: IStackFrame): void {
+		const model = this.editor.getModel();
+		if (!this.configurationService.getConfiguration<IDebugConfiguration>('debug').inlineValues ||
+			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
 			}
@@ -363,27 +359,26 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		stackFrame.getScopes()
+		stackFrame.getMostSpecificScopes(new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column))
 			// Get all top level children in the scope chain
-			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren())))
-			.then(children => {
-				const expressions = children.reduce((previous, current) => previous.concat(current), []);
-				const decorations = this.createAllInlineValueDecorations(expressions);
-				this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, decorations);
-			});
+			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren()
+				.then(children => {
+					let range = new Range(0, 0, stackFrame.lineNumber, stackFrame.column);
+					if (scope.range) {
+						range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
+					}
+
+					return this.createInlineValueDecorationsInsideRange(children, range);
+				}))).then(decorationsPerScope => {
+					const allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
+					this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
+				}));
 	}
 
-	private createAllInlineValueDecorations(expressions: IExpression[]): IDecorationOptions[] {
+	private createInlineValueDecorationsInsideRange(expressions: IExpression[], range: Range): IDecorationOptions[] {
 		const nameValueMap = new Map<string, string>();
 		for (let expr of expressions) {
-			// Put ellipses in value if its too long. Preserve last char e.g "longstr…" or {a:true, b:true, …}
-			let value = expr.value;
-			if (value && value.length > MAX_INLINE_VALUE_LENGTH) {
-				value = value.substr(0, MAX_INLINE_VALUE_LENGTH) + '…' + value[value.length - 1];
-			}
-
-			nameValueMap.set(expr.name, value);
-
+			nameValueMap.set(expr.name, expr.value);
 			// Limit the size of map. Too large can have a perf impact
 			if (nameValueMap.size >= MAX_NUM_INLINE_VALUES) {
 				break;
@@ -391,17 +386,21 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		const lineToNamesMap: Map<number, string[]> = new Map<number, string[]>();
-		const wordToLineNumbersMap = this.getWordToLineNumbersMap();
+		const wordToPositionsMap = this.getWordToPositionsMap();
 
 		// Compute unique set of names on each line
 		nameValueMap.forEach((value, name) => {
-			if (wordToLineNumbersMap.has(name)) {
-				for (let lineNumber of wordToLineNumbersMap.get(name)) {
-					if (!lineToNamesMap.has(lineNumber)) {
-						lineToNamesMap.set(lineNumber, []);
-					}
+			if (wordToPositionsMap.has(name)) {
+				for (let position of wordToPositionsMap.get(name)) {
+					if (range.containsPosition(position)) {
+						if (!lineToNamesMap.has(position.lineNumber)) {
+							lineToNamesMap.set(position.lineNumber, []);
+						}
 
-					lineToNamesMap.get(lineNumber).push(name);
+						if (lineToNamesMap.get(position.lineNumber).indexOf(name) === -1) {
+							lineToNamesMap.get(position.lineNumber).push(name);
+						}
+					}
 				}
 			}
 		});
@@ -409,8 +408,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const decorations: IDecorationOptions[] = [];
 		// Compute decorators for each line
 		lineToNamesMap.forEach((names, line) => {
-			// Wrap with 1em unicode space for readability
-			const contentText = '\u2003' + names.map(name => `${name} = ${nameValueMap.get(name)}`).join(', ') + '\u2003';
+			const contentText = names.map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
 			decorations.push(this.createInlineValueDecoration(line, contentText));
 		});
 
@@ -418,11 +416,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private createInlineValueDecoration(lineNumber: number, contentText: string): IDecorationOptions {
-		const margin = '10px';
-		const backgroundColor = 'rgba(255, 200, 0, 0.2)';
-		const lightForegroundColor = 'rgba(0, 0, 0, 0.5)';
-		const darkForegroundColor = 'rgba(255, 255, 255, 0.5)';
-
 		// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 		if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
 			contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
@@ -432,61 +425,58 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			range: {
 				startLineNumber: lineNumber,
 				endLineNumber: lineNumber,
-				startColumn: Constants.MAX_SAFE_SMALL_INTEGER - 1,
+				startColumn: Constants.MAX_SAFE_SMALL_INTEGER,
 				endColumn: Constants.MAX_SAFE_SMALL_INTEGER
 			},
 			renderOptions: {
+				after: {
+					contentText,
+					backgroundColor: 'rgba(255, 200, 0, 0.2)',
+					margin: '10px'
+				},
 				dark: {
 					after: {
-						contentText,
-						backgroundColor,
-						color: darkForegroundColor,
-						margin
+						color: 'rgba(255, 255, 255, 0.5)',
 					}
 				},
 				light: {
 					after: {
-						contentText,
-						backgroundColor,
-						color: lightForegroundColor,
-						margin
+						color: 'rgba(0, 0, 0, 0.5)',
 					}
 				}
 			}
 		};
 	}
 
-	private getWordToLineNumbersMap(): Map<string, number[]> {
+	private getWordToPositionsMap(): Map<string, IPosition[]> {
 		if (!this.wordToLineNumbersMap) {
-			this.wordToLineNumbersMap = new Map<string, number[]>();
+			this.wordToLineNumbersMap = new Map<string, IPosition[]>();
 			const model = this.editor.getModel();
-			if (model) {
-				// For every word in every line, map its ranges for fast lookup
-				for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-					const lineContent = model.getLineContent(lineNumber);
+			// For every word in every line, map its ranges for fast lookup
+			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
+				const lineContent = model.getLineContent(lineNumber);
 
-					// If line is too long then skip the line
-					if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
-						continue;
-					}
+				// If line is too long then skip the line
+				if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+					continue;
+				}
 
-					const lineTokens = model.getLineTokens(lineNumber);
-					for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
-						const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
+				const lineTokens = model.getLineTokens(lineNumber);
+				for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
+					const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
 
-						// Token is a word and not a comment
-						if (token.tokenType === StandardTokenType.Other) {
-							WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
-							const wordMatch = WORD_REGEXP.exec(tokenStr);
+					// Token is a word and not a comment
+					if (token.tokenType === StandardTokenType.Other) {
+						DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+						const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
-							if (wordMatch) {
-								const word = wordMatch[0];
-								if (!this.wordToLineNumbersMap.has(word)) {
-									this.wordToLineNumbersMap.set(word, []);
-								}
-
-								this.wordToLineNumbersMap.get(word).push(lineNumber);
+						if (wordMatch) {
+							const word = wordMatch[0];
+							if (!this.wordToLineNumbersMap.has(word)) {
+								this.wordToLineNumbersMap.set(word, []);
 							}
+
+							this.wordToLineNumbersMap.get(word).push({ lineNumber, column: token.startOffset });
 						}
 					}
 				}
