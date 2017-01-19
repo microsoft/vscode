@@ -225,7 +225,8 @@ configurationRegistry.registerConfiguration({
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it.")
+			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
+			'overridable': true
 		},
 		'files.autoSave': {
 			'type': 'string',
