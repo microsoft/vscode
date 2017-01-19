@@ -149,8 +149,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			this.quickOpenWidget.navigate(next, quickNavigate);
 		}
 
-		if (this.pickOpenWidget) {
-			this.pickOpenWidget.navigate(next, quickNavigate);
+		if (!quickNavigate && this.pickOpenWidget) {
+			this.pickOpenWidget.navigate(next); // quick-navigate is only supported in quick open, not picker
 		}
 	}
 
