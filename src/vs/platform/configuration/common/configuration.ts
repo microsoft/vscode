@@ -28,7 +28,7 @@ export interface IConfigurationService {
 	 * Resolves a configuration key to its values in the different scopes
 	 * the setting is defined.
 	 */
-	lookup<T>(key: string): IConfigurationValue<T>;
+	lookup<T>(key: string, overrideIdentifier?: string): IConfigurationValue<T>;
 
 	/**
 	 * Returns the defined keys of configurations in the different scopes
