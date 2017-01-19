@@ -113,7 +113,7 @@ export interface IOutputChannel {
 	/**
 	 * Returns the value indicating whether the channel has scroll locked.
 	 */
-	hasScrollLock: boolean;
+	scrollLock: boolean;
 
 	/**
 	 * Appends output to the channel.
