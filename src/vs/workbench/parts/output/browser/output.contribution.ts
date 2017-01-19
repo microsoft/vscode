@@ -14,7 +14,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { OutputService } from 'vs/workbench/parts/output/browser/outputServices';
-import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
+import { ToggleOutputAction, ClearOutputAction, ToggleOutputScrollLockAction } from 'vs/workbench/parts/output/browser/outputActions';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { EditorContextKeys } from 'vs/editor/common/editorCommon';
@@ -54,6 +54,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
 	'View: Clear Output', nls.localize('viewCategory', "View"));
+
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputScrollLockAction, ToggleOutputScrollLockAction.ID, ToggleOutputScrollLockAction.LABEL),
+	'View: Toggle Output Scroll Lock', nls.localize('viewCategory', "View"));
 
 interface IActionDescriptor {
 	id: string;
