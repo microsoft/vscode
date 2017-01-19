@@ -777,6 +777,13 @@ declare module monaco.editor {
     export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
     /**
+     * Emitted when an editor is created.
+     * Creating a diff editor might cause this listener to be invoked with the two editors.
+     * @event
+     */
+    export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable;
+
+    /**
      * Create a new diff editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
@@ -2888,10 +2895,6 @@ declare module monaco.editor {
          * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
          */
         isFocused(): boolean;
-        /**
-         * Add a new action to this editor.
-         */
-        addAction(descriptor: IActionDescriptor): IDisposable;
         /**
          * Returns all actions associated with this editor.
          */

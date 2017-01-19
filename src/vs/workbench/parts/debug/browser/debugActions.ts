@@ -11,7 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IProcess, SessionRequestType, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
+import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -127,12 +127,15 @@ export class StartAction extends AbstractDebugAction {
 		}
 
 		const configuration = manager.getConfiguration(configName);
-		const command = manager.getStartSessionCommand(configuration ? configuration.type : undefined);
-		if (command) {
-			return this.commandService.executeCommand(command, configuration || this.getDefaultConfiguration());
-		}
+		return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(command => {
+			if (command) {
+				return this.commandService.executeCommand(command, configuration || this.getDefaultConfiguration());
+			}
 
-		return this.commandService.executeCommand('_workbench.startDebug', configName);
+			if (configName) {
+				return this.commandService.executeCommand('_workbench.startDebug', configName);
+			}
+		});
 	}
 
 	protected getDefaultConfiguration(): any {
@@ -176,7 +179,7 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	private setLabel(process: IProcess): void {
-		this.updateLabel(process && process.session.requestType === SessionRequestType.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+		this.updateLabel(process && process.isAttach() ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
 	public run(process: IProcess): TPromise<any> {

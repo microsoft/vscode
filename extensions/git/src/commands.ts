@@ -304,6 +304,12 @@ export class CommandCenter {
 		return await this.model.clean(...this.model.workingTreeGroup.resources);
 	}
 
+	@CommandCenter.CatchErrors
+	async commit(message: string): Promise<void> {
+		const all = this.model.indexGroup.resources.length === 0;
+		return this.model.commit(message, { all });
+	}
+
 	@CommandCenter.Command('git.commitStaged')
 	@CommandCenter.CatchErrors
 	async commitStaged(): Promise<void> {
