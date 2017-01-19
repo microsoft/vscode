@@ -48,6 +48,23 @@ export class ClearOutputAction extends Action {
 	}
 }
 
+export class ToggleOutputScrollLockAction extends Action {
+
+	public static ID = 'workbench.output.action.toggleOutputScrollLock';
+	public static LABEL = nls.localize('toggleOutputScrollLock', "Toggle Output Scroll Lock");
+
+	constructor(id: string, label: string,
+		@IOutputService private outputService: IOutputService) {
+		super(id, label, 'output-action toggle-output-scroll-lock');
+	}
+
+	public run(): TPromise<any> {
+		this.outputService.getActiveChannel().toggleScrollLock();
+
+		return TPromise.as(true);
+	}
+}
+
 export class SwitchOutputAction extends Action {
 
 	public static ID = 'workbench.output.action.switchBetweenOutputs';
