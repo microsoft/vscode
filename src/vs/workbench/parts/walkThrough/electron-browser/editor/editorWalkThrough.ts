@@ -31,7 +31,7 @@ export class EditorWalkThroughAction extends Action {
 	public run(): TPromise<void> {
 		const uri = URI.parse(require.toUrl('./editorWalkThrough.md'))
 			.with({ scheme: WALK_THROUGH_SCHEME });
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Editor Walk-Through"), '', uri, null);
+		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Editor Walk-Through"), '', uri, /* telemetryFrom */ null, /* onReady */ null);
 		return this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(() => void (0));
 	}

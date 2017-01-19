@@ -86,7 +86,7 @@ class WelcomePage {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
 		const uri = URI.parse(require.toUrl('./welcomePage.html'))
 			.with({ scheme: WALK_THROUGH_SCHEME });
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, container => this.onReady(container, recentlyOpened));
+		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, 'welcomePage', container => this.onReady(container, recentlyOpened));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(null, onUnexpectedError);
 	}

@@ -43,23 +43,16 @@ export class WalkThroughInput extends EditorInput {
 	static ID: string = 'workbench.editors.walkThroughInput';
 
 	private promise: TPromise<WalkThroughModel>;
-	private resource: URI;
-
-	private name: string;
-	private description: string;
 
 	constructor(
-		name: string,
-		description: string,
-		resource: URI,
+		private name: string,
+		private description: string,
+		private resource: URI,
+		private telemetryFrom: string,
 		public readonly onReady: (container: HTMLElement) => void,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
 		super();
-
-		this.name = name;
-		this.description = description;
-		this.resource = resource;
 	}
 
 	getResource(): URI {
@@ -76,6 +69,10 @@ export class WalkThroughInput extends EditorInput {
 
 	getDescription(): string {
 		return this.description;
+	}
+
+	getTelemetryFrom(): string {
+		return this.telemetryFrom || 'walkThrough';
 	}
 
 	getTelemetryDescriptor(): { [key: string]: any; } {
