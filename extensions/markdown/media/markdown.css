@@ -15,6 +15,20 @@ body.scrollBeyondLastLine {
 	margin-bottom: calc(100vh - 22px);
 }
 
+.code-active-line {
+	position: relative;
+}
+
+.code-active-line:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+	border-left: 3px solid #4080D0;
+}
+
 img {
 	max-width: 100%;
 	max-height: 100%;

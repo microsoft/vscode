@@ -29,6 +29,12 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri, line) => {
+		return vscode.workspace.openTextDocument(vscode.Uri.parse(decodeURIComponent(uri)))
+			.then(document => vscode.window.showTextDocument(document))
+			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'center' }));
+	}));
+
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {
 			const uri = getMarkdownUri(document.uri);
@@ -50,6 +56,16 @@ export function activate(context: vscode.ExtensionContext) {
 				provider.update(document.uri);
 			}
 		});
+	}));
+
+	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
+		if (isMarkdownFile(event.textEditor.document)) {
+			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
+				getMarkdownUri(event.textEditor.document.uri),
+				{
+					line: event.selections[0].start.line
+				});
+		}
 	}));
 }
 
@@ -152,13 +168,11 @@ interface IRenderer {
 }
 
 class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
-	private _context: vscode.ExtensionContext;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean;
 	private _renderer: IRenderer;
 
-	constructor(context: vscode.ExtensionContext) {
-		this._context = context;
+	constructor(private context: vscode.ExtensionContext) {
 		this._waiting = false;
 		this._renderer = this.createRenderer();
 	}
@@ -197,12 +211,13 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		md.renderer.rules.paragraph_open = createLineNumberRenderer('paragraph_open');
 		md.renderer.rules.heading_open = createLineNumberRenderer('heading_open');
 		md.renderer.rules.image = createLineNumberRenderer('image');
+		md.renderer.rules.code_block = createLineNumberRenderer('code_block');
 
 		return md;
 	}
 
 	private getMediaPath(mediaFile: string): string {
-		return this._context.asAbsolutePath(path.join('media', mediaFile));
+		return this.context.asAbsolutePath(path.join('media', mediaFile));
 	}
 
 	private isAbsolute(p: string): boolean {
@@ -249,14 +264,13 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			return '';
 		}
 		const {fontFamily, fontSize, lineHeight} = previewSettings;
-		return [
-			'<style>',
-			'body {',
-			fontFamily ? `font-family: ${fontFamily};` : '',
-			+fontSize > 0 ? `font-size: ${fontSize}px;` : '',
-			+lineHeight > 0 ? `line-height: ${lineHeight};` : '',
-			'}',
-			'</style>'].join('\n');
+		return `<style>
+			body {
+				${fontFamily ? `font-family: ${fontFamily};` : ''}
+				${+fontSize > 0 ? `font-size: ${fontSize}px;` : ''}
+				${+lineHeight > 0 ? `line-height: ${lineHeight};` : ''}
+			}
+		</style>`;
 	}
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
@@ -264,29 +278,36 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
+			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('preview.experimentalSyncronizationEnabled', true);
 
-			const head = ([] as Array<string>).concat(
-				'<!DOCTYPE html>',
-				'<html>',
-				'<head>',
-				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
-				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
-				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
-				this.getSettingsOverrideStyles(),
-				this.computeCustomStyleSheetIncludes(uri),
-				`<base href="${document.uri.toString(true)}">`,
-				'</head>',
-				`<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''}">`
-			).join('\n');
-			const body = this._renderer.render(this.getDocumentContentForPreview(document));
+			let initialLine = 0;
+			const editor = vscode.window.activeTextEditor;
+			if (editor && editor.document.uri.path === sourceUri.path) {
+				initialLine = editor.selection.start.line;
+			}
 
-			const tail = [
-				`<script src="${this.getMediaPath('main.js')}"></script>`,
-				'</body>',
-				'</html>'
-			].join('\n');
-
-			return head + body + tail;
+			return `<!DOCTYPE html>
+				<html>
+				<head>
+					<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}">
+					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}">
+					${this.getSettingsOverrideStyles()}
+					${this.computeCustomStyleSheetIncludes(uri)}
+					<base href="${document.uri.toString(true)}">
+				</head>
+				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''}">
+					${this._renderer.render(this.getDocumentContentForPreview(document))}
+					<script>
+						window.initialData = {
+							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
+							line: ${initialLine},
+							enablePreviewSync: ${!!enablePreviewSync}
+						};
+					</script>
+					<script src="${this.getMediaPath('main.js')}"></script>
+				</body>
+				</html>`;
 		});
 	}
 
