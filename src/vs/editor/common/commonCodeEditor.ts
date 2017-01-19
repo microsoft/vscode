@@ -35,6 +35,11 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let EDITOR_ID = 0;
 
+export interface IAddedAction {
+	uniqueId: string;
+	disposable: IDisposable;
+}
+
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
 	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
@@ -510,7 +515,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return <T>(this._contributions[id] || null);
 	}
 
-	public addAction(descriptor: editorCommon.IActionDescriptor): IDisposable {
+	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
 		if (
 			(typeof descriptor.id !== 'string')
 			|| (typeof descriptor.label !== 'string')
@@ -550,7 +555,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			}
 		});
 
-		return combinedDisposable(toDispose);
+		return {
+			uniqueId: uniqueId,
+			disposable: combinedDisposable(toDispose)
+		};
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {

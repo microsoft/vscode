@@ -300,8 +300,6 @@ export class StandaloneCommandService implements ICommandService {
 }
 
 export class StandaloneKeybindingService extends AbstractKeybindingService {
-	private static LAST_GENERATED_ID = 0;
-
 	private _cachedResolver: KeybindingResolver;
 	private _dynamicKeybindings: IKeybindingItem[];
 
@@ -325,12 +323,9 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(keybinding: number, handler: ICommandHandler, when: string, commandId: string = null): [string, IDisposable] {
+	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: string): IDisposable {
 		let toDispose: IDisposable[] = [];
 
-		if (commandId === null) {
-			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService.LAST_GENERATED_ID);
-		}
 		let parsedContext = IOSupport.readKeybindingWhen(when);
 
 		this._dynamicKeybindings.push({
@@ -364,7 +359,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}
 		this.updateResolver({ source: KeybindingSource.Default });
 
-		return [commandId, combinedDisposable(toDispose)];
+		return combinedDisposable(toDispose);
 	}
 
 	private updateResolver(event: IKeybindingEvent): void {

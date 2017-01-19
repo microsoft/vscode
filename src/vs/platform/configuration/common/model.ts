@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/platform';
 import * as types from 'vs/base/common/types';
 import * as json from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, SETTINGS_OVERRIDE } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigModel, IOverrides } from 'vs/platform/configuration/common/configuration';
 
 export function getDefaultValues(): any {
@@ -166,19 +166,17 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		}
 
 		function onOverrideSettingsValue(property: string, value: any): void {
-			if (property.indexOf('languages:') === 0) {
-				overrides.push({
-					languages: property.substring('languages:'.length).split(','),
-					raw: value,
-					contents: null
-				});
-			}
+			overrides.push({
+				languages: property.split(',').map(p => p.trim()),
+				raw: value,
+				contents: null
+			});
 		}
 
 		let visitor: json.JSONVisitor = {
 			onObjectBegin: () => {
 				let object = {};
-				if (currentProperty === 'settings.override') {
+				if (currentProperty === SETTINGS_OVERRIDE) {
 					overrides = [];
 					object['overrideSettings'] = true;
 				}

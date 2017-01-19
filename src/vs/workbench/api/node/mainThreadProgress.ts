@@ -11,7 +11,7 @@ import { MainThreadProgressShape } from './extHost.protocol';
 export class MainThreadProgress extends MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
-	private progress = new Map<number, { resolve: Function, reject: Function, progress: IProgress<any> }>();
+	private progress = new Map<number, { resolve: Function, progress: IProgress<any> }>();
 
 	constructor(
 		@IProgressService2 progressService: IProgressService2
@@ -24,8 +24,8 @@ export class MainThreadProgress extends MainThreadProgressShape {
 	$progressStart(handle: number, extensionId: string, where: string): void {
 
 		const task = (progress: IProgress<any>) => {
-			return new TPromise<any>((resolve, reject) => {
-				this.progress.set(handle, { resolve, reject, progress });
+			return new TPromise<any>(resolve => {
+				this.progress.set(handle, { resolve, progress });
 			});
 		};
 
@@ -44,12 +44,8 @@ export class MainThreadProgress extends MainThreadProgressShape {
 		this.progress.get(handle).progress.report(message);
 	}
 
-	$progressEnd(handle: number, err: any): void {
-		if (err) {
-			this.progress.get(handle).reject(err);
-		} else {
-			this.progress.get(handle).resolve();
-		}
+	$progressEnd(handle: number): void {
+		this.progress.get(handle).resolve();
 		this.progress.delete(handle);
 	}
 }

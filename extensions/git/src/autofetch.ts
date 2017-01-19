@@ -8,8 +8,7 @@
 import { workspace, Disposable } from 'vscode';
 import { GitErrorCodes } from './git';
 import { Model } from './model';
-import { throttle } from './util';
-import { decorate } from 'core-decorators';
+import { throttle } from './decorators';
 
 export class AutoFetcher {
 
@@ -45,7 +44,7 @@ export class AutoFetcher {
 		clearInterval(this.timer);
 	}
 
-	@decorate(throttle)
+	@throttle
 	private async fetch(): Promise<void> {
 		try {
 			await this.model.fetch();

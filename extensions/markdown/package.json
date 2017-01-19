@@ -145,6 +145,11 @@
 					"type": "number",
 					"default": 1.6,
 					"description": "%markdown.preview.lineHeight.desc%"
+				},
+				"markdown.preview.experimentalSyncronizationEnabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.experimentalSyncronizationEnabled.desc%"
 				}
 			}
 		}

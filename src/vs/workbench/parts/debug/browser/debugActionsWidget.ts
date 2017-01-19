@@ -209,7 +209,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		const state = this.debugService.state;
 		const process = this.debugService.getViewModel().focusedProcess;
-		const attached = process && !strings.equalsIgnoreCase(process.session.configuration.type, 'extensionHost') && process.session.requestType === debug.SessionRequestType.ATTACH;
+		const attached = process && !strings.equalsIgnoreCase(process.session.configuration.type, 'extensionHost') && process.isAttach();
 
 		return this.allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
