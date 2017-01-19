@@ -371,7 +371,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			onLiteralValue: onValue,
 			onError: (error) => {
 				const setting = settings[settings.length - 1];
-				if (!setting.range || !setting.keyRange || !setting.valueRange) {
+				if (setting && (!setting.range || !setting.keyRange || !setting.valueRange)) {
 					settings.pop();
 				}
 			}
