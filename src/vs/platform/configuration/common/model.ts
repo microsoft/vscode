@@ -212,10 +212,18 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			this._parseErrors = [e];
 		}
 		this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
+		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		this._overrides = overrides ? overrides.map<IOverrides<T>>(override => {
+			// Filter unknown and non-overridable properties
+			const raw = {};
+			for (const key in override.raw) {
+				if (configurationProperties[key] && configurationProperties[key].overridable) {
+					raw[key] = override.raw[key];
+				}
+			}
 			return {
 				identifiers: override.identifiers,
-				contents: <T>toValuesTree(override.raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
+				contents: <T>toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
 			};
 		}) : null;
 	}

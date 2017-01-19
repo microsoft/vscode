@@ -550,6 +550,7 @@ const editorConfiguration: IConfigurationNode = {
 	'order': 5,
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
+	'overridable': true,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',
