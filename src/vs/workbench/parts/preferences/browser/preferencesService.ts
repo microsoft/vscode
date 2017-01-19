@@ -163,7 +163,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	openGlobalKeybindingSettings(): TPromise<void> {
 		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		return this.openTwoEditors(this.defaultKeybindingsResource, URI.file(this.environmentService.appKeybindingsPath), emptyContents).then(() => null);
+		const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+
+		// Create as needed and open in editor
+		return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+			return this.editorService.openEditors([
+				{ input: { resource: this.defaultKeybindingsResource, options: { pinned: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, position: Position.ONE },
+				{ input: { resource: editableKeybindings, options: { pinned: true } }, position: Position.TWO },
+			]).then(() => {
+				this.editorGroupService.focusGroup(Position.TWO);
+			});
+		});
 	}
 
 	private doOpenSettings(configurationTarget: ConfigurationTarget, checkToOpenDefaultSettings: boolean = true): TPromise<void> {
@@ -220,18 +230,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				}
 		}
 		return null;
-	}
-
-	private openTwoEditors(leftHandDefault: URI, editableResource: URI, defaultEditableContents: string): TPromise<void> {
-		// Create as needed and open in editor
-		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
-			return this.editorService.openEditors([
-				{ input: { resource: leftHandDefault, options: { pinned: true } }, position: Position.ONE },
-				{ input: { resource: editableResource, options: { pinned: true } }, position: Position.TWO },
-			]).then(() => {
-				this.editorGroupService.focusGroup(Position.TWO);
-			});
-		});
 	}
 
 	private createIfNotExists(resource: URI, contents: string): TPromise<boolean> {

@@ -22,9 +22,7 @@ export class GitSCMProvider implements SCMProvider {
 	}
 
 	commit(message: string): Thenable<void> {
-		const all = this.model.indexGroup.resources.length === 0;
-
-		return this.model.commit(message, { all });
+		return this.commandCenter.commit(message);
 	}
 
 	open(resource: Resource): ProviderResult<void> {

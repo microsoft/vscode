@@ -18,11 +18,11 @@
 }
 
 .vs-dark .monaco-workbench > .part.panel .title {
-	background: #2D2D2D;
+	background: #232323;
 }
 
 .vs .monaco-workbench > .part.panel .title {
-	background: #ECECEC;
+	background: #F6F6F6;
 }
 
 .hc-black .monaco-workbench > .part.panel .title {

@@ -4,51 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import glob = require('vs/base/common/glob');
-import objects = require('vs/base/common/objects');
-import search = require('vs/platform/search/common/search');
+import { mixin } from 'vs/base/common/objects';
+import { IPatternInfo, IQueryOptions, ISearchQuery, QueryType, ISearchConfiguration, getExcludes } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export function getExcludes(configuration: search.ISearchConfiguration): glob.IExpression {
-	let fileExcludes = configuration && configuration.files && configuration.files.exclude;
-	let searchExcludes = configuration && configuration.search && configuration.search.exclude;
-
-	if (!fileExcludes && !searchExcludes) {
-		return null;
-	}
-
-	if (!fileExcludes || !searchExcludes) {
-		return fileExcludes || searchExcludes;
-	}
-
-	let allExcludes: glob.IExpression = Object.create(null);
-	allExcludes = objects.mixin(allExcludes, fileExcludes);
-	allExcludes = objects.mixin(allExcludes, searchExcludes, true);
-
-	return allExcludes;
-}
 
 export class QueryBuilder {
 
 	constructor( @IConfigurationService private configurationService: IConfigurationService) {
 	}
 
-	public text(contentPattern: search.IPatternInfo, options?: search.IQueryOptions): search.ISearchQuery {
-		return this.query(search.QueryType.Text, contentPattern, options);
+	public text(contentPattern: IPatternInfo, options?: IQueryOptions): ISearchQuery {
+		return this.query(QueryType.Text, contentPattern, options);
 	}
 
-	public file(options?: search.IQueryOptions): search.ISearchQuery {
-		return this.query(search.QueryType.File, null, options);
+	public file(options?: IQueryOptions): ISearchQuery {
+		return this.query(QueryType.File, null, options);
 	}
 
-	private query(type: search.QueryType, contentPattern: search.IPatternInfo, options: search.IQueryOptions = {}): search.ISearchQuery {
-		const configuration = this.configurationService.getConfiguration<search.ISearchConfiguration>();
+	private query(type: QueryType, contentPattern: IPatternInfo, options: IQueryOptions = {}): ISearchQuery {
+		const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 
-		let excludePattern = getExcludes(configuration);
+		const excludePattern = getExcludes(configuration);
 		if (!options.excludePattern) {
 			options.excludePattern = excludePattern;
 		} else {
-			objects.mixin(options.excludePattern, excludePattern, false /* no overwrite */);
+			mixin(options.excludePattern, excludePattern, false /* no overwrite */);
 		}
 
 		return {

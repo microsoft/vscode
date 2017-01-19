@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "a",
-		"t": "source.tsx meta.var.expr.tsx meta.var-single-variable.expr.tsx variable.other.readwrite.tsx",
+		"t": "source.tsx meta.var.expr.tsx meta.var-single-variable.expr.tsx meta.definition.variable.tsx variable.other.readwrite.tsx",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": "a",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx variable.object.property.tsx",
+		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.definition.property.tsx variable.object.property.tsx",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": "s",
-		"t": "source.tsx meta.var.expr.tsx meta.var-single-variable.expr.tsx variable.other.readwrite.tsx",
+		"t": "source.tsx meta.var.expr.tsx meta.var-single-variable.expr.tsx meta.definition.variable.tsx variable.other.readwrite.tsx",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",

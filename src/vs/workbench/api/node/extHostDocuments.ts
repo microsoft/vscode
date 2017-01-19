@@ -107,6 +107,10 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		return promise;
 	}
 
+	public createDocumentData(options?: { language: string; }): TPromise<URI> {
+		return this._proxy.$tryCreateDocument(options);
+	}
+
 	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
 		if (scheme === 'file' || scheme === 'untitled') {
 			throw new Error(`scheme '${scheme}' already registered`);

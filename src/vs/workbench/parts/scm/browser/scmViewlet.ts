@@ -32,12 +32,28 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionItem } from 'vs/base/common/actions';
+import { Action, IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { isDarkTheme } from 'vs/platform/theme/common/themes';
+
+function isSCMResource(element: ISCMResource | ISCMResourceGroup): element is ISCMResource {
+	return !!(element as ISCMResource).uri;
+}
+
+function equalsSCMResource(one: ISCMResource, other: ISCMResource): boolean {
+	if (one.resourceGroupId !== other.resourceGroupId) {
+		return false;
+	}
+
+	if (one.uri.toString() !== other.uri.toString()) {
+		return false;
+	}
+
+	return true;
+}
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -141,7 +157,53 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	getHeight() { return 22; }
 
 	getTemplateId(element: ISCMResourceGroup | ISCMResource) {
-		return (element as ISCMResource).uri ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
+		return isSCMResource(element) ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
+	}
+}
+
+/**
+ * HACK
+ */
+class CommitAction extends Action {
+
+	private activeProvider: ISCMProvider;
+	private isRunning = false;
+	private throttler = new Throttler();
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private inputBox: InputBox,
+		@ISCMService scmService: ISCMService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super('scm.commit', localize('commit', "Commit"), 'scm-commit');
+
+		this.setActiveProvider(scmService.activeProvider);
+		scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
+		inputBox.onDidChange(this.updateEnablement, this, this.disposables);
+	}
+
+	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
+		this.activeProvider = activeProvider;
+		this.updateEnablement();
+	}
+
+	private updateEnablement(): void {
+		this.enabled = !!this.activeProvider && !this.isRunning && !!this.inputBox.value;
+	}
+
+	run(): TPromise<any> {
+		return this.throttler
+			.queue(() => {
+				this.isRunning = true;
+				return this.activeProvider.commit(this.inputBox.value);
+			})
+			.then(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err))
+			.then(() => this.isRunning = false);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -156,6 +218,8 @@ export class SCMViewlet extends Viewlet {
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	private currentFocus: (ISCMResource | ISCMResourceGroup)[] = [];
+	private currentSelection: (ISCMResource | ISCMResourceGroup)[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -221,9 +285,12 @@ export class SCMViewlet extends Viewlet {
 			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider)
 		]);
 
+		this.list.onSelectionChange(e => this.currentSelection = e.elements, null, this.disposables);
+		this.list.onFocusChange(e => this.currentFocus = e.elements, null, this.disposables);
+
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])
-			.filter(e => !!e && !!(e as ISCMResource).uri)
+			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
@@ -244,11 +311,34 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
-
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
 
+		// TODO@Joao: move this behaviour down to the List
+		const previousSelection = this.currentSelection.filter(e => isSCMResource(e)) as ISCMResource[];
+		const previousFocus = this.currentFocus.filter(e => isSCMResource(e)) as ISCMResource[];
+		const selection: number[] = [];
+		const focus: number[] = [];
+
+		for (let i = 0; i < elements.length; i++) {
+			const element = elements[i];
+
+			if (!isSCMResource(element)) {
+				continue;
+			}
+
+			if (previousSelection.some(s => equalsSCMResource(s, element))) {
+				selection.push(i);
+			}
+
+			if (previousFocus.some(s => equalsSCMResource(s, element))) {
+				focus.push(i);
+			}
+		}
+
 		this.list.splice(0, this.list.length, elements);
+		this.list.setSelection(selection);
+		this.list.setFocus(focus);
 	}
 
 	layout(dimension: Dimension = this.cachedDimension): void {
@@ -287,7 +377,10 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		return this.menus.getTitleActions();
+		return [
+			this.instantiationService.createInstance(CommitAction, this.inputBox),
+			...this.menus.getTitleActions()
+		];
 	}
 
 	getSecondaryActions(): IAction[] {
@@ -302,12 +395,10 @@ export class SCMViewlet extends Viewlet {
 		const element = e.element;
 		let actions: IAction[];
 
-		if ((element as ISCMResource).uri) {
-			const resource = element as ISCMResource;
-			actions = this.menus.getResourceContextActions(resource);
+		if (isSCMResource(element)) {
+			actions = this.menus.getResourceContextActions(element);
 		} else {
-			const resourceGroup = element as ISCMResourceGroup;
-			actions = this.menus.getResourceGroupContextActions(resourceGroup);
+			actions = this.menus.getResourceGroupContextActions(element);
 		}
 
 		this.contextMenuService.showContextMenu({
