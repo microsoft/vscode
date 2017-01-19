@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": "tsb",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -375,7 +375,7 @@
 	},
 	{
 		"c": "util",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -518,7 +518,7 @@
 	},
 	{
 		"c": "watcher",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": "assign",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -804,7 +804,7 @@
 	},
 	{
 		"c": "compilation",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1959,7 +1959,7 @@
 	},
 	{
 		"c": "src",
-		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2971,7 +2971,7 @@
 	},
 	{
 		"c": "cloneArray",
-		"t": "source.js meta.function.js entity.name.function.js",
+		"t": "source.js meta.function.js meta.definition.function.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3136,7 +3136,7 @@
 	},
 	{
 		"c": "r",
-		"t": "source.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3268,7 +3268,7 @@
 	},
 	{
 		"c": "i",
-		"t": "source.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3345,7 +3345,7 @@
 	},
 	{
 		"c": "len",
-		"t": "source.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
