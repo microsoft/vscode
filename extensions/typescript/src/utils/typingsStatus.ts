@@ -67,7 +67,7 @@ export class AtaProgressReporter {
 
 	constructor(client: ITypescriptServiceClient) {
 		this._disposable = vscode.Disposable.from(
-			client.onDidBeginInstallTypings(e => this._onBegin(e.eventId, e.packages)),
+			client.onDidBeginInstallTypings(e => this._onBegin(e.eventId)),
 			client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId))
 		);
 	}
@@ -77,8 +77,7 @@ export class AtaProgressReporter {
 		this._promises.forEach(value => value());
 	}
 
-	private _onBegin(eventId: number, packages: ReadonlyArray<string>): void {
-
+	private _onBegin(eventId: number): void {
 		const handle = setTimeout(() => this._onEndOrTimeout(eventId), typingsInstallTimeout);
 		const promise = new Promise(resolve => {
 			this._promises.set(eventId, () => {
