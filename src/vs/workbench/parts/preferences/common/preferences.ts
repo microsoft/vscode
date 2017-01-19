@@ -32,6 +32,7 @@ export interface ISetting {
 	valueRange: IRange;
 	description: string[];
 	descriptionRanges: IRange[];
+	settings: ISetting[];
 }
 
 export interface IFilterResult {
