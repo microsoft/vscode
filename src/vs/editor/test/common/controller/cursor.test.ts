@@ -2955,7 +2955,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			assertCursor(cursor, new Selection(3, 16, 3, 16));
 
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assert.equal(model.getLineContent(3), "    if (true) {");
+			assert.equal(model.getLineContent(3), '    if (true) {');
 			assertCursor(cursor, new Selection(4, 9, 4, 9));
 		});
 	});
@@ -2979,7 +2979,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			assertCursor(cursor, new Selection(3, 16, 3, 16));
 
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assert.equal(model.getLineContent(3), "    if (true) {");
+			assert.equal(model.getLineContent(3), '    if (true) {');
 			assertCursor(cursor, new Selection(4, 3, 4, 3));
 		});
 	});
