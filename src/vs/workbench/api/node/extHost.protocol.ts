@@ -186,7 +186,9 @@ export abstract class MainThreadOutputServiceShape {
 }
 
 export abstract class MainThreadProgressShape {
-	$progressStart(handle: number, extensionId: string, location: string): void { throw ni(); }
+
+	$startWindow(handle: number, title: string): void { throw ni(); };
+	$startScm(handle: number): void { throw ni(); };
 	$progressReport(handle: number, message: string): void { throw ni(); }
 	$progressEnd(handle: number): void { throw ni(); }
 }
