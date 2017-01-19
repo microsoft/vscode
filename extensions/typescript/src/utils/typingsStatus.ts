@@ -9,6 +9,8 @@
 
 import * as vscode from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { loadMessageBundle } from 'vscode-nls';
+const localize = loadMessageBundle();
 
 const typingsInstallTimeout = 30 * 1000;
 
@@ -85,10 +87,7 @@ export class AtaProgressReporter {
 			});
 		});
 
-		vscode.window.withWindowProgress(progress => {
-			progress.report('Installing packages...');
-			return promise;
-		});
+		vscode.window.withWindowProgress(localize('installingPackages', "Fetching data for better TypeScript IntelliSense"), () => promise);
 	}
 
 	private _onEndOrTimeout(eventId: number): void {
