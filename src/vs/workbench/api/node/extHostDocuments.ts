@@ -7,6 +7,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { RawText } from 'vs/editor/common/model/textModel';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -126,7 +127,27 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 			subscription = provider.onDidChange(uri => {
 				if (this._documentData.has(uri.toString())) {
 					this.$provideTextDocumentContent(handle, <URI>uri).then(value => {
-						return this._proxy.$onVirtualDocumentChange(<URI>uri, value);
+
+						const document = this._documentData.get(uri.toString());
+						if (!document) {
+							// disposed in the meantime
+							return;
+						}
+
+						// create lines and compare
+						const raw = RawText.fromString(value, {
+							defaultEOL: editorCommon.DefaultEndOfLine.CRLF,
+							tabSize: 0,
+							detectIndentation: false,
+							insertSpaces: false,
+							trimAutoWhitespace: false
+						});
+
+						// broadcast event when content changed
+						if (!document.equalLines(raw)) {
+							return this._proxy.$onVirtualDocumentChange(<URI>uri, raw);
+						}
+
 					}, onUnexpectedError);
 				}
 			});
@@ -239,6 +260,19 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		this._textLines.length = 0;
 		this._isDirty = false;
 		super.dispose();
+	}
+
+	equalLines({lines}: editorCommon.IRawText): boolean {
+		const len = lines.length;
+		if (len !== this._lines.length) {
+			return false;
+		}
+		for (let i = 0; i < len; i++) {
+			if (lines[i] !== this._lines[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	get document(): vscode.TextDocument {
