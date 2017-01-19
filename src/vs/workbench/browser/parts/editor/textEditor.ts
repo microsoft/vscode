@@ -107,7 +107,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		const overrides = {};
 		const language = this.getLanguage();
 		if (language) {
-			objects.assign(overrides, this.configurationService.getConfiguration<IEditorConfiguration>({ language, section: 'editor' }));
+			objects.assign(overrides, this.configurationService.getConfiguration<IEditorConfiguration>({ overrideIdentifier: language, section: 'editor' }));
 		}
 		objects.assign(overrides, {
 			overviewRulerLanes: 3,

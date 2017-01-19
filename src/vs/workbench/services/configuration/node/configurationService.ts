@@ -116,7 +116,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	public getConfiguration<C>(options?: IConfigurationOptions): C
 	public getConfiguration<C>(arg?: any): C {
 		const options = this.toOptions(arg);
-		const configModel = options.language ? this.cachedConfig.languageConfig<C>(options.language) : this.cachedConfig;
+		const configModel = options.overrideIdentifier ? this.cachedConfig.configWithOverrides<C>(options.overrideIdentifier) : this.cachedConfig;
 		return options.section ? configModel.config<C>(options.section).contents : configModel.contents;
 	}
 

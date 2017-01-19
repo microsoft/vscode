@@ -68,7 +68,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	constructor() {
 		this.configurationContributors = [];
-		this.configurationSchema = { properties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+		this.configurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 
@@ -139,26 +139,24 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				subNodes.forEach(register);
 			}
 		};
-		register(configuration);
+		if (configuration.id === SETTINGS_OVERRRIDE_NODE_ID) {
+			configurationSchema.patternProperties[OVERRIDE_PROPERTY] = objects.clone(configuration.properties['[]']);
+		} else {
+			register(configuration);
+		}
 		contributionRegistry.registerSchema(schemaId, configurationSchema);
 	}
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
-		if (this.configurationSchema.properties[SETTINGS_OVERRIDE]) {
-			const propertyPattern = '.*';
-			if (!this.configurationSchema.properties[SETTINGS_OVERRIDE].patternProperties) {
-				const patternProperties = {};
-				patternProperties[propertyPattern] = {
-					type: 'object',
-					properties: {}
-				};
-				this.configurationSchema.properties[SETTINGS_OVERRIDE].patternProperties = patternProperties;
-			}
-			const properties = this.configurationSchema.properties[SETTINGS_OVERRIDE].patternProperties[propertyPattern].properties;
-			if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
+		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
+			let patternProperties = this.configurationSchema.patternProperties[OVERRIDE_PROPERTY];
+			if (patternProperties) {
+				if (!patternProperties.properties) {
+					patternProperties.properties = {};
+				}
 				if (configuration.properties) {
 					for (const key in configuration.properties) {
-						properties[key] = this.getConfigurationProperties()[key];
+						patternProperties.properties[key] = this.getConfigurationProperties()[key];
 					}
 				}
 			}
@@ -166,21 +164,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private registerOverrideSettingsConfiguration(): void {
-		const properties = {};
-		properties[SETTINGS_OVERRIDE] = {
-			type: 'object',
-			description: nls.localize('overrideSettings.description',
-				`Configure settings to be overridden for language modes. To override, use the language id, or language ids separated by ',' as the key to group settings. Example:
-"settings.overrides" = {
-		"markdown" = {
-			"editor.wrappingColumn": 0
-		},
-		"css,scss" = {
-			"editor.formatOnSave": true
-		}
-}
-`
-			),
+		const properties = {
+			'[]': {
+				type: 'object',
+				description: nls.localize('overrideSettings.description', "Configure settings to be overridden for a set of language identifiers.")
+			}
 		};
 		this.registerConfiguration({
 			id: SETTINGS_OVERRRIDE_NODE_ID,
@@ -191,8 +179,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 }
 
-const SETTINGS_OVERRRIDE_NODE_ID = 'overrideSettings';
-export const SETTINGS_OVERRIDE = 'settings.override';
+const SETTINGS_OVERRRIDE_NODE_ID = 'override';
+const OVERRIDE_PROPERTY = '\\[.*\\]$';
+export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
 
 function getDefaultValue(type: string | string[]): any {
 	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;

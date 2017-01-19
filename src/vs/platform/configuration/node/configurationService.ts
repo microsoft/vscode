@@ -77,7 +77,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	public getConfiguration<C>(arg?: any): C {
 		const options = this.toOptions(arg);
 		const cache = this.getCache();
-		const configModel = options.language ? cache.consolidated.languageConfig<C>(options.language) : cache.consolidated;
+		const configModel = options.overrideIdentifier ? cache.consolidated.configWithOverrides<C>(options.overrideIdentifier) : cache.consolidated;
 		return options.section ? configModel.config<C>(options.section).contents : configModel.contents;
 	}
 
