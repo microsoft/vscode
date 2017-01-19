@@ -119,6 +119,7 @@ export abstract class MainThreadDiagnosticsShape {
 }
 
 export abstract class MainThreadDocumentsShape {
+	$tryCreateDocument(options?: { language: string; }): TPromise<any> { throw ni(); }
 	$tryOpenDocument(uri: URI): TPromise<any> { throw ni(); }
 	$registerTextContentProvider(handle: number, scheme: string): void { throw ni(); }
 	$onVirtualDocumentChange(uri: URI, value: string): void { throw ni(); }
@@ -185,9 +186,11 @@ export abstract class MainThreadOutputServiceShape {
 }
 
 export abstract class MainThreadProgressShape {
-	$progressStart(handle: number, extensionId: string, location: string): void { throw ni(); }
+
+	$startWindow(handle: number, title: string): void { throw ni(); };
+	$startScm(handle: number): void { throw ni(); };
 	$progressReport(handle: number, message: string): void { throw ni(); }
-	$progressEnd(handle: number, err?: any): void { throw ni(); }
+	$progressEnd(handle: number): void { throw ni(); }
 }
 
 export abstract class MainThreadTerminalServiceShape {

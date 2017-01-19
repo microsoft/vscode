@@ -66,7 +66,7 @@ interface IHitTestResult {
 	hitTarget: Element;
 }
 
-class MouseTarget implements IMouseTarget {
+export class MouseTarget implements IMouseTarget {
 
 	public readonly element: Element;
 	public readonly type: MouseTargetType;
@@ -87,48 +87,52 @@ class MouseTarget implements IMouseTarget {
 		this.detail = detail;
 	}
 
-	private _typeToString(): string {
-		if (this.type === MouseTargetType.TEXTAREA) {
+	private static _typeToString(type: MouseTargetType): string {
+		if (type === MouseTargetType.TEXTAREA) {
 			return 'TEXTAREA';
 		}
-		if (this.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
+		if (type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			return 'GUTTER_GLYPH_MARGIN';
 		}
-		if (this.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
+		if (type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 			return 'GUTTER_LINE_NUMBERS';
 		}
-		if (this.type === MouseTargetType.GUTTER_LINE_DECORATIONS) {
+		if (type === MouseTargetType.GUTTER_LINE_DECORATIONS) {
 			return 'GUTTER_LINE_DECORATIONS';
 		}
-		if (this.type === MouseTargetType.GUTTER_VIEW_ZONE) {
+		if (type === MouseTargetType.GUTTER_VIEW_ZONE) {
 			return 'GUTTER_VIEW_ZONE';
 		}
-		if (this.type === MouseTargetType.CONTENT_TEXT) {
+		if (type === MouseTargetType.CONTENT_TEXT) {
 			return 'CONTENT_TEXT';
 		}
-		if (this.type === MouseTargetType.CONTENT_EMPTY) {
+		if (type === MouseTargetType.CONTENT_EMPTY) {
 			return 'CONTENT_EMPTY';
 		}
-		if (this.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+		if (type === MouseTargetType.CONTENT_VIEW_ZONE) {
 			return 'CONTENT_VIEW_ZONE';
 		}
-		if (this.type === MouseTargetType.CONTENT_WIDGET) {
+		if (type === MouseTargetType.CONTENT_WIDGET) {
 			return 'CONTENT_WIDGET';
 		}
-		if (this.type === MouseTargetType.OVERVIEW_RULER) {
+		if (type === MouseTargetType.OVERVIEW_RULER) {
 			return 'OVERVIEW_RULER';
 		}
-		if (this.type === MouseTargetType.SCROLLBAR) {
+		if (type === MouseTargetType.SCROLLBAR) {
 			return 'SCROLLBAR';
 		}
-		if (this.type === MouseTargetType.OVERLAY_WIDGET) {
+		if (type === MouseTargetType.OVERLAY_WIDGET) {
 			return 'OVERLAY_WIDGET';
 		}
 		return 'UNKNOWN';
 	}
 
+	public static toString(target: IMouseTarget): string {
+		return this._typeToString(target.type) + ': ' + target.position + ' - ' + target.range + ' - ' + target.detail;
+	}
+
 	public toString(): string {
-		return this._typeToString() + ': ' + this.position + ' - ' + this.range + ' - ' + this.detail;
+		return MouseTarget.toString(this);
 	}
 }
 

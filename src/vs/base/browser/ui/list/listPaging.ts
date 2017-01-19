@@ -88,7 +88,7 @@ export class PagedList<T> {
 
 	set model(model: IPagedModel<T>) {
 		this._model = model;
-		this.list.splice(0, this.list.length, ...range(model.length));
+		this.list.splice(0, this.list.length, range(model.length));
 	}
 
 	get scrollTop(): number {
@@ -127,8 +127,8 @@ export class PagedList<T> {
 		return this.list.getFocus();
 	}
 
-	setSelection(...indexes: number[]): void {
-		this.list.setSelection(...indexes);
+	setSelection(indexes: number[]): void {
+		this.list.setSelection(indexes);
 	}
 
 	layout(height?: number): void {

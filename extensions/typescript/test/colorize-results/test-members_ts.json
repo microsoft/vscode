@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "count",
-		"t": "source.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "source.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",

@@ -140,14 +140,6 @@ export class TextResourceEditor extends BaseTextEditor {
 			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
 		}
 
-		const model = this.editorGroupService.getStacksModel();
-		if (model.groups.length > 1) {
-			const group = model.groupAt(this.position);
-			if (group) {
-				ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
-			}
-		}
-
 		options.ariaLabel = ariaLabel;
 
 		return options;

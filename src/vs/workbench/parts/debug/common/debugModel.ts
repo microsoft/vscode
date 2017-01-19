@@ -492,12 +492,20 @@ export class Process implements debug.IProcess {
 
 	private threads: Map<number, Thread>;
 
-	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
+	constructor(public configuration: debug.IConfig, private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = new Map<number, Thread>();
 	}
 
 	public get session(): debug.ISession {
 		return this._session;
+	}
+
+	public get name(): string {
+		return this.configuration.name;
+	}
+
+	public isAttach(): boolean {
+		return this.configuration.type === 'attach';
 	}
 
 	public getThread(threadId: number): Thread {
@@ -693,8 +701,8 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
-	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): Process {
-		const process = new Process(name, session);
+	public addProcess(configuration: debug.IConfig, session: debug.ISession & debug.ITreeElement): Process {
+		const process = new Process(configuration, session);
 		this.processes.push(process);
 
 		return process;

@@ -216,11 +216,10 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
-				if (this.tabOptions.showTabCloseButton) {
-					DOM.removeClass(tabContainer, 'no-close-button');
-				} else {
-					DOM.addClass(tabContainer, 'no-close-button');
-				}
+				['off', 'left'].forEach(option => {
+					const domAction = this.tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
+					domAction(tabContainer, `close-button-${option}`);
+				});
 
 				// Label
 				const tabLabel = this.editorLabels[index];
