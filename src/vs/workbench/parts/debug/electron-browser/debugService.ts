@@ -687,10 +687,6 @@ export class DebugService implements debug.IDebugService {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true // #10574
 			}).then((result: DebugProtocol.InitializeResponse) => {
-				if (session.disconnected) {
-					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
-				}
-
 				this.model.setExceptionBreakpoints(session.configuration.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? session.attach(configuration) : session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
