@@ -27,7 +27,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as path from 'path';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
 
@@ -132,13 +131,12 @@ export class WalkThroughPart extends BaseEditor {
 				const renderer = new marked.Renderer();
 				renderer.code = (code, lang) => {
 					const id = `snippet-${model.snippets[i++].textEditorModel.uri.fragment}`;
-					return `<div id=${id} class="walkThroughEditorContainer" ></div>`;
+					return `<div id="${id}" class="walkThroughEditorContainer" ></div>`;
 				};
 				this.content.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
 				this.content.innerHTML = marked(markdown, { renderer });
 
-				// TODO: also create jsconfig.json and tsconfig.json
 				model.snippets.forEach(snippet => {
 					const model = snippet.textEditorModel;
 					const id = `snippet-${model.uri.fragment}`;
