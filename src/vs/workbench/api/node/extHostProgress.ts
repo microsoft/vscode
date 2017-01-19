@@ -17,18 +17,20 @@ export class ExtHostProgress {
 		this._proxy = proxy;
 	}
 
-	withWindowProgress<R>(extension: IExtensionDescription, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
-		return this._withProgress(extension, 'window', task);
+	withWindowProgress<R>(extension: IExtensionDescription, title: string, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+		const handle = this._handles++;
+		this._proxy.$startWindow(handle, title);
+		return this._withProgress(handle, task);
 	}
 
 	withScmProgress<R>(extension: IExtensionDescription, task: (progress: Progress<number>) => Thenable<R>): Thenable<R> {
-		return this._withProgress(extension, 'scm', task);
+		const handle = this._handles++;
+		this._proxy.$startScm(handle);
+		return this._withProgress(handle, task);
 	}
 
-	private _withProgress<R>(extension: IExtensionDescription, type: string, task: (progress: Progress<any>, token: CancellationToken) => Thenable<R>): Thenable<R> {
-		const handle = this._handles++;
+	private _withProgress<R>(handle: number, task: (progress: Progress<any>, token: CancellationToken) => Thenable<R>): Thenable<R> {
 
-		this._proxy.$progressStart(handle, extension.id, type);
 		const progress = {
 			report: (message: string) => {
 				this._proxy.$progressReport(handle, message);
