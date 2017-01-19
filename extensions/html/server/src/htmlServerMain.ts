@@ -125,11 +125,13 @@ function triggerValidation(textDocument: TextDocument): void {
 
 function validateTextDocument(textDocument: TextDocument): void {
 	let diagnostics: Diagnostic[] = [];
-	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
-		if (mode.doValidation && validation[mode.getId()]) {
-			pushAll(diagnostics, mode.doValidation(textDocument));
-		}
-	});
+	if (textDocument.languageId === 'html') {
+		languageModes.getAllModesInDocument(textDocument).forEach(mode => {
+			if (mode.doValidation && validation[mode.getId()]) {
+				pushAll(diagnostics, mode.doValidation(textDocument));
+			}
+		});
+	}
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
