@@ -9,6 +9,7 @@ import { LinkedMap as Map } from 'vs/base/common/map';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEditor } from 'vs/platform/editor/common/editor';
 
 export interface ISettingsGroup {
 	id: string;
@@ -69,10 +70,10 @@ export interface IPreferencesService {
 	createDefaultPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 	resolvePreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openSettings(): TPromise<void>;
+	openSettings(): TPromise<IEditor>;
 	switchSettings(): TPromise<void>;
-	openGlobalSettings(): TPromise<void>;
-	openWorkspaceSettings(): TPromise<void>;
+	openGlobalSettings(): TPromise<IEditor>;
+	openWorkspaceSettings(): TPromise<IEditor>;
 	openGlobalKeybindingSettings(): TPromise<void>;
 }
 

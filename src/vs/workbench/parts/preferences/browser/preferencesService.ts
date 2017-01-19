@@ -14,7 +14,7 @@ import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Position, IEditor } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -125,15 +125,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return TPromise.wrap(null);
 	}
 
-	openSettings(): TPromise<void> {
+	openSettings(): TPromise<IEditor> {
 		return this.doOpenSettings(this.getSettingsConfigurationTarget(this.lastOpenedSettingsInput), false);
 	}
 
-	openGlobalSettings(): TPromise<void> {
+	openGlobalSettings(): TPromise<IEditor> {
 		return this.doOpenSettings(ConfigurationTarget.USER);
 	}
 
-	openWorkspaceSettings(): TPromise<void> {
+	openWorkspaceSettings(): TPromise<IEditor> {
 		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
@@ -176,7 +176,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
-	private doOpenSettings(configurationTarget: ConfigurationTarget, checkToOpenDefaultSettings: boolean = true): TPromise<void> {
+	private doOpenSettings(configurationTarget: ConfigurationTarget, checkToOpenDefaultSettings: boolean = true): TPromise<IEditor> {
 		const openDefaultSettings = !checkToOpenDefaultSettings || !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.openDefaultSettings;
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget)
 			.then(editableSettingsEditorInput => {
@@ -187,7 +187,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					return this.editorService.openEditor(preferencesEditorInput, { pinned: true });
 				}
 				return this.editorService.openEditor(editableSettingsEditorInput, { pinned: true });
-			}).then(() => null);
+			});
 	}
 
 	private getOrCreateEditableSettingsEditorInput(configurationTarget: ConfigurationTarget): TPromise<EditorInput> {

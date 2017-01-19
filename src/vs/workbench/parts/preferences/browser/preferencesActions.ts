@@ -22,7 +22,7 @@ export class OpenSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<void> {
+	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openSettings();
 	}
 }
@@ -40,7 +40,7 @@ export class OpenGlobalSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<void> {
+	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openGlobalSettings();
 	}
 }
@@ -76,7 +76,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<void> {
+	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openWorkspaceSettings();
 	}
 }
