@@ -30,14 +30,9 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri, line) => {
-		const documentUri = decodeURIComponent(uri);
-		const target = vscode.workspace.textDocuments.filter(x => x.uri.toString() === documentUri);
-		if (!target.length) {
-			return;
-		}
-		vscode.window.showTextDocument(target[0]).then(() => {
-			return vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'top' });
-		});
+		return vscode.workspace.openTextDocument(vscode.Uri.parse(decodeURIComponent(uri)))
+			.then(document => vscode.window.showTextDocument(document))
+			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'top' }));
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
@@ -65,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
 		if (isMarkdownFile(event.textEditor.document)) {
-			vscode.commands.executeCommand('vscode.htmlPreview.postMessage',
+			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
 				getMarkdownUri(event.textEditor.document.uri),
 				{
 					line: event.selections[0].start.line
@@ -283,7 +278,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
-			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('experimental.preview.syncronization', false);
+			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('preview.experimentalSyncronization', true);
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;

@@ -146,9 +146,9 @@
 					"default": 1.6,
 					"description": "%markdown.preview.lineHeight.desc%"
 				},
-				"markdown.experimental.preview.syncronization": {
+				"markdown.preview.experimentalSyncronization": {
 					"type": "boolean",
-					"default": false,
+					"default": true,
 					"description": "EXPERIMENTAL - Syncronization between markdown preview and editor"
 				}
 			}

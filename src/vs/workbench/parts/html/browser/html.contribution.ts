@@ -103,13 +103,12 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: S
 
 CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
-	const activePreview = accessor.get(IWorkbenchEditorService).getVisibleEditors()
+	const activePreviews = accessor.get(IWorkbenchEditorService).getVisibleEditors()
 		.filter(c => c instanceof HtmlPreviewPart)
 		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model.uri.scheme == uri.scheme && e.model.uri.path === uri.path);
-	if (activePreview.length) {
-		activePreview[0].sendMessage(message);
-		return true;
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.path === uri.path);
+	for (const preview of activePreviews) {
+		preview.sendMessage(message);
 	}
-	return false;
+	return activePreviews.length > 0;
 });
