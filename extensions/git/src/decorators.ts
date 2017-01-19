@@ -80,12 +80,12 @@ function _throttle<T>(fn: Function): Function {
 export const throttle = decorate(_throttle);
 
 export function debounce(delay: number): Function {
-	return decorate((fn: Function) => {
-		let timer: NodeJS.Timer;
+	return decorate((fn, key) => {
+		const timerKey = `$debounce$${key}`;
 
 		return function (...args: any[]) {
-			clearTimeout(timer);
-			timer = setTimeout(() => fn.apply(this, args), delay);
+			clearTimeout(this[timerKey]);
+			this[timerKey] = setTimeout(() => fn.apply(this, args), delay);
 		};
 	});
 }
