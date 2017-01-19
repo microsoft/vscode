@@ -32,7 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri, line) => {
 		return vscode.workspace.openTextDocument(vscode.Uri.parse(decodeURIComponent(uri)))
 			.then(document => vscode.window.showTextDocument(document))
-			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'center' }));
+			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'top' }));
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
