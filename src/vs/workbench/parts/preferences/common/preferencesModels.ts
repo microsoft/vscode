@@ -87,7 +87,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 		return null;
 	}
 
-	public getSetting(key: string): ISetting {
+	public getPreference(key: string): ISetting {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -412,7 +412,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.doFilterSettings(filter, this.settingsGroups);
 	}
 
-	public getSetting(key: string): ISetting {
+	public getPreference(key: string): ISetting {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -593,29 +593,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			result.push(indent + '// ' + line);
 		}
 	}
-
-	/*private _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[] {
-		const result: IRange[] = [];
-		const text = this._contentByLines[lineNumber - 1];
-		var m: RegExpExecArray;
-		// Reset regex to search from the beginning
-		searchRegex.lastIndex = 0;
-		do {
-			m = searchRegex.exec(text);
-			if (m) {
-				var range: IRange = { startLineNumber: lineNumber, startColumn: m.index + 1, endLineNumber: lineNumber, endColumn: m.index + 1 + m[0].length };
-				result.push(range);
-				if (m.index + m[0].length === text.length) {
-					// Reached the end of the line
-					return result;
-				}
-			}
-		} while (m);
-		return result;
-	}*/
 }
 
-export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel {
+export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
 	private _content: string;
 
@@ -632,5 +612,9 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel {
 			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
 		}
 		return this._content;
+	}
+
+	public getPreference(): any {
+		return null;
 	}
 }
