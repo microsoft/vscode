@@ -11,7 +11,8 @@ import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
+import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 
 export class EditorWalkThroughAction extends Action {
 
@@ -28,7 +29,8 @@ export class EditorWalkThroughAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		const uri = URI.parse(require.toUrl('./editorWalkThrough.md'));
+		const uri = URI.parse(require.toUrl('./editorWalkThrough.md'))
+			.with({ scheme: WALK_THROUGH_SCHEME });
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Editor Walk-Through"), '', uri, null);
 		return this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(() => void (0));

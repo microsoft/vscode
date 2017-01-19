@@ -7,7 +7,7 @@
 import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
-import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,6 +22,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 
 const enabledKey = 'workbench.welcome.enabled';
 
@@ -83,7 +84,8 @@ class WelcomePage {
 
 	private create() {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
-		const uri = URI.parse(require.toUrl('./welcomePage.html'));
+		const uri = URI.parse(require.toUrl('./welcomePage.html'))
+			.with({ scheme: WALK_THROUGH_SCHEME });
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, container => this.onReady(container, recentlyOpened));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(null, onUnexpectedError);
