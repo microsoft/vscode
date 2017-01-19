@@ -188,11 +188,11 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel();
+		let model = this.editor.getModel();
 
 		// no support
-		var [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
-		if (!support || !support.autoFormatTriggerCharacters) {
+		let [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+		if (!support || !support.provideDocumentRangeFormattingEdits) {
 			return;
 		}
 
@@ -218,7 +218,6 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			}
 			const command = new EditOperationsCommand(edits, this.editor.getSelection());
 			this.editor.executeCommand(this.getId(), command);
-			this.editor.focus();
 		});
 	}
 
