@@ -27,6 +27,7 @@ import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } fr
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 
 interface IConfigurationEditOperation extends IConfigurationValue {
 	target: URI;
@@ -195,7 +196,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.isWorkspaceStandalone) {
 			const validKeys = this.configurationService.keys().default;
-			if (validKeys.indexOf(operation.key) < 0) {
+			if (validKeys.indexOf(operation.key) < 0 && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY });
 			}
 		}
@@ -232,7 +233,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				let error = void 0;
 				const parseErrors: json.ParseError[] = [];
 				json.parse(content, parseErrors);
-				if (parseErrors.length > 0) {
+				if (!options.writeToBuffer && parseErrors.length > 0) {
 					error = ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION;
 				}
 
