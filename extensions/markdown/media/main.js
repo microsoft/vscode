@@ -6,8 +6,6 @@
 'use strict';
 
 (function () {
-	var pageHeight = 0;
-
 	/**
 	 * Find the elements around line.
 	 *
@@ -42,6 +40,7 @@
 	 */
 	function scrollToRevealSourceLine(line) {
 		const {before, after} = getElementsAroundSourceLine(line);
+		marker.update(before && before.element);
 		if (before) {
 			let scrollTo = 0;
 			if (after) {
@@ -77,6 +76,32 @@
 			}, "file://");
 		}
 	}
+
+
+	class ActiveLineMarker {
+		update(before) {
+			this._unmarkActiveElement(this._current);
+			this._markActiveElement(before);
+			this._current = before;
+		}
+
+		_unmarkActiveElement(element) {
+			if (!element) {
+				return;
+			}
+			element.className = element.className.replace(/\bcode-active-line\b/g);
+		}
+
+		_markActiveElement(element) {
+			if (!element) {
+				return;
+			}
+			element.className += ' code-active-line';
+		}
+	}
+
+	var pageHeight = 0;
+	var marker = new ActiveLineMarker();
 
 	window.onload = () => {
 		pageHeight = document.body.getBoundingClientRect().height;
