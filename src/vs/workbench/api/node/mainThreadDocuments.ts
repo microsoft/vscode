@@ -8,6 +8,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { RawText } from 'vs/editor/common/model/textModel';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -237,10 +238,26 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}
 	}
 
-	$onVirtualDocumentChange(uri: URI, value: string): void {
+	$onVirtualDocumentChange(uri: URI, value: editorCommon.IRawText): void {
 		const model = this._modelService.getModel(uri);
-		if (model) {
-			model.setValue(value);
+		if (!model) {
+			return;
+		}
+		// fetch the raw text from the ext host but
+		// reuse the current options
+		const {options} = RawText.fromStringWithModelOptions('', model);
+		const raw = <editorCommon.IRawText>{
+			options,
+			lines: value.lines,
+			length: value.length,
+			BOM: value.BOM,
+			EOL: value.EOL,
+			containsRTL: value.containsRTL,
+			isBasicASCII: value.isBasicASCII,
+		};
+
+		if (!model.equals(raw)) {
+			model.setValueFromRawText(raw);
 		}
 	}
 }
