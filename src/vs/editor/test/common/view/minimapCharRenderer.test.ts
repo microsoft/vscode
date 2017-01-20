@@ -5,7 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Constants, MinimapCharRendererFactory } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
+import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 
 suite('MinimapCharRenderer', () => {
 
@@ -65,11 +67,29 @@ suite('MinimapCharRenderer', () => {
 	}
 
 	test('letter d @ 2x', () => {
-		setSampleData(' '.charCodeAt(0), sampleD);
+		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
 		let dest = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
-		renderer.x2RenderChar(dest, 1, 0, 0, ' '.charCodeAt(0));
+		renderer.x2RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
+
+		let actual: number[] = [];
+		for (let i = 0; i < dest.length; i++) {
+			actual[i] = dest[i];
+		}
+		assert.deepEqual(actual, [
+			0x00, 0x00, 0x00, 0x00, 0xbf, 0xbf, 0xbf, 0x92,
+			0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff, 0xbe,
+			0xff, 0xff, 0xff, 0x94, 0xd4, 0xd4, 0xd4, 0x97,
+			0xff, 0xff, 0xff, 0xb1, 0xff, 0xff, 0xff, 0xbb,
+		]);
+	});
+
+	test('letter d @ 2x at runtime', () => {
+		let renderer = createMinimapCharRenderer();
+
+		let dest = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
+		renderer.x2RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
 
 		let actual: number[] = [];
 		for (let i = 0; i < dest.length; i++) {
@@ -84,11 +104,27 @@ suite('MinimapCharRenderer', () => {
 	});
 
 	test('letter d @ 1x', () => {
-		setSampleData(' '.charCodeAt(0), sampleD);
+		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
 		let dest = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
-		renderer.x1RenderChar(dest, 1, 0, 0, ' '.charCodeAt(0));
+		renderer.x1RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
+
+		let actual: number[] = [];
+		for (let i = 0; i < dest.length; i++) {
+			actual[i] = dest[i];
+		}
+		assert.deepEqual(actual, [
+			0xad, 0xad, 0xad, 0x7d,
+			0xeb, 0xeb, 0xeb, 0x9f,
+		]);
+	});
+
+	test('letter d @ 1x at runtime', () => {
+		let renderer = createMinimapCharRenderer();
+
+		let dest = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
+		renderer.x1RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
 
 		let actual: number[] = [];
 		for (let i = 0; i < dest.length; i++) {
