@@ -669,6 +669,10 @@ class TaskService extends EventEmitter implements ITaskService {
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 	}
 
+	public log(value: string): void {
+		this.outputChannel.append(value + '\n');
+	}
+
 	private disposeTaskSystemListeners(): void {
 		this.taskSystemListeners = dispose(this.taskSystemListeners);
 	}
@@ -744,11 +748,15 @@ class TaskService extends EventEmitter implements ITaskService {
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
 						let result: ITaskSystem = null;
+						let parseResult = FileConfig.parse(<FileConfig.ExternalTaskRunnerConfiguration>config, this);
+						if (parseResult.validationStatus.isFatal()) {
+							throw new TaskError(Severity.Error, nls.localize('TaskSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
+						}
 						if (this.isRunnerConfig(config)) {
-							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
+							result = new ProcessRunnerSystem(parseResult.configuration, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
 						} else if (this.isTerminalConfig(config)) {
 							result = new TerminalTaskSystem(
-								<FileConfig.ExternalTaskRunnerConfiguration>config,
+								parseResult.configuration,
 								this.terminalService, this.outputService, this.markerService,
 								this.modelService, this.configurationResolverService, this.telemetryService,
 								TaskService.OutputChannelId
@@ -1041,6 +1049,26 @@ let schema: IJSONSchema =
 				'type': 'string',
 				'enum': ['always', 'silent', 'never']
 			},
+			'options': {
+				'type': 'object',
+				'description': nls.localize('JsonSchema.options', 'Additional command options'),
+				'properties': {
+					'cwd': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
+					},
+					'env': {
+						'type': 'object',
+						'additionalProperties': {
+							'type': 'string'
+						},
+						'description': nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
+					}
+				},
+				'additionalProperties': {
+					'type': ['string', 'array', 'object']
+				}
+			},
 			'patternType': {
 				'anyOf': [
 					{
@@ -1256,24 +1284,7 @@ let schema: IJSONSchema =
 						}
 					},
 					'options': {
-						'type': 'object',
-						'description': nls.localize('JsonSchema.options', 'Additional command options'),
-						'properties': {
-							'cwd': {
-								'type': 'string',
-								'description': nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
-							},
-							'env': {
-								'type': 'object',
-								'additionalProperties': {
-									'type': 'string'
-								},
-								'description': nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
-							}
-						},
-						'additionalProperties': {
-							'type': ['string', 'array', 'object']
-						}
+						'$ref': '#/definitions/options'
 					},
 					'showOutput': {
 						'$ref': '#/definitions/showOutputType',
@@ -1326,12 +1337,24 @@ let schema: IJSONSchema =
 						'type': 'string',
 						'description': nls.localize('JsonSchema.tasks.taskName', "The task's name")
 					},
+					'command': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+					},
+					'isShellCommand': {
+						'type': 'boolean',
+						'default': true,
+						'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+					},
 					'args': {
 						'type': 'array',
-						'description': nls.localize('JsonSchema.tasks.args', 'Additional arguments passed to the command when this task is invoked.'),
+						'description': nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
 						'items': {
 							'type': 'string'
 						}
+					},
+					'options': {
+						'$ref': '#/definitions/options'
 					},
 					'suppressTaskName': {
 						'type': 'boolean',
