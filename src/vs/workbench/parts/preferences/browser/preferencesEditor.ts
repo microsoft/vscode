@@ -152,6 +152,11 @@ export class PreferencesEditor extends BaseEditor {
 		this.searchWidget.focus();
 	}
 
+	public clearInput(): void {
+		this.sideBySidePreferencesWidget.clearInput();
+		super.clearInput();
+	}
+
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
 		const editablePreferencesUri = toResource(newInput.master);
 		this.settingsTabsWidget.show(editablePreferencesUri.toString() === this.preferencesService.userSettingsResource.toString() ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
@@ -303,6 +308,12 @@ export class SideBySidePreferencesWidget extends Widget {
 
 	public getDefaultPreferencesEditor(): DefaultPreferencesEditor {
 		return this.defaultPreferencesEditor;
+	}
+
+	public clearInput(): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.clearInput();
+		}
 	}
 
 	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
