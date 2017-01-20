@@ -14,6 +14,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 
 export interface ITextEditorConfigurationUpdate {
@@ -58,9 +59,12 @@ export enum TextEditorRevealType {
 	InCenterIfOutsideViewport = 2
 }
 
-export interface IApplyEditsOptions {
+export interface IUndoStopOptions {
 	undoStopBefore: boolean;
 	undoStopAfter: boolean;
+}
+
+export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine: EndOfLine;
 }
 
@@ -382,6 +386,28 @@ export class MainThreadTextEditor {
 
 		console.warn('applyEdits on invisible editor');
 		return false;
+	}
+
+	insertSnippet(template: string, opts: IUndoStopOptions) {
+		const snippetController = SnippetController.get(this._codeEditor);
+
+		if (!this._codeEditor) {
+			return false;
+		}
+
+		this._codeEditor.focus();
+
+		if (opts.undoStopBefore) {
+			this._codeEditor.pushUndoStop();
+		}
+
+		snippetController.insertSnippet(template, 0, 0);
+
+		if (opts.undoStopAfter) {
+			this._codeEditor.pushUndoStop();
+		}
+
+		return true;
 	}
 }
 
