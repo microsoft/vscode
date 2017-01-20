@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import DocumentLinkProvider from './documentLinkProvider';
 
 interface IPackageInfo {
 	name: string;
@@ -103,6 +104,8 @@ export function activate(context: vscode.ExtensionContext) {
 	const symbolsProvider = new MDDocumentSymbolProvider(engine);
 	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
 	context.subscriptions.push(contentProviderRegistration, symbolsProviderRegistration);
+
+	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new DocumentLinkProvider()));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', showPreview));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
