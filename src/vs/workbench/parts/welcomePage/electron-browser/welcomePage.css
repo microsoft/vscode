@@ -38,8 +38,16 @@
 	text-decoration: none;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage a:hover {
+	color: #6ea0dc;
+}
+
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage a {
 	color: #0b9eff;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage a:hover {
+	color: #f38518;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage h1 {
@@ -137,6 +145,7 @@
 	margin: 0;
 	padding: 12px 10px;
 	width: 100%;
+	height: 5em;
 	font-size: 1.3em;
 	text-align: left;
 	outline: none;
@@ -182,6 +191,11 @@
 	border-color: #f38518;
 	border-width: 1px;
 	border-style: solid;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover {
+	outline: 1px dashed #f38518;
+	outline-offset: -5px;
 }
 
 @media screen and (max-height: 750px) {
