@@ -9,11 +9,20 @@
 	left: 50%;
 	transform: translate(-50%, -50%);
 	width: 90%;
-	display: flex;
-	flex-flow: row wrap;
-
 	font-family: 'Segoe UI'; /*TEMP*/
 	font-size: 10px;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .row {
+	display: flex;
+	flex-flow: row;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .row * {
+	min-width: 0;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage p {
@@ -29,23 +38,45 @@
 	text-decoration: none;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage a {
+	color: #0b9eff;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage h1 {
 	padding: 0;
 	margin: 0;
 	border: none;
 	/*font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Light", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;*/
 	font-weight: normal;
+	color: rgba(0,0,0,.8);
 	font-size: 3.6em;
 }
+
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage h1 {
+	color: rgba(255,255,255,.76);
+}
+
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage h1 {
+	color: white;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .title {
 	margin-bottom: 1em;
 	flex: 1 100%;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .subtitle {
 	margin-top: .8em;
-	color: rgba(255,255,255,.46);
 	font-size: 2.6em;
+	color: rgba(0,0,0,.53);
 	display: block;
+}
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .subtitle {
+	color: rgba(255,255,255,.46);
+}
+
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage .subtitle {
+	color: white;
+	font-weight: 200;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .splash,
@@ -67,20 +98,23 @@
 .monaco-workbench > .part.editor > .content .welcomePage .splash ul {
 	margin: 0;
 	font-size: 1.3em;
-}
-.monaco-workbench > .part.editor > .content .welcomePage .splash ul {
 	list-style: none;
 	padding: 0;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .splash .recent li {
+	min-width: 0;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
 	padding-left: 1em;
-	opacity: 0.7;
+	color: rgba(255,255,255,.46);
+}
+
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
+	color: white;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .splash .title,
@@ -106,6 +140,11 @@
 	white-space: nowrap;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button span {
+	display: inline-block;
+	width:100%;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button h3 {
 	font-size: 1em;
 	margin: 0;
@@ -113,8 +152,11 @@
 }
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
 	color: #6c6c6c;
-	background: #eee;
+	background:rgba(0,0,0,.04);
 	border: none;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover {
+	background:rgba(0,0,0,.10);
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button > h3 {
@@ -135,4 +177,11 @@
 	background: black;
 	border-color: #f38518;
 	border-width: 1px;
+	border-style: solid;
+}
+
+@media screen and (max-height: 750px) {
+	.monaco-workbench > .part.editor > .content .welcomePage .title {
+		display: none;
+	}
 }
