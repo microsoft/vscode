@@ -282,6 +282,7 @@ export class SideBySidePreferencesWidget extends Widget {
 		this.defaultPreferencesEditorContainer.style.position = 'absolute';
 		this.defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesEditor);
 		this.defaultPreferencesEditor.create(new Builder(this.defaultPreferencesEditorContainer));
+		this.defaultPreferencesEditor.setVisible(true);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
