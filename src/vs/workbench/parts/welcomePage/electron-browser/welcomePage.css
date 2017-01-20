@@ -9,6 +9,7 @@
 	left: 50%;
 	transform: translate(-50%, -50%);
 	width: 90%;
+	max-width: 1200px;
 	font-size: 10px;
 }
 
