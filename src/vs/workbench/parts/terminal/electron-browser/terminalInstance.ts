@@ -528,6 +528,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public updateConfig(): void {
 		this._setCursorBlink(this._configHelper.getCursorBlink());
+		this._setCursorStyle(this._configHelper.getCursorStyle());
 		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
 		this._setScrollback(this._configHelper.getScrollback());
 	}
@@ -536,6 +537,14 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
+		}
+	}
+
+	private _setCursorStyle(style: string): void {
+		if (this._xterm && this._xterm.getOption('cursorStyle') !== style) {
+			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
+			const xtermOption = style === 'line' ? 'bar' : style;
+			this._xterm.setOption('cursorStyle', xtermOption);
 		}
 	}
 
