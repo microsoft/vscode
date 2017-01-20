@@ -58,7 +58,7 @@ export class GitSCMProvider implements IWorkbenchContribution, ISCMProvider, ITe
 
 	getOriginalResource(uri: URI): TPromise<URI> {
 		if (uri.scheme !== 'file') {
-			return;
+			return TPromise.as(null);
 		}
 
 		return TPromise.as(uri.with({ scheme: 'git' }));
