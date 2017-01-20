@@ -72,24 +72,29 @@ export class WalkThroughPart extends BaseEditor {
 
 	private registerClickHandler() {
 		this.content.addEventListener('click', event => {
-			let node = event.target;
-			if (node instanceof HTMLAnchorElement && node.href) {
-				let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
-				if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-					let scrollTarget = this.content.querySelector(node.hash);
-					if (scrollTarget) {
-						scrollTarget.scrollIntoView();
+			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
+				if (node instanceof HTMLAnchorElement && node.href) {
+					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
+					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
+						let scrollTarget = this.content.querySelector(node.hash);
+						if (scrollTarget) {
+							scrollTarget.scrollIntoView();
+						}
+					} else {
+						const uri = this.addFrom(URI.parse(node.href));
+						this.openerService.open(uri);
 					}
-				} else {
-					const uri = this.addFrom(URI.parse(node.href));
-					this.openerService.open(uri);
-				}
-				event.preventDefault();
-			} else if (node instanceof HTMLButtonElement) {
-				const href = node.getAttribute('data-href');
-				if (href) {
-					const uri = this.addFrom(URI.parse(href));
-					this.openerService.open(uri);
+					event.preventDefault();
+					break;
+				} else if (node instanceof HTMLButtonElement) {
+					const href = node.getAttribute('data-href');
+					if (href) {
+						const uri = this.addFrom(URI.parse(href));
+						this.openerService.open(uri);
+					}
+					break;
+				} else if (node === event.currentTarget) {
+					break;
 				}
 			}
 		});
@@ -173,7 +178,7 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
 
 					editor.layout();
-					
+
 					if (i === 0) {
 						editor.focus();
 					}
