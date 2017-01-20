@@ -5,8 +5,8 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 * [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.
 * [Line Actions](#line-actions) - quickly move lines around to re-order your code.
 * [Rename Refactoring](#reference-information) - Quickly rename symbols across your code base.
-* [Formatting](#formatting) - focus on the most relevant parts of your code by folding other areas.
-* [Code Folding](#code-folding) - keep your code looking great with inbuilt document & selection formatting.
+* [Formatting](#formatting) - keep your code looking great with inbuilt document & selection formatting.
+* [Code Folding](#code-folding) - focus on the most relevant parts of your code by folding other areas.
 * [Errors and Warnings](#errors-and-warnings) - see errors and warning as you type.
 * [Snippets](#snippets) - spend less time typing with snippets.
 * [Emmet](#emmet) - integrated Emmet support takes HTML and CSS editing to the next level.
@@ -160,10 +160,15 @@ ul>li.item$*5
 <!-- End -->
 ```
 
->**Tip:** The [Emmet cheat sheet](http://http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions.  Emmet can also be enabled for additional languages via the `emmet.syntaxProfiles` [setting].
+>**Tip:** The [Emmet cheat sheet](http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions.  Emmet can also be enabled for additional languages via the `emmet.syntaxProfiles` [setting].
 
 
 
-# Issues
-Link for refactoring broken
-Sizing with references information
+## Thanks!
+Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.
+
+But don't stop now :)
+
+We have lots of additional [documentation](https://code.visualstudio.com/docs) and [introductory videos](https://code.visualstudio.com/docs/introvideos/overview) for the product that will help you learn how to use the [integrated terminal](https://code.visualstudio.com/docs/editor/integrated-terminal), [debug your code](https://code.visualstudio.com/docs/editor/debugging), work with [version control](https://code.visualstudio.com/docs/editor/versioncontrol) and of course add one of the thousands of available [extensions](https://code.visualstudio.com/docs/editor/extension-marketplace).
+
+Happy Coding!
