@@ -12,6 +12,9 @@
 	max-width: 1200px;
 	font-size: 10px;
 }
+.vs .monaco-workbench > .part.editor > .content .welcomePage {
+	color: #6C6C6C;
+}
 
 .monaco-workbench > .part.editor > .content .welcomePage .row {
 	display: flex;
@@ -163,6 +166,11 @@
 	margin: 0;
 	margin-bottom: .25em;
 }
+
+.vs .monaco-workbench > .part.editor > .content .welcomePage .commands li button h3 {
+	color: #2c2c2c;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
 	color: #6c6c6c;
 	background:rgba(0,0,0,.04);
@@ -174,6 +182,10 @@
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button > h3 {
 	color: #ccc;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button > h3 {
+	font-weight: bold;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
