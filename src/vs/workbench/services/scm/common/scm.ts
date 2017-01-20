@@ -50,8 +50,9 @@ export interface ISCMProvider extends IDisposable {
 export interface ISCMService {
 
 	readonly _serviceBrand: any;
-	readonly activeProvider: ISCMProvider | undefined;
 	readonly onDidChangeProvider: Event<ISCMProvider>;
+	readonly providers: ISCMProvider[];
+	activeProvider: ISCMProvider | undefined;
 
 	registerSCMProvider(provider: ISCMProvider): IDisposable;
 }

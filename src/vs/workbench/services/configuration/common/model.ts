@@ -32,12 +32,10 @@ export class WorkspaceConfigModel<T> extends ConfigModel<T> {
 	}
 
 	private consolidate(): void {
-		let result = new ConfigModel<T>(null).merge(this.workspaceSettingsConfig);
+		this.doMerge(this, this.workspaceSettingsConfig);
 		for (const configModel of this.scopedConfigs) {
-			result = result.merge(configModel);
+			this.doMerge(this, configModel);
 		}
-		this._contents = result.contents;
-		this._overrides = result.overrides;
 	}
 
 	public get keys(): string[] {

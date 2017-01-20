@@ -7,7 +7,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMainProcessExtHostIPC, create } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { IMainProcessExtHostIPC, create } from 'vs/platform/extensions/node/ipcRemoteCom';
 import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

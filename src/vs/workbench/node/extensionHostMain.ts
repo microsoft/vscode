@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { IMainProcessExtHostIPC } from 'vs/platform/extensions/node/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';

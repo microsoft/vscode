@@ -279,6 +279,13 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._wrapperElement) {
 			DOM.toggleClass(this._wrapperElement, 'active', visible);
 		}
+		if (visible && this._xterm) {
+			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
+			// necessary if the number of rows in the terminal has decreased while it was in the
+			// background since scrollTop changes take no effect but the terminal's position does
+			// change since the number of visible rows decreases.
+			this._xterm.emit('scroll', this._xterm.ydisp);
+		}
 	}
 
 	public scrollDownLine(): void {
@@ -521,6 +528,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public updateConfig(): void {
 		this._setCursorBlink(this._configHelper.getCursorBlink());
+		this._setCursorStyle(this._configHelper.getCursorStyle());
 		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
 		this._setScrollback(this._configHelper.getScrollback());
 	}
@@ -529,6 +537,14 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
+		}
+	}
+
+	private _setCursorStyle(style: string): void {
+		if (this._xterm && this._xterm.getOption('cursorStyle') !== style) {
+			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
+			const xtermOption = style === 'line' ? 'bar' : style;
+			this._xterm.setOption('cursorStyle', xtermOption);
 		}
 	}
 

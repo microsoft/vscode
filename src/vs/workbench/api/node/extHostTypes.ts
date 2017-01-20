@@ -519,6 +519,16 @@ export class WorkspaceEdit {
 
 export class SnippetString {
 
+	static isSnippetString(thing: any): thing is SnippetString {
+		if (thing instanceof SnippetString) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<SnippetString>thing).value === 'string';
+	}
+
 	private static _escape(value: string): string {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
