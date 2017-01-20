@@ -21,6 +21,8 @@ interface MarkdownIt {
 	utils: any;
 }
 
+const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
+
 export class MarkdownEngine {
 	private md: MarkdownIt;
 
@@ -55,14 +57,39 @@ export class MarkdownEngine {
 		return this.md;
 	}
 
-	public render(document: vscode.Uri, firstLine: number, text: string): string {
+	private stripFrontmatter(text: string): { text: string, offset: number } {
+		let offset = 0;
+		const frontMatterMatch = FrontMatterRegex.exec(text);
+
+		if (frontMatterMatch) {
+			const frontMatter = frontMatterMatch[0];
+
+			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
+			text = text.substr(frontMatter.length);
+		}
+		return { text, offset };
+	}
+
+	public render(document: vscode.Uri, stripFrontmatter: boolean, text: string): string {
+		let offset = 0;
+		if (stripFrontmatter) {
+			const markdownContent = this.stripFrontmatter(text);
+			offset = markdownContent.offset;
+			text = markdownContent.text;
+		}
 		this.currentDocument = document;
-		this.firstLine = firstLine;
+		this.firstLine = offset;
 		return this.engine.render(text);
 	}
 
-	public parse(text: string): IToken[] {
-		return this.engine.parse(text);
+	public parse(source: string): IToken[] {
+		const {text, offset} = this.stripFrontmatter(source);
+		return this.engine.parse(text).map(token => {
+			if (token.map) {
+				token.map[0] += offset;
+			}
+			return token;
+		});
 	}
 
 	private addLineNumberRenderer(md: any, ruleName: string): void {
