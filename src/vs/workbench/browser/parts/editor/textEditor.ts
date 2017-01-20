@@ -5,6 +5,7 @@
 
 'use strict';
 
+import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
@@ -97,10 +98,24 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
 
 		// Specific editor options always overwrite user configuration
-		const editorConfiguration = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
+		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
 		objects.assign(editorConfiguration, this.getConfigurationOverrides());
 
+		// ARIA label
+		editorConfiguration.ariaLabel = this.computeAriaLabel();
+
 		return editorConfiguration;
+	}
+
+	private computeAriaLabel(): string {
+		let ariaLabel = this.getAriaLabel();
+
+		// Apply group information to help identify in which group we are
+		if (ariaLabel && typeof this.position === 'number') {
+			ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, this.position + 1);
+		}
+
+		return ariaLabel;
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
@@ -109,12 +124,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 		if (language) {
 			objects.assign(overrides, this.configurationService.getConfiguration<IEditorConfiguration>({ overrideIdentifier: language, section: 'editor' }));
 		}
+
 		objects.assign(overrides, {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			theme: this.themeService.getColorTheme().id,
 			fixedOverflowWidgets: true
 		});
+
 		return overrides;
 	}
 
@@ -149,6 +166,15 @@ export abstract class BaseTextEditor extends BaseEditor {
 			// editor input specific options (e.g. an ARIA label depending on the input showing)
 			this.updateEditorConfiguration();
 		});
+	}
+
+	public changePosition(position: Position): void {
+		super.changePosition(position);
+
+		// Make sure to update ARIA label if the position of this editor changed
+		if (this.editorControl) {
+			this.editorControl.updateOptions({ ariaLabel: this.computeAriaLabel() });
+		}
 	}
 
 	protected setEditorVisible(visible: boolean, position: Position = null): void {
@@ -241,6 +267,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 				return model.getLanguageIdentifier().language;
 			}
 		}
+
 		if (this.input) {
 			const resource = toResource(this.input);
 			if (resource) {
@@ -250,8 +277,11 @@ export abstract class BaseTextEditor extends BaseEditor {
 				}
 			}
 		}
+
 		return null;
 	}
+
+	protected abstract getAriaLabel(): string;
 
 	public dispose(): void {
 
