@@ -8,20 +8,17 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
-import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/node/ipcRemoteCom';
+import { IRemoteCom, createProxyProtocol } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
 import { createQueuedSender } from 'vs/base/node/processes';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import Event, { Emitter } from 'vs/base/common/event';
 
 interface IRendererConnection {
-	remoteCom: IMainProcessExtHostIPC;
+	remoteCom: IRemoteCom;
 	initData: IInitData;
 }
-
-/**
- * Flag set when in shutdown phase to avoid communicating to the main process.
- */
-let isTerminating = false;
 
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
@@ -32,6 +29,32 @@ let onTerminate = function () {
 // Utility to not flood the process.send() with messages if it is busy catching up
 const queuedSender = createQueuedSender(process);
 
+const protocol = new class implements IMessagePassingProtocol {
+
+	private _sender = createQueuedSender(process);
+	private _onMessage = new Emitter<any>();
+	private _terminating: boolean = false;
+
+	readonly onMessage: Event<any> = this._onMessage.event;
+
+	constructor() {
+		process.on('message', (msg) => {
+			if (msg.type === '__$terminate') {
+				this._terminating = true;
+				onTerminate();
+				return;
+			}
+			this._onMessage.fire(msg);
+		});
+	}
+
+	send(data: any): void {
+		if (!this._terminating) {
+			this._sender.send(data);
+		}
+	}
+};
+
 function connectToRenderer(): TPromise<IRendererConnection> {
 	return new TPromise<IRendererConnection>((c, e) => {
 		const stats: number[] = [];
@@ -41,24 +64,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 
 			let msg = marshalling.parse(raw);
 
-			const remoteCom = createIPC(data => {
-				// Needed to avoid EPIPE errors in process.send below when a channel is closed
-				if (isTerminating === true) {
-					return;
-				}
-				queuedSender.send(data);
-				stats.push(data.length);
-			});
-
-			// Listen to all other messages
-			process.on('message', (msg) => {
-				if (msg.type === '__$terminate') {
-					isTerminating = true;
-					onTerminate();
-					return;
-				}
-				remoteCom.handle(msg);
-			});
+			const remoteCom = createProxyProtocol(protocol);
 
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
