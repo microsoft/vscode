@@ -416,12 +416,16 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 
-		let currentLineScopedLineTokens = this.getScopedLineTokens(model, lineNumber);
-		let lastLineScopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
+		// it's Okay that lineNumber > model.getLineCount(), a good example is guessing the indentation of next potential line
+		// when the cursor is at the end of file.
+		if (lineNumber <= model.getLineCount()) {
+			let currentLineScopedLineTokens = this.getScopedLineTokens(model, lineNumber);
+			let lastLineScopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
 
-		if (currentLineScopedLineTokens.languageId !== lastLineScopedLineTokens.languageId) {
-			// The language mode of last valid line is not the same as current line.
-			return null;
+			if (currentLineScopedLineTokens.languageId !== lastLineScopedLineTokens.languageId) {
+				// The language mode of last valid line is not the same as current line.
+				return null;
+			}
 		}
 
 		let lineText = model.getLineContent(lastLineNumber);
