@@ -123,13 +123,11 @@ export abstract class AbstractSettingsModel extends Disposable {
 				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
 
-			if (setting.value && (schema.type === 'string' || schema.enum)) {
-				const valueMatches = matchesContiguousSubString(word, setting.value);
-				if (valueMatches) {
-					valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
-				} else if (schema.enum && schema.enum.some(enumValue => enumValue && !!matchesContiguousSubString(word, enumValue))) {
-					valueMatchingWords.set(word, []);
-				}
+			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
+			if (valueMatches) {
+				valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+			} else if (schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
+				valueMatchingWords.set(word, []);
 			}
 		}
 
