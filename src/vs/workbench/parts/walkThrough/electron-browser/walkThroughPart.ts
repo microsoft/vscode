@@ -148,7 +148,7 @@ export class WalkThroughPart extends BaseEditor {
 				const markdown = this.expandMacros(content);
 				this.content.innerHTML = marked(markdown, { renderer });
 
-				model.snippets.forEach(snippet => {
+				model.snippets.forEach((snippet, i) => {
 					const model = snippet.textEditorModel;
 					const id = `snippet-${model.uri.fragment}`;
 					const div = this.content.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
@@ -173,6 +173,10 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
 
 					editor.layout();
+					
+					if (i === 0) {
+						editor.focus();
+					}
 				});
 				if (input.onReady) {
 					input.onReady(this.content);
