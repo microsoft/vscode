@@ -40,6 +40,10 @@
 	color: #4080D0;
 	text-decoration: none;
 }
+.monaco-workbench > .part.editor > .content .welcomePage a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
 
 .monaco-workbench > .part.editor > .content .welcomePage a:hover {
 	color: #6ea0dc;
@@ -195,6 +199,14 @@
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover {
 	background: #2a2d2e;
+}
+
+.vs .monaco-workbench > .part.editor > .content .welcomePage .commands li button:focus {
+	outline: 1px solid rgba(0, 0, 0, .6);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button:focus {
+	outline: 1px solid rgba(255, 255, 255, .5);
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
