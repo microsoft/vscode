@@ -142,7 +142,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	switchSettings(): TPromise<void> {
-		const activeEditorInput = this.editorService.getActiveEditorInput();
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorInput = activeEditor.input;
 		if (activeEditorInput instanceof PreferencesEditorInput) {
 			const fromTarget = this.getSettingsConfigurationTarget(activeEditorInput);
 			const toTarget = ConfigurationTarget.USER === fromTarget ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -152,7 +153,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					return this.editorService.replaceEditors([{
 						toReplace: this.lastOpenedSettingsInput,
 						replaceWith
-					}]).then(() => {
+					}], activeEditor.position).then(() => {
 						this.lastOpenedSettingsInput = replaceWith;
 					});
 				});
