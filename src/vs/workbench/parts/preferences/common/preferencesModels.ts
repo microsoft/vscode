@@ -123,11 +123,11 @@ export abstract class AbstractSettingsModel extends Disposable {
 				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
 
-			if (schema.type === 'string' || schema.enum) {
+			if (setting.value && (schema.type === 'string' || schema.enum)) {
 				const valueMatches = matchesContiguousSubString(word, setting.value);
 				if (valueMatches) {
 					valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
-				} else if (schema.enum && schema.enum.some(enumValue => !!matchesContiguousSubString(word, enumValue))) {
+				} else if (schema.enum && schema.enum.some(enumValue => enumValue && !!matchesContiguousSubString(word, enumValue))) {
 					valueMatchingWords.set(word, []);
 				}
 			}
@@ -135,7 +135,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 
 		const descriptionRanges: IRange[] = [];
 		for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex]) || [];
+			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
 			descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 		}
 		if (descriptionRanges.length === 0) {
@@ -146,7 +146,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, keyMatchingWords, [descriptionMatchingWords, valueMatchingWords]);
 
 		let valueRanges: IRange[] = [];
-		if (typeof setting.value === 'string') {
+		if (setting.value && typeof setting.value === 'string') {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, valueMatchingWords, [keyMatchingWords, descriptionMatchingWords]);
 		}
