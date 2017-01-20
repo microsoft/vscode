@@ -15,7 +15,8 @@
 	"activationEvents": [
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
-		"onCommand:markdown.showSource"
+		"onCommand:markdown.showSource",
+		"onLanguage:markdown"
 	],
 	"contributes": {
 		"languages": [

@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import DocumentLinkProvider from './documentLinkProvider';
 
 interface IPackageInfo {
 	name: string;
@@ -24,6 +25,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	let provider = new MDDocumentContentProvider(context);
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('markdown', provider));
+
+	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new DocumentLinkProvider()));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', showPreview));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
