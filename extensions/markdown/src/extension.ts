@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import Renderer from './renderer';
 
 interface IPackageInfo {
 	name: string;
@@ -162,58 +163,20 @@ function getPackageInfo(context: vscode.ExtensionContext): IPackageInfo | null {
 	return null;
 }
 
-
-interface IRenderer {
-	render(text: string): string;
-}
-
 class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean;
-	private _renderer: IRenderer;
+	private _renderer: Renderer;
 
 	constructor(private context: vscode.ExtensionContext) {
 		this._waiting = false;
-		this._renderer = this.createRenderer();
 	}
 
-	private createRenderer(): IRenderer {
-		const hljs = require('highlight.js');
-		const mdnh = require('markdown-it-named-headers');
-		const md = require('markdown-it')({
-			html: true,
-			highlight: (str: string, lang: string) => {
-				if (lang && hljs.getLanguage(lang)) {
-					try {
-						return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-					} catch (error) { }
-				}
-				return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-			}
-		}).use(mdnh, {});
-
-		function createLineNumberRenderer(ruleName: string) {
-			const original = md.renderer.rules[ruleName];
-			return (tokens: any, idx: number, options: any, env: any, self: any) => {
-				const token = tokens[idx];
-				if (token.level === 0 && token.map && token.map.length) {
-					token.attrSet('data-line', token.map[0]);
-					token.attrJoin('class', 'code-line');
-				}
-				if (original) {
-					return original(tokens, idx, options, env, self);
-				} else {
-					return self.renderToken(tokens, idx, options, env, self);
-				}
-			};
+	private getRenderer() {
+		if (!this._renderer) {
+			this._renderer = new Renderer();
 		}
-
-		md.renderer.rules.paragraph_open = createLineNumberRenderer('paragraph_open');
-		md.renderer.rules.heading_open = createLineNumberRenderer('heading_open');
-		md.renderer.rules.image = createLineNumberRenderer('image');
-		md.renderer.rules.code_block = createLineNumberRenderer('code_block');
-
-		return md;
+		return this._renderer;
 	}
 
 	private getMediaPath(mediaFile: string): string {
@@ -297,7 +260,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 					<base href="${document.uri.toString(true)}">
 				</head>
 				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''}">
-					${this._renderer.render(this.getDocumentContentForPreview(document))}
+					${this.getRenderer().render(sourceUri, this.getDocumentContentForPreview(document))}
 					<script>
 						window.initialData = {
 							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
