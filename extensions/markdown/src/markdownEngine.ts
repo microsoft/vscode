@@ -8,38 +8,58 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-export default class MarkdownRenderer {
-	private md: any;
+export interface IToken {
+	type: string;
+	map: [number, number];
+}
+
+interface MarkdownIt {
+	render(text: string): string;
+
+	parse(text: string): IToken[];
+
+	utils: any;
+}
+
+export class MarkdownEngine {
+	private md: MarkdownIt;
 
 	private currentDocument: vscode.Uri;
 
-	constructor() {
-		const hljs = require('highlight.js');
-		const mdnh = require('markdown-it-named-headers');
-		this.md = require('markdown-it')({
-			html: true,
-			highlight: (str: string, lang: string) => {
-				if (lang && hljs.getLanguage(lang)) {
-					try {
-						return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-					} catch (error) { }
+	private get engine(): MarkdownIt {
+		if (!this.md) {
+			const hljs = require('highlight.js');
+			const mdnh = require('markdown-it-named-headers');
+			this.md = require('markdown-it')({
+				html: true,
+				highlight: (str: string, lang: string) => {
+					if (lang && hljs.getLanguage(lang)) {
+						try {
+							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+						} catch (error) { }
+					}
+					return `<pre class="hljs"><code><div>${this.engine.utils.escapeHtml(str)}</div></code></pre>`;
 				}
-				return `<pre class="hljs"><code><div>${this.md.utils.escapeHtml(str)}</div></code></pre>`;
-			}
-		}).use(mdnh, {});
+			}).use(mdnh, {});
 
-		this.addLineNumberRenderer(this.md, 'paragraph_open');
-		this.addLineNumberRenderer(this.md, 'heading_open');
-		this.addLineNumberRenderer(this.md, 'image');
-		this.addLineNumberRenderer(this.md, 'code_block');
+			this.addLineNumberRenderer(this.md, 'paragraph_open');
+			this.addLineNumberRenderer(this.md, 'heading_open');
+			this.addLineNumberRenderer(this.md, 'image');
+			this.addLineNumberRenderer(this.md, 'code_block');
 
-		this.addLinkNormalizer(this.md);
-		this.addLinkValidator(this.md);
+			this.addLinkNormalizer(this.md);
+			this.addLinkValidator(this.md);
+		}
+		return this.md;
 	}
 
 	public render(document: vscode.Uri, text: string): string {
 		this.currentDocument = document;
-		return this.md.render(text);
+		return this.engine.render(text);
+	}
+
+	public parse(text: string): IToken[] {
+		return this.engine.parse(text);
 	}
 
 	private addLineNumberRenderer(md: any, ruleName: string): void {

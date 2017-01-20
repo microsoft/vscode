@@ -12,7 +12,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDocuments, ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
-import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind, TextEditorLineNumbersStyle } from './extHostTypes';
+import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
 import { ISingleEditOperation, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
@@ -595,10 +595,17 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- editing
 
-	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
-		let edit = new TextEditorEdit(this._documentData.document, options);
-		callback(edit);
-		return this._applyEdit(edit);
+	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+	edit(snippet: SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+
+	edit(callbackOrSnippet: ((edit: TextEditorEdit) => void) | SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+		if (SnippetString.isSnippetString(callbackOrSnippet)) {
+			return this._proxy.$tryInsertSnippet(this._id, callbackOrSnippet.value, options);
+		} else {
+			let edit = new TextEditorEdit(this._documentData.document, options);
+			callbackOrSnippet(edit);
+			return this._applyEdit(edit);
+		}
 	}
 
 	_applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {

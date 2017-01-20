@@ -21,7 +21,5 @@
 	"command.pushTo": "Push to...",
 	"command.sync": "Sync",
 	"command.publish": "Publish",
-	"command.showOutput": "Show Git Output",
-	"language-alias.git-commit": "Git Commit Message",
-	"language-alias.git-rebase": "Git Rebase Message"
+	"command.showOutput": "Show Git Output"
 }
