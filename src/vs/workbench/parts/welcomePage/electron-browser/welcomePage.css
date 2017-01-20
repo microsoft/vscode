@@ -4,9 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .part.editor > .content .welcomePage {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 90%;
+	display: flex;
+	flex-flow: row wrap;
+
 	font-family: 'Segoe UI'; /*TEMP*/
 	font-size: 10px;
 }
+
+.monaco-workbench > .part.editor > .content .welcomePage p {
+	font-size: 1.3em;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .keyboard {
 	font-family: "Lucida Grande", sans-serif;/* Keyboard shortcuts */
 }
@@ -16,14 +29,7 @@
 	text-decoration: none;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage .splash {
-	position: absolute;
-	top: 50%;
-	left: 25%;
-	transform: translate(-50%, -50%);
-	width: 35%;
-}
-.monaco-workbench > .part.editor > .content .welcomePage .splash h1 {
+.monaco-workbench > .part.editor > .content .welcomePage h1 {
 	padding: 0;
 	margin: 0;
 	border: none;
@@ -32,7 +38,8 @@
 	font-size: 3.6em;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .title {
-	margin-bottom: 2em;
+	margin-bottom: 1em;
+	flex: 1 100%;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .subtitle {
 	margin-top: .8em;
@@ -41,12 +48,22 @@
 	display: block;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage .splash h3 {
+.monaco-workbench > .part.editor > .content .welcomePage .splash,
+.monaco-workbench > .part.editor > .content .welcomePage .commands {
+	flex: 1 1 0;
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage h2 {
 	font-weight: 200;
 	margin-top: 17px;
 	margin-bottom: 5px;
 	font-size: 1.9em;
 }
+
+.monaco-workbench > .part.editor > .content .welcomePage .splash .section {
+	margin-bottom: 5em;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .splash ul {
 	margin: 0;
 	font-size: 1.3em;
@@ -71,45 +88,46 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage .commands {
-	position: absolute;
-	top: 50%;
-	left: 75%;
-	transform: translate(-50%, -50%);
-	width: 35%;
-}
-
 .monaco-workbench > .part.editor > .content .welcomePage .commands ul {
 	list-style: none;
 	padding: 0;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .commands li {
-	margin: 15px 0px;
+	margin: 7px 0px;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
 	margin: 0;
-	padding: 10px 20px;
-	border: 2px solid;
-	border-radius: 10px;
-	height: 46px;
+	padding: 12px 10px;
 	width: 100%;
-	font-size: 15px;
+	font-size: 1.3em;
 	text-align: left;
 	outline: none;
 	cursor: pointer;
 	white-space: nowrap;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button h3 {
+	font-size: 1em;
+	margin: 0;
+	margin-bottom: .25em;
+}
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
 	color: #6c6c6c;
 	background: #eee;
-	border-color: #ccc;
+	border: none;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button > h3 {
+	color: #ccc;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
-	color: #ccc;
-	background: #333;
-	border-color: black;
+	color: #828282;
+	background: #191919;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover {
+	background: #2a2d2e;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
