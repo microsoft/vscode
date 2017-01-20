@@ -394,6 +394,11 @@ export interface IEditorOptions {
 	 */
 	formatOnType?: boolean;
 	/**
+	 * Enable format on paste.
+	 * Defaults to false.
+	 */
+	formatOnPaste?: boolean;
+	/**
 	 * Enable the suggestion box to pop-up on trigger characters.
 	 * Defaults to true.
 	 */
@@ -403,6 +408,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	acceptSuggestionOnEnter?: boolean;
+	/**
+	 * Accept suggestions on provider defined characters.
+	 * Defaults to true.
+	 */
+	acceptSuggestionOnCommitCharacter?: boolean;
 	/**
 	 * Enable snippet suggestions. Default to 'true'.
 	 */
@@ -879,8 +889,10 @@ export class EditorContribOptions {
 	readonly parameterHints: boolean;
 	readonly iconsInSuggestions: boolean;
 	readonly formatOnType: boolean;
+	readonly formatOnPaste: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
+	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
@@ -903,8 +915,10 @@ export class EditorContribOptions {
 		parameterHints: boolean;
 		iconsInSuggestions: boolean;
 		formatOnType: boolean;
+		formatOnPaste: boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
+		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
@@ -923,8 +937,10 @@ export class EditorContribOptions {
 		this.parameterHints = Boolean(source.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
 		this.formatOnType = Boolean(source.formatOnType);
+		this.formatOnPaste = Boolean(source.formatOnPaste);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
@@ -949,8 +965,10 @@ export class EditorContribOptions {
 			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
 			&& this.formatOnType === other.formatOnType
+			&& this.formatOnPaste === other.formatOnPaste
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion
@@ -1565,6 +1583,11 @@ export interface ITextModel {
 	 */
 	mightContainRTL(): boolean;
 
+	/**
+	 * @internal
+	 */
+	mightContainNonBasicASCII(): boolean;
+
 	getOptions(): TextModelResolvedOptions;
 
 	/**
@@ -1588,6 +1611,7 @@ export interface ITextModel {
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
+	 * @internal
 	 */
 	setValueFromRawText(newValue: IRawText): void;
 
@@ -1606,11 +1630,13 @@ export interface ITextModel {
 
 	/**
 	 * Get the raw text stored in this model.
+	 * @internal
 	 */
 	toRawText(): IRawText;
 
 	/**
 	 * Check if the raw text stored in this model equals another raw text.
+	 * @internal
 	 */
 	equals(other: IRawText): boolean;
 
@@ -2321,6 +2347,7 @@ export interface IModelContentChangedEvent {
 
 /**
  * The raw text backing a model.
+ * @internal
  */
 export interface IRawText {
 	/**
@@ -2343,6 +2370,10 @@ export interface IRawText {
 	 * The text contains Unicode characters classified as "R" or "AL".
 	 */
 	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
 	/**
 	 * The options associated with this text.
 	 */
@@ -3457,11 +3488,6 @@ export interface IEditor {
 	isFocused(): boolean;
 
 	/**
-	 * Add a new action to this editor.
-	 */
-	addAction(descriptor: IActionDescriptor): void;
-
-	/**
 	 * Returns all actions associated with this editor.
 	 */
 	getActions(): IEditorAction[];
@@ -3800,6 +3826,13 @@ export interface ICommonCodeEditor extends IEditor {
 	onDidType(listener: (text: string) => void): IDisposable;
 
 	/**
+	 * An event emitted when users paste text in the editor.
+	 * @event
+	 * @internal
+	 */
+	onDidPaste(listener: (range: Range) => void): IDisposable;
+
+	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
 	 */
 	hasWidgetFocus(): boolean;
@@ -4096,6 +4129,8 @@ export var EventType = {
 
 	WillType: 'willType',
 	DidType: 'didType',
+
+	DidPaste: 'didPaste',
 
 	EditorLayout: 'editorLayout',
 

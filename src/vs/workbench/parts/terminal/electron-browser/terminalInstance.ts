@@ -20,6 +20,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -28,9 +29,19 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
 
+class StandardTerminalProcessFactory implements ITerminalProcessFactory {
+	public create(env: { [key: string]: string }): cp.ChildProcess {
+		return cp.fork('./terminalProcess', [], {
+			env,
+			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
+		});
+	}
+}
+
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
+	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _idCounter = 1;
 
 	private _id: number;
@@ -45,7 +56,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _processId: number;
 	private _skipTerminalCommands: string[];
 	private _title: string;
-	private _toDispose: lifecycle.IDisposable[];
+	private _instanceDisposables: lifecycle.IDisposable[];
+	private _processDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: any;
 	private _xtermElement: HTMLDivElement;
@@ -63,7 +75,6 @@ export class TerminalInstance implements ITerminalInstance {
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
-		name: string,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
@@ -71,7 +82,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
-		this._toDispose = [];
+		this._instanceDisposables = [];
+		this._processDisposables = [];
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
@@ -84,7 +96,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(this._contextService.getWorkspace(), name, this._shellLaunchConfig);
+		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -92,7 +104,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
-		this._toDispose.push(disposable);
+		this._instanceDisposables.push(disposable);
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -110,19 +122,14 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		this._xterm.open(this._xtermElement);
 
-		this._process.on('message', (message) => {
-			if (!this._xterm) {
-				return;
-			}
-			if (message.type === 'data') {
-				this._xterm.write(message.content);
-			}
-		});
+		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			this._process.send({
-				event: 'input',
-				data: this._sanitizeInput(data)
-			});
+			if (this._process) {
+				this._process.send({
+					event: 'input',
+					data: this._sanitizeInput(data)
+				});
+			}
 			return false;
 		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
@@ -146,48 +153,48 @@ export class TerminalInstance implements ITerminalInstance {
 				return false;
 			}
 		});
-		(<HTMLElement>this._xterm.element).addEventListener('mouseup', event => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
 			// Wait until mouseup has propogated through the DOM before evaluating the new selection
 			// state.
 			setTimeout(() => {
 				this._refreshSelectionContextKey();
 			}, 0);
-		});
+		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
-		(<HTMLElement>this._xterm.element).addEventListener('keyup', event => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
 			// Wait until keyup has propogated through the DOM before evaluating the new selection
 			// state.
 			setTimeout(() => {
 				this._refreshSelectionContextKey();
 			}, 0);
-		});
+		}));
 
 		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
 		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		DOM.addClass(focusTrap, 'focus-trap');
-		focusTrap.addEventListener('focus', function (event: FocusEvent) {
+		this._instanceDisposables.push(DOM.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
 			let currentElement = focusTrap;
 			while (!DOM.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement;
 			}
 			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
 			hidePanelElement.focus();
-		});
+		}));
 		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
@@ -238,7 +245,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._process = null;
 		}
 		this._onDisposed.fire(this);
-		this._toDispose = lifecycle.dispose(this._toDispose);
+		this._processDisposables = lifecycle.dispose(this._processDisposables);
+		this._instanceDisposables = lifecycle.dispose(this._instanceDisposables);
 	}
 
 	public focus(force?: boolean): void {
@@ -270,6 +278,13 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isVisible = visible;
 		if (this._wrapperElement) {
 			DOM.toggleClass(this._wrapperElement, 'active', visible);
+		}
+		if (visible) {
+			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
+			// necessary if the number of rows in the terminal has decreased while it was in the
+			// background since scrollTop changes take no effect but the terminal's position does
+			// change since the number of visible rows decreases.
+			this._xterm.emit('scroll', this._xterm.ydisp);
 		}
 	}
 
@@ -339,18 +354,18 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig) {
+	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
 		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale);
-		this._title = name ? name : '';
+		this._title = shell.name || '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
 			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
 		});
-		if (!name) {
+		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
 			this._process.on('message', (message) => {
 				if (message.type === 'title') {
@@ -369,6 +384,15 @@ export class TerminalInstance implements ITerminalInstance {
 		setTimeout(() => {
 			this._isLaunching = false;
 		}, LAUNCHING_DURATION);
+	}
+
+	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
+		if (!this._xterm) {
+			return;
+		}
+		if (message.type === 'data') {
+			this._xterm.write(message.content);
+		}
 	}
 
 	private _onPtyProcessExit(exitCode: number): void {
@@ -394,9 +418,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
-			(<HTMLElement>this._xterm.textarea).addEventListener('keypress', (data) => {
+			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', () => {
 				this.dispose();
-			});
+			}));
 		} else {
 			this.dispose();
 			if (exitCode) {
@@ -416,6 +440,35 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		}
+	}
+
+	public reuseTerminal(shell?: IShellLaunchConfig): void {
+		// Kill and clean up old process
+		if (this._process) {
+			this._process.removeAllListeners('exit');
+			if (this._process.connected) {
+				this._process.kill();
+			}
+			this._process = null;
+		}
+		lifecycle.dispose(this._processDisposables);
+		this._processDisposables = [];
+
+		// Ensure new processes' output starts at start of new line
+		this._xterm.write('\n\x1b[G');
+
+		// Initialize new process
+		this._createProcess(this._contextService.getWorkspace(), shell);
+		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
+
+		// Clean up waitOnExit state
+		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
+			this._xterm.setOption('disableStdin', false);
+			this._isExiting = false;
+		}
+
+		// Set the new shell launch config
+		this._shellLaunchConfig = shell;
 	}
 
 	// TODO: This should be private/protected
@@ -528,5 +581,9 @@ export class TerminalInstance implements ITerminalInstance {
 				rows: rows
 			});
 		}
+	}
+
+	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
+		this._terminalProcessFactory = factory;
 	}
 }

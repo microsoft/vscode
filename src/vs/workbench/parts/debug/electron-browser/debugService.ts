@@ -315,7 +315,7 @@ export class DebugService implements debug.IDebugService {
 			if (this.viewModel.focusedProcess.getId() === session.getId()) {
 				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
 			}
-			this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
+			this.setStateAndEmit(session.getId(), debug.State.Running);
 		}));
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidOutput(event => {
@@ -359,7 +359,9 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.RunningNoDebug && this.contextService.getWorkspace()) {
+			const process = this.viewModel.focusedProcess;
+			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.Running &&
+				process && this.contextService.getWorkspace() && process.configuration.noDebug) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
@@ -570,30 +572,36 @@ export class DebugService implements debug.IDebugService {
 
 							return TPromise.join(compound.configurations.map(name => this.createProcess(name)));
 						}
+						const config = typeof configurationOrName === 'string' ? this.configurationManager.getConfiguration(configurationOrName) : configurationOrName;
 
-						return this.configurationManager.getConfiguration(configurationOrName).then(configuration => {
-							if (!this.configurationManager.getAdapter(configuration.type)) {
-								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
+						return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+							if (!resolvedConfig) {
+								// User canceled resolving of interactive variables, silently return
+								return;
+							}
+
+							if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
+								return resolvedConfig.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type)))
 									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
 										{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 							}
 
-							return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
-								const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+							return this.runPreLaunchTask(resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
+								const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 								const successExitCode = taskSummary && taskSummary.exitCode === 0;
 								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-									return this.doCreateProcess(sessionId, configuration);
+									return this.doCreateProcess(sessionId, resolvedConfig);
 								}
 
 								this.messageService.show(severity.Error, {
-									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode),
 									actions: [
 										new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 											this.messageService.hideAll();
-											return this.doCreateProcess(sessionId, configuration);
+											return this.doCreateProcess(sessionId, resolvedConfig);
 										}),
 										this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 										CloseAction
@@ -659,7 +667,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
-			const process = this.model.addProcess(configuration.name, session);
+			const process = this.model.addProcess(configuration, session);
 
 			if (!this.viewModel.focusedProcess) {
 				this.focusStackFrameAndEvaluate(null, process);
@@ -679,10 +687,6 @@ export class DebugService implements debug.IDebugService {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true // #10574
 			}).then((result: DebugProtocol.InitializeResponse) => {
-				if (session.disconnected) {
-					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
-				}
-
 				this.model.setExceptionBreakpoints(session.configuration.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? session.attach(configuration) : session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
@@ -706,7 +710,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
-				this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
+				this.setStateAndEmit(session.getId(), debug.State.Running);
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
 				}
@@ -794,10 +798,11 @@ export class DebugService implements debug.IDebugService {
 
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
-		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config => {
-			config.request = 'attach';
-			config.port = port;
-			this.doCreateProcess(sessionId, config);
+		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
+		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+			resolvedConfig.request = 'attach';
+			resolvedConfig.port = port;
+			this.doCreateProcess(sessionId, resolvedConfig);
 		});
 	}
 
@@ -818,13 +823,13 @@ export class DebugService implements debug.IDebugService {
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createProcess(process.name).then(() => c(null), err => e(err));
+					this.createProcess(process.configuration).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		).then(() => {
 			if (preserveFocus) {
 				// Restart should preserve the focused process
-				const restartedProcess = this.model.getProcesses().filter(p => p.name === process.name).pop();
+				const restartedProcess = this.model.getProcesses().filter(p => p.getId() === process.getId()).pop();
 				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
 					this.focusStackFrameAndEvaluate(null, restartedProcess);
 				}

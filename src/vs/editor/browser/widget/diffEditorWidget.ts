@@ -28,6 +28,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { IAddedAction } from 'vs/editor/common/commonCodeEditor';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -611,8 +612,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this.modifiedEditor.revealRangeInCenterIfOutsideViewport(range);
 	}
 
-	public addAction(descriptor: editorCommon.IActionDescriptor): void {
-		this.modifiedEditor.addAction(descriptor);
+	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
+		return this.modifiedEditor._addAction(descriptor);
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
@@ -1842,7 +1843,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				if (isChangeOrDelete(charChange)) {
 					decorations.push(new InlineDecoration(
 						new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
-						'char-delete'
+						'char-delete',
+						false
 					));
 				}
 			}
@@ -1888,7 +1890,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
 		let r = renderViewLine(new RenderLineInput(
+			config.fontInfo.isMonospace,
 			lineContent,
+			originalModel.mightContainRTL(),
 			0,
 			[new ViewLineToken(lineContent.length, '')],
 			actualDecorations,

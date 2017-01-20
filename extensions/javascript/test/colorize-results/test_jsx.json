@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "ToggleText",
-		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": "function",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js storage.type.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js storage.type.function.js",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.parameters.js punctuation.definition.parameters.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.begin.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.parameters.js punctuation.definition.parameters.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.end.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "return",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js keyword.control.flow.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js keyword.control.flow.js",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": "showDefault",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js",
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js punctuation.separator.key-value.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js punctuation.separator.key-value.js",
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": "true",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js constant.language.boolean.true.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js constant.language.boolean.true.js",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -331,7 +331,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -342,7 +342,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -364,7 +364,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "function",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js storage.type.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js storage.type.function.js",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -441,7 +441,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.parameters.js punctuation.definition.parameters.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.begin.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "e",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.parameters.js variable.parameter.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.parameters.js variable.parameter.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.parameters.js punctuation.definition.parameters.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.end.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -485,7 +485,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -507,7 +507,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.whitespace.comment.leading.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.whitespace.comment.leading.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -518,7 +518,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -529,7 +529,7 @@
 	},
 	{
 		"c": " Prevent following the link.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -540,7 +540,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -551,7 +551,7 @@
 	},
 	{
 		"c": "e",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js variable.other.object.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -562,7 +562,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -573,7 +573,7 @@
 	},
 	{
 		"c": "preventDefault",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js support.function.dom.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js support.function.dom.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -584,7 +584,7 @@
 	},
 	{
 		"c": "()",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.brace.round.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -595,7 +595,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.terminator.statement.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.terminator.statement.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -606,7 +606,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.whitespace.comment.leading.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.whitespace.comment.leading.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -628,7 +628,7 @@
 	},
 	{
 		"c": " Invert the chosen default.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -639,7 +639,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.whitespace.comment.leading.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.whitespace.comment.leading.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -650,7 +650,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": " This will trigger an intelligent re-render of the component.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -672,7 +672,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -683,7 +683,7 @@
 	},
 	{
 		"c": "this",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js variable.language.this.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js variable.language.this.js",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -694,7 +694,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -705,7 +705,7 @@
 	},
 	{
 		"c": "setState",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.brace.round.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -727,7 +727,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -738,7 +738,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -749,7 +749,7 @@
 	},
 	{
 		"c": "showDefault",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js",
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
@@ -760,7 +760,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js punctuation.separator.key-value.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js punctuation.separator.key-value.js",
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
@@ -771,7 +771,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -782,7 +782,7 @@
 	},
 	{
 		"c": "!",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js keyword.operator.logical.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js keyword.operator.logical.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -793,7 +793,7 @@
 	},
 	{
 		"c": "this",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js variable.language.this.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js variable.language.this.js",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -804,7 +804,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -815,7 +815,7 @@
 	},
 	{
 		"c": "state",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js variable.other.object.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js variable.other.object.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -826,7 +826,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -837,7 +837,7 @@
 	},
 	{
 		"c": "showDefault",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js variable.other.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js variable.other.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -848,7 +848,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js meta.object.member.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js meta.object.member.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -859,7 +859,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -870,7 +870,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.brace.round.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -881,7 +881,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -892,7 +892,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -958,7 +958,7 @@
 	},
 	{
 		"c": "function",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js storage.type.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js storage.type.function.js",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -969,7 +969,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -980,7 +980,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.parameters.js punctuation.definition.parameters.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.begin.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -991,7 +991,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.parameters.js punctuation.definition.parameters.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.end.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1002,7 +1002,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1013,7 +1013,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1024,7 +1024,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.whitespace.comment.leading.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.whitespace.comment.leading.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1035,7 +1035,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1046,7 +1046,7 @@
 	},
 	{
 		"c": " Default to the default message.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1057,7 +1057,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1068,7 +1068,7 @@
 	},
 	{
 		"c": "var",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js storage.type.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js storage.type.js",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1079,7 +1079,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1090,7 +1090,7 @@
 	},
 	{
 		"c": "message",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1101,7 +1101,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js meta.var-single-variable.expr.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1112,7 +1112,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js keyword.operator.assignment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js keyword.operator.assignment.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1123,7 +1123,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1134,7 +1134,7 @@
 	},
 	{
 		"c": "this",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js variable.language.this.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js variable.language.this.js",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1145,7 +1145,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1156,7 +1156,7 @@
 	},
 	{
 		"c": "props",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js variable.other.object.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js variable.other.object.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1167,7 +1167,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1178,7 +1178,7 @@
 	},
 	{
 		"c": "default",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.var.expr.js variable.other.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.var.expr.js variable.other.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1189,7 +1189,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.terminator.statement.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.terminator.statement.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1200,7 +1200,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.whitespace.comment.leading.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.whitespace.comment.leading.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1211,7 +1211,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js punctuation.definition.comment.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1222,7 +1222,7 @@
 	},
 	{
 		"c": " If toggled, show the alternate message.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1244,7 +1244,7 @@
 	},
 	{
 		"c": "if",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js keyword.control.conditional.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js keyword.control.conditional.js",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1255,7 +1255,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1266,7 +1266,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.brace.round.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1277,7 +1277,7 @@
 	},
 	{
 		"c": "!",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js keyword.operator.logical.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js keyword.operator.logical.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1288,7 +1288,7 @@
 	},
 	{
 		"c": "this",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js variable.language.this.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js variable.language.this.js",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1299,7 +1299,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1310,7 +1310,7 @@
 	},
 	{
 		"c": "state",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js variable.other.object.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js variable.other.object.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1321,7 +1321,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1332,7 +1332,7 @@
 	},
 	{
 		"c": "showDefault",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js variable.other.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js variable.other.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1343,7 +1343,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.brace.round.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1354,7 +1354,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1365,7 +1365,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1376,7 +1376,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1387,7 +1387,7 @@
 	},
 	{
 		"c": "message",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1398,7 +1398,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1409,7 +1409,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js keyword.operator.assignment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js keyword.operator.assignment.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1420,7 +1420,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1431,7 +1431,7 @@
 	},
 	{
 		"c": "this",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js variable.language.this.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js variable.language.this.js",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1442,7 +1442,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1453,7 +1453,7 @@
 	},
 	{
 		"c": "props",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js variable.other.object.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js variable.other.object.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1464,7 +1464,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1475,7 +1475,7 @@
 	},
 	{
 		"c": "alt",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js support.variable.property.dom.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js support.variable.property.dom.js",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -1486,7 +1486,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js punctuation.terminator.statement.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js punctuation.terminator.statement.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1497,7 +1497,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1508,7 +1508,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1519,7 +1519,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1530,7 +1530,7 @@
 	},
 	{
 		"c": "return",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js keyword.control.flow.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js keyword.control.flow.js",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1541,7 +1541,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1552,7 +1552,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.brace.round.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1563,7 +1563,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1574,7 +1574,7 @@
 	},
 	{
 		"c": "<",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1585,7 +1585,7 @@
 	},
 	{
 		"c": "div",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js entity.name.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js entity.name.tag.js",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1596,7 +1596,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.end.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1607,7 +1607,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1618,7 +1618,7 @@
 	},
 	{
 		"c": "<",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1629,7 +1629,7 @@
 	},
 	{
 		"c": "h1",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js entity.name.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js entity.name.tag.js",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1640,7 +1640,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.end.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1651,7 +1651,7 @@
 	},
 	{
 		"c": "Hello ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1662,7 +1662,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js punctuation.section.embedded.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js punctuation.section.embedded.begin.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1673,7 +1673,7 @@
 	},
 	{
 		"c": "message",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js variable.other.readwrite.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1684,7 +1684,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js punctuation.section.embedded.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js punctuation.section.embedded.end.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1695,7 +1695,7 @@
 	},
 	{
 		"c": "!",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1706,7 +1706,7 @@
 	},
 	{
 		"c": "</",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1717,7 +1717,7 @@
 	},
 	{
 		"c": "h1",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js entity.name.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js entity.name.tag.js",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1728,7 +1728,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js punctuation.definition.tag.end.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1739,7 +1739,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1750,7 +1750,7 @@
 	},
 	{
 		"c": "<",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.begin.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1761,7 +1761,7 @@
 	},
 	{
 		"c": "a",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.name.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.name.tag.js",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1772,7 +1772,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1783,7 +1783,7 @@
 	},
 	{
 		"c": "href",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.other.attribute-name.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.other.attribute-name.js",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1794,7 +1794,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js keyword.operator.assignment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js keyword.operator.assignment.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1805,7 +1805,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js string.quoted.double.js punctuation.definition.string.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js string.quoted.double.js punctuation.definition.string.begin.js",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1816,7 +1816,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js string.quoted.double.js punctuation.definition.string.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js string.quoted.double.js punctuation.definition.string.end.js",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1827,7 +1827,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1838,7 +1838,7 @@
 	},
 	{
 		"c": "onClick",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.other.attribute-name.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.other.attribute-name.js",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1849,7 +1849,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js keyword.operator.assignment.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js keyword.operator.assignment.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1860,7 +1860,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.section.embedded.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.section.embedded.begin.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1871,7 +1871,7 @@
 	},
 	{
 		"c": "this",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js variable.language.this.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js variable.language.this.js",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1882,7 +1882,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1893,7 +1893,7 @@
 	},
 	{
 		"c": "toggle",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js variable.other.property.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js variable.other.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1904,7 +1904,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.section.embedded.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.section.embedded.end.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1915,7 +1915,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.end.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1926,7 +1926,7 @@
 	},
 	{
 		"c": "Toggle",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.jsx.children.tsx",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.jsx.children.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1937,7 +1937,7 @@
 	},
 	{
 		"c": "</",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.begin.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1948,7 +1948,7 @@
 	},
 	{
 		"c": "a",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.name.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js entity.name.tag.js",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1959,7 +1959,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js punctuation.definition.tag.end.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1970,7 +1970,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1981,7 +1981,7 @@
 	},
 	{
 		"c": "</",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.begin.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1992,7 +1992,7 @@
 	},
 	{
 		"c": "div",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js entity.name.tag.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js entity.name.tag.js",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -2003,7 +2003,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.end.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js punctuation.definition.tag.end.js",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -2014,7 +2014,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2025,7 +2025,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js meta.brace.round.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2036,7 +2036,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.terminator.statement.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.terminator.statement.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2047,7 +2047,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2058,7 +2058,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.js meta.block.js punctuation.definition.block.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

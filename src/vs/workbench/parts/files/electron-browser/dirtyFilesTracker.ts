@@ -28,6 +28,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	private toUnbind: IDisposable[];
 	private lastDirtyCount: number;
 	private stacks: IEditorStacksModel;
+	private badgeHandle: IDisposable;
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
@@ -132,10 +133,9 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	private updateActivityBadge(): void {
 		const dirtyCount = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirtyCount;
+		dispose(this.badgeHandle);
 		if (dirtyCount > 0) {
-			this.activityBarService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
-		} else {
-			this.activityBarService.clearActivity(VIEWLET_ID);
+			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		}
 	}
 

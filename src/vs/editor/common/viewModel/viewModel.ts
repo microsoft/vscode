@@ -25,6 +25,7 @@ export interface IViewModel extends IEventEmitter {
 
 	getLineCount(): number;
 	mightContainRTL(): boolean;
+	mightContainNonBasicASCII(): boolean;
 	getLineContent(lineNumber: number): string;
 	getLineIndentGuide(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
@@ -58,12 +59,14 @@ export interface IViewModel extends IEventEmitter {
 export class InlineDecoration {
 	_inlineDecorationBrand: void;
 
-	range: Range;
-	inlineClassName: string;
+	readonly range: Range;
+	readonly inlineClassName: string;
+	readonly insertsBeforeOrAfter: boolean;
 
-	constructor(range: Range, inlineClassName: string) {
+	constructor(range: Range, inlineClassName: string, insertsBeforeOrAfter: boolean) {
 		this.range = range;
 		this.inlineClassName = inlineClassName;
+		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
 	}
 }
 

@@ -31,6 +31,7 @@ import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 /**
  * An implementation of editor for file system resources.
@@ -50,9 +51,10 @@ export class TextFileEditor extends BaseTextEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IModeService modeService: IModeService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
@@ -216,14 +218,6 @@ export class TextFileEditor extends BaseTextEditor {
 			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
 		} else {
 			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
-		}
-
-		const model = this.editorGroupService.getStacksModel();
-		if (model.groups.length > 1) {
-			const group = model.groupAt(this.position);
-			if (group) {
-				ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, group.label);
-			}
 		}
 
 		options.ariaLabel = ariaLabel;

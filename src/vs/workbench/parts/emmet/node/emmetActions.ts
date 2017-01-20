@@ -16,14 +16,19 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
+import { IMessageService } from 'vs/platform/message/common/message';
 import * as emmet from 'emmet';
+import * as path from 'path';
+import * as pfs from 'vs/base/node/pfs';
+import Severity from 'vs/base/common/severity';
 
 interface IEmmetConfiguration {
 	emmet: {
 		preferences: any;
 		syntaxProfiles: any;
 		triggerExpansionOnTab: boolean,
-		excludeLanguages: string[]
+		excludeLanguages: string[],
+		extensionsPath: string
 	};
 }
 
@@ -60,19 +65,29 @@ class GrammarContributions implements IGrammarContributions {
 class LazyEmmet {
 
 	private static _INSTANCE = new LazyEmmet();
+	private static extensionsPath = '';
+	private static snippetsFromFile = {};
+	private static syntaxProfilesFromFile = {};
+	private static preferencesFromFile = {};
 
-	public static withConfiguredEmmet(configurationService: IConfigurationService, callback: (_emmet: typeof emmet) => void): TPromise<void> {
-		return LazyEmmet._INSTANCE.withEmmetPreferences(configurationService, callback);
+	public static withConfiguredEmmet(configurationService: IConfigurationService,
+		messageService: IMessageService,
+		callback: (_emmet: typeof emmet) => void): TPromise<void> {
+		return LazyEmmet._INSTANCE.withEmmetPreferences(configurationService, messageService, callback);
 	}
 
 	private _emmetPromise: TPromise<typeof emmet>;
+	private _messageService: IMessageService;
 
 	constructor() {
 		this._emmetPromise = null;
 	}
 
-	public withEmmetPreferences(configurationService: IConfigurationService, callback: (_emmet: typeof emmet) => void): TPromise<void> {
+	public withEmmetPreferences(configurationService: IConfigurationService,
+		messageService: IMessageService,
+		callback: (_emmet: typeof emmet) => void): TPromise<void> {
 		return this._loadEmmet().then((_emmet: typeof emmet) => {
+			this._messageService = messageService;
 			this._withEmmetPreferences(configurationService, _emmet, callback);
 		});
 	}
@@ -86,28 +101,80 @@ class LazyEmmet {
 		return this._emmetPromise;
 	}
 
-	private updateEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
+	private updateEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet): TPromise<any> {
 		let emmetPreferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet;
-		try {
-			_emmet.loadPreferences(emmetPreferences.preferences);
-			_emmet.loadProfiles(emmetPreferences.syntaxProfiles);
-		} catch (err) {
-			// ignore
-		}
+		let loadEmmetSettings = () => {
+			let syntaxProfiles = (Object as any).assign({}, LazyEmmet.syntaxProfilesFromFile, emmetPreferences.syntaxProfiles);
+			let preferences = (Object as any).assign({}, LazyEmmet.preferencesFromFile, emmetPreferences.preferences);
+			let snippets = LazyEmmet.snippetsFromFile;
+
+			try {
+				_emmet.loadPreferences(preferences);
+				_emmet.loadProfiles(syntaxProfiles);
+				_emmet.loadSnippets(snippets);
+			} catch (err) {
+				// ignore
+			}
+		};
+
+		// Whether loading the files was a success or not, we load emmet with what we have
+		return this.updateFromExtensionsPath(emmetPreferences.extensionsPath).then(loadEmmetSettings, (err) => {
+			// Errors from all the promises used to fetch/read dir/files would bubble up here
+			console.log(err);
+			loadEmmetSettings();
+		});
 	}
 
-	private resetEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
-		_emmet.preferences.reset();
-		_emmet.profile.reset();
+	private updateFromExtensionsPath(extPath: string): TPromise<any> {
+		if (extPath !== LazyEmmet.extensionsPath) {
+			LazyEmmet.extensionsPath = extPath;
+			LazyEmmet.snippetsFromFile = {};
+			LazyEmmet.preferencesFromFile = {};
+			LazyEmmet.syntaxProfilesFromFile = {};
+
+			if (extPath && extPath.trim()) {
+				return pfs.dirExists(LazyEmmet.extensionsPath).then(exists => {
+					if (exists) {
+						let snippetsPromise = this.getEmmetCustomization('snippets.json').then(value => LazyEmmet.snippetsFromFile = value);
+						let profilesPromise = this.getEmmetCustomization('syntaxProfiles.json').then(value => LazyEmmet.syntaxProfilesFromFile = value);
+						let preferencesPromise = this.getEmmetCustomization('preferences.json').then(value => LazyEmmet.preferencesFromFile = value);
+
+						return TPromise.join([snippetsPromise, profilesPromise, preferencesPromise]);
+					}
+					this._messageService.show(Severity.Error, `The path set in emmet.extensionsPath "${LazyEmmet.extensionsPath}" does not exist.`);
+				});
+			}
+		}
+		return TPromise.as(void 0);
+	}
+
+	private getEmmetCustomization(fileName: string): TPromise<any> {
+		let filePath = path.join(LazyEmmet.extensionsPath, fileName);
+		return pfs.fileExists(filePath).then(fileExists => {
+			if (fileExists) {
+				return pfs.readFile(filePath).then(buff => {
+					let parsedData = {};
+					try {
+						parsedData = JSON.parse(buff.toString());
+					} catch (err) {
+						this._messageService.show(Severity.Error, `Error while parsing "${filePath}": ${err}`);
+					}
+					return parsedData;
+				});
+			}
+			this._messageService.show(Severity.Error, `The file "${filePath}" from emmet.extensionsPath does not exist.`);
+			return {};
+		});
 	}
 
 	private _withEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet, callback: (_emmet: typeof emmet) => void): void {
-		try {
-			this.updateEmmetPreferences(configurationService, _emmet);
-			callback(_emmet);
-		} finally {
-			this.resetEmmetPreferences(configurationService, _emmet);
-		}
+		this.updateEmmetPreferences(configurationService, _emmet).then(() => {
+			try {
+				callback(_emmet);
+			} finally {
+				_emmet.resetUserData();
+			}
+		});
 	}
 }
 
@@ -148,6 +215,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const instantiationService = accessor.get(IInstantiationService);
 		const extensionService = accessor.get(IExtensionService);
 		const modeService = accessor.get(IModeService);
+		const messageService = accessor.get(IMessageService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
@@ -164,7 +232,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 				return;
 			}
 
-			return LazyEmmet.withConfiguredEmmet(configurationService, (_emmet) => {
+			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, (_emmet) => {
 				editorAccessor.onBeforeEmmetAction();
 				instantiationService.invokeFunction((accessor) => {
 					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));

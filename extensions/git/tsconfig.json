@@ -1,9 +1,13 @@
 {
 	"compilerOptions": {
-		"noLib": true,
-		"target": "es5",
+		"target": "es6",
+		"lib": [
+			"es2016"
+		],
 		"module": "commonjs",
-		"outDir": "./out"
+		"outDir": "./out",
+		"strictNullChecks": true,
+		"experimentalDecorators": true
 	},
 	"exclude": [
 		"node_modules"

@@ -68,14 +68,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	type?: string;
 }
 
-export enum SessionRequestType {
-	LAUNCH,
-	ATTACH,
-	LAUNCH_NO_DEBUG
-}
-
 export interface ISession {
-	requestType: SessionRequestType;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
@@ -102,7 +95,9 @@ export interface ISession {
 
 export interface IProcess extends ITreeElement {
 	name: string;
+	configuration: IConfig;
 	session: ISession;
+	isAttach(): boolean;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
@@ -170,6 +165,7 @@ export interface IStackFrame extends ITreeElement {
 	frameId: number;
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
+	getMostSpecificScopes(range: IRange): TPromise<IScope[]>;
 	restart(): TPromise<any>;
 	toString(): string;
 	openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
@@ -267,8 +263,7 @@ export enum State {
 	Inactive,
 	Initializing,
 	Stopped,
-	Running,
-	RunningNoDebug
+	Running
 }
 
 // Debug configuration interfaces
@@ -307,6 +302,11 @@ export interface ICompound {
 	configurations: string[];
 }
 
+export interface IAdapterExecutable {
+	command?: string;
+	args?: string[];
+}
+
 export interface IRawEnvAdapter {
 	type?: string;
 	label?: string;
@@ -317,6 +317,7 @@ export interface IRawEnvAdapter {
 }
 
 export interface IRawAdapter extends IRawEnvAdapter {
+	adapterExecutableCommand?: string;
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
@@ -335,16 +336,22 @@ export interface IRawAdapter extends IRawEnvAdapter {
 export interface IConfigurationManager {
 
 	/**
-	 * Returns a resolved debug configuration.
-	 * If nameOrConfig is null resolves the first configuration and returns it.
+	 * Returns a configuration with the specified name.
+	 * Returns null if there is no configuration with the specified name.
 	 */
-	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+	getConfiguration(name: string): IConfig;
 
 	/**
 	 * Returns the names of all configurations and compounds.
 	 * Ignores configurations which are invalid.
 	 */
 	getConfigurationNames(): string[];
+
+	/**
+	 * Returns the resolved configuration.
+	 * Replaces os specific values, system variables, interactive variables.
+	 */
+	resloveConfiguration(config: IConfig): TPromise<IConfig>;
 
 	/**
 	 * Returns a compound with the specified name.
@@ -367,7 +374,7 @@ export interface IConfigurationManager {
 	 * If no type is specified will try to automatically pick an adapter by looking at
 	 * the active editor language and matching it against the "languages" contribution of an adapter.
 	 */
-	getStartSessionCommand(type?: string): string;
+	getStartSessionCommand(type?: string): TPromise<string>;
 }
 
 // Debug service interfaces

@@ -46,6 +46,13 @@
 .quick-open-widget .quick-open-tree .quick-open-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	display: flex;
+	flex-direction: column;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry > .row {
+	display: flex;
+	align-items: center;
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon {
@@ -55,6 +62,7 @@
 	margin-right: 4px;
 	display: inline-block;
 	vertical-align: middle;
+	flex-shrink: 0;
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
@@ -76,6 +84,9 @@
 	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
+	overflow: hidden;
+	flex: 1;
+	text-overflow: ellipsis;
 }
 
 .quick-open-widget .quick-open-tree .results-group {

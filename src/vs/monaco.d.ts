@@ -777,6 +777,13 @@ declare module monaco.editor {
     export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
     /**
+     * Emitted when an editor is created.
+     * Creating a diff editor might cause this listener to be invoked with the two editors.
+     * @event
+     */
+    export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable;
+
+    /**
      * Create a new diff editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
@@ -951,13 +958,13 @@ declare module monaco.editor {
     export interface IStandaloneCodeEditor extends ICodeEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
     }
 
     export interface IStandaloneDiffEditor extends IDiffEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-        addAction(descriptor: IActionDescriptor): void;
+        addAction(descriptor: IActionDescriptor): IDisposable;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
@@ -1304,6 +1311,11 @@ declare module monaco.editor {
          */
         formatOnType?: boolean;
         /**
+         * Enable format on paste.
+         * Defaults to false.
+         */
+        formatOnPaste?: boolean;
+        /**
          * Enable the suggestion box to pop-up on trigger characters.
          * Defaults to true.
          */
@@ -1313,6 +1325,11 @@ declare module monaco.editor {
          * Defaults to true.
          */
         acceptSuggestionOnEnter?: boolean;
+        /**
+         * Accept suggestions on provider defined characters.
+         * Defaults to true.
+         */
+        acceptSuggestionOnCommitCharacter?: boolean;
         /**
          * Enable snippet suggestions. Default to 'true'.
          */
@@ -1521,8 +1538,10 @@ declare module monaco.editor {
         readonly parameterHints: boolean;
         readonly iconsInSuggestions: boolean;
         readonly formatOnType: boolean;
+        readonly formatOnPaste: boolean;
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
+        readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
         readonly tabCompletion: boolean;
@@ -1935,10 +1954,6 @@ declare module monaco.editor {
          */
         setValue(newValue: string): void;
         /**
-         * Replace the entire text buffer value contained in this model.
-         */
-        setValueFromRawText(newValue: IRawText): void;
-        /**
          * Get the text stored in this model.
          * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
          * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -1949,14 +1964,6 @@ declare module monaco.editor {
          * Get the length of the text stored in this model.
          */
         getValueLength(eol?: EndOfLinePreference, preserveBOM?: boolean): number;
-        /**
-         * Get the raw text stored in this model.
-         */
-        toRawText(): IRawText;
-        /**
-         * Check if the raw text stored in this model equals another raw text.
-         */
-        equals(other: IRawText): boolean;
         /**
          * Get the text in a certain range.
          * @param range The range describing what text to get.
@@ -2362,41 +2369,6 @@ declare module monaco.editor {
          * Flag that indicates that this event was generated while redoing.
          */
         readonly isRedoing: boolean;
-    }
-
-    /**
-     * The raw text backing a model.
-     */
-    export interface IRawText {
-        /**
-         * The entire text length.
-         */
-        readonly length: number;
-        /**
-         * The text split into lines.
-         */
-        readonly lines: string[];
-        /**
-         * The BOM (leading character sequence of the file).
-         */
-        readonly BOM: string;
-        /**
-         * The end of line sequence.
-         */
-        readonly EOL: string;
-        /**
-         * The text contains Unicode characters classified as "R" or "AL".
-         */
-        readonly containsRTL: boolean;
-        /**
-         * The options associated with this text.
-         */
-        readonly options: {
-            readonly tabSize: number;
-            readonly insertSpaces: boolean;
-            readonly defaultEOL: DefaultEndOfLine;
-            readonly trimAutoWhitespace: boolean;
-        };
     }
 
     /**
@@ -2929,10 +2901,6 @@ declare module monaco.editor {
          * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
          */
         isFocused(): boolean;
-        /**
-         * Add a new action to this editor.
-         */
-        addAction(descriptor: IActionDescriptor): void;
         /**
          * Returns all actions associated with this editor.
          */
@@ -3843,6 +3811,7 @@ declare module monaco.editor {
 
     export class FontInfo extends BareFontInfo {
         readonly _editorStylingBrand: void;
+        readonly isMonospace: boolean;
         readonly typicalHalfwidthCharacterWidth: number;
         readonly typicalFullwidthCharacterWidth: number;
         readonly spaceWidth: number;
@@ -4053,6 +4022,23 @@ declare module monaco.languages {
     }
 
     /**
+     * A snippet string is a template which allows to insert text
+     * and to control the editor cursor when insertion happens.
+     *
+     * A snippet can define tab stops and placeholders with `$1`, `$2`
+     * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
+     * the end of the snippet. Variables are defined with `$name` and
+     * `${name:default value}`. The full snippet syntax is documented
+     * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
+     */
+    export interface SnippetString {
+        /**
+         * The snippet string.
+         */
+        value: string;
+    }
+
+    /**
      * A completion item represents a text snippet that is
      * proposed to complete text that is being typed.
      */
@@ -4090,18 +4076,30 @@ declare module monaco.languages {
          */
         filterText?: string;
         /**
-         * A string that should be inserted in a document when selecting
+         * A string or snippet that should be inserted in a document when selecting
          * this completion. When `falsy` the [label](#CompletionItem.label)
          * is used.
          */
-        insertText?: string;
+        insertText?: string | SnippetString;
         /**
-         * An [edit](#TextEdit) which is applied to a document when selecting
-         * this completion. When an edit is provided the value of
-         * [insertText](#CompletionItem.insertText) is ignored.
+         * A range of text that should be replaced by this completion item.
          *
-         * The [range](#Range) of the edit must be single-line and one the same
-         * line completions where [requested](#CompletionItemProvider.provideCompletionItems) at.
+         * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+         * current position.
+         *
+         * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+         * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+         */
+        range?: Range;
+        /**
+         * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+         *
+         * ~~An [edit](#TextEdit) which is applied to a document when selecting
+         * this completion. When an edit is provided the value of
+         * [insertText](#CompletionItem.insertText) is ignored.~~
+         *
+         * ~~The [range](#Range) of the edit must be single-line and on the same
+         * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
          */
         textEdit?: editor.ISingleEditOperation;
     }
@@ -4316,6 +4314,10 @@ declare module monaco.languages {
          * Describe what to do with the indentation.
          */
         indentAction: IndentAction;
+        /**
+         * Describe whether to outdent current line.
+         */
+        outdentCurrentLine?: boolean;
         /**
          * Describes text to be appended after the new line and after the indentation.
          */

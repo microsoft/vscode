@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { IThemeDocument, IThemeSettingStyle } from 'vs/workbench/services/themes/common/themeService';
+import { IColorTheme, IThemeSettingStyle } from 'vs/workbench/services/themes/common/themeService';
 
-export function findMatchingThemeRule(theme: IThemeDocument, scopes: string[]): ThemeRule {
+export function findMatchingThemeRule(theme: IColorTheme, scopes: string[]): ThemeRule {
 	for (let i = scopes.length - 1; i >= 0; i--) {
 		let parentScopes = scopes.slice(0, i);
 		let scope = scopes[i];
@@ -19,7 +19,7 @@ export function findMatchingThemeRule(theme: IThemeDocument, scopes: string[]): 
 	return null;
 }
 
-function findMatchingThemeRule2(theme: IThemeDocument, scope: string, parentScopes: string[]): ThemeRule {
+function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes: string[]): ThemeRule {
 	let result: ThemeRule = null;
 
 	// Loop backwards, to ensure the last most specific rule wins

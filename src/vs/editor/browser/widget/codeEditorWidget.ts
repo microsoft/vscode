@@ -134,7 +134,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		let tokens = model.getLineTokens(lineNumber, false);
 		let inflatedTokens = tokens.inflate();
 		let tabSize = model.getOptions().tabSize;
-		return Colorizer.colorizeLine(content, inflatedTokens, tabSize);
+		return Colorizer.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 	public getView(): editorBrowser.IView {
 		return this._view;

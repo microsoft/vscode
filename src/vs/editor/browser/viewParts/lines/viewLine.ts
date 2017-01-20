@@ -5,6 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
+import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
@@ -16,24 +17,50 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 
+export class DomReadingContext {
+
+	private readonly _domNode: HTMLElement;
+	private _clientRectDeltaLeft: number;
+	private _clientRectDeltaLeftRead: boolean;
+	public get clientRectDeltaLeft(): number {
+		if (!this._clientRectDeltaLeftRead) {
+			this._clientRectDeltaLeftRead = true;
+			this._clientRectDeltaLeft = this._domNode.getBoundingClientRect().left;
+		}
+		return this._clientRectDeltaLeft;
+	}
+
+	public readonly endNode: HTMLElement;
+
+	constructor(domNode: HTMLElement, endNode: HTMLElement) {
+		this._domNode = domNode;
+		this._clientRectDeltaLeft = 0;
+		this._clientRectDeltaLeftRead = false;
+		this.endNode = endNode;
+	}
+
+}
+
 export class ViewLine implements IVisibleLineData {
 
 	private _context: ViewContext;
 	private _renderWhitespace: 'none' | 'boundary' | 'all';
 	private _renderControlCharacters: boolean;
 	private _spaceWidth: number;
+	private _fontIsMonospace: boolean;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
 
 	private _isMaybeInvalid: boolean;
 
-	private _renderedViewLine: RenderedViewLine;
+	private _renderedViewLine: IRenderedViewLine;
 
 	constructor(context: ViewContext) {
 		this._context = context;
 		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
+		this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 
@@ -79,6 +106,7 @@ export class ViewLine implements IVisibleLineData {
 		if (e.fontInfo) {
 			this._isMaybeInvalid = true;
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
+			this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
 		}
 		if (e.lineHeight) {
 			this._isMaybeInvalid = true;
@@ -99,9 +127,12 @@ export class ViewLine implements IVisibleLineData {
 
 		const model = this._context.model;
 		const actualInlineDecorations = Decoration.filter(inlineDecorations, lineNumber, model.getLineMinColumn(lineNumber), model.getLineMaxColumn(lineNumber));
+		const lineContent = model.getLineContent(lineNumber);
 
 		let renderLineInput = new RenderLineInput(
-			model.getLineContent(lineNumber),
+			this._fontIsMonospace,
+			lineContent,
+			model.mightContainRTL(),
 			model.getLineMinColumn(lineNumber) - 1,
 			model.getLineTokens(lineNumber),
 			actualInlineDecorations,
@@ -117,15 +148,38 @@ export class ViewLine implements IVisibleLineData {
 			return false;
 		}
 
-		let isWhitespaceOnly = /^\s*$/.test(renderLineInput.lineContent);
+		const output = renderViewLine(renderLineInput);
 
-		this._renderedViewLine = createRenderedLine(
-			this._renderedViewLine ? this._renderedViewLine.domNode : null,
-			renderLineInput,
-			this._context.model.mightContainRTL(),
-			isWhitespaceOnly,
-			renderViewLine(renderLineInput)
-		);
+		let renderedViewLine: IRenderedViewLine = null;
+		if (this._fontIsMonospace && !output.containsForeignElements) {
+			let isRegularASCII = true;
+			if (model.mightContainNonBasicASCII()) {
+				isRegularASCII = strings.isBasicASCII(lineContent);
+			}
+
+			if (isRegularASCII && lineContent.length < 1000) {
+				// Browser rounding errors have been observed in Chrome and IE, so using the fast
+				// view line only for short lines. Please test before removing the length check...
+				renderedViewLine = new FastRenderedViewLine(
+					this._renderedViewLine ? this._renderedViewLine.domNode : null,
+					renderLineInput,
+					output
+				);
+			}
+		}
+
+		if (!renderedViewLine) {
+			let isWhitespaceOnly = /^\s*$/.test(renderLineInput.lineContent);
+			renderedViewLine = createRenderedLine(
+				this._renderedViewLine ? this._renderedViewLine.domNode : null,
+				renderLineInput,
+				isWhitespaceOnly,
+				output
+			);
+		}
+
+		this._renderedViewLine = renderedViewLine;
+
 		return true;
 	}
 
@@ -154,12 +208,116 @@ export class ViewLine implements IVisibleLineData {
 		return this._renderedViewLine.getWidth();
 	}
 
-	public getVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
-		return this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+		return this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
 		return this._renderedViewLine.getColumnOfNodeOffset(lineNumber, spanNode, offset);
+	}
+}
+
+interface IRenderedViewLine {
+	domNode: FastDomNode;
+	readonly input: RenderLineInput;
+	readonly html: string;
+	getWidth(): number;
+	getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[];
+	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
+}
+
+/**
+ * A rendered line which is guaranteed to contain only regular ASCII and is rendered with a monospace font.
+ */
+class FastRenderedViewLine implements IRenderedViewLine {
+
+	public domNode: FastDomNode;
+	public readonly input: RenderLineInput;
+	public readonly html: string;
+
+	private readonly _characterMapping: CharacterMapping;
+	private readonly _charWidth: number;
+	private readonly _charOffset: Uint32Array;
+
+	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, renderLineOutput: RenderLineOutput) {
+		this.domNode = domNode;
+		this.input = renderLineInput;
+		this.html = renderLineOutput.output;
+
+		this._characterMapping = renderLineOutput.characterMapping;
+		this._charWidth = renderLineInput.spaceWidth;
+		this._charOffset = FastRenderedViewLine._createCharOffset(renderLineOutput.characterMapping);
+	}
+
+	private static _createCharOffset(characterMapping: CharacterMapping): Uint32Array {
+		const partLengths = characterMapping.getPartLengths();
+		const len = characterMapping.length;
+
+		let result = new Uint32Array(len);
+		let currentPartIndex = 0;
+		let currentPartOffset = 0;
+		for (let ch = 0; ch < len; ch++) {
+			const partData = characterMapping.charOffsetToPartData(ch);
+			const partIndex = CharacterMapping.getPartIndex(partData);
+			const charIndex = CharacterMapping.getCharIndex(partData);
+
+			while (currentPartIndex < partIndex) {
+				currentPartOffset += partLengths[currentPartIndex];
+				currentPartIndex++;
+			}
+
+			result[ch] = currentPartOffset + charIndex;
+		}
+
+		return result;
+	}
+
+	public getWidth(): number {
+		if (this._charOffset.length === 0) {
+			return 0;
+		}
+		const lastCharOffset = this._charOffset[this._charOffset.length - 1];
+		return lastCharOffset * this._charWidth;
+	}
+
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+		startColumn = startColumn | 0; // @perf
+		endColumn = endColumn | 0; // @perf
+		const stopRenderingLineAfter = this.input.stopRenderingLineAfter | 0; // @perf
+
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
+			// This range is obviously not visible
+			return null;
+		}
+
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
+			startColumn = stopRenderingLineAfter;
+		}
+
+		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
+			endColumn = stopRenderingLineAfter;
+		}
+
+		if (this._charOffset.length === 0) {
+			return [new HorizontalRange(0, 0)];
+		}
+
+		const startCharOffset = this._charOffset[startColumn - 1];
+		const endCharOffset = this._charOffset[endColumn - 1];
+		return [new HorizontalRange(this._charWidth * startCharOffset, this._charWidth * (endCharOffset - startCharOffset))];
+	}
+
+	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
+		let spanNodeTextContentLength = spanNode.textContent.length;
+
+		let spanIndex = -1;
+		while (spanNode) {
+			spanNode = <HTMLElement>spanNode.previousSibling;
+			spanIndex++;
+		}
+
+		let charOffset = this._characterMapping.partDataToCharOffset(spanIndex, spanNodeTextContentLength, offset);
+		return charOffset + 1;
 	}
 }
 
@@ -179,9 +337,9 @@ class RenderedViewLine {
 	/**
 	 * This is a map that is used only when the line is guaranteed to have no RTL text.
 	 */
-	private _pixelOffsetCache: number[];
+	private _pixelOffsetCache: Int32Array;
 
-	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) {
+	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 		this.html = renderLineOutput.output;
@@ -190,8 +348,8 @@ class RenderedViewLine {
 		this._cachedWidth = -1;
 
 		this._pixelOffsetCache = null;
-		if (!modelContainsRTL) {
-			this._pixelOffsetCache = [];
+		if (!renderLineOutput.containsRTL) {
+			this._pixelOffsetCache = new Int32Array(this._characterMapping.length + 1);
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
 			}
@@ -217,10 +375,9 @@ class RenderedViewLine {
 	/**
 	 * Visible ranges for a model range
 	 */
-	public getVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
 		startColumn = startColumn | 0; // @perf
 		endColumn = endColumn | 0; // @perf
-		clientRectDeltaLeft = clientRectDeltaLeft | 0; // @perf
 		const stopRenderingLineAfter = this.input.stopRenderingLineAfter | 0; // @perf
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
@@ -238,12 +395,12 @@ class RenderedViewLine {
 
 		if (this._pixelOffsetCache !== null) {
 			// the text is LTR
-			let startOffset = this._readPixelOffset(startColumn, clientRectDeltaLeft, endNode);
+			let startOffset = this._readPixelOffset(startColumn, context);
 			if (startOffset === -1) {
 				return null;
 			}
 
-			let endOffset = this._readPixelOffset(endColumn, clientRectDeltaLeft, endNode);
+			let endOffset = this._readPixelOffset(endColumn, context);
 			if (endOffset === -1) {
 				return null;
 			}
@@ -251,23 +408,23 @@ class RenderedViewLine {
 			return [new HorizontalRange(startOffset, endOffset - startOffset)];
 		}
 
-		return this._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
+		return this._readVisibleRangesForRange(startColumn, endColumn, context);
 	}
 
-	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
+	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
 		if (startColumn === endColumn) {
-			let pixelOffset = this._readPixelOffset(startColumn, clientRectDeltaLeft, endNode);
+			let pixelOffset = this._readPixelOffset(startColumn, context);
 			if (pixelOffset === -1) {
 				return null;
 			} else {
 				return [new HorizontalRange(pixelOffset, 0)];
 			}
 		} else {
-			return this._readRawVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
+			return this._readRawVisibleRangesForRange(startColumn, endColumn, context);
 		}
 	}
 
-	protected _readPixelOffset(column: number, clientRectDeltaLeft: number, endNode: HTMLElement): number {
+	protected _readPixelOffset(column: number, context: DomReadingContext): number {
 		if (this._pixelOffsetCache !== null) {
 			// the text is LTR
 
@@ -276,15 +433,15 @@ class RenderedViewLine {
 				return cachedPixelOffset;
 			}
 
-			let result = this._actualReadPixelOffset(column, clientRectDeltaLeft, endNode);
+			let result = this._actualReadPixelOffset(column, context);
 			this._pixelOffsetCache[column] = result;
 			return result;
 		}
 
-		return this._actualReadPixelOffset(column, clientRectDeltaLeft, endNode);
+		return this._actualReadPixelOffset(column, context);
 	}
 
-	private _actualReadPixelOffset(column: number, clientRectDeltaLeft: number, endNode: HTMLElement): number {
+	private _actualReadPixelOffset(column: number, context: DomReadingContext): number {
 
 		if (this._characterMapping.length === 0) {
 			// This line is empty
@@ -300,14 +457,14 @@ class RenderedViewLine {
 		let partIndex = CharacterMapping.getPartIndex(partData);
 		let charOffsetInPart = CharacterMapping.getCharIndex(partData);
 
-		let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, endNode);
+		let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, context.clientRectDeltaLeft, context.endNode);
 		if (!r || r.length === 0) {
 			return -1;
 		}
 		return r[0].left;
 	}
 
-	private _readRawVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
+	private _readRawVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
 
 		if (startColumn === 1 && endColumn === this._characterMapping.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
@@ -323,7 +480,7 @@ class RenderedViewLine {
 		let endPartIndex = CharacterMapping.getPartIndex(endPartData);
 		let endCharOffsetInPart = CharacterMapping.getCharIndex(endPartData);
 
-		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, context.clientRectDeltaLeft, context.endNode);
 	}
 
 	/**
@@ -344,8 +501,8 @@ class RenderedViewLine {
 }
 
 class WebKitRenderedViewLine extends RenderedViewLine {
-	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
-		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
+	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+		let output = super._readVisibleRangesForRange(startColumn, endColumn, context);
 
 		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._characterMapping.length)) {
 			return output;
@@ -356,9 +513,9 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 
 		// This is an attempt to patch things up
 		// Find position of previous column
-		let beforeEndPixelOffset = this._readPixelOffset(endColumn - 1, clientRectDeltaLeft, endNode);
+		let beforeEndPixelOffset = this._readPixelOffset(endColumn - 1, context);
 		// Find position of last column
-		let endPixelOffset = this._readPixelOffset(endColumn, clientRectDeltaLeft, endNode);
+		let endPixelOffset = this._readPixelOffset(endColumn, context);
 
 		if (beforeEndPixelOffset !== -1 && endPixelOffset !== -1) {
 			let isLTR = (beforeEndPixelOffset <= endPixelOffset);
@@ -374,17 +531,17 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 	}
 }
 
-const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
+const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
 	if (browser.isWebKit) {
 		return createWebKitRenderedLine;
 	}
 	return createNormalRenderedLine;
 })();
 
-function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new WebKitRenderedViewLine(domNode, renderLineInput, modelContainsRTL, isWhitespaceOnly, renderLineOutput);
+function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+	return new WebKitRenderedViewLine(domNode, renderLineInput, isWhitespaceOnly, renderLineOutput);
 }
 
-function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new RenderedViewLine(domNode, renderLineInput, modelContainsRTL, isWhitespaceOnly, renderLineOutput);
+function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, isWhitespaceOnly: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+	return new RenderedViewLine(domNode, renderLineInput, isWhitespaceOnly, renderLineOutput);
 }

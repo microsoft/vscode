@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "row",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -331,7 +331,7 @@
 	},
 	{
 		"c": "col",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "live",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1167,7 +1167,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1255,7 +1255,7 @@
 	},
 	{
 		"c": "canvasSize",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1343,7 +1343,7 @@
 	},
 	{
 		"c": "lineColor",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1431,7 +1431,7 @@
 	},
 	{
 		"c": "liveColor",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1519,7 +1519,7 @@
 	},
 	{
 		"c": "deadColor",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1607,7 +1607,7 @@
 	},
 	{
 		"c": "initialLifeProbability",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1695,7 +1695,7 @@
 	},
 	{
 		"c": "animationRate",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1783,7 +1783,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3092,7 +3092,7 @@
 	},
 	{
 		"c": "createWorld",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3708,7 +3708,7 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4786,7 +4786,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4929,7 +4929,7 @@
 	},
 	{
 		"c": "count",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5083,7 +5083,7 @@
 	},
 	{
 		"c": "newCell",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5952,7 +5952,7 @@
 	},
 	{
 		"c": "countNeighbors",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6095,7 +6095,7 @@
 	},
 	{
 		"c": "neighbors",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6216,7 +6216,7 @@
 	},
 	{
 		"c": "row",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6480,7 +6480,7 @@
 	},
 	{
 		"c": "col",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7426,7 +7426,7 @@
 	},
 	{
 		"c": "isAlive",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8284,7 +8284,7 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8383,7 +8383,7 @@
 	},
 	{
 		"c": "result",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8504,7 +8504,7 @@
 	},
 	{
 		"c": "row",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8768,7 +8768,7 @@
 	},
 	{
 		"c": "rowData",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8889,7 +8889,7 @@
 	},
 	{
 		"c": "col",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9593,7 +9593,7 @@
 	},
 	{
 		"c": "draw",
-		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -11298,7 +11298,7 @@
 	},
 	{
 		"c": "game",
-		"t": "source.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",

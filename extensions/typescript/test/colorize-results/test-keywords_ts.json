@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.ts meta.var.expr.ts meta.var-single-variable.expr.ts entity.name.function.ts",
+		"t": "source.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",

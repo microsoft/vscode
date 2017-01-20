@@ -7,7 +7,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -35,6 +35,11 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let EDITOR_ID = 0;
 
+export interface IAddedAction {
+	uniqueId: string;
+	disposable: IDisposable;
+}
+
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
 	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
@@ -53,6 +58,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
 	public readonly onWillType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.WillType);
 	public readonly onDidType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.DidType);
+	public readonly onDidPaste: Event<Range> = fromEventEmitter<Range>(this, editorCommon.EventType.DidPaste);
 
 	protected domElement: IContextKeyServiceTarget;
 
@@ -510,7 +516,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return <T>(this._contributions[id] || null);
 	}
 
-	public addAction(descriptor: editorCommon.IActionDescriptor): void {
+	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
 		if (
 			(typeof descriptor.id !== 'string')
 			|| (typeof descriptor.label !== 'string')
@@ -518,6 +524,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		) {
 			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
 		}
+		let toDispose: IDisposable[] = [];
 
 		// Generate a unique id to allow the same descriptor.id across multiple editor instances
 		let uniqueId = this.getId() + ':' + descriptor.id;
@@ -525,7 +532,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		let action = new DynamicEditorAction(descriptor, this);
 
 		// Register the command
-		CommandsRegistry.registerCommand(uniqueId, () => action.run());
+		toDispose.push(CommandsRegistry.registerCommand(uniqueId, () => action.run()));
 
 		if (descriptor.contextMenuGroupId) {
 			let menuItem: IMenuItem = {
@@ -539,10 +546,20 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			};
 
 			// Register the menu item
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
+			toDispose.push(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
 		}
 
 		this._actions[action.id] = action;
+		toDispose.push({
+			dispose: () => {
+				delete this._actions[action.id];
+			}
+		});
+
+		return {
+			uniqueId: uniqueId,
+			disposable: combinedDisposable(toDispose)
+		};
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
@@ -584,6 +601,20 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.cursor.trigger(source, handlerId, payload);
 			if (source === 'keyboard') {
 				this.emit(editorCommon.EventType.DidType, payload.text);
+			}
+			return;
+		}
+
+		if (handlerId === editorCommon.Handler.Paste) {
+			if (!this.cursor || typeof payload.text !== 'string' || payload.text.length === 0) {
+				// nothing to do
+				return;
+			}
+			const startPosition = this.cursor.getSelection().getStartPosition();
+			this.cursor.trigger(source, handlerId, payload);
+			const endPosition = this.cursor.getSelection().getStartPosition();
+			if (source === 'keyboard') {
+				this.emit(editorCommon.EventType.DidPaste, new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column));
 			}
 			return;
 		}

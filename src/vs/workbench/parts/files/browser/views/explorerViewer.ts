@@ -11,7 +11,7 @@ import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import async = require('vs/base/common/async');
+import { once } from 'vs/base/common/functional';
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import { isString } from 'vs/base/common/types';
@@ -329,7 +329,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = async.once((commit: boolean) => {
+		const done = once(commit => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
@@ -418,7 +418,7 @@ export class FileController extends TreeControllerBase {
 		this.state = state;
 	}
 
-	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -659,10 +659,6 @@ export class FileSorter implements ISorter {
 
 		if (statB.isDirectory && !statA.isDirectory) {
 			return 1;
-		}
-
-		if (statA.isDirectory && statB.isDirectory) {
-			return statA.name.toLowerCase().localeCompare(statB.name.toLowerCase());
 		}
 
 		if (statA instanceof NewStatPlaceholder) {

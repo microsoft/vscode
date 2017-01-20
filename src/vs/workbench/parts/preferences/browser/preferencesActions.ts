@@ -9,6 +9,24 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
+export class OpenSettingsAction extends Action {
+
+	public static ID = 'workbench.action.openSettings';
+	public static LABEL = nls.localize('openSettings', "Open Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openSettings();
+	}
+}
+
 export class OpenGlobalSettingsAction extends Action {
 
 	public static ID = 'workbench.action.openGlobalSettings';
@@ -22,7 +40,7 @@ export class OpenGlobalSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<void> {
+	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openGlobalSettings();
 	}
 }
@@ -58,7 +76,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<void> {
+	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openWorkspaceSettings();
 	}
 }

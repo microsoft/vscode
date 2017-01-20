@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.ts meta.function.ts entity.name.function.ts",
+		"t": "source.ts meta.function.ts meta.definition.function.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": "timeRange",
-		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",

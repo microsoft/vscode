@@ -41,7 +41,7 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
-		if (this.configurationService.lookup('files.trimTrailingWhitespace').value) {
+		if (this.configurationService.lookup('files.trimTrailingWhitespace', model.textEditorModel.getLanguageIdentifier().language).value) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -99,7 +99,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
-		if (this.configurationService.lookup('files.insertFinalNewline').value) {
+		if (this.configurationService.lookup('files.insertFinalNewline', model.textEditorModel.getLanguageIdentifier().language).value) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -140,13 +140,12 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
 
+		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.lookup('editor.formatOnSave').value) {
-
+			|| !this._configurationService.lookup('editor.formatOnSave', model.getLanguageIdentifier().language).value) {
 			return;
 		}
 
-		const model = editorModel.textEditorModel;
 		const versionNow = model.getVersionId();
 		const {tabSize, insertSpaces} = model.getOptions();
 
