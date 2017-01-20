@@ -111,6 +111,11 @@ export class WalkThroughPart extends BaseEditor {
 
 	layout({ width, height }: Dimension): void {
 		$(this.content).style({ height: `${height}px`, width: `${width}px` });
+		const innerContent = this.content.firstElementChild;
+		if (innerContent) {
+			const classList = innerContent.classList;
+			classList[height <= 690 ? 'add' : 'remove']('max-height-690px');
+		}
 		this.contentDisposables.forEach(disposable => {
 			if (disposable instanceof CodeEditor) {
 				disposable.layout();
@@ -137,7 +142,7 @@ export class WalkThroughPart extends BaseEditor {
 					this.content.innerHTML = content;
 					this.decorateContent();
 					if (input.onReady) {
-						input.onReady(this.content);
+						input.onReady(this.content.firstElementChild as HTMLElement);
 					}
 					this.scrollbar.scanDomNode();
 					return;
@@ -149,14 +154,16 @@ export class WalkThroughPart extends BaseEditor {
 					const id = `snippet-${model.snippets[i++].textEditorModel.uri.fragment}`;
 					return `<div id="${id}" class="walkThroughEditorContainer" ></div>`;
 				};
-				this.content.classList.add('walkThroughContent'); // only for markdown files
+				const innerContent = document.createElement('div');
+				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				this.content.innerHTML = marked(markdown, { renderer });
+				innerContent.innerHTML = marked(markdown, { renderer });
+				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
 					const model = snippet.textEditorModel;
 					const id = `snippet-${model.uri.fragment}`;
-					const div = this.content.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
+					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
 					var options: IEditorOptions = {
 						scrollBeyondLastLine: false,
@@ -184,7 +191,7 @@ export class WalkThroughPart extends BaseEditor {
 					}
 				});
 				if (input.onReady) {
-					input.onReady(this.content);
+					input.onReady(innerContent);
 				}
 				this.scrollbar.scanDomNode();
 			});
