@@ -65,7 +65,7 @@ suite('Emmet', () => {
 			}
 
 			// emmet supported languages, null is used as the scopeName since it should not be consulted, they map to to mode to the same syntax name
-			let emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
+			let emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 			emmetSupportedModes.forEach(each => {
 				testIsEnabled(each, null);
 			});
@@ -139,7 +139,7 @@ suite('Emmet', () => {
 			}
 
 			// emmet supported languages, null is used as the scopeName since it should not be consulted, they map to to mode to the same syntax name
-			let emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
+			let emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 			emmetSupportedModes.forEach(each => {
 				testSyntax(each, null, each);
 			});
