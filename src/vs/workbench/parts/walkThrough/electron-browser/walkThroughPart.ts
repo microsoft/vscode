@@ -78,7 +78,9 @@ export class WalkThroughPart extends BaseEditor {
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
 						let scrollTarget = this.content.querySelector(node.hash);
 						if (scrollTarget) {
-							scrollTarget.scrollIntoView();
+							const targetTop = scrollTarget.getBoundingClientRect().top;
+							const containerTop = this.content.getBoundingClientRect().top;
+							this.scrollbar.updateState({ scrollTop: targetTop - containerTop });
 						}
 					} else {
 						const uri = this.addFrom(URI.parse(node.href));
