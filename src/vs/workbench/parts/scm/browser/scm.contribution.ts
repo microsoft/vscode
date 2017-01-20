@@ -21,24 +21,7 @@ import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusUpdater } from './scmActivity';
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffDecorator);
-
-const viewletDescriptor = new ViewletDescriptor(
-	'vs/workbench/parts/scm/browser/scmViewlet',
-	'SCMViewlet',
-	VIEWLET_ID,
-	localize('scm', "SCM"),
-	'scm',
-	36
-);
-
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
-	.registerViewlet(viewletDescriptor);
-
-Registry.as(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusUpdater);
+import SCMPreview, { DisableSCMPreviewAction, EnableSCMPreviewAction } from 'vs/workbench/parts/scm/browser/scmPreview';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -49,19 +32,6 @@ class OpenSCMViewletAction extends ToggleViewletAction {
 		super(id, label, VIEWLET_ID, viewletService, editorService);
 	}
 }
-
-// Register Action to Open Viewlet
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
-		primary: null,
-		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G }
-	}),
-	'View: Show SCM',
-	localize('view', "View")
-);
-
 
 // TODO@Joao
 export class SwitchProvider extends Action {
@@ -89,5 +59,43 @@ export class SwitchProvider extends Action {
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(SwitchProvider, SwitchProvider.ID, SwitchProvider.LABEL), 'SCM: Switch Provider', 'SCM');
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(DirtyDiffDecorator);
+
+if (SCMPreview.enabled) {
+	const viewletDescriptor = new ViewletDescriptor(
+		'vs/workbench/parts/scm/browser/scmViewlet',
+		'SCMViewlet',
+		VIEWLET_ID,
+		localize('scm', "SCM"),
+		'scm',
+		36
+	);
+
+	Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
+		.registerViewlet(viewletDescriptor);
+
+	Registry.as(WorkbenchExtensions.Workbench)
+		.registerWorkbenchContribution(StatusUpdater);
+
+	// Register Action to Open Viewlet
+	Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
+		new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
+			primary: null,
+			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G }
+		}),
+		'View: Show SCM',
+		localize('view', "View")
+	);
+
+	Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(SwitchProvider, SwitchProvider.ID, SwitchProvider.LABEL), 'SCM: Switch Provider', 'SCM');
+
+	Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(DisableSCMPreviewAction, DisableSCMPreviewAction.ID, DisableSCMPreviewAction.LABEL), 'SCM: Disable Preview SCM', 'SCM');
+} else {
+	Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(EnableSCMPreviewAction, EnableSCMPreviewAction.ID, EnableSCMPreviewAction.LABEL), 'SCM: Enable Preview SCM', 'SCM');
+}
