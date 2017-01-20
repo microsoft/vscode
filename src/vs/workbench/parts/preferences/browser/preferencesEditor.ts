@@ -169,6 +169,10 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private switchSettings(): void {
+		// Focus the editor if this editor is not active editor
+		if (this.editorService.getActiveEditor() !== this) {
+			this.focus();
+		}
 		const promise = this.input.isDirty() ? this.input.save() : TPromise.as(true);
 		promise.done(value => this.preferencesService.switchSettings());
 	}
