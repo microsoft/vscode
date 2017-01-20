@@ -66,7 +66,7 @@ export class ReferenceAction extends EditorAction {
 			precondition: ContextKeyExpr.and(
 				ModeContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
-				ModeContextKeys.isInWalkThrough.toNegated()),
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Shift | KeyCode.F12
