@@ -125,6 +125,7 @@ class WelcomePage {
 				a.addEventListener('click', e => {
 					this.windowsService.openWindow([folder]);
 					e.preventDefault();
+					e.stopPropagation();
 				});
 				li.appendChild(a);
 
