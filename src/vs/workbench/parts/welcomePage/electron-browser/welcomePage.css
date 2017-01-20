@@ -222,8 +222,6 @@
 	outline-offset: -5px;
 }
 
-@media screen and (max-height: 750px) {
-	.monaco-workbench > .part.editor > .content .welcomePage .title {
-		display: none;
-	}
+.monaco-workbench > .part.editor > .content .welcomePage.max-height-690px .title {
+	display: none;
 }
