@@ -279,6 +279,13 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._wrapperElement) {
 			DOM.toggleClass(this._wrapperElement, 'active', visible);
 		}
+		if (visible) {
+			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
+			// necessary if the number of rows in the terminal has decreased while it was in the
+			// background since scrollTop changes take no effect but the terminal's position does
+			// change since the number of visible rows decreases.
+			this._xterm.emit('scroll', this._xterm.ydisp);
+		}
 	}
 
 	public scrollDownLine(): void {
