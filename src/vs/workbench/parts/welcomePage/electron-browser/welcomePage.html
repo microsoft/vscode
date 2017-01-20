@@ -3,42 +3,44 @@
 		<h1>Visual Studio Code</h1>
 		<p class="subtitle">Editing evolved</p>
 	</div>
-	<div class="splash">
-		<div class="section start">
-			<h2>Start</h2>
+	<div class="row">
+		<div class="splash">
+			<div class="section start">
+				<h2>Start</h2>
+				<ul>
+					<li><a href="command:workbench.action.files.openFileFolder">Open folder...</a></li>
+					<li><a href="command:workbench.action.git.clone">Clone Git repository...</a></li>
+				</ul>
+			</div>
+			<div class="section recent">
+				<h2>Recent</h2>
+				<ul>
+					<!-- Filled programmatically -->
+				</ul>
+			</div>
+			<div class="section help">
+				<h2>Help</h2>
+				<ul>
+					<li><a href="command:workbench.action.openDocumentationUrl">Product documentation</a></li>
+					<li><a href="command:workbench.action.openVideoUrl">Introductory videos</a></li>
+					<li><a href="https://github.com/Microsoft/vscode">GitHub repository</a></li>
+					<li><a href="http://stackoverflow.com/questions/tagged/vscode">StackOverflow</a></li>
+					<!-- TODO: Use commands -->
+				</ul>
+			</div>
+			<p class="showOnStartup"><input type="checkbox" id="showOnStartup"> <label for="showOnStartup">Show welcome page on startup</label></p>
+		</div>
+		<div class="commands">
+			<h2>Quick links</h2>
 			<ul>
-				<li><a href="command:workbench.action.files.openFileFolder">Open folder...</a></li>
-				<li><a href="command:workbench.action.git.clone">Clone Git repository...</a></li>
+				<li><button data-href="command:workbench.action.weclomeOverlay"><h3>Interface overview</h3> <span>Quick overview of the major UI components.</span></button></li>
+				<li><button data-href="command:workbench.action.selectTheme"><h3>Editor theme</h3> <span>Change the syntax theme.</span></button></li>
+				<li><button data-href="command:workbench.action.keybindingsReference"><h3>Keyboard shortcuts</h3> <span>Reference guide for the most common keboard shortcuts.</span></button></li>
+				<li><button data-href="command:workbench.action.showCommands"><h3>Show all commands</h3> <span>Open the command pallette to see a full list of commands.</span></button></li>
+				<li><button data-href="command:workbench.action.openGlobalSettings"><h3>Change settings</h3> <span>Change settings to match your preferences.</span></button></li>
+				<li><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3>Change Default Keyboard Shortcuts</h3> <span>Map the default keyboard shortcuts to another editor's style.</span></button></li>
+				<li><button data-href="command:workbench.action.editorWalkThrough"><h3>Interactive playgropund</h3> <span>Try out essential editor features out in a short walk-thru.</span></button></li>
 			</ul>
 		</div>
-		<div class="section recent">
-			<h2>Recent</h2>
-			<ul>
-				<!-- Filled programmatically -->
-			</ul>
-		</div>
-		<div class="section help">
-			<h2>Help</h2>
-			<ul>
-				<li><a href="command:workbench.action.openDocumentationUrl">Product documentation</a></li>
-				<li><a href="command:workbench.action.openVideoUrl">Introductory videos</a></li>
-				<li><a href="https://github.com/Microsoft/vscode">GitHub repository</a></li>
-				<li><a href="http://stackoverflow.com/questions/tagged/vscode">StackOverflow</a></li>
-				<!-- TODO: Use commands -->
-			</ul>
-		</div>
-		<p class="showOnStartup"><input type="checkbox" id="showOnStartup"> <label for="showOnStartup">Show welcome page on startup</label></p>
-	</div>
-	<div class="commands">
-		<h2>Quick links</h2>
-		<ul>
-			<li><button data-href="command:workbench.action.weclomeOverlay"><h3>Interface overview</h3> Quick overview of the major UI components.</button></li>
-			<li><button data-href="command:workbench.action.selectTheme"><h3>Editor theme</h3> Change the syntax theme.</button></li>
-			<li><button data-href="command:workbench.action.keybindingsReference"><h3>Keyboard shortcuts</h3> Reference guide for the most common keboard shortcuts.</button></li>
-			<li><button data-href="command:workbench.action.showCommands"><h3>Show all commands</h3> Open the command pallette to see a full list of commands.</button></li>
-			<li><button data-href="command:workbench.action.openGlobalSettings"><h3>Change settings</h3> Change settings to match your preferences.</button></li>
-			<li><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3>Change Default Keyboard Shortcuts</h3> Map the default keyboard shortcuts to another editor's style.</button></li>
-			<li><button data-href="command:workbench.action.editorWalkThrough"><h3>Interactive playgropund</h3> Try out essential editor features out in a short walk-thru.</button></li>
-		</ul>
 	</div>
 </div>
