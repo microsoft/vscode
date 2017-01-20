@@ -40,7 +40,7 @@ export class OutputElement extends AbstractOutputElement {
 
 	public counter: number;
 
-	construcor(
+	constructor(
 		public value: string,
 		public severity: severity,
 	) {
