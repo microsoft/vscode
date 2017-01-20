@@ -26,9 +26,6 @@ let onTerminate = function () {
 	exit();
 };
 
-// Utility to not flood the process.send() with messages if it is busy catching up
-const queuedSender = createQueuedSender(process);
-
 const protocol = new class implements IMessagePassingProtocol {
 
 	private _sender = createQueuedSender(process);
@@ -57,7 +54,6 @@ const protocol = new class implements IMessagePassingProtocol {
 
 function connectToRenderer(): TPromise<IRendererConnection> {
 	return new TPromise<IRendererConnection>((c, e) => {
-		const stats: number[] = [];
 
 		// Listen init data message
 		process.once('message', raw => {
@@ -102,24 +98,14 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 				}
 			}, 5000);
 
-			// Check stats
-			setInterval(function () {
-				if (stats.length >= 250) {
-					let total = stats.reduce((prev, current) => prev + current, 0);
-					console.warn(`MANY messages are being SEND FROM the extension host!`);
-					console.warn(`SEND during 1sec: message_count=${stats.length}, total_len=${total}`);
-				}
-				stats.length = 0;
-			}, 1000);
-
 			// Tell the outside that we are initialized
-			queuedSender.send('initialized');
+			protocol.send('initialized');
 
 			c({ remoteCom, initData: msg });
 		});
 
 		// Tell the outside that we are ready to receive messages
-		queuedSender.send('ready');
+		protocol.send('ready');
 	});
 }
 
