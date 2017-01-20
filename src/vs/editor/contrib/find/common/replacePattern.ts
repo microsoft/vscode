@@ -39,7 +39,7 @@ export class ReplacePattern {
 	}
 
 	public buildReplaceString(matches: string[]): string {
-		if (this._staticValue) {
+		if (this._staticValue !== null) {
 			return this._staticValue;
 		}
 
