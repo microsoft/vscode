@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { MarkdownEngine } from './markdownEngine';
 import DocumentLinkProvider from './documentLinkProvider';
 
 interface IPackageInfo {
@@ -17,77 +18,6 @@ interface IPackageInfo {
 }
 
 var telemetryReporter: TelemetryReporter | null;
-
-interface IToken {
-	type: string;
-	map: [number, number];
-}
-
-interface MarkdownIt {
-	render(text: string): string;
-	parse(text: string): IToken[];
-	renderer: { rules: any };
-}
-
-class MarkdownEngine {
-
-	private _markdownIt: MarkdownIt | undefined;
-
-	private get markdownIt(): MarkdownIt {
-		if (!this._markdownIt) {
-			const hljs = require('highlight.js');
-			const mdnh = require('markdown-it-named-headers');
-			const md = require('markdown-it')({
-				html: true,
-				highlight: (str: string, lang: string) => {
-					if (lang && hljs.getLanguage(lang)) {
-						try {
-							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-						} catch (error) { }
-					}
-					return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-				}
-			}).use(mdnh, {});
-
-			const createLineNumberRenderer = (ruleName: string) => {
-				const original = md.renderer.rules[ruleName];
-				return (tokens: any, idx: number, options: any, env: any, self: any) => {
-					const token = tokens[idx];
-					if (token.level === 0 && token.map && token.map.length) {
-						token.attrSet('data-line', token.map[0]);
-						token.attrJoin('class', 'code-line');
-					}
-					if (original) {
-						return original(tokens, idx, options, env, self);
-					} else {
-						return self.renderToken(tokens, idx, options, env, self);
-					}
-				};
-			};
-
-			md.renderer.rules.paragraph_open = createLineNumberRenderer('paragraph_open');
-			md.renderer.rules.heading_open = createLineNumberRenderer('heading_open');
-			md.renderer.rules.image = createLineNumberRenderer('image');
-			md.renderer.rules.code_block = createLineNumberRenderer('code_block');
-
-			this._markdownIt = md as MarkdownIt;
-		}
-
-		return this._markdownIt;
-	}
-
-	get rules(): any {
-		return this.markdownIt.renderer.rules;
-	}
-
-	render(text: string): string {
-		return this.markdownIt.render(text);
-	}
-
-	parse(text: string): IToken[] {
-		return this.markdownIt.parse(text);
-	}
-}
 
 const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
 
@@ -248,7 +178,10 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean;
 
-	constructor(private engine: MarkdownEngine, private context: vscode.ExtensionContext) {
+	constructor(
+		private engine: MarkdownEngine,
+		private context: vscode.ExtensionContext
+	) {
 		this._waiting = false;
 	}
 
@@ -325,7 +258,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
 			const text = document.getText();
 			const contents = previewFrontMatter === 'hide' ? text.replace(FrontMatterRegex, '') : text;
-			const body = this.engine.render(contents);
+			const body = this.engine.render(sourceUri, contents);
 
 			return `<!DOCTYPE html>
 				<html>
@@ -386,7 +319,7 @@ class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 		const tokens = this.engine.parse(text);
 		const headings = tokens.filter(token => token.type === 'heading_open');
 
-		const symbols = headings.map(heading => {
+		return headings.map(heading => {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber + offset);
 			const location = new vscode.Location(document.uri, line.range);
@@ -400,7 +333,5 @@ class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 			return new vscode.SymbolInformation(text, vscode.SymbolKind.Module, '', location);
 		});
-
-		return symbols;
 	}
 }

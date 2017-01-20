@@ -19,16 +19,7 @@ body.scrollBeyondLastLine {
 	position: relative;
 }
 
-.code-active-line:before {
-	content: "";
-	display: block;
-	position: absolute;
-	top: 0;
-	left: -12px;
-	height: 100%;
-	border-left: 3px solid rgba(0, 122, 204, 0.5);
-}
-
+.code-active-line:before,
 .code-line:hover:before {
 	content: "";
 	display: block;
@@ -36,6 +27,13 @@ body.scrollBeyondLastLine {
 	top: 0;
 	left: -12px;
 	height: 100%;
+}
+
+.code-active-line:before {
+	border-left: 3px solid rgba(0, 122, 204, 0.5);
+}
+
+.code-line:hover:before {
 	border-left: 3px solid #4080D0;
 }
 
