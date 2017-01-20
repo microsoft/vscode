@@ -413,6 +413,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		this.getControl().setModel(null);
 		super.clearInput();
 	}
+
+	protected getAriaLabel(): string {
+		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly text editor.");
+	}
 }
 
 class DefaultPreferencesCodeEditor extends CodeEditor {
