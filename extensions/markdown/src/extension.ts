@@ -249,16 +249,28 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
 			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('preview.experimentalSyncronizationEnabled', true);
 
+			const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
+			const text = document.getText();
+			let contents;
+			let lineOffset = 0;
+			if (previewFrontMatter === 'hide') {
+				const frontMatter = text.match(FrontMatterRegex);
+				if (frontMatter) {
+					lineOffset = (frontMatter[0].match(/\n/g) || []).length;
+				}
+				contents = text.replace(FrontMatterRegex, '');
+			} else {
+				contents = text;
+			}
+
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
 			if (editor && editor.document.uri.path === sourceUri.path) {
 				initialLine = editor.selection.start.line;
 			}
 
-			const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
-			const text = document.getText();
-			const contents = previewFrontMatter === 'hide' ? text.replace(FrontMatterRegex, '') : text;
-			const body = this.engine.render(sourceUri, contents);
+
+			const body = this.engine.render(sourceUri, lineOffset, contents);
 
 			return `<!DOCTYPE html>
 				<html>
