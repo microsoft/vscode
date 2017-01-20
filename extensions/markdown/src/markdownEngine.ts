@@ -24,6 +24,8 @@ interface MarkdownIt {
 export class MarkdownEngine {
 	private md: MarkdownIt;
 
+	private firstLine: number;
+
 	private currentDocument: vscode.Uri;
 
 	private get engine(): MarkdownIt {
@@ -53,8 +55,9 @@ export class MarkdownEngine {
 		return this.md;
 	}
 
-	public render(document: vscode.Uri, text: string): string {
+	public render(document: vscode.Uri, firstLine: number, text: string): string {
 		this.currentDocument = document;
+		this.firstLine = firstLine;
 		return this.engine.render(text);
 	}
 
@@ -67,7 +70,7 @@ export class MarkdownEngine {
 		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
 			if (token.level === 0 && token.map && token.map.length) {
-				token.attrSet('data-line', token.map[0]);
+				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}
 			if (original) {
