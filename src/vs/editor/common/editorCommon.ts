@@ -3132,7 +3132,7 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const isInWalkThrough = new RawContextKey<boolean>('isInWalkThrough', undefined);
+	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
 }
 
 

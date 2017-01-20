@@ -50,7 +50,7 @@ export class EditorModeContext {
 		this._hasDocumentFormattingProvider = ModeContextKeys.hasDocumentFormattingProvider.bindTo(contextKeyService);
 		this._hasDocumentSelectionFormattingProvider = ModeContextKeys.hasDocumentSelectionFormattingProvider.bindTo(contextKeyService);
 		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
-		this._isInWalkThrough = ModeContextKeys.isInWalkThrough.bindTo(contextKeyService);
+		this._isInWalkThrough = ModeContextKeys.isInEmbeddedEditor.bindTo(contextKeyService);
 
 		// update when model/mode changes
 		this._disposables.push(editor.onDidChangeModel(() => this._update()));

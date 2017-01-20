@@ -171,7 +171,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 			alias: 'Go to Definition',
 			precondition: ContextKeyExpr.and(
 				ModeContextKeys.hasDefinitionProvider,
-				ModeContextKeys.isInWalkThrough.toNegated()),
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: goToDeclarationKb
@@ -196,7 +196,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			alias: 'Open Definition to the Side',
 			precondition: ContextKeyExpr.and(
 				ModeContextKeys.hasDefinitionProvider,
-				ModeContextKeys.isInWalkThrough.toNegated()),
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
@@ -215,7 +215,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 			precondition: ContextKeyExpr.and(
 				ModeContextKeys.hasDefinitionProvider,
 				PeekContext.notInPeekEditor,
-				ModeContextKeys.isInWalkThrough.toNegated()),
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
@@ -242,7 +242,7 @@ export class GoToImplementationAction extends DefinitionAction {
 			alias: 'Go to Implementation',
 			precondition: ContextKeyExpr.and(
 				ModeContextKeys.hasTypeDefinitionProvider,
-				ModeContextKeys.isInWalkThrough.toNegated()),
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12
@@ -271,7 +271,7 @@ export class PeekImplementationAction extends DefinitionAction {
 			alias: 'Peek Implementation',
 			precondition: ContextKeyExpr.and(
 				ModeContextKeys.hasTypeDefinitionProvider,
-				ModeContextKeys.isInWalkThrough.toNegated()),
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
