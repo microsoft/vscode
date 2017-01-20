@@ -38,10 +38,26 @@ export class MinimapCharRendererFactory {
 		return new MinimapCharRenderer(x2CharData, x1CharData);
 	}
 
+	private static _extractSampledChar(source: Uint8ClampedArray, charIndex: number, dest: Uint8ClampedArray) {
+		let destOffset = 0;
+		for (let i = 0; i < Constants.SAMPLED_CHAR_HEIGHT; i++) {
+			let sourceOffset = (
+				Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT * i
+				+ Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * charIndex
+			);
+			for (let j = 0; j < Constants.SAMPLED_CHAR_WIDTH; j++) {
+				for (let c = 0; c < Constants.RGBA_CHANNELS_CNT; c++) {
+					dest[destOffset] = source[sourceOffset];
+					sourceOffset++;
+					destOffset++;
+				}
+			}
+		}
+	}
 
-	private static _downsample2x(data: Uint8ClampedArray): Uint8ClampedArray {
+	private static _downsample2xChar(source: Uint8ClampedArray, dest: Uint8ClampedArray): void {
 		// chars are 2 x 4px (width x height)
-		const resultLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * Constants.CHAR_COUNT;
+		const resultLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT;
 		const result = new Uint16Array(resultLen);
 		for (let i = 0; i < resultLen; i++) {
 			result[i] = 0;
@@ -52,83 +68,109 @@ export class MinimapCharRendererFactory {
 
 			let outputOffset = globalOutputOffset;
 
-			for (let chIndex = 0; chIndex < Constants.CHAR_COUNT; chIndex++) {
-				let color = 0;
-				let alpha = 0;
-				for (let j = 0; j < Constants.SAMPLED_HALF_CHAR_WIDTH; j++) {
-					color += data[inputOffset]; // R
-					alpha += data[inputOffset + 3]; // A
-					inputOffset += Constants.RGBA_CHANNELS_CNT;
-				}
-				result[outputOffset] += color;
-				result[outputOffset + 1] += alpha;
-				outputOffset += Constants.CA_CHANNELS_CNT;
-
-				color = 0;
-				alpha = 0;
-				for (let j = 0; j < Constants.SAMPLED_HALF_CHAR_WIDTH; j++) {
-					color += data[inputOffset]; // R
-					alpha += data[inputOffset + 3]; // A
-					inputOffset += Constants.RGBA_CHANNELS_CNT;
-				}
-				result[outputOffset] += color;
-				result[outputOffset + 1] += alpha;
-				outputOffset += Constants.CA_CHANNELS_CNT;
+			let color = 0;
+			let alpha = 0;
+			for (let j = 0; j < Constants.SAMPLED_HALF_CHAR_WIDTH; j++) {
+				color += source[inputOffset]; // R
+				alpha += source[inputOffset + 3]; // A
+				inputOffset += Constants.RGBA_CHANNELS_CNT;
 			}
+			result[outputOffset] += color;
+			result[outputOffset + 1] += alpha;
+			outputOffset += Constants.CA_CHANNELS_CNT;
+
+			color = 0;
+			alpha = 0;
+			for (let j = 0; j < Constants.SAMPLED_HALF_CHAR_WIDTH; j++) {
+				color += source[inputOffset]; // R
+				alpha += source[inputOffset + 3]; // A
+				inputOffset += Constants.RGBA_CHANNELS_CNT;
+			}
+			result[outputOffset] += color;
+			result[outputOffset + 1] += alpha;
+			outputOffset += Constants.CA_CHANNELS_CNT;
 
 			if (i === 2 || i === 5 || i === 8) {
 				globalOutputOffset = outputOffset;
 			}
 		}
 
-		const actualResult = new Uint8ClampedArray(resultLen);
 		for (let i = 0; i < resultLen; i++) {
-			actualResult[i] = result[i] / 12; // 15 it should be
+			dest[i] = result[i] / 12; // 15 it should be
 		}
-
-		return actualResult;
 	}
 
-	private static _downsample1x(data: Uint8ClampedArray): Uint8ClampedArray {
+	private static _downsample2x(data: Uint8ClampedArray): Uint8ClampedArray {
+		const resultLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * Constants.CHAR_COUNT;
+		const result = new Uint8ClampedArray(resultLen);
+
+		const sampledChar = new Uint8ClampedArray(Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
+		const downsampledChar = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT);
+
+		for (let charIndex = 0; charIndex < Constants.CHAR_COUNT; charIndex++) {
+			this._extractSampledChar(data, charIndex, sampledChar);
+			this._downsample2xChar(sampledChar, downsampledChar);
+			let resultOffset = (Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * charIndex);
+			for (let i = 0; i < downsampledChar.length; i++) {
+				result[resultOffset + i] = downsampledChar[i];
+			}
+		}
+
+		return result;
+	}
+
+	private static _downsample1xChar(source: Uint8ClampedArray, dest: Uint8ClampedArray): void {
 		// chars are 1 x 2px (width x height)
-		const resultLen = Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * Constants.CHAR_COUNT;
+		const resultLen = Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT;
 		const result = new Uint16Array(resultLen);
 		for (let i = 0; i < resultLen; i++) {
 			result[i] = 0;
 		}
 
 		let inputOffset = 0, globalOutputOffset = 0;
-		for (let i = 0; i < 16; i++) {
+		for (let i = 0; i < Constants.SAMPLED_CHAR_HEIGHT; i++) {
 
 			let outputOffset = globalOutputOffset;
 
-			for (let chIndex = 0; chIndex < Constants.CHAR_COUNT; chIndex++) {
-				let color = 0;
-				let alpha = 0;
-				for (let j = 0; j < Constants.SAMPLED_CHAR_WIDTH; j++) {
-					color += data[inputOffset]; // R
-					alpha += data[inputOffset + 3]; // A
-					inputOffset += Constants.RGBA_CHANNELS_CNT;
-				}
-				result[outputOffset] += color;
-				result[outputOffset + 1] += alpha;
-				outputOffset += Constants.CA_CHANNELS_CNT;
+			let color = 0;
+			let alpha = 0;
+			for (let j = 0; j < Constants.SAMPLED_CHAR_WIDTH; j++) {
+				color += source[inputOffset]; // R
+				alpha += source[inputOffset + 3]; // A
+				inputOffset += Constants.RGBA_CHANNELS_CNT;
 			}
+			result[outputOffset] += color;
+			result[outputOffset + 1] += alpha;
+			outputOffset += Constants.CA_CHANNELS_CNT;
 
 			if (i === 5) {
 				globalOutputOffset = outputOffset;
 			}
 		}
 
-		const actualResult = new Uint8ClampedArray(resultLen);
 		for (let i = 0; i < resultLen; i++) {
-			actualResult[i] = result[i] / 50; // 60 it should be
+			dest[i] = result[i] / 50; // 60 it should be
 		}
-
-		return actualResult;
 	}
 
+	private static _downsample1x(data: Uint8ClampedArray): Uint8ClampedArray {
+		const resultLen = Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * Constants.CHAR_COUNT;
+		const result = new Uint8ClampedArray(resultLen);
 
+		const sampledChar = new Uint8ClampedArray(Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
+		const downsampledChar = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT);
+
+		for (let charIndex = 0; charIndex < Constants.CHAR_COUNT; charIndex++) {
+			this._extractSampledChar(data, charIndex, sampledChar);
+			this._downsample1xChar(sampledChar, downsampledChar);
+			let resultOffset = (Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * charIndex);
+			for (let i = 0; i < downsampledChar.length; i++) {
+				result[resultOffset + i] = downsampledChar[i];
+			}
+		}
+
+		return result;
+	}
 }
 
 export class MinimapCharRenderer {
@@ -150,36 +192,32 @@ export class MinimapCharRenderer {
 		const x2CharData = this.x2charData;
 
 		const outWidth = Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * lineLen;
-		const sourceWidth = Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * Constants.CHAR_COUNT;
 
 		if (chCode < Constants.START_CH_CODE || chCode > Constants.END_CH_CODE) {
 			chCode = CharCode.N;
 		}
 		const chIndex = chCode - Constants.START_CH_CODE;
 
-		let sourceOffset = chIndex * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT;
+		let sourceOffset = chIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT;
 		const c1 = x2CharData[sourceOffset];
 		const a1 = x2CharData[sourceOffset + 1];
 		const c2 = x2CharData[sourceOffset + 2];
 		const a2 = x2CharData[sourceOffset + 3];
 
-		sourceOffset += sourceWidth;
-		const c3 = x2CharData[sourceOffset];
-		const a3 = x2CharData[sourceOffset + 1];
-		const c4 = x2CharData[sourceOffset + 2];
-		const a4 = x2CharData[sourceOffset + 3];
+		const c3 = x2CharData[sourceOffset + 4];
+		const a3 = x2CharData[sourceOffset + 5];
+		const c4 = x2CharData[sourceOffset + 6];
+		const a4 = x2CharData[sourceOffset + 7];
 
-		sourceOffset += sourceWidth;
-		const c5 = x2CharData[sourceOffset];
-		const a5 = x2CharData[sourceOffset + 1];
-		const c6 = x2CharData[sourceOffset + 2];
-		const a6 = x2CharData[sourceOffset + 3];
+		const c5 = x2CharData[sourceOffset + 8];
+		const a5 = x2CharData[sourceOffset + 9];
+		const c6 = x2CharData[sourceOffset + 10];
+		const a6 = x2CharData[sourceOffset + 11];
 
-		sourceOffset += sourceWidth;
-		const c7 = x2CharData[sourceOffset];
-		const a7 = x2CharData[sourceOffset + 1];
-		const c8 = x2CharData[sourceOffset + 2];
-		const a8 = x2CharData[sourceOffset + 3];
+		const c7 = x2CharData[sourceOffset + 12];
+		const a7 = x2CharData[sourceOffset + 13];
+		const c8 = x2CharData[sourceOffset + 14];
+		const a8 = x2CharData[sourceOffset + 15];
 
 		let resultOffset = Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * charIndex;
 		target[resultOffset + 0] = c1;
@@ -226,20 +264,17 @@ export class MinimapCharRenderer {
 		const x1CharData = this.x1charData;
 
 		const outWidth = Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * lineLen;
-		const sourceWidth = Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT * Constants.CHAR_COUNT;
 
 		if (chCode < Constants.START_CH_CODE || chCode > Constants.END_CH_CODE) {
 			chCode = CharCode.N;
 		}
 		const chIndex = chCode - Constants.START_CH_CODE;
 
-		let sourceOffset = chIndex * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT;
+		let sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT;
 		const c1 = x1CharData[sourceOffset];
 		const a1 = x1CharData[sourceOffset + 1];
-
-		sourceOffset += sourceWidth;
-		const c2 = x1CharData[sourceOffset];
-		const a2 = x1CharData[sourceOffset + 1];
+		const c2 = x1CharData[sourceOffset + 2];
+		const a2 = x1CharData[sourceOffset + 3];
 
 		let resultOffset = Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * charIndex;
 		target[resultOffset + 0] = c1;
