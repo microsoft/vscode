@@ -51,6 +51,9 @@ export class ClearOutputAction extends Action {
 
 export class ToggleOutputScrollLockAction extends Action {
 
+	public static ID = 'workbench.output.action.toggleOutputScrollLock';
+	public static LABEL = nls.localize('toggleOutputScrollLock', "Toggle Output Scroll Lock");
+
 	private toDispose: IDisposable[] = [];
 
 	constructor(id: string, label: string,
