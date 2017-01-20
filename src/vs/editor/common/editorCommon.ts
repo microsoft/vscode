@@ -3129,6 +3129,10 @@ export namespace ModeContextKeys {
 	 * @internal
 	 */
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const isInWalkThrough = new RawContextKey<boolean>('isInWalkThrough', undefined);
 }
 
 
