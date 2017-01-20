@@ -58,7 +58,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._domNode = DOM.$('.settings-group-title-widget');
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		this.titleContainer.tabIndex = 1;
+		this.titleContainer.tabIndex = 0;
 		this.onclick(this.titleContainer, () => this.toggle());
 		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
 		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
@@ -193,21 +193,31 @@ export class SettingsTabsWidget extends Widget {
 	private create(parent: HTMLElement): void {
 		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
 		this.userSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		DOM.append(this.userSettingsTab, DOM.$('')).textContent = localize('userSettings', "User Settings");
+		this.userSettingsTab.tabIndex = 0;
+		this.userSettingsTab.textContent = localize('userSettings', "User Settings");
 		this.onclick(this.userSettingsTab, () => this.onClick(this.userSettingsTab));
+		this.onkeyup(this.userSettingsTab, (e) => this.onkeyUp(e, this.userSettingsTab));
 
 		this.workspaceSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		DOM.append(this.workspaceSettingsTab, DOM.$('')).textContent = localize('workspaceSettings', "Workspace Settings");
+		this.workspaceSettingsTab.tabIndex = 0;
+		this.workspaceSettingsTab.textContent = localize('workspaceSettings', "Workspace Settings");
 		if (!this.contextService.hasWorkspace()) {
 			DOM.addClass(this.workspaceSettingsTab, 'disabled');
 		} else {
 			this.onclick(this.workspaceSettingsTab, () => this.onClick(this.workspaceSettingsTab));
+			this.onkeyup(this.workspaceSettingsTab, (e) => this.onkeyUp(e, this.workspaceSettingsTab));
 		}
 	}
 
 	public show(configurationTarget: ConfigurationTarget): void {
 		DOM.toggleClass(this.userSettingsTab, 'active', ConfigurationTarget.USER === configurationTarget);
 		DOM.toggleClass(this.workspaceSettingsTab, 'active', ConfigurationTarget.WORKSPACE === configurationTarget);
+	}
+
+	private onkeyUp(keyboardEvent: IKeyboardEvent, element: HTMLElement): void {
+		if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
+			this.onClick(element);
+		}
 	}
 
 	private onClick(element: HTMLElement): void {
