@@ -230,3 +230,18 @@
 .monaco-workbench > .part.editor > .content .welcomePage.max-height-690px .title {
 	display: none;
 }
+
+.monaco-workbench > .part.editor > .content .welcomePage .mac-only,
+.monaco-workbench > .part.editor > .content .welcomePage .windows-only,
+.monaco-workbench > .part.editor > .content .welcomePage .linux-only {
+	display: none;
+}
+.monaco-workbench.mac > .part.editor > .content .welcomePage .mac-only {
+	display: initial;
+}
+.monaco-workbench.windows > .part.editor > .content .welcomePage .windows-only {
+	display: initial;
+}
+.monaco-workbench.linux > .part.editor > .content .welcomePage .linux-only {
+	display: initial;
+}
