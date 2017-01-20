@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Constants, MinimapCharRendererFactory } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
+import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
 let ctx = canvas.getContext('2d');
@@ -25,18 +27,62 @@ let sampleData = ctx.getImageData(0, 4, Constants.SAMPLED_CHAR_WIDTH * Constants
 let minimapCharRenderer = MinimapCharRendererFactory.create(sampleData.data);
 
 renderImageData(sampleData.data, sampleData.width, sampleData.height, 10, 100);
+renderMinimapCharRenderer(minimapCharRenderer, 400);
+renderMinimapCharRenderer(createMinimapCharRenderer(), 600);
 
-let x2 = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
-for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-	minimapCharRenderer.x2RenderChar(x2, Constants.CHAR_COUNT, 0, chCode - Constants.START_CH_CODE, chCode);
-}
-renderImageData(x2, Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x2_CHAR_HEIGHT, 10, 400);
+function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: number): void {
 
-let x1 = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
-for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-	minimapCharRenderer.x1RenderChar(x1, Constants.CHAR_COUNT, 0, chCode - Constants.START_CH_CODE, chCode);
+	let x2 = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
+	for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
+		minimapCharRenderer.x2RenderChar(x2, Constants.CHAR_COUNT, 0, chCode - Constants.START_CH_CODE, chCode);
+	}
+	renderImageData(x2, Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x2_CHAR_HEIGHT, 10, y);
+
+	let x1 = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
+	for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
+		minimapCharRenderer.x1RenderChar(x1, Constants.CHAR_COUNT, 0, chCode - Constants.START_CH_CODE, chCode);
+	}
+	renderImageData(x1, Constants.x1_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x1_CHAR_HEIGHT, 10, y + 100);
 }
-renderImageData(x1, Constants.x1_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x1_CHAR_HEIGHT, 10, 500);
+
+(function () {
+	let r = 'let x2Data = [', offset = 0;
+	for (let charIndex = 0; charIndex < Constants.CHAR_COUNT; charIndex++) {
+		let charCode = charIndex + Constants.START_CH_CODE;
+		r += '\n\n// ' + String.fromCharCode(charCode);
+
+		for (let i = 0; i < Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT; i++) {
+			if (i % 4 === 0) {
+				r += '\n';
+			}
+			r += minimapCharRenderer.x2charData[offset] + ',';
+			offset++;
+		}
+
+	}
+	r += '\n\n]';
+	console.log(r);
+})();
+
+(function () {
+	let r = 'let x1Data = [', offset = 0;
+	for (let charIndex = 0; charIndex < Constants.CHAR_COUNT; charIndex++) {
+		let charCode = charIndex + Constants.START_CH_CODE;
+		r += '\n\n// ' + String.fromCharCode(charCode);
+
+		for (let i = 0; i < Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT; i++) {
+			if (i % 2 === 0) {
+				r += '\n';
+			}
+			r += minimapCharRenderer.x1charData[offset] + ',';
+			offset++;
+		}
+
+	}
+	r += '\n\n]';
+	console.log(r);
+})();
+
 
 
 function renderImageData(data: Uint8ClampedArray, width: number, height: number, left: number, top: number): void {
