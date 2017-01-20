@@ -13,7 +13,7 @@ import { Registry } from 'vs/platform/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel, IRange } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -87,7 +87,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 		return null;
 	}
 
-	public getSetting(key: string): ISetting {
+	public getPreference(key: string): ISetting {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -234,6 +234,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	private parse() {
 		const model = this.model;
 		const settings: ISetting[] = [];
+		let overrideSetting: ISetting = null;
 
 		let currentProperty: string = null;
 		let currentParent: any = [];
@@ -251,18 +252,19 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			} else if (currentProperty) {
 				currentParent[currentProperty] = value;
 			}
-			if (previousParents.length === 1) {
+			if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 				// settings value started
+				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
 				let valueStartPosition = model.getPositionAt(offset);
 				let valueEndPosition = model.getPositionAt(offset + length);
-				settings[settings.length - 1].value = value;
-				settings[settings.length - 1].valueRange = {
+				setting.value = value;
+				setting.valueRange = {
 					startLineNumber: valueStartPosition.lineNumber,
 					startColumn: valueStartPosition.column,
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				};
-				settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
+				setting.range = assign(setting.range, {
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				});
@@ -284,10 +286,10 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			},
 			onObjectProperty: (name: string, offset: number, length: number) => {
 				currentProperty = name;
-				if (previousParents.length === 1) {
+				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting started
 					let settingStartPosition = model.getPositionAt(offset);
-					settings.push({
+					const setting = {
 						description: [],
 						key: name,
 						keyRange: {
@@ -305,22 +307,36 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						value: null,
 						valueRange: null,
 						descriptionRanges: null,
-					});
+						settings: []
+					};
+					if (previousParents.length === 1) {
+						settings.push(setting);
+						if (OVERRIDE_PROPERTY_PATTERN.test(name)) {
+							overrideSetting = setting;
+						}
+					} else {
+						overrideSetting.settings.push(setting);
+					}
 				}
 			},
 			onObjectEnd: (offset: number, length: number) => {
 				currentParent = previousParents.pop();
-				if (previousParents.length === 1) {
+				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting ended
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
 					let valueEndPosition = model.getPositionAt(offset + length);
-					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
+					setting.valueRange = assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
-					settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
+					setting.range = assign(setting.range, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
+
+					if (previousParents.length === 1) {
+						overrideSetting = null;
+					}
 				}
 				if (previousParents.length === 0) {
 					// settings ended
@@ -338,14 +354,15 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			},
 			onArrayEnd: (offset: number, length: number) => {
 				currentParent = previousParents.pop();
-				if (previousParents.length === 1) {
+				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting value ended
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
 					let valueEndPosition = model.getPositionAt(offset + length);
-					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
+					setting.valueRange = assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
-					settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
+					setting.range = assign(setting.range, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
@@ -354,7 +371,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			onLiteralValue: onValue,
 			onError: (error) => {
 				const setting = settings[settings.length - 1];
-				if (!setting.range || !setting.keyRange || !setting.valueRange) {
+				if (setting && (!setting.range || !setting.keyRange || !setting.valueRange)) {
 					settings.pop();
 				}
 			}
@@ -412,7 +429,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.doFilterSettings(filter, this.settingsGroups);
 	}
 
-	public getSetting(key: string): ISetting {
+	public getPreference(key: string): ISetting {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -450,7 +467,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					key: setting.key,
 					value: setting.value,
 					range: null,
-					valueRange: null
+					valueRange: null,
+					settings: []
 				};
 			}
 			return null;
@@ -459,7 +477,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return <ISettingsGroup>{
 			id: 'mostCommonlyUsed',
 			range: null,
-			title: nls.localize('commonlyUsed', "Most Commonly Used"),
+			title: nls.localize('commonlyUsed', "Commonly Used"),
 			titleRange: null,
 			sections: [
 				{
@@ -490,7 +508,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				const prop = config.properties[key];
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
-				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [] };
+				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], settings: [] };
 			});
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
@@ -593,29 +611,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			result.push(indent + '// ' + line);
 		}
 	}
-
-	/*private _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[] {
-		const result: IRange[] = [];
-		const text = this._contentByLines[lineNumber - 1];
-		var m: RegExpExecArray;
-		// Reset regex to search from the beginning
-		searchRegex.lastIndex = 0;
-		do {
-			m = searchRegex.exec(text);
-			if (m) {
-				var range: IRange = { startLineNumber: lineNumber, startColumn: m.index + 1, endLineNumber: lineNumber, endColumn: m.index + 1 + m[0].length };
-				result.push(range);
-				if (m.index + m[0].length === text.length) {
-					// Reached the end of the line
-					return result;
-				}
-			}
-		} while (m);
-		return result;
-	}*/
 }
 
-export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel {
+export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
 	private _content: string;
 
@@ -632,5 +630,9 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel {
 			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
 		}
 		return this._content;
+	}
+
+	public getPreference(): any {
+		return null;
 	}
 }

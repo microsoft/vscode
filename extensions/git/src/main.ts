@@ -14,6 +14,7 @@ import { CheckoutStatusBar, SyncStatusBar } from './statusbar';
 import { filterEvent, anyEvent } from './util';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
+import { MergeDecorator } from './merge';
 import * as nls from 'vscode-nls';
 
 const localize = nls.config()();
@@ -46,6 +47,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const checkoutStatusBar = new CheckoutStatusBar(model);
 	const syncStatusBar = new SyncStatusBar(model);
 	const autoFetcher = new AutoFetcher(model);
+	const mergeDecorator = new MergeDecorator(model);
 
 	disposables.push(
 		commandCenter,
@@ -55,7 +57,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 		fsWatcher,
 		checkoutStatusBar,
 		syncStatusBar,
-		autoFetcher
+		autoFetcher,
+		mergeDecorator
 	);
 }
 

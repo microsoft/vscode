@@ -287,6 +287,7 @@ class InternalEditorOptionsHelper {
 			parameterHints: toBoolean(opts.parameterHints),
 			iconsInSuggestions: toBoolean(opts.iconsInSuggestions),
 			formatOnType: toBoolean(opts.formatOnType),
+			formatOnPaste: toBoolean(opts.formatOnPaste),
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			acceptSuggestionOnCommitCharacter: toBoolean(opts.acceptSuggestionOnCommitCharacter),
@@ -550,6 +551,7 @@ const editorConfiguration: IConfigurationNode = {
 	'order': 5,
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
+	'overridable': true,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',
@@ -666,6 +668,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.formatOnType,
 			'description': nls.localize('formatOnType', "Controls if the editor should automatically format the line after typing")
+		},
+		'editor.formatOnPaste': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.formatOnPaste,
+			'description': nls.localize('formatOnPaste', "Controls if the editor should automatically format the pasted content")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',

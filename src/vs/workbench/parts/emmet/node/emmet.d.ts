@@ -157,4 +157,14 @@ declare module 'emmet' {
 	 * Loads named profiles from JSON object
 	 */
 	export function loadProfiles(profiles: any): void;
+
+	/**
+	 * Loads user snippets and abbreviations.
+	 */
+	export function loadSnippets(snippets: any): void;
+
+	/**
+	 * Resets all user-defined data: preferences, profiles and snippets
+	 */
+	export function resetUserData(): void;
 }

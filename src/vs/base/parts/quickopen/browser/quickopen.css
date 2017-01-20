@@ -47,6 +47,11 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	display: flex;
+	flex-direction: column;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry > .row {
+	display: flex;
 	align-items: center;
 }
 

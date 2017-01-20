@@ -315,7 +315,7 @@ export class DebugService implements debug.IDebugService {
 			if (this.viewModel.focusedProcess.getId() === session.getId()) {
 				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
 			}
-			this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
+			this.setStateAndEmit(session.getId(), debug.State.Running);
 		}));
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidOutput(event => {
@@ -359,7 +359,9 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.RunningNoDebug && this.contextService.getWorkspace()) {
+			const process = this.viewModel.focusedProcess;
+			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.Running &&
+				process && this.contextService.getWorkspace() && process.configuration.noDebug) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
@@ -665,7 +667,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
-			const process = this.model.addProcess(configuration.name, session);
+			const process = this.model.addProcess(configuration, session);
 
 			if (!this.viewModel.focusedProcess) {
 				this.focusStackFrameAndEvaluate(null, process);
@@ -685,10 +687,6 @@ export class DebugService implements debug.IDebugService {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true // #10574
 			}).then((result: DebugProtocol.InitializeResponse) => {
-				if (session.disconnected) {
-					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
-				}
-
 				this.model.setExceptionBreakpoints(session.configuration.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? session.attach(configuration) : session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
@@ -712,7 +710,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
-				this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
+				this.setStateAndEmit(session.getId(), debug.State.Running);
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
 				}
@@ -825,13 +823,13 @@ export class DebugService implements debug.IDebugService {
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createProcess(process.name).then(() => c(null), err => e(err));
+					this.createProcess(process.configuration).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		).then(() => {
 			if (preserveFocus) {
 				// Restart should preserve the focused process
-				const restartedProcess = this.model.getProcesses().filter(p => p.name === process.name).pop();
+				const restartedProcess = this.model.getProcesses().filter(p => p.getId() === process.getId()).pop();
 				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
 					this.focusStackFrameAndEvaluate(null, restartedProcess);
 				}

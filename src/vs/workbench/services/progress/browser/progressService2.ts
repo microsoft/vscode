@@ -48,12 +48,17 @@ class WindowProgressItem implements IStatusbarItem {
 	}
 }
 
+interface IWindowProgressTask {
+	title: string;
+	progress: Progress<string>;
+}
+
 
 export class ProgressService2 implements IProgressService2 {
 
 	_serviceBrand: any;
 
-	private _stack: Progress<string>[] = [];
+	private _stack: IWindowProgressTask[] = [];
 
 	constructor(
 		@IActivityBarService private _activityBar: IActivityBarService,
@@ -62,15 +67,19 @@ export class ProgressService2 implements IProgressService2 {
 		//
 	}
 
-	withWindowProgress(task: (progress: IProgress<string>) => TPromise<any>): void {
+	withWindowProgress(title: string, callback: (progress: IProgress<string>) => TPromise<any>): void {
 
-		const progress = new Progress<string>(() => this._updateProgress());
-		this._stack.unshift(progress);
+		const task = {
+			progress: new Progress<string>(() => this._updateProgress()),
+			title
+		};
 
-		const promise = task(progress);
+		const promise = callback(task.progress);
+		this._stack.unshift(task);
+		this._updateProgress();
 
 		always(promise, () => {
-			const idx = this._stack.indexOf(progress);
+			const idx = this._stack.indexOf(task);
 			this._stack.splice(idx, 1);
 			this._updateProgress();
 		});
@@ -80,8 +89,9 @@ export class ProgressService2 implements IProgressService2 {
 		if (this._stack.length === 0) {
 			WindowProgressItem.Instance.hide();
 		} else {
+			const {title, progress} = this._stack[0];
+			WindowProgressItem.Instance.text = progress.value || title;
 			WindowProgressItem.Instance.show();
-			WindowProgressItem.Instance.text = this._stack[0].value;
 		}
 	}
 
@@ -91,7 +101,9 @@ export class ProgressService2 implements IProgressService2 {
 
 		// show in viewlet
 		const viewletProgress = this._viewletService.getProgressIndicator(viewletId);
-		viewletProgress.showWhile(promise);
+		if (viewletProgress) {
+			viewletProgress.showWhile(promise);
+		}
 
 		// show activity bar
 		let activityProgress: IDisposable;
@@ -99,7 +111,7 @@ export class ProgressService2 implements IProgressService2 {
 			delayHandle = undefined;
 			activityProgress = this._activityBar.showActivity(
 				viewletId,
-				new ProgressBadge(() => '...'),
+				new ProgressBadge(() => ''),
 				'progress-badge'
 			);
 		}, 200);

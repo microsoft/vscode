@@ -77,18 +77,18 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	public getConfiguration<C>(arg?: any): C {
 		const options = this.toOptions(arg);
 		const cache = this.getCache();
-		const configModel = options.language ? cache.consolidated.languageConfig<C>(options.language) : cache.consolidated;
+		const configModel = options.overrideIdentifier ? cache.consolidated.configWithOverrides<C>(options.overrideIdentifier) : cache.consolidated;
 		return options.section ? configModel.config<C>(options.section).contents : configModel.contents;
 	}
 
-	public lookup<C>(key: string): IConfigurationValue<C> {
+	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
 		const cache = this.getCache();
 
 		// make sure to clone the configuration so that the receiver does not tamper with the values
 		return {
-			default: objects.clone(getConfigurationValue<C>(cache.defaults.contents, key)),
-			user: objects.clone(getConfigurationValue<C>(cache.user.contents, key)),
-			value: objects.clone(getConfigurationValue<C>(cache.consolidated.contents, key))
+			default: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.defaults.configWithOverrides(overrideIdentifier).contents : cache.defaults.contents, key)),
+			user: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.user.configWithOverrides(overrideIdentifier).contents : cache.user.contents, key)),
+			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.consolidated.configWithOverrides(overrideIdentifier).contents : cache.consolidated.contents, key))
 		};
 	}
 

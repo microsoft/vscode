@@ -6,15 +6,15 @@
 'use strict';
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import glob = require('vs/base/common/glob');
+import { IExpression } from 'vs/base/common/glob';
 import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
 
 export interface IRawSearch {
 	rootFolders: string[];
 	extraFiles?: string[];
 	filePattern?: string;
-	excludePattern?: glob.IExpression;
-	includePattern?: glob.IExpression;
+	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
 	sortByScore?: boolean;

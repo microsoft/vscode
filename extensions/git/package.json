@@ -387,7 +387,6 @@
     ]
   },
   "dependencies": {
-    "core-decorators": "^0.14.0",
     "denodeify": "^1.2.1",
     "lodash": "^4.17.2",
     "vscode-nls": "^2.0.1"

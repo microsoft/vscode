@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/platform';
 import * as types from 'vs/base/common/types';
 import * as json from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigModel, IOverrides } from 'vs/platform/configuration/common/configuration';
 
 export function getDefaultValues(): any {
@@ -103,7 +103,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		return this._contents || <T>{};
 	}
 
-	public get overrides(): any {
+	public get overrides(): IOverrides<T>[] {
 		return this._overrides;
 	}
 
@@ -133,17 +133,17 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		return result;
 	}
 
-	public languageConfig<V>(language: string): ConfigModel<V> {
+	public configWithOverrides<V>(identifier: string): ConfigModel<V> {
 		const result = new ConfigModel<V>(null);
 		const contents = objects.clone<any>(this.contents);
 		if (this.overrides) {
 			for (const override of this.overrides) {
-				if (override.languages.indexOf(language) !== -1) {
+				if (override.identifiers.indexOf(identifier) !== -1) {
 					merge(contents, override.contents, true);
 				}
 			}
-			result._contents = contents;
 		}
+		result._contents = contents;
 		return result;
 	}
 
@@ -159,29 +159,24 @@ export class ConfigModel<T> implements IConfigModel<T> {
 				(<any[]>currentParent).push(value);
 			} else if (currentProperty) {
 				currentParent[currentProperty] = value;
-				if (currentParent['overrideSettings']) {
-					onOverrideSettingsValue(currentProperty, value);
-				}
+			}
+			if (OVERRIDE_PROPERTY_PATTERN.test(currentProperty)) {
+				onOverrideSettingsValue(currentProperty, value);
 			}
 		}
 
 		function onOverrideSettingsValue(property: string, value: any): void {
-			if (property.indexOf('languages:') === 0) {
-				overrides.push({
-					languages: property.substring('languages:'.length).split(','),
-					raw: value,
-					contents: null
-				});
-			}
+			overrides = overrides || [];
+			overrides.push({
+				identifiers: [property.substring(1, property.length - 1).trim()],
+				raw: value,
+				contents: null
+			});
 		}
 
 		let visitor: json.JSONVisitor = {
 			onObjectBegin: () => {
 				let object = {};
-				if (currentProperty === 'settings.override') {
-					overrides = [];
-					object['overrideSettings'] = true;
-				}
 				onValue(object);
 				previousParents.push(currentParent);
 				currentParent = object;
@@ -192,9 +187,6 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			},
 			onObjectEnd: () => {
 				currentParent = previousParents.pop();
-				if (currentParent['overrideSettings']) {
-					delete currentParent['overrideSettings'];
-				}
 			},
 			onArrayBegin: () => {
 				let array = [];
@@ -220,10 +212,18 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			this._parseErrors = [e];
 		}
 		this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
+		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		this._overrides = overrides ? overrides.map<IOverrides<T>>(override => {
+			// Filter unknown and non-overridable properties
+			const raw = {};
+			for (const key in override.raw) {
+				if (configurationProperties[key] && configurationProperties[key].overridable) {
+					raw[key] = override.raw[key];
+				}
+			}
 			return {
-				languages: override.languages,
-				contents: <T>toValuesTree(override.raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
+				identifiers: override.identifiers,
+				contents: <T>toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
 			};
 		}) : null;
 	}

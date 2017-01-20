@@ -3,12 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.settings-header-widget {
-	border-bottom: 1px solid #efefef;
+.preferences-editor > .preferences-header {
+	border-bottom: 1px solid #efeff2;
+	display: flex;
+	flex-wrap: wrap;
+	padding-left: 27px;
+	padding-right: 32px;
+	padding-bottom: 11px;
+	padding-top: 11px;
 }
 
-.vs-dark .settings-header-widget {
+.vs-dark .preferences-editor > .preferences-header {
 	border-bottom: 1px solid #2d2d2d;
+}
+
+.settings-tabs-widget {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.settings-tabs-widget > .settings-tab {
+	text-transform: uppercase;
+	font-size: 12px;
+	font-weight: bold;
+	margin-left: 20px;
+	padding-top: 6px;
+	cursor: pointer;
+}
+
+.settings-tabs-widget > .settings-tab.active {
+	border-bottom: 2px solid #ccc;
+}
+
+.settings-tabs-widget > .settings-tab.disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.preferences-header > .settings-header-widget {
+	flex: 1;
+	display: flex;
+	position: relative;
 }
 
 .settings-header-widget > .settings-header-container {
@@ -17,43 +52,34 @@
 	padding-right: 32px;
 }
 
+.settings-header-widget > .settings-count-widget {
+	margin: 5px 0px;
+	padding: 0px 8px;
+	position: absolute;
+	right: 10px;
+	border-radius: 2px;
+}
+
+.settings-header-widget > .settings-count-widget:not(.no-results) {
+	background-color: #EFEFF2;
+}
+
+.hc-black .settings-header-widget > .settings-count-widget:not(.no-results),
+.vs-dark .settings-header-widget > .settings-count-widget:not(.no-results) {
+	background-color: #2D2D30;
+}
+
+.settings-header-widget > .settings-count-widget.no-results {
+	background-color: rgba(255,0,0,0.5);
+}
+
+.hc-black .settings-header-widget > .settings-count-widget.no-results,
+.vs-dark .settings-header-widget > .settings-count-widget.no-results {
+	background-color: rgba(255,0,0,0.3);
+}
+
 .settings-header-widget > .settings-search-container {
-	padding-left: 27px;
-	padding-right: 32px;
-	padding-bottom: 11px;
-	padding-top: 11px;
-}
-
-.vs .settings-header-widget > .settings-search-container {
-	background: #efeff2;
-}
-.vs-dark .settings-header-widget > .settings-search-container {
-	background: #2d2d30;
-}
-
-.settings-header-widget > .settings-header-container > .settings-title-container {
-	display: flex
-}
-
-.settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
-	white-space: pre-wrap;
-	margin-bottom: 8px;
-	font-size: 12px;
-}
-
-.vs .settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
-	color: #6f6f6f;
-}
-.vs-dark .settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
-	color: #bbbbbb;
-}
-.hc-black .settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
-	color: white;
-}
-
-.settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container .title-label {
-	text-transform: uppercase;
-	font-weight: bold;
+	flex: 1;
 }
 
 .settings-header-widget > .settings-search-container > .settings-search-input {
@@ -62,6 +88,7 @@
 
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
 	height: 30px;
+	min-width: 350px;
 }
 
 .vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
@@ -78,6 +105,14 @@
 
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
 	background-image: url('search_inverse.svg');
+}
+
+.vs-dark .preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
+	box-shadow: -6px 0 5px -5px black;
+}
+
+.preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
+	box-shadow: -6px 0 5px -5px #DDD;
 }
 
 .monaco-editor .settings-group-title-widget {
@@ -101,7 +136,6 @@
 .hc-black .monaco-editor .settings-group-title-widget .title-container {
 	color: white;
 }
-
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
 .monaco-editor.vs .settings-group-title-widget .title-container.focused {
@@ -182,36 +216,4 @@
 .vs-dark .title-actions .action-item .icon.collapseAll,
 .vs-dark .editor-actions .action-item .icon.collapseAll {
 	background: url('collapseAll_inverse.svg') center center no-repeat;
-}
-
-.monaco-editor .settings-count-widget {
-	padding: 4px 10px 4px 10px;
-	display: none;
-	position: absolute;
-	top: 4px;
-	right: 28px;
-	border-radius: 2px;
-	z-index: 1;
-}
-
-.monaco-editor .settings-count-widget.show {
-	display: inherit;
-}
-
-.monaco-editor .settings-count-widget.show:not(.no-results) {
-	background-color: #EFEFF2;
-}
-
-.monaco-editor.hc-black .settings-count-widget.show:not(.no-results),
-.monaco-editor.vs-dark .settings-count-widget.show:not(.no-results) {
-	background-color: #2D2D30;
-}
-
-.monaco-editor .settings-count-widget.show.no-results {
-	background-color: rgba(255,0,0,0.5);
-}
-
-.monaco-editor.hc-black .settings-count-widget.show.no-results,
-.monaco-editor.vs-dark .settings-count-widget.show.no-results {
-	background-color: rgba(255,0,0,0.3);
 }

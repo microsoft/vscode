@@ -126,6 +126,10 @@
 	overflow-y: scroll;
 }
 
+.terminal .xterm-wide-char {
+	display: inline-block;
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-rows {
 	position: absolute;
 	left: 0;

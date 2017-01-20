@@ -171,7 +171,10 @@ class LanguageProvider {
 			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
 			languages.registerHoverProvider(selector, hoverProvider);
 			languages.registerDefinitionProvider(selector, definitionProvider);
-			languages.registerTypeDefinitionProvider(selector, typeDefinitionProvider);
+			if (client.apiVersion.has220Features()) {
+				// TODO: TS 2.1.5 returns incorrect results for implementation locations.
+				languages.registerTypeDefinitionProvider(selector, typeDefinitionProvider);
+			}
 			languages.registerDocumentHighlightProvider(selector, documentHighlightProvider);
 			languages.registerReferenceProvider(selector, referenceProvider);
 			languages.registerDocumentSymbolProvider(selector, documentSymbolProvider);

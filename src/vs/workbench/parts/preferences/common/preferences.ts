@@ -9,6 +9,7 @@ import { LinkedMap as Map } from 'vs/base/common/map';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEditor } from 'vs/platform/editor/common/editor';
 
 export interface ISettingsGroup {
 	id: string;
@@ -32,6 +33,7 @@ export interface ISetting {
 	valueRange: IRange;
 	description: string[];
 	descriptionRanges: IRange[];
+	settings: ISetting[];
 }
 
 export interface IFilterResult {
@@ -40,19 +42,19 @@ export interface IFilterResult {
 	matches: Map<string, IRange[]>;
 }
 
-export interface IPreferencesEditorModel {
+export interface IPreferencesEditorModel<T> {
 	uri: URI;
 	content: string;
+	getPreference(key: string): T;
 }
 
-export interface ISettingsEditorModel extends IPreferencesEditorModel {
+export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	getSetting(key: string): ISetting;
 	filterSettings(filter: string): IFilterResult;
 }
 
-export interface IKeybindingsEditorModel extends IPreferencesEditorModel {
+export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
 }
 
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
@@ -61,13 +63,17 @@ export interface IPreferencesService {
 	_serviceBrand: any;
 
 	defaultSettingsResource: URI;
+	userSettingsResource: URI;
+	workspaceSettingsResource: URI;
 	defaultKeybindingsResource: URI;
 
-	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
-	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
+	createDefaultPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
+	resolvePreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openGlobalSettings(): TPromise<void>;
-	openWorkspaceSettings(): TPromise<void>;
+	openSettings(): TPromise<IEditor>;
+	switchSettings(): TPromise<void>;
+	openGlobalSettings(): TPromise<IEditor>;
+	openWorkspaceSettings(): TPromise<IEditor>;
 	openGlobalKeybindingSettings(): TPromise<void>;
 }
 

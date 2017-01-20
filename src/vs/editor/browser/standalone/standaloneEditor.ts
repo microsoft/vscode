@@ -6,7 +6,7 @@
 
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ContentWidgetPositionPreference, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
@@ -94,6 +94,17 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(IContextViewService),
 			services.get(IStandaloneColorService)
 		);
+	});
+}
+
+/**
+ * Emitted when an editor is created.
+ * Creating a diff editor might cause this listener to be invoked with the two editors.
+ * @event
+ */
+export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable {
+	return StaticServices.codeEditorService.get().onCodeEditorAdd((editor) => {
+		listener(<ICodeEditor>editor);
 	});
 }
 
@@ -298,6 +309,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
 		// methods
 		create: <any>create,
+		onDidCreateEditor: <any>onDidCreateEditor,
 		createDiffEditor: createDiffEditor,
 		createDiffNavigator: createDiffNavigator,
 

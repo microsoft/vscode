@@ -5,7 +5,6 @@
 
 import nls = require('vs/nls');
 import cp = require('child_process');
-import fs = require('fs');
 import net = require('net');
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
@@ -50,7 +49,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private socket: net.Socket = null;
 	private cachedInitServer: TPromise<void>;
 	private startTime: number;
-	public requestType: debug.SessionRequestType;
 	public disconnected: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private capabilities: DebugProtocol.Capabilities;
@@ -142,8 +140,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		}, err => {
 			this.cachedInitServer = null;
 			return TPromise.wrapError(err);
-		}
-		);
+		});
 
 		return this.cachedInitServer;
 	}
@@ -163,10 +160,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 					if (this.customTelemetryService) {
 						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					}
-				}
-				if (errors.isPromiseCanceledError(errorResponse) || (error && error.showUser === false)) {
-					// Do not show error message to user if showUser === false or 'canceled' error message #7906
-					return TPromise.as(null);
 				}
 
 				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
@@ -241,12 +234,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
-		this.requestType = args.noDebug ? debug.SessionRequestType.LAUNCH_NO_DEBUG : debug.SessionRequestType.LAUNCH;
 		return this.send('launch', args).then(response => this.readCapabilities(response));
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
-		this.requestType = debug.SessionRequestType.ATTACH;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
@@ -431,11 +422,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	private startServer(): TPromise<any> {
-		if (!this.adapter.program) {
-			return TPromise.wrapError(new Error(nls.localize('noDebugAdapterExtensionInstalled', "No extension installed for '{0}' debugging.", this.adapter.type)));
-		}
-
-		return this.getLaunchDetails().then(d => this.launchServer(d).then(() => {
+		return this.adapter.getAdapterExecutable().then(ae => this.launchServer(ae).then(() => {
 			this.serverProcess.on('error', (err: Error) => this.onServerError(err));
 			this.serverProcess.on('exit', (code: number, signal: string) => this.onServerExit());
 
@@ -451,18 +438,18 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		}));
 	}
 
-	private launchServer(launch: { command: string, argv: string[] }): TPromise<void> {
+	private launchServer(launch: debug.IAdapterExecutable): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			if (launch.command === 'node') {
-				stdfork.fork(launch.argv[0], launch.argv.slice(1), {}, (err, child) => {
+				stdfork.fork(launch.args[0], launch.args.slice(1), {}, (err, child) => {
 					if (err) {
-						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.argv[0])));
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.args[0])));
 					}
 					this.serverProcess = child;
 					c(null);
 				});
 			} else {
-				this.serverProcess = cp.spawn(launch.command, launch.argv, {
+				this.serverProcess = cp.spawn(launch.command, launch.args, {
 					stdio: [
 						'pipe', 	// stdin
 						'pipe', 	// stdout
@@ -479,9 +466,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		if (this.socket !== null) {
 			this.socket.end();
 			this.cachedInitServer = null;
-			this.onEvent({ event: 'exit', type: 'event', seq: 0 });
 		}
 
+		this.onEvent({ event: 'exit', type: 'event', seq: 0 });
 		if (!this.serverProcess) {
 			return TPromise.as(null);
 		}
@@ -508,30 +495,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		}
 
 		return ret;
-	}
-
-	private getLaunchDetails(): TPromise<{ command: string; argv: string[]; }> {
-		return new TPromise((c, e) => {
-			fs.exists(this.adapter.program, exists => {
-				if (exists) {
-					c(null);
-				} else {
-					e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' not found.", this.adapter.program)));
-				}
-			});
-		}).then(() => {
-			if (this.adapter.runtime) {
-				return {
-					command: this.adapter.runtime,
-					argv: (this.adapter.runtimeArgs || []).concat([this.adapter.program]).concat(this.adapter.args || [])
-				};
-			}
-
-			return {
-				command: this.adapter.program,
-				argv: this.adapter.args || []
-			};
-		});
 	}
 
 	protected onServerError(err: Error): void {

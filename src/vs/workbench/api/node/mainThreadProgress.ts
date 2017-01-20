@@ -11,7 +11,7 @@ import { MainThreadProgressShape } from './extHost.protocol';
 export class MainThreadProgress extends MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
-	private progress = new Map<number, { resolve: Function, reject: Function, progress: IProgress<any> }>();
+	private progress = new Map<number, { resolve: Function, progress: IProgress<any> }>();
 
 	constructor(
 		@IProgressService2 progressService: IProgressService2
@@ -21,35 +21,30 @@ export class MainThreadProgress extends MainThreadProgressShape {
 	}
 
 
-	$progressStart(handle: number, extensionId: string, where: string): void {
+	$startWindow(handle: number, title: string): void {
+		const task = this._createTask(handle);
+		this._progressService.withWindowProgress(title, task);
+	}
 
-		const task = (progress: IProgress<any>) => {
-			return new TPromise<any>((resolve, reject) => {
-				this.progress.set(handle, { resolve, reject, progress });
+	$startScm(handle: number): void {
+		const task = this._createTask(handle);
+		this._progressService.withViewletProgress('workbench.view.scm', task);
+	}
+
+	private _createTask(handle: number) {
+		return (progress: IProgress<any>) => {
+			return new TPromise<any>(resolve => {
+				this.progress.set(handle, { resolve, progress });
 			});
 		};
-
-		switch (where) {
-			case 'window':
-				this._progressService.withWindowProgress(task);
-				break;
-			case 'scm':
-				this._progressService.withViewletProgress('workbench.view.scm', task);
-				break;
-		}
-
 	}
 
 	$progressReport(handle: number, message: any): void {
 		this.progress.get(handle).progress.report(message);
 	}
 
-	$progressEnd(handle: number, err: any): void {
-		if (err) {
-			this.progress.get(handle).reject(err);
-		} else {
-			this.progress.get(handle).resolve();
-		}
+	$progressEnd(handle: number): void {
+		this.progress.get(handle).resolve();
 		this.progress.delete(handle);
 	}
 }

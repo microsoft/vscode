@@ -230,19 +230,30 @@ export class SearchWorkerEngine {
 							}
 						}
 
-						// when we are running with UTF16le, LF and CR are encoded as
-						// 0A 00 (LF) and 0D 00 (CR). the zero bytes are at the end
-						// due to little endianess. since we want to split our buffer
-						// into lines, we need to skip over the 00 bytes after LF and CR
-						// so UTF16-LE gets a multiplier of 2, otherwise we would include
-						// bad 00 bytes in our resulting buffer.
+						// when we are running with UTF16le/be, LF and CR are encoded as
+						// two bytes, like 0A 00 (LF) / 0D 00 (CR) for LE or flipped around
+						// for BE. We need to account for this when splitting the buffer into
+						// newlines, and when detecting a CRLF combo.
 						let byteOffsetMultiplier = 1;
-						if (options.encoding === UTF16le) {
+						if (options.encoding === UTF16le || options.encoding === UTF16be) {
 							byteOffsetMultiplier = 2;
 						}
 
+						const peekSingleByteChar = (char: number, offset = 0) => {
+							const from = i + offset;
+							if (options.encoding === UTF16le) {
+								return buffer[from] === char && buffer[from + 1] === 0x00;
+							} else if (options.encoding === UTF16be) {
+								return buffer[from] === 0x00 && buffer[from + 1] === char;
+							} else {
+								return buffer[from] === char;
+							}
+						};
+						const peekLF = (offset?: number) => peekSingleByteChar(LF, offset);
+						const peekCR = (offset?: number) => peekSingleByteChar(CR, offset);
+
 						if (lastBufferHadTraillingCR) {
-							if (buffer[i] === LF) {
+							if (peekLF()) {
 								lineFinished(1 * byteOffsetMultiplier);
 								i++;
 							} else {
@@ -253,14 +264,14 @@ export class SearchWorkerEngine {
 						}
 
 						for (; i < bytesRead; ++i) {
-							if (buffer[i] === LF) {
+							if (peekLF()) {
 								lineFinished(1 * byteOffsetMultiplier);
-							} else if (buffer[i] === CR) { // CR (Carriage Return)
-								if (i + 1 === bytesRead) {
+							} else if (peekCR()) { // CR (Carriage Return)
+								if (i + byteOffsetMultiplier === bytesRead) {
 									lastBufferHadTraillingCR = true;
-								} else if (buffer[i + 1] === LF) {
+								} else if (peekLF(1 * byteOffsetMultiplier)) {
 									lineFinished(2 * byteOffsetMultiplier);
-									i++;
+									i += 2 * byteOffsetMultiplier - 1;
 								} else {
 									lineFinished(1 * byteOffsetMultiplier);
 								}

@@ -83,3 +83,12 @@
 .scm-viewlet .monaco-list-row:not(.selected) > .resource:not(:hover) > .actions {
 	display: none;
 }
+
+/* HACK */
+.action-label.scm-commit {
+	background-image: url('check.svg');
+}
+
+.vs-dark .action-label.scm-commit {
+	background-image: url('check-inverse.svg');
+}
