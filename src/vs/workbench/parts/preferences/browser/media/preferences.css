@@ -25,7 +25,6 @@
 .settings-tabs-widget > .settings-tab {
 	text-transform: uppercase;
 	font-size: 12px;
-	font-weight: bold;
 	margin-left: 20px;
 	padding-top: 6px;
 	cursor: pointer;
@@ -38,6 +37,47 @@
 .settings-tabs-widget > .settings-tab.disabled {
 	opacity: 0.5;
 	cursor: default;
+}
+
+.vs .settings-tabs-widget > .settings-tab {
+	color: #6f6f6f;
+}
+
+.vs-dark .settings-tabs-widget > .settings-tab {
+	color: #bbbbbb;
+}
+
+.hc-black .settings-tabs-widget > .settings-tab {
+	color: #fff;
+}
+
+.vs-dark .settings-tabs-widget > .settings-tab:not(.disabled):hover {
+	color: white;
+}
+
+.vs .settings-tabs-widget > .settings-tab.active {
+	border-bottom: 1px solid #6f6f6f;
+}
+
+.vs-dark .settings-tabs-widget > .settings-tab.active {
+	color: white;
+	border-bottom: 1px solid white;
+}
+
+.hc-black .settings-tabs-widget > .settings-tab.active {
+	color: white;
+	border-bottom: 1px solid white;
+}
+
+.vs .settings-tabs-widget > .settings-tab:focus,
+.vs-dark .settings-tabs-widget > .settings-tab:focus {
+	border-bottom: 1px solid #007ACC;
+	outline: none !important;
+}
+
+.hc-black .settings-tabs-widget > .settings-tab:focus {
+	border-bottom: 1px solid #f38518;
+	outline: none !important;
 }
 
 .preferences-header > .settings-header-widget {

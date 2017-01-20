@@ -28,6 +28,12 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEY
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
+export const TerminalCursorStyle = {
+	BLOCK: 'block',
+	LINE: 'line',
+	UNDERLINE: 'underline'
+};
+
 export interface ITerminalConfiguration {
 	terminal: {
 		integrated: {
@@ -43,6 +49,7 @@ export interface ITerminalConfiguration {
 			},
 			rightClickCopyPaste: boolean,
 			cursorBlinking: boolean,
+			cursorStyle: string,
 			fontFamily: string,
 			fontLigatures: boolean,
 			fontSize: number,

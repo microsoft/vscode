@@ -59,7 +59,6 @@ suite('Workbench - TerminalService', () => {
 		service = instantiationService.createInstance(TestTerminalService);
 	});
 
-	// TODO@Tyriar: Re-enable these tests after testing them on Windows
 	suite('createInstance', () => {
 		test('should return the new instance', () => {
 			assert.ok(service.createInstance() instanceof TerminalInstance);

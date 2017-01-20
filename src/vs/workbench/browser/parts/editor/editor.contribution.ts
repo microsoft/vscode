@@ -265,6 +265,16 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 				prefix: NAVIGATE_IN_GROUP_ONE_PREFIX,
 				needsEditor: false,
 				description: nls.localize('groupOnePicker', "Show Editors in First Group")
+			},
+			{
+				prefix: NAVIGATE_IN_GROUP_TWO_PREFIX,
+				needsEditor: false,
+				description: nls.localize('groupTwoPicker', "Show Editors in Second Group")
+			},
+			{
+				prefix: NAVIGATE_IN_GROUP_THREE_PREFIX,
+				needsEditor: false,
+				description: nls.localize('groupThreePicker', "Show Editors in Third Group")
 			}
 		]
 	)
@@ -275,13 +285,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/browser/parts/editor/editorPicker',
 		'GroupTwoPicker',
 		NAVIGATE_IN_GROUP_TWO_PREFIX,
-		[
-			{
-				prefix: NAVIGATE_IN_GROUP_TWO_PREFIX,
-				needsEditor: false,
-				description: nls.localize('groupTwoPicker', "Show Editors in Second Group")
-			}
-		]
+		[]
 	)
 );
 
@@ -290,13 +294,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/browser/parts/editor/editorPicker',
 		'GroupThreePicker',
 		NAVIGATE_IN_GROUP_THREE_PREFIX,
-		[
-			{
-				prefix: NAVIGATE_IN_GROUP_THREE_PREFIX,
-				needsEditor: false,
-				description: nls.localize('groupThreePicker', "Show Editors in Third Group")
-			}
-		]
+		[]
 	)
 );
 

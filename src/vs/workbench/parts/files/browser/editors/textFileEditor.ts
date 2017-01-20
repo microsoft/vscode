@@ -10,7 +10,6 @@ import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -207,9 +206,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return true; // in any case we handled it
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
-		const options = super.getConfigurationOverrides();
-
+	protected getAriaLabel(): string {
 		const input = this.input;
 		const inputName = input && input.getName();
 
@@ -220,9 +217,7 @@ export class TextFileEditor extends BaseTextEditor {
 			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
 		}
 
-		options.ariaLabel = ariaLabel;
-
-		return options;
+		return ariaLabel;
 	}
 
 	public clearInput(): void {

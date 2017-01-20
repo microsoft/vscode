@@ -86,10 +86,13 @@ export class OutputPanel extends TextResourceEditor {
 		options.scrollBeyondLastLine = false;
 		options.renderLineHighlight = 'none';
 
-		const channel = this.outputService.getActiveChannel();
-		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
-
 		return options;
+	}
+
+	protected getAriaLabel(): string {
+		const channel = this.outputService.getActiveChannel();
+
+		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {

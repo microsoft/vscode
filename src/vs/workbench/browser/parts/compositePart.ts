@@ -87,6 +87,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = null;
 		this.instantiatedComposites = [];
 		this.compositeLoaderPromises = {};
+		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE);
 	}
 
 	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {

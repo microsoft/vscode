@@ -15,8 +15,29 @@ export class SCMService implements ISCMService {
 	_serviceBrand;
 
 	private activeProviderContextKey: IContextKey<string | undefined>;
-	private providers: ISCMProvider[] = [];
+
 	private _activeProvider: ISCMProvider | undefined;
+
+	get activeProvider(): ISCMProvider | undefined {
+		return this._activeProvider;
+	}
+
+	set activeProvider(provider: ISCMProvider | undefined) {
+		if (!provider) {
+			throw new Error('invalid provider');
+		}
+
+		if (provider && this._providers.indexOf(provider) === -1) {
+			throw new Error('Provider not registered');
+		}
+
+		this._activeProvider = provider;
+		this.activeProviderContextKey.set(provider ? provider.id : void 0);
+		this._onDidChangeProvider.fire(provider);
+	}
+
+	private _providers: ISCMProvider[] = [];
+	get providers(): ISCMProvider[] { return [...this._providers]; }
 
 	private _onDidChangeProvider = new Emitter<ISCMProvider>();
 	get onDidChangeProvider(): Event<ISCMProvider> { return this._onDidChangeProvider.event; }
@@ -27,38 +48,24 @@ export class SCMService implements ISCMService {
 		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scm.provider', void 0);
 	}
 
-	get activeProvider(): ISCMProvider | undefined {
-		return this._activeProvider;
-	}
-
-	set activeProvider(provider: ISCMProvider) {
-		if (provider && this.providers.indexOf(provider) === -1) {
-			throw new Error('Provider not registered');
-		}
-
-		this._activeProvider = provider;
-		this.activeProviderContextKey.set(provider ? provider.id : void 0);
-		this._onDidChangeProvider.fire(provider);
-	}
-
 	registerSCMProvider(provider: ISCMProvider): IDisposable {
-		this.providers = [provider, ...this.providers];
+		this._providers = [provider, ...this._providers];
 
-		if (this.providers.length === 1) {
+		if (this._providers.length === 1) {
 			this.activeProvider = provider;
 		}
 
 		return toDisposable(() => {
-			const index = this.providers.indexOf(provider);
+			const index = this._providers.indexOf(provider);
 
 			if (index < 0) {
 				return;
 			}
 
-			this.providers.splice(index, 1);
+			this._providers.splice(index, 1);
 
 			if (this.activeProvider === provider) {
-				this.activeProvider = this.providers[0];
+				this.activeProvider = this._providers[0];
 			}
 		});
 	}

@@ -29,6 +29,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -77,8 +78,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		if (pinnedViewlets) {
 			// TODO@Ben: Migrate git => scm viewlet
+
+			const map = SCMPreview.enabled
+				? (id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
+				: (id => id === 'workbench.view.scm' ? 'workbench.view.git' : id);
+
 			this.pinnedViewlets = pinnedViewlets
-				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
+				.map(map)
 				.filter(arrays.uniqueFilter<string>(str => str));
 
 		} else {
