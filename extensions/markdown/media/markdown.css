@@ -15,11 +15,21 @@ body.scrollBeyondLastLine {
 	margin-bottom: calc(100vh - 22px);
 }
 
-.code-active-line {
+.code-line {
 	position: relative;
 }
 
 .code-active-line:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+	border-left: 3px solid rgba(0, 122, 204, 0.5);
+}
+
+.code-line:hover:before {
 	content: "";
 	display: block;
 	position: absolute;

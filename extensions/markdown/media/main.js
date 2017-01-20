@@ -7,28 +7,48 @@
 
 (function () {
 	/**
-	 * Find the elements around line.
+	 * Find the html elements that map to a specific target line in the editor.
 	 *
 	 * If an exact match, returns a single element. If the line is between elements,
-	 * returns the element before and the element after the given line.
+	 * returns the element prior to and the element after the given line.
 	 */
-	function getElementsAroundSourceLine(targetLine) {
-		const lines = document.getElementsByClassName('code-line');
-		let before = null;
-		for (const element of lines) {
+	function getElementsForSourceLine(targetLine) {
+		let previous = null;
+		for (const element of document.getElementsByClassName('code-line')) {
 			const lineNumber = +element.getAttribute('data-line');
 			if (isNaN(lineNumber)) {
 				continue;
 			}
 			const entry = { line: lineNumber, element: element };
 			if (lineNumber === targetLine) {
-				return { before: entry, after: null };
+				return { before: entry, next: null };
 			} else if (lineNumber > targetLine) {
-				return { before, after: entry };
+				return { previous, next: entry };
+			}
+			previous = entry;
+		}
+		return { previous };
+	}
+
+	/**
+	 * Find the html elements that are at a specific pixel offset on the page.
+	 */
+	function getLineElementsAtPageOffset(offset) {
+		let before = null;
+		for (const element of document.getElementsByClassName('code-line')) {
+			const line = +element.getAttribute('data-line');
+			if (isNaN(line)) {
+				continue;
+			}
+			const entry = {element, line };
+			if (offset >= window.scrollY + element.getBoundingClientRect().top && offset <= window.scrollY + element.getBoundingClientRect().top + element.getBoundingClientRect().height) {
+				return { before: entry };
+			} else if (offset < window.scrollY + element.getBoundingClientRect().top) {
+				return { before, after: entry};
 			}
 			before = entry;
 		}
-		return { before };
+		return {before};
 	}
 
 	function getSourceRevealAddedOffset() {
@@ -39,36 +59,33 @@
 	 * Attempt to reveal the element for a source line in the editor.
 	 */
 	function scrollToRevealSourceLine(line) {
-		const {before, after} = getElementsAroundSourceLine(line);
-		marker.update(before && before.element);
-		if (before) {
+		const {previous, next} = getElementsForSourceLine(line);
+		marker.update(previous && previous.element);
+		if (previous) {
 			let scrollTo = 0;
-			if (after) {
+			if (next) {
 				// Between two elements. Go to percentage offset between them.
-				const betweenProgress = (line - before.line) / (after.line - before.line);
-				const elementOffset = after.element.getBoundingClientRect().top - before.element.getBoundingClientRect().top;
-				scrollTo = before.element.getBoundingClientRect().top + betweenProgress * elementOffset;
+				const betweenProgress = (line - previous.line) / (next.line - previous.line);
+				const elementOffset = next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top;
+				scrollTo = previous.element.getBoundingClientRect().top + betweenProgress * elementOffset;
 			} else {
-				scrollTo = before.element.getBoundingClientRect().top;
+				scrollTo = previous.element.getBoundingClientRect().top;
 			}
 			window.scroll(0, window.scrollY + scrollTo + getSourceRevealAddedOffset());
 		}
 	}
 
 	function didUpdateScrollPosition(offset) {
-		const lines = document.getElementsByClassName('code-line');
-		let nearest = lines[0];
-		for (let i = lines.length - 1; i >= 0; --i) {
-			const lineElement = lines[i];
-			if (offset <= window.scrollY + lineElement.getBoundingClientRect().top + lineElement.getBoundingClientRect().height) {
-				nearest = lineElement;
+		const {before, after } = getLineElementsAtPageOffset(offset);
+		if (before) {
+			let line = 0;
+			if (after) {
+				const betweenProgress = (offset - window.scrollY - before.element.getBoundingClientRect().top) / (after.element.getBoundingClientRect().top - before.element.getBoundingClientRect().top);
+				line = before.line + Math.floor(betweenProgress * (after.line - before.line));
 			} else {
-				break;
+				line = before.line;
 			}
-		}
 
-		if (nearest) {
-			const line = +nearest.getAttribute('data-line');
 			const args = [window.initialData.source, line];
 			window.parent.postMessage({
 				command: "did-click-link",
@@ -134,7 +151,7 @@
 			didUpdateScrollPosition(offset);
 		};
 
-		/*
+		/**
 		window.onscroll = () => {
 			didUpdateScrollPosition(window.scrollY);
 		};
