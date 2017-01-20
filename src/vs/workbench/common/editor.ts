@@ -290,6 +290,11 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
+export abstract class EmbeddedResourceEditorInput extends EditorInput {
+
+	abstract getEmbeddedResources(): TPromise<URI[]>;
+}
+
 export enum EncodingMode {
 
 	/**
