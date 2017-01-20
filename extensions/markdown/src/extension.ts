@@ -10,6 +10,7 @@ import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { MarkdownEngine } from './markdownEngine';
 import DocumentLinkProvider from './documentLinkProvider';
+import MDDocumentSymbolProvider from './documentSymbolProvider';
 
 interface IPackageInfo {
 	name: string;
@@ -18,8 +19,6 @@ interface IPackageInfo {
 }
 
 var telemetryReporter: TelemetryReporter | null;
-
-const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -248,20 +247,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
 			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('preview.experimentalSyncronizationEnabled', true);
-
 			const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
-			const text = document.getText();
-			let contents;
-			let lineOffset = 0;
-			if (previewFrontMatter === 'hide') {
-				const frontMatter = text.match(FrontMatterRegex);
-				if (frontMatter) {
-					lineOffset = (frontMatter[0].match(/\n/g) || []).length;
-				}
-				contents = text.replace(FrontMatterRegex, '');
-			} else {
-				contents = text;
-			}
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
@@ -269,8 +255,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				initialLine = editor.selection.start.line;
 			}
 
-
-			const body = this.engine.render(sourceUri, lineOffset, contents);
+			const body = this.engine.render(sourceUri, previewFrontMatter === 'hide', document.getText());
 
 			return `<!DOCTYPE html>
 				<html>
@@ -309,41 +294,5 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				this._onDidChange.fire(uri);
 			}, 300);
 		}
-	}
-}
-
-class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
-
-	constructor(private engine: MarkdownEngine) { }
-
-	provideDocumentSymbols(document: vscode.TextDocument): vscode.ProviderResult<vscode.SymbolInformation[]> {
-		let offset = 0;
-		let text = document.getText();
-		const frontMatterMatch = FrontMatterRegex.exec(text);
-
-		if (frontMatterMatch) {
-			const frontMatter = frontMatterMatch[0];
-
-			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
-			text = text.substr(frontMatter.length);
-		}
-
-		const tokens = this.engine.parse(text);
-		const headings = tokens.filter(token => token.type === 'heading_open');
-
-		return headings.map(heading => {
-			const lineNumber = heading.map[0];
-			const line = document.lineAt(lineNumber + offset);
-			const location = new vscode.Location(document.uri, line.range);
-
-			// # Header        => 'Header'
-			// ## Header ##    => 'Header'
-			// ## Header ####  => 'Header'
-			// Header ##       => 'Header ##'
-			// =========
-			const text = line.text.replace(/^\s*(#)+\s*(.*?)\s*\1*$/, '$2');
-
-			return new vscode.SymbolInformation(text, vscode.SymbolKind.Module, '', location);
-		});
 	}
 }
