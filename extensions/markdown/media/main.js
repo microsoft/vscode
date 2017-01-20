@@ -21,7 +21,7 @@
 			}
 			const entry = { line: lineNumber, element: element };
 			if (lineNumber === targetLine) {
-				return { before: entry, next: null };
+				return { previous: entry, next: null };
 			} else if (lineNumber > targetLine) {
 				return { previous, next: entry };
 			}
