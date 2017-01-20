@@ -71,6 +71,8 @@ const vscodeResources = [
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
+	'out-build/vs/workbench/parts/walkThrough/**/*.md',
+	'out-build/vs/workbench/parts/welcomePage/**/*.html',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'!**/test/**'
