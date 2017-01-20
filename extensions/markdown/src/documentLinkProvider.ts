@@ -10,19 +10,9 @@ import * as path from 'path';
 
 export default class MarkdownDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
-	private _cachedResult: { version: number; links: vscode.DocumentLink[] };
 	private _linkPattern = /(\[[^\]]*\]\(\s*?)(\S+?)(\s+[^\)]*)?\)/g;
 
 	public provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
-		const {version} = document;
-		if (!this._cachedResult || this._cachedResult.version !== version) {
-			const links = this._computeDocumentLinks(document);
-			this._cachedResult = { version, links };
-		}
-		return this._cachedResult.links;
-	}
-
-	private _computeDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		const base = path.dirname(document.uri.fsPath);
 		const text = document.getText();
@@ -39,7 +29,12 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 				let uri = vscode.Uri.parse(link);
 				if (!uri.scheme) {
 					// assume it must be a file
-					const file = path.join(base, link);
+					let file;
+					if (uri.path[0] === '/') {
+						file = path.join(vscode.workspace.rootPath, link);
+					} else {
+						file = path.join(base, link);
+					}
 					uri = vscode.Uri.file(file);
 				}
 				results.push(new vscode.DocumentLink(
