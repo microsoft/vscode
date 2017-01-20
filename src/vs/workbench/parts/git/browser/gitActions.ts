@@ -955,6 +955,59 @@ export class PullWithRebaseAction extends PullAction {
 	}
 }
 
+export class PullFromAction extends GitAction {
+	static ID = 'workbench.action.git.pull.from';
+	static LABEL = 'Pull From ...';
+
+	constructor(
+		id = PullAction.ID,
+		label = PullAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, 'git-action pullFrom', gitService);
+	}
+
+	protected isEnabled(): boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		var model = this.gitService.getModel();
+		var HEAD = model.getHEAD();
+
+		if (!HEAD || !HEAD.name || !HEAD.upstream) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public run(context?: any): Promise {
+		const model = this.gitService.getModel();
+		const remotes = model.getRemotes();
+		const branchName = model.getHEAD().name;
+		const picks = remotes.map(({ name, url }) => ({ label: name, description: url }));
+		const placeHolder = nls.localize('pullFromRemotePickMessage', "Pick a remote to pull the branch '{0}' from:", branchName);
+
+		return this.quickOpenService.pick(picks, { placeHolder })
+			.then(pick => pick && pick.label)
+			.then(remote => remote && this.gitService.pull(false, remote, branchName))
+			.then(null, err => {
+				if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
+					return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stash your work first."), { severity: Severity.Warning }));
+				} else if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
+					return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
+				}
+				return Promise.wrapError(err);
+			});
+	}
+}
+
 export class PushAction extends GitAction {
 
 	static ID = 'workbench.action.git.push';

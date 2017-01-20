@@ -288,7 +288,7 @@ export interface IRawGitService {
 	reset(treeish: string, hard?: boolean): TPromise<IRawStatus>;
 	revertFiles(treeish: string, filePaths?: string[]): TPromise<IRawStatus>;
 	fetch(): TPromise<IRawStatus>;
-	pull(rebase?: boolean): TPromise<IRawStatus>;
+	pull(rebase?: boolean, remote?: string, branch?: string): TPromise<IRawStatus>;
 	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IRawStatus>;
 	sync(): TPromise<IRawStatus>;
 	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus>;
@@ -318,7 +318,7 @@ export interface IGitService extends IEventEmitter {
 	reset(treeish: string, hard?: boolean): TPromise<IModel>;
 	revertFiles(treeish: string, files?: IFileStatus[]): TPromise<IModel>;
 	fetch(): TPromise<IModel>;
-	pull(rebase?: boolean): TPromise<IModel>;
+	pull(rebase?: boolean, remote?: string, branch?: string): TPromise<IModel>;
 	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IModel>;
 	sync(): TPromise<IModel>;
 	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IModel>;

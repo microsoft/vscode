@@ -658,8 +658,8 @@ export class GitService extends EventEmitter
 		return this.run(ServiceOperations.BACKGROUND_FETCH, () => this.raw.fetch());
 	}
 
-	pull(rebase?: boolean): TPromise<IModel> {
-		return this.run(ServiceOperations.PULL, () => this.raw.pull(rebase));
+	pull(rebase?: boolean, remote?: string, branch?: string): TPromise<IModel> {
+		return this.run(ServiceOperations.PULL, () => this.raw.pull(rebase, remote, branch));
 	}
 
 	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IModel> {
