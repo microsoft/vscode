@@ -174,6 +174,13 @@ export class FindInput extends Widget {
 		this.caseSensitive.focus();
 	}
 
+	private _lastHighlightFindOptions: number = 0;
+	public highlightFindOptions(): void {
+		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this._lastHighlightFindOptions = 1 - this._lastHighlightFindOptions;
+		dom.addClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+	}
+
 	private setInputWidth(): void {
 		let w = this.width - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
 		this.inputBox.width = w;

@@ -37,4 +37,12 @@ export class FindController extends CommonFindController implements IFindControl
 			this._widget.focusFindInput();
 		}
 	}
+
+	public highlightFindOptions(): void {
+		if (this._state.isRevealed) {
+			this._widget.highlightFindOptions();
+		} else {
+			// console.log('TODO@Alex - animateFindOptions');
+		}
+	}
 }
