@@ -10,6 +10,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, once, mapEvent } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { join } from 'path';
+import { tmpdir } from 'os';
+
+export function generateRandomPipeName(): string {
+	let randomName = 'vscode-' + Math.floor(Math.random() * 10000).toString(16);
+	if (process.platform === 'win32') {
+		return '\\\\.\\pipe\\' + randomName + '-sock';
+	} else {
+		// Mac/Unix: use socket file
+		return join(tmpdir(), randomName + '.sock');
+	}
+}
 
 function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 	while (start < buffer.length && buffer[start] !== value) {
