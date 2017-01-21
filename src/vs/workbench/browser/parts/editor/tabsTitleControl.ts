@@ -54,7 +54,7 @@ export class TabsTitleControl extends TitleControl {
 	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
-	private layoutSkipOnce: boolean;
+	private skipOnceRevealActiveTab: boolean;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -74,7 +74,7 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
-		this.layoutSkipOnce = false;
+		this.skipOnceRevealActiveTab = false;
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -250,16 +250,12 @@ export class TabsTitleControl extends TitleControl {
 		this.updateEditorActionsToolbar();
 
 		// Ensure the active tab is always revealed
-		if (this.layoutSkipOnce) {
-			this.layoutSkipOnce = false;
-		} else {
-			this.layout();
-		}
+		this.layout();
 	}
 
 	protected onEditorClosed(event: IGroupEvent): void {
 		// keep scroll position stable when closing an inactive tab
-		this.layoutSkipOnce = true;
+		this.skipOnceRevealActiveTab = true;
 	}
 
 	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
@@ -393,25 +389,30 @@ export class TabsTitleControl extends TitleControl {
 			scrollWidth: totalContainerWidth
 		});
 
-		// Always reveal the active one
-		const containerScrollPosX = this.tabsContainer.scrollLeft;
-		const activeTabPosX = this.activeTab.offsetLeft;
-		const activeTabWidth = this.activeTab.offsetWidth;
-		const activeTabFits = activeTabWidth <= visibleContainerWidth;
+		// Do not reveal active tab if told to skip once
+		if (this.skipOnceRevealActiveTab) {
+			this.skipOnceRevealActiveTab = false;
+		} else {
+			// Reveal the active tab
+			const containerScrollPosX = this.tabsContainer.scrollLeft;
+			const activeTabPosX = this.activeTab.offsetLeft;
+			const activeTabWidth = this.activeTab.offsetWidth;
+			const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
-		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
-		// Note: only try to do this if we actually have enough width to give to show the tab fully!
-		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.scrollbar.updateState({
-				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
-			});
-		}
+			// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
+			// Note: only try to do this if we actually have enough width to give to show the tab fully!
+			if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
+				this.scrollbar.updateState({
+					scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
+				});
+			}
 
-		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
-		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.scrollbar.updateState({
-				scrollLeft: this.activeTab.offsetLeft
-			});
+			// Tab is overflowing to the left or does not fit: Scroll it into view to the left
+			else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
+				this.scrollbar.updateState({
+					scrollLeft: this.activeTab.offsetLeft
+				});
+			}
 		}
 	}
 
