@@ -180,13 +180,21 @@ export class WalkThroughPart extends BaseEditor {
 					editor.setModel(model);
 					this.contentDisposables.push(editor);
 
-					const lineHeight = editor.getConfiguration().lineHeight;
-					const height = model.getLineCount() * lineHeight;
-					div.style.height = height + 'px';
+					const updateHeight = (initial: boolean) => {
+						const lineHeight = editor.getConfiguration().lineHeight;
+						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
+						if (div.style.height !== height) {
+							div.style.height = height;
+							editor.layout();
+							if (!initial) {
+								this.scrollbar.scanDomNode();
+							}
+						}
+					};
+					updateHeight(true);
+					this.contentDisposables.push(editor.onDidChangeModelContent(() => updateHeight(false)));
 
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
-
-					editor.layout();
 
 					if (i === 0) {
 						editor.focus();

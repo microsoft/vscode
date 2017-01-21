@@ -138,10 +138,6 @@ You can greatly accelerate you editing through the use of snippets.  Simply star
 
 ```js
 
-
-
-
-// End
 ```
 
 >**Tip:** the extension gallery includes snippets for almost every framework and language imaginable [extensions](command:workbench.extensions.action.showPopularExtensions).  You can also create your own [user defined snippets](command:workbench.action.openSnippets).
@@ -152,12 +148,6 @@ Emmet takes the snippets idea to a whole new level: you can type CSS-like expres
 
 ```html
 ul>li.item$*5
-
-
-
-
-
-<!-- End -->
 ```
 
 >**Tip:** The [Emmet cheat sheet](http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions.  Emmet can also be enabled for additional languages via the `emmet.syntaxProfiles` [setting].
