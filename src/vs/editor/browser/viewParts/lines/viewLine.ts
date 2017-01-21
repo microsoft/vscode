@@ -5,6 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
@@ -16,6 +17,26 @@ import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+
+const canUseFastRenderedViewLine = (function () {
+	if (platform.isNative) {
+		// In VSCode we know very well when the zoom level changes
+		return true;
+	}
+
+	if (platform.isLinux) {
+		// On Linux, it appears that zooming affects char widths (in pixels), which is unexpected.
+		// --
+		// Even though we read character widths correctly, having read them at a specific zoom level
+		// does not mean they are the same at the current zoom level.
+		// --
+		// This could be improved if we ever figure out how to get an event when browsers zoom,
+		// but until then we have to stick with reading client rects.
+		return false;
+	}
+
+	return true;
+})();
 
 export class DomReadingContext {
 
@@ -151,7 +172,7 @@ export class ViewLine implements IVisibleLineData {
 		const output = renderViewLine(renderLineInput);
 
 		let renderedViewLine: IRenderedViewLine = null;
-		if (this._fontIsMonospace && !output.containsForeignElements) {
+		if (canUseFastRenderedViewLine && this._fontIsMonospace && !output.containsForeignElements) {
 			let isRegularASCII = true;
 			if (model.mightContainNonBasicASCII()) {
 				isRegularASCII = strings.isBasicASCII(lineContent);
