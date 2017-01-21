@@ -33,27 +33,32 @@ const keys: Key[] = [
 	{
 		id: 'explorer',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.explorer', "Browse files")
+		label: localize('welcomeOverlay.explorer', "File explorer"),
+		command: 'workbench.view.explorer'
 	},
 	{
 		id: 'search',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.search', "Search files for text")
+		label: localize('welcomeOverlay.search', "Search across files"),
+		command: 'workbench.view.search'
 	},
 	{
 		id: 'git',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.git', "View local changes")
+		label: localize('welcomeOverlay.git', "Source code management"),
+		command: 'workbench.view.scm'
 	},
 	{
 		id: 'debug',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.debug', "Launch and debug")
+		label: localize('welcomeOverlay.debug', "Launch and debug"),
+		command: 'workbench.view.debug'
 	},
 	{
 		id: 'extensions',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.extensions', "Manage extensions")
+		label: localize('welcomeOverlay.extensions', "Manage extensions"),
+		command: 'workbench.view.extensions'
 	},
 	// {
 	// 	id: 'watermark',
@@ -64,7 +69,8 @@ const keys: Key[] = [
 	{
 		id: 'problems',
 		arrow: '&larrpl;',
-		label: localize('welcomeOverlay.problems', "Open errors and warnings")
+		label: localize('welcomeOverlay.problems', "View errors and warnings"),
+		command: 'workbench.actions.view.problems'
 	},
 	// {
 	// 	id: 'openfile',
