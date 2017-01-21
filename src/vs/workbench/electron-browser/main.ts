@@ -12,6 +12,7 @@ import { IOptions } from 'vs/workbench/common/options';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
+import comparer = require('vs/base/common/comparers');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
@@ -46,10 +47,14 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
+
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
 	browser.setZoomLevel(webFrame.getZoomLevel());
 	browser.setFullscreen(!!configuration.fullscreen);
+
+	// Setup Intl
+	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;

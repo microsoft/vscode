@@ -273,11 +273,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	public getWidth(): number {
-		if (this._charOffset.length === 0) {
-			return 0;
-		}
-		const lastCharOffset = this._charOffset[this._charOffset.length - 1];
-		return lastCharOffset * this._charWidth;
+		return this._getCharPosition(this._charOffset.length);
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
@@ -298,13 +294,17 @@ class FastRenderedViewLine implements IRenderedViewLine {
 			endColumn = stopRenderingLineAfter;
 		}
 
-		if (this._charOffset.length === 0) {
-			return [new HorizontalRange(0, 0)];
-		}
+		const startPosition = this._getCharPosition(startColumn);
+		const endPosition = this._getCharPosition(endColumn);
+		return [new HorizontalRange(startPosition, endPosition - startPosition)];
+	}
 
-		const startCharOffset = this._charOffset[startColumn - 1];
-		const endCharOffset = this._charOffset[endColumn - 1];
-		return [new HorizontalRange(this._charWidth * startCharOffset, this._charWidth * (endCharOffset - startCharOffset))];
+	private _getCharPosition(column: number): number {
+		if (this._charOffset.length === 0) {
+			// No characters on this line
+			return 0;
+		}
+		return Math.round(this._charWidth * this._charOffset[column - 1]);
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {

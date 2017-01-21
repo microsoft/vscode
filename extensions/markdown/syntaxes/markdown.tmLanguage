@@ -144,6 +144,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#fenced_code_block_go</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#fenced_code_block_groovy</string>
 				</dict>
 				<dict>
@@ -185,6 +189,14 @@
 				<dict>
 					<key>include</key>
 					<string>#fenced_code_block_regexp_python</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#fenced_code_block_rust</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#fenced_code_block_scala</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -1832,6 +1844,58 @@
 						</dict>
 					</array>
 				</dict>
+				<key>fenced_code_block_go</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((go|golang)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.go</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
 				<key>fenced_code_block_groovy</key>
 				<dict>
 					<key>begin</key>
@@ -2334,7 +2398,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2399,6 +2462,110 @@
 								<dict>
 									<key>include</key>
 									<string>source.regexp.python</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_rust</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((rust|rs)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.rust</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+                <key>fenced_code_block_scala</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((scala|sbt)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.scala</string>
 								</dict>
 							</array>
 						</dict>
@@ -2757,9 +2924,9 @@
 												)
 											  | (							# Inline Link
 													\(						# Opening paren
-														[ \t]*+				# Optional whtiespace
+														[ \t]*+				# Optional whitespace
 														&lt;?(.*?)&gt;?			# URL
-														[ \t]*+				# Optional whtiespace
+														[ \t]*+				# Optional whitespace
 														(					# Optional Title
 															(?&lt;title&gt;['"])
 															(.*?)
