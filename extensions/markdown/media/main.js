@@ -13,8 +13,9 @@
 	 * returns the element prior to and the element after the given line.
 	 */
 	function getElementsForSourceLine(targetLine) {
-		let previous = null;
-		for (const element of document.getElementsByClassName('code-line')) {
+		const lines = document.getElementsByClassName('code-line');
+		let previous = lines[0] && +lines[0].getAttribute('data-line') ? { line: +lines[0].getAttribute('data-line'), element: lines[0] } : null;
+		for (const element of lines) {
 			const lineNumber = +element.getAttribute('data-line');
 			if (isNaN(lineNumber)) {
 				continue;
@@ -34,21 +35,22 @@
 	 * Find the html elements that are at a specific pixel offset on the page.
 	 */
 	function getLineElementsAtPageOffset(offset) {
-		let before = null;
-		for (const element of document.getElementsByClassName('code-line')) {
+		const lines = document.getElementsByClassName('code-line');
+		let previous = null;
+		for (const element of lines) {
 			const line = +element.getAttribute('data-line');
 			if (isNaN(line)) {
 				continue;
 			}
-			const entry = {element, line };
+			const entry = { element, line };
 			if (offset >= window.scrollY + element.getBoundingClientRect().top && offset <= window.scrollY + element.getBoundingClientRect().top + element.getBoundingClientRect().height) {
-				return { before: entry };
+				return { previous: entry };
 			} else if (offset < window.scrollY + element.getBoundingClientRect().top) {
-				return { before, after: entry};
+				return { previous, next: entry };
 			}
-			before = entry;
+			previous = entry;
 		}
-		return {before};
+		return { previous };
 	}
 
 	function getSourceRevealAddedOffset() {
@@ -76,14 +78,14 @@
 	}
 
 	function didUpdateScrollPosition(offset) {
-		const {before, after } = getLineElementsAtPageOffset(offset);
-		if (before) {
+		const {previous, next} = getLineElementsAtPageOffset(offset);
+		if (previous) {
 			let line = 0;
-			if (after) {
-				const betweenProgress = (offset - window.scrollY - before.element.getBoundingClientRect().top) / (after.element.getBoundingClientRect().top - before.element.getBoundingClientRect().top);
-				line = before.line + Math.floor(betweenProgress * (after.line - before.line));
+			if (next) {
+				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
+				line = previous.line + Math.floor(betweenProgress * (next.line - previous.line));
 			} else {
-				line = before.line;
+				line = previous.line;
 			}
 
 			const args = [window.initialData.source, line];
