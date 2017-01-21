@@ -14,7 +14,7 @@
 	 */
 	function getElementsForSourceLine(targetLine) {
 		const lines = document.getElementsByClassName('code-line');
-		let previous = lines[0];
+		let previous = lines[0] && +lines[0].getAttribute('data-line') ? { line: +lines[0].getAttribute('data-line'), element: lines[0] } : null;
 		for (const element of lines) {
 			const lineNumber = +element.getAttribute('data-line');
 			if (isNaN(lineNumber)) {
