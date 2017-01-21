@@ -1328,6 +1328,31 @@ let schema: IJSONSchema =
 					}
 				}
 			},
+			'commandConfiguration': {
+				'type': 'object',
+				'additionalProperties': false,
+				'properties': {
+					'command': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+					},
+					'isShellCommand': {
+						'type': 'boolean',
+						'default': true,
+						'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+					},
+					'args': {
+						'type': 'array',
+						'description': nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
+						'items': {
+							'type': 'string'
+						}
+					},
+					'options': {
+						'$ref': '#/definitions/options'
+					}
+				}
+			},
 			'taskDescription': {
 				'type': 'object',
 				'required': ['taskName'],
@@ -1355,6 +1380,18 @@ let schema: IJSONSchema =
 					},
 					'options': {
 						'$ref': '#/definitions/options'
+					},
+					'windows': {
+						'$ref': '#/definitions/commandConfiguration',
+						'description': nls.localize('JsonSchema.tasks.windows', 'Windows specific command configuration')
+					},
+					'osx': {
+						'$ref': '#/definitions/commandConfiguration',
+						'description': nls.localize('JsonSchema.tasks.mac', 'Mac specific command configuration')
+					},
+					'linux': {
+						'$ref': '#/definitions/commandConfiguration',
+						'description': nls.localize('JsonSchema.tasks.linux', 'Linux specific command configuration')
 					},
 					'suppressTaskName': {
 						'type': 'boolean',
@@ -1412,15 +1449,15 @@ let schema: IJSONSchema =
 					},
 					'windows': {
 						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.windows', 'Windows specific build configuration')
+						'description': nls.localize('JsonSchema.windows', 'Windows specific command configuration')
 					},
 					'osx': {
 						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.mac', 'Mac specific build configuration')
+						'description': nls.localize('JsonSchema.mac', 'Mac specific command configuration')
 					},
 					'linux': {
 						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.linux', 'Linux specific build configuration')
+						'description': nls.localize('JsonSchema.linux', 'Linux specific command configuration')
 					}
 				}
 			},
