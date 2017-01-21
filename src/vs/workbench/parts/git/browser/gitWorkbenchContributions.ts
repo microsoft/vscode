@@ -28,6 +28,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { GitSCMProvider } from './gitScm';
 
 import IGitService = git.IGitService;
 
@@ -162,6 +163,11 @@ export function registerContributions(): void {
 	// Register StatusUpdater
 	(<ext.IWorkbenchContributionsRegistry>platform.Registry.as(ext.Extensions.Workbench)).registerWorkbenchContribution(
 		StatusUpdater
+	);
+
+	// Register GitSCMProvider
+	(<ext.IWorkbenchContributionsRegistry>platform.Registry.as(ext.Extensions.Workbench)).registerWorkbenchContribution(
+		GitSCMProvider
 	);
 
 	// Register Quick Open for git

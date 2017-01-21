@@ -152,6 +152,11 @@ export class PreferencesEditor extends BaseEditor {
 		this.searchWidget.focus();
 	}
 
+	public clearInput(): void {
+		this.sideBySidePreferencesWidget.clearInput();
+		super.clearInput();
+	}
+
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
 		const editablePreferencesUri = toResource(newInput.master);
 		this.settingsTabsWidget.show(editablePreferencesUri.toString() === this.preferencesService.userSettingsResource.toString() ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
@@ -169,6 +174,10 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private switchSettings(): void {
+		// Focus the editor if this editor is not active editor
+		if (this.editorService.getActiveEditor() !== this) {
+			this.focus();
+		}
 		const promise = this.input.isDirty() ? this.input.save() : TPromise.as(true);
 		promise.done(value => this.preferencesService.switchSettings());
 	}
@@ -273,6 +282,7 @@ export class SideBySidePreferencesWidget extends Widget {
 		this.defaultPreferencesEditorContainer.style.position = 'absolute';
 		this.defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesEditor);
 		this.defaultPreferencesEditor.create(new Builder(this.defaultPreferencesEditorContainer));
+		this.defaultPreferencesEditor.setVisible(true);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
@@ -299,6 +309,12 @@ export class SideBySidePreferencesWidget extends Widget {
 
 	public getDefaultPreferencesEditor(): DefaultPreferencesEditor {
 		return this.defaultPreferencesEditor;
+	}
+
+	public clearInput(): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.clearInput();
+		}
 	}
 
 	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
@@ -412,6 +428,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	public clearInput(): void {
 		this.getControl().setModel(null);
 		super.clearInput();
+	}
+
+	protected getAriaLabel(): string {
+		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly text editor.");
 	}
 }
 

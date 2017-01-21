@@ -12,13 +12,16 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/platform';
 import { CloneAction } from './gitActions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 
-registerContributions();
+if (!SCMPreview.enabled) {
+	registerContributions();
 
-// Register Service
-registerSingleton(IGitService, ElectronGitService);
+	// Register Service
+	registerSingleton(IGitService, ElectronGitService);
 
-const category = localize('git', "Git");
+	const category = localize('git', "Git");
 
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(CloneAction, CloneAction.ID, CloneAction.LABEL), 'Git: Clone', category);
+	Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(CloneAction, CloneAction.ID, CloneAction.LABEL), 'Git: Clone', category);
+}

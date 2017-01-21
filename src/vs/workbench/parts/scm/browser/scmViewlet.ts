@@ -39,22 +39,6 @@ import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/act
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { isDarkTheme } from 'vs/platform/theme/common/themes';
 
-function isSCMResource(element: ISCMResource | ISCMResourceGroup): element is ISCMResource {
-	return !!(element as ISCMResource).uri;
-}
-
-function equalsSCMResource(one: ISCMResource, other: ISCMResource): boolean {
-	if (one.resourceGroupId !== other.resourceGroupId) {
-		return false;
-	}
-
-	if (one.uri.toString() !== other.uri.toString()) {
-		return false;
-	}
-
-	return true;
-}
-
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
 	immediate?: boolean;
@@ -157,7 +141,7 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	getHeight() { return 22; }
 
 	getTemplateId(element: ISCMResourceGroup | ISCMResource) {
-		return isSCMResource(element) ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
+		return (element as ISCMResource).uri ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
 	}
 }
 
@@ -218,8 +202,6 @@ export class SCMViewlet extends Viewlet {
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
-	private currentFocus: (ISCMResource | ISCMResourceGroup)[] = [];
-	private currentSelection: (ISCMResource | ISCMResourceGroup)[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -285,12 +267,9 @@ export class SCMViewlet extends Viewlet {
 			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider)
 		]);
 
-		this.list.onSelectionChange(e => this.currentSelection = e.elements, null, this.disposables);
-		this.list.onFocusChange(e => this.currentFocus = e.elements, null, this.disposables);
-
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])
-			.filter(e => !!e && isSCMResource(e))
+			.filter(e => !!e && !!(e as ISCMResource).uri)
 			.on(this.open, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
@@ -311,34 +290,11 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
+
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
 
-		// TODO@Joao: move this behaviour down to the List
-		const previousSelection = this.currentSelection.filter(e => isSCMResource(e)) as ISCMResource[];
-		const previousFocus = this.currentFocus.filter(e => isSCMResource(e)) as ISCMResource[];
-		const selection: number[] = [];
-		const focus: number[] = [];
-
-		for (let i = 0; i < elements.length; i++) {
-			const element = elements[i];
-
-			if (!isSCMResource(element)) {
-				continue;
-			}
-
-			if (previousSelection.some(s => equalsSCMResource(s, element))) {
-				selection.push(i);
-			}
-
-			if (previousFocus.some(s => equalsSCMResource(s, element))) {
-				focus.push(i);
-			}
-		}
-
 		this.list.splice(0, this.list.length, elements);
-		this.list.setSelection(selection);
-		this.list.setFocus(focus);
 	}
 
 	layout(dimension: Dimension = this.cachedDimension): void {
@@ -395,10 +351,12 @@ export class SCMViewlet extends Viewlet {
 		const element = e.element;
 		let actions: IAction[];
 
-		if (isSCMResource(element)) {
-			actions = this.menus.getResourceContextActions(element);
+		if ((element as ISCMResource).uri) {
+			const resource = element as ISCMResource;
+			actions = this.menus.getResourceContextActions(resource);
 		} else {
-			actions = this.menus.getResourceGroupContextActions(element);
+			const resourceGroup = element as ISCMResourceGroup;
+			actions = this.menus.getResourceGroupContextActions(resourceGroup);
 		}
 
 		this.contextMenuService.showContextMenu({

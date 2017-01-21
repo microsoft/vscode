@@ -5,12 +5,15 @@
 
 'use strict';
 
-import { compareFileNames } from 'vs/base/common/comparers';
+import { compareFileNames, setFileNameComparer } from 'vs/base/common/comparers';
 import * as assert from 'assert';
 
 suite('Comparers', () => {
 
 	test('compareFileNames', () => {
+
+		// Setup Intl
+		setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 		assert(compareFileNames(null, null) === 0, 'null should be equal');
 		assert(compareFileNames(null, 'abc') < 0, 'null should be come before real values');

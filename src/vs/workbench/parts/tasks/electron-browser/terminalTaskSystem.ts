@@ -22,7 +22,6 @@ import { TerminateResponse } from 'vs/base/common/processes';
 import * as TPath from 'vs/base/common/paths';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ValidationStatus } from 'vs/base/common/parsers';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,7 +32,6 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, CommandOptions } from 'vs/workbench/parts/tasks/common/taskSystem';
-import * as FileConfig from '../node/processRunnerConfiguration';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -87,15 +85,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
-	private validationStatus: ValidationStatus;
-	private buildTaskIdentifier: string;
-	private testTaskIdentifier: string;
-	private configuration: TaskRunnerConfiguration;
-
 	private outputChannel: IOutputChannel;
 	private activeTasks: IStringDictionary<TerminalData>;
 
-	constructor(private fileConfig: FileConfig.ExternalTaskRunnerConfiguration, private terminalService: ITerminalService, private outputService: IOutputService,
+	constructor(private configuration: TaskRunnerConfiguration, private terminalService: ITerminalService, private outputService: IOutputService,
 		private markerService: IMarkerService, private modelService: IModelService, private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService, outputChannelId: string) {
 		super();
@@ -103,23 +96,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.clearOutput();
 		this.activeTasks = Object.create(null);
-
-		let parseResult = FileConfig.parse(fileConfig, this);
-		this.validationStatus = parseResult.validationStatus;
-		this.configuration = parseResult.configuration;
-		this.buildTaskIdentifier = parseResult.defaultBuildTaskIdentifier;
-		this.testTaskIdentifier = parseResult.defaultTestTaskIdentifier;
-
-		if (!this.validationStatus.isOK()) {
-			this.showOutput();
-		}
 	}
 
 	public log(value: string): void {
 		this.outputChannel.append(value + '\n');
 	}
 
-	private showOutput(): void {
+	protected showOutput(): void {
 		this.outputChannel.show(true);
 	}
 
@@ -128,10 +111,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public build(): ITaskExecuteResult {
-		if (!this.buildTaskIdentifier) {
+		if (this.configuration.buildTasks.length === 0) {
 			throw new TaskError(Severity.Info, nls.localize('TerminalTaskSystem.noBuildTask', 'No build task defined in tasks.json'), TaskErrors.NoBuildTask);
 		}
-		return this.run(this.buildTaskIdentifier, Triggers.shortcut);
+		return this.run(this.configuration.buildTasks[0], Triggers.shortcut);
 	}
 
 	public rebuild(): ITaskExecuteResult {
@@ -143,10 +126,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public runTest(): ITaskExecuteResult {
-		if (!this.testTaskIdentifier) {
+		if (this.configuration.testTasks.length === 0) {
 			throw new TaskError(Severity.Info, nls.localize('TerminalTaskSystem.noTestTask', 'No test task defined in tasks.json'), TaskErrors.NoTestTask);
 		}
-		return this.run(this.testTaskIdentifier, Triggers.shortcut);
+		return this.run(this.configuration.testTasks[0], Triggers.shortcut);
 	}
 
 	public run(taskIdentifier: string, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -257,6 +240,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						});
 					});
 					terminal.onExit((exitCode) => {
+						delete this.activeTasks[task.id];
 						watchingProblemMatcher.dispose();
 						toUnbind = dispose(toUnbind);
 						toUnbind = null;
@@ -283,12 +267,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						});
 					});
 					terminal.onExit((exitCode) => {
+						delete this.activeTasks[task.id];
 						startStopProblemMatcher.processLine(decoder.end());
 						startStopProblemMatcher.done();
 						startStopProblemMatcher.dispose();
 						this.emit(TaskSystemEvents.Inactive, event);
-						delete this.activeTasks[task.id];
-						terminal.reuseTerminal();
 						resolve({ exitCode });
 					});
 					this.terminalService.setActiveInstance(terminal);
@@ -307,11 +290,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private createTerminal(task: TaskDescription): ITerminalInstance {
-		let options = this.resolveOptions(this.configuration.options);
+		let options = this.resolveOptions(task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
 		let waitOnExit = task.showOutput !== ShowOutput.Never || !task.isBackground;
-		if (this.configuration.isShellCommand) {
+		if (task.command.isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
 			}
@@ -334,7 +317,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let toAdd: string[] = [];
 			let commandLine: string;
 			if (Platform.isWindows) {
-				toAdd.push('/d', '/c');
+				let basename = path.basename(shellConfig.executable).toLowerCase();
+				if (basename === 'powershell.exe') {
+					toAdd.push('-Command');
+				} else {
+					toAdd.push('/d', '/c');
+				}
 				let quotedCommand: boolean = false;
 				let quotedArg: boolean = false;
 				let quoted = this.ensureDoubleQuotes(command);
@@ -382,7 +370,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !this.configuration.isShellCommand ? this.findExecutable(command, cwd) : command;
+			let executable = Platform.isWindows && !task.command.isShellCommand ? this.findExecutable(command, cwd) : command;
 			const shellLaunchConfig: IShellLaunchConfig = {
 				name: terminalName,
 				executable: executable,
@@ -394,11 +382,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveCommandAndArgs(task: TaskDescription): { command: string, args: string[] } {
-		let args: string[] = this.configuration.args ? this.configuration.args.slice() : [];
+		// First we need to use the command args:
+		let args: string[] = task.command.args ? task.command.args.slice() : [];
 		// We need to first pass the task name
 		if (!task.suppressTaskName) {
-			if (this.fileConfig.taskSelector) {
-				args.push(this.fileConfig.taskSelector + task.name);
+			if (task.command.taskSelector) {
+				args.push(task.command.taskSelector + task.name);
 			} else {
 				args.push(task.name);
 			}
@@ -408,7 +397,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			args = args.concat(task.args);
 		}
 		args = this.resolveVariables(args);
-		let command: string = this.resolveVariable(this.configuration.command);
+		let command: string = this.resolveVariable(task.command.name);
 		return { command, args };
 	}
 

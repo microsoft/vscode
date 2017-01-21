@@ -157,6 +157,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		this._state.change({ searchString: searchString }, false);
 	}
 
+	public highlightFindOptions(): void {
+		// overwritten in subclass
+	}
+
 	public getSelectionSearchString(): string {
 		let selection = this._editor.getSelection();
 
@@ -466,6 +470,12 @@ export class StartFindReplaceAction extends EditorAction {
 	}
 }
 
+export interface IMultiCursorFindInput {
+	changeFindSearchString: boolean;
+	allowMultiline: boolean;
+	highlightFindOptions: boolean;
+}
+
 export interface IMultiCursorFindResult {
 	searchText: string;
 	matchCase: boolean;
@@ -474,7 +484,7 @@ export interface IMultiCursorFindResult {
 	currentMatch: Selection;
 }
 
-function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearchString: boolean, allowMultiline: boolean): IMultiCursorFindResult {
+function multiCursorFind(editor: editorCommon.ICommonCodeEditor, input: IMultiCursorFindInput): IMultiCursorFindResult {
 	let controller = CommonFindController.get(editor);
 	if (!controller) {
 		return null;
@@ -498,7 +508,7 @@ function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearc
 		// Selection owns what is searched for
 		let s = editor.getSelection();
 
-		if (s.startLineNumber !== s.endLineNumber && !allowMultiline) {
+		if (s.startLineNumber !== s.endLineNumber && !input.allowMultiline) {
 			// multiline forbidden
 			return null;
 		}
@@ -514,9 +524,13 @@ function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearc
 		} else {
 			searchText = editor.getModel().getValueInRange(s);
 		}
-		if (changeFindSearchString) {
+		if (input.changeFindSearchString) {
 			controller.setSearchString(searchText);
 		}
+	}
+
+	if (input.highlightFindOptions) {
+		controller.highlightFindOptions();
 	}
 
 	return {
@@ -529,7 +543,11 @@ function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearc
 
 export abstract class SelectNextFindMatchAction extends EditorAction {
 	protected _getNextMatch(editor: editorCommon.ICommonCodeEditor): Selection {
-		let r = multiCursorFind(editor, /*changeFindSearchString*/true, /*allowMultiline*/true);
+		let r = multiCursorFind(editor, {
+			changeFindSearchString: true,
+			allowMultiline: true,
+			highlightFindOptions: true
+		});
 		if (!r) {
 			return null;
 		}
@@ -552,7 +570,11 @@ export abstract class SelectNextFindMatchAction extends EditorAction {
 
 export abstract class SelectPreviousFindMatchAction extends EditorAction {
 	protected _getPreviousMatch(editor: editorCommon.ICommonCodeEditor): Selection {
-		let r = multiCursorFind(editor, /*changeFindSearchString*/true, /*allowMultiline*/true);
+		let r = multiCursorFind(editor, {
+			changeFindSearchString: true,
+			allowMultiline: true,
+			highlightFindOptions: true
+		});
 		if (!r) {
 			return null;
 		}
@@ -683,7 +705,11 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 export abstract class AbstractSelectHighlightsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		let r = multiCursorFind(editor, /*changeFindSearchString*/true, /*allowMultiline*/true);
+		let r = multiCursorFind(editor, {
+			changeFindSearchString: true,
+			allowMultiline: true,
+			highlightFindOptions: true
+		});
 		if (!r) {
 			return;
 		}
@@ -805,7 +831,11 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return;
 		}
 
-		let r = multiCursorFind(this.editor, /*changeFindSearchString*/false, /*allowMultiline*/false);
+		let r = multiCursorFind(this.editor, {
+			changeFindSearchString: false,
+			allowMultiline: false,
+			highlightFindOptions: false
+		});
 		if (!r) {
 			this.removeDecorations();
 			return;

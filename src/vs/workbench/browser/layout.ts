@@ -321,6 +321,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.partLayoutInfo.statusbar.height;
 		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / getZoomFactor(); // adjust for zoom prevention
 
+		const previousMaxPanelHeight = this.sidebarHeight - MIN_EDITOR_PART_HEIGHT;
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
 
@@ -333,6 +334,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		const maxPanelHeight = sidebarSize.height - MIN_EDITOR_PART_HEIGHT;
 		if (isPanelHidden) {
 			panelHeight = 0;
+		} else if (this.panelHeight === previousMaxPanelHeight) {
+			panelHeight = maxPanelHeight;
 		} else if (this.panelHeight > 0) {
 			panelHeight = Math.min(maxPanelHeight, Math.max(this.partLayoutInfo.panel.minHeight, this.panelHeight));
 		} else {

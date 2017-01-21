@@ -8,10 +8,12 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
+import { Registry } from 'vs/platform/platform';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -80,6 +82,7 @@ export class LanguagesRegistry {
 			});
 		});
 
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(ModesRegistry.getLanguages().map(language => language.id));
 		this._onDidAddModes.fire(addedModes);
 	}
 
