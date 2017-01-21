@@ -63,7 +63,6 @@ export class TerminalInstance implements ITerminalInstance {
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
-		name: string,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
@@ -84,7 +83,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(this._contextService.getWorkspace(), name, this._shellLaunchConfig);
+		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -339,18 +338,18 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, name: string, shell: IShellLaunchConfig) {
+	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig) {
 		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
 		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale);
-		this._title = name ? name : '';
+		this._title = shell.name || '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
 			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
 		});
-		if (!name) {
+		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
 			this._process.on('message', (message) => {
 				if (message.type === 'title') {
