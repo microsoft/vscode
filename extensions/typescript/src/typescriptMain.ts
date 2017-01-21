@@ -40,7 +40,7 @@ import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
-import TypingsStatus from './utils/typingsStatus';
+import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as VersionStatus from './utils/versionStatus';
 
 interface LanguageDescription {
@@ -128,6 +128,7 @@ class LanguageProvider {
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
 		this.typingsStatus = new TypingsStatus(client);
+		new AtaProgressReporter(client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();

@@ -142,6 +142,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return terminalConfig.terminal.integrated.cursorBlinking;
 	}
 
+	public getCursorStyle(): string {
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.cursorStyle;
+	}
+
 	public getRightClickCopyPaste(): boolean {
 		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return config.terminal.integrated.rightClickCopyPaste;

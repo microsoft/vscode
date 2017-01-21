@@ -8,6 +8,7 @@ import { Registry } from 'vs/platform/platform';
 import * as types from 'vs/base/common/types';
 import * as json from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
+import * as arrays from 'vs/base/common/arrays';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigModel, IOverrides } from 'vs/platform/configuration/common/configuration';
 
@@ -88,7 +89,7 @@ interface Overrides<T> extends IOverrides<T> {
 export class ConfigModel<T> implements IConfigModel<T> {
 
 	protected _contents: T;
-	protected _overrides: IOverrides<T>[] = null;
+	protected _overrides: IOverrides<T>[] = [];
 
 	private _raw: any = {};
 	private _parseErrors: any[] = [];
@@ -121,10 +122,21 @@ export class ConfigModel<T> implements IConfigModel<T> {
 
 	public merge(other: IConfigModel<T>, overwrite: boolean = true): ConfigModel<T> {
 		const mergedModel = new ConfigModel<T>(null);
-		mergedModel._contents = objects.clone(this.contents);
-		merge(mergedModel.contents, other.contents, overwrite);
-		mergedModel._overrides = other.overrides ? other.overrides : this.overrides;
+		this.doMerge(mergedModel, this, overwrite);
+		this.doMerge(mergedModel, other, overwrite);
 		return mergedModel;
+	}
+
+	protected doMerge(source: ConfigModel<T>, target: IConfigModel<T>, overwrite: boolean = true) {
+		source._contents = objects.clone(this.contents);
+		merge(source.contents, target.contents, overwrite);
+		const overrides = objects.clone(target.overrides);
+		for (const override of source.overrides) {
+			if (overrides.every(o => !arrays.equals(o.identifiers, override.identifiers))) {
+				overrides.push(override);
+			}
+		}
+		source._overrides = overrides;
 	}
 
 	public config<V>(section: string): ConfigModel<V> {
@@ -148,7 +160,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	}
 
 	public update(content: string): void {
-		let overrides: Overrides<T>[] = null;
+		let overrides: Overrides<T>[] = [];
 		let currentProperty: string = null;
 		let currentParent: any = [];
 		let previousParents: any[] = [];
@@ -166,7 +178,6 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		}
 
 		function onOverrideSettingsValue(property: string, value: any): void {
-			overrides = overrides || [];
 			overrides.push({
 				identifiers: [property.substring(1, property.length - 1).trim()],
 				raw: value,
@@ -213,7 +224,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		}
 		this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		this._overrides = overrides ? overrides.map<IOverrides<T>>(override => {
+		this._overrides = overrides.map<IOverrides<T>>(override => {
 			// Filter unknown and non-overridable properties
 			const raw = {};
 			for (const key in override.raw) {
@@ -225,7 +236,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 				identifiers: override.identifiers,
 				contents: <T>toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
 			};
-		}) : null;
+		});
 	}
 }
 

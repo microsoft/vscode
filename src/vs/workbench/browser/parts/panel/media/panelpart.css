@@ -13,20 +13,13 @@
 }
 
 .monaco-workbench > .part.panel .title {
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
 	padding-right: 0px;
 	height: 35px;
 }
 
-.vs-dark .monaco-workbench > .part.panel .title {
-	background: #232323;
-}
-
-.vs .monaco-workbench > .part.panel .title {
-	background: #F6F6F6;
-}
-
 .hc-black .monaco-workbench > .part.panel .title {
-	border-top: 1px solid #6FC3DF;
+	border-top-color: #6FC3DF;
 }
 
 /** Panel Switcher */
@@ -38,48 +31,50 @@
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
-	margin-right: 20px;
+	margin-right: 33px;
 	font-size: 11px;
+	padding-bottom: 4px; /* puts the bottom border down */
 }
 
 .vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-	color: #6f6f6f;
+	color: #424242;
+	opacity: 0.75;
 }
 
 .vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-	color: #bbbbbb;
+	color: #e7e7e7;
+	opacity: 0.5;
 }
 
 .hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	color: #fff;
 }
 
-.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-	color: white;
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	opacity: 1;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 1px solid;
 }
 
 .vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-	border-bottom: 2px solid #6f6f6f;
+	border-bottom-color: #ccceda;
 }
 
 .vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-	color: white;
-	border-bottom: 2px solid white;
-}
-
-.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-	color: white;
-	border-bottom: 2px solid white;
+	border-bottom-color: #404047;
 }
 
 .vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus,
 .vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
-	border-bottom: 2px solid #007ACC;
+	border-bottom: 1px solid #007ACC;
 	outline: none !important;
 }
 
 .hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
-	border-bottom: 2px solid #f38518;
+	border-bottom: 1px solid #f38518;
 	outline: none !important;
 }
 
