@@ -104,8 +104,8 @@ class LazyEmmet {
 	private updateEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet): TPromise<any> {
 		let emmetPreferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet;
 		let loadEmmetSettings = () => {
-			let syntaxProfiles = (Object as any).assign({}, LazyEmmet.syntaxProfilesFromFile, emmetPreferences.syntaxProfiles);
-			let preferences = (Object as any).assign({}, LazyEmmet.preferencesFromFile, emmetPreferences.preferences);
+			let syntaxProfiles = { ...LazyEmmet.syntaxProfilesFromFile, ...emmetPreferences.syntaxProfiles };
+			let preferences = { ...LazyEmmet.preferencesFromFile, ...emmetPreferences.preferences };
 			let snippets = LazyEmmet.snippetsFromFile;
 
 			try {
