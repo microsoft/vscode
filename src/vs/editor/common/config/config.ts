@@ -703,15 +703,6 @@ registerCommand(new CoreCommand({
 }));
 
 registerCommand(new CoreCommand({
-	id: H.Undo,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-	}
-}));
-registerCommand(new CoreCommand({
 	id: H.CursorUndo,
 	precondition: null,
 	kbOpts: {
@@ -720,19 +711,41 @@ registerCommand(new CoreCommand({
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_U
 	}
 }));
-registerCommand(new CoreCommand({
-	id: H.Redo,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
-	}
-}));
 
-class SelectAllCommand extends Command {
+abstract class BaseTextInputAwareCommand extends Command {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		let HANDLER = this.getEditorHandler();
+
+		let focusedEditor = findFocusedEditor(HANDLER, accessor, false);
+		// Only if editor text focus (i.e. not if editor has widget focus).
+		if (focusedEditor && focusedEditor.isFocused()) {
+			focusedEditor.trigger('keyboard', HANDLER, args);
+			return;
+		}
+
+		// Ignore this action when user is focussed on an element that allows for entering text
+		let activeElement = <HTMLElement>document.activeElement;
+		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+			document.execCommand(this.getInputHandler());
+			return;
+		}
+
+		// Redirecting to last active editor
+		let activeEditor = getActiveEditorWidget(accessor);
+		if (activeEditor) {
+			activeEditor.focus();
+			activeEditor.trigger('keyboard', HANDLER, args);
+			return;
+		}
+	}
+
+	protected abstract getEditorHandler(): string;
+
+	protected abstract getInputHandler(): string;
+}
+
+class SelectAllCommand extends BaseTextInputAwareCommand {
 
 	constructor() {
 		super({
@@ -746,30 +759,62 @@ class SelectAllCommand extends Command {
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		let HANDLER = editorCommon.Handler.SelectAll;
+	protected getEditorHandler(): string {
+		return editorCommon.Handler.SelectAll;
+	}
 
-		let focusedEditor = findFocusedEditor(HANDLER, accessor, false);
-		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.isFocused()) {
-			focusedEditor.trigger('keyboard', HANDLER, args);
-			return;
-		}
-
-		// Ignore this action when user is focussed on an element that allows for entering text
-		let activeElement = <HTMLElement>document.activeElement;
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-			(<any>activeElement).select();
-			return;
-		}
-
-		// Redirecting to last active editor
-		let activeEditor = getActiveEditorWidget(accessor);
-		if (activeEditor) {
-			activeEditor.focus();
-			activeEditor.trigger('keyboard', HANDLER, args);
-			return;
-		}
+	protected getInputHandler(): string {
+		return 'selectAll';
 	}
 }
 registerCommand(new SelectAllCommand());
+
+class UndoCommand extends BaseTextInputAwareCommand {
+
+	constructor() {
+		super({
+			id: H.Undo,
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				weight: CORE_WEIGHT,
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+			}
+		});
+	}
+
+	protected getEditorHandler(): string {
+		return H.Undo;
+	}
+
+	protected getInputHandler(): string {
+		return 'undo';
+	}
+}
+registerCommand(new UndoCommand());
+
+class RedoCommand extends BaseTextInputAwareCommand {
+
+	constructor() {
+		super({
+			id: H.Redo,
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				weight: CORE_WEIGHT,
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+			}
+		});
+	}
+
+	protected getEditorHandler(): string {
+		return H.Redo;
+	}
+
+	protected getInputHandler(): string {
+		return 'redo';
+	}
+}
+registerCommand(new RedoCommand());
