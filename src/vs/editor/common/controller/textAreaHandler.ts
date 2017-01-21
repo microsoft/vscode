@@ -5,6 +5,7 @@
 'use strict';
 
 import { RunOnceScheduler } from 'vs/base/common/async';
+import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -151,8 +152,14 @@ export class TextAreaHandler extends Disposable {
 		}));
 
 		let readFromTextArea = () => {
-			this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
-			let typeInput = this.textAreaState.deduceInput();
+			let tempTextAreaState = this.textAreaState.fromTextArea(this.textArea);
+			let typeInput = tempTextAreaState.deduceInput();
+			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
+				// Ignore invalid input but keep it around for next time
+				return;
+			}
+
+			this.textAreaState = tempTextAreaState;
 			// console.log('==> DEDUCED INPUT: ' + JSON.stringify(typeInput));
 			if (this._nextCommand === ReadFromTextArea.Type) {
 				if (typeInput.text !== '') {
