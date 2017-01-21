@@ -15,7 +15,7 @@ import { MIME_BINARY } from 'vs/base/common/mime';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, IGroupEvent, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
@@ -54,6 +54,7 @@ export class TabsTitleControl extends TitleControl {
 	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
+	private layoutSkipOnce: boolean;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -73,6 +74,7 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
+		this.layoutSkipOnce = false;
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -248,7 +250,16 @@ export class TabsTitleControl extends TitleControl {
 		this.updateEditorActionsToolbar();
 
 		// Ensure the active tab is always revealed
-		this.layout();
+		if (this.layoutSkipOnce) {
+			this.layoutSkipOnce = false;
+		} else {
+			this.layout();
+		}
+	}
+
+	protected onEditorClosed(event: IGroupEvent): void {
+		// keep scroll position stable when closing an inactive tab
+		this.layoutSkipOnce = true;
 	}
 
 	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
