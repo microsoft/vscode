@@ -91,13 +91,15 @@ class KeybindingsResolver {
 			// Fill hash map of resolved keybindings and check for changes
 			let keybindingsChanged = false;
 			let keybindingsCount = 0;
+			const resolvedKeybindings: { [commandId: string]: string } = Object.create(null);
 			keybindings.forEach(keybinding => {
 				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
 				if (accelerator) {
 					keybindingsCount++;
 
+					resolvedKeybindings[keybinding.id] = accelerator;
+
 					if (accelerator !== this.keybindings[keybinding.id]) {
-						this.keybindings[keybinding.id] = accelerator;
 						keybindingsChanged = true;
 					}
 				}
@@ -109,6 +111,7 @@ class KeybindingsResolver {
 			}
 
 			if (keybindingsChanged) {
+				this.keybindings = resolvedKeybindings;
 				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
 
 				this._onKeybindingsChanged.fire();
