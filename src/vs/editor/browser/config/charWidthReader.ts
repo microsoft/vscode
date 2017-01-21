@@ -5,6 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export const enum CharWidthRequestType {
@@ -208,8 +209,17 @@ export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRe
 	if (browser.isIE) {
 		let reader = new DomCharWidthReader(bareFontInfo, requests);
 		reader.read();
-	} else {
-		let reader = new CanvasCharWidthReader(bareFontInfo, requests);
-		reader.read();
+		return;
 	}
+
+	// On Linux, it appears that ctx.measureText() is unaffected by the browser zoom (which is correct),
+	// but the char widths at rendering time are affected by the browser zoom (which is unexpected)
+	if (platform.isLinux) {
+		let reader = new DomCharWidthReader(bareFontInfo, requests);
+		reader.read();
+		return;
+	}
+
+	let reader = new CanvasCharWidthReader(bareFontInfo, requests);
+	reader.read();
 }
