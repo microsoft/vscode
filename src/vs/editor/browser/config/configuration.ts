@@ -25,17 +25,24 @@ class CSSBasedConfigurationCache {
 		this._values = Object.create(null);
 	}
 
+	private _itemId(item: BareFontInfo): string {
+		return `${browser.getZoomLevel()}-${item.getId()}`;
+	}
+
 	public has(item: BareFontInfo): boolean {
-		return !!this._values[item.getId()];
+		let itemId = this._itemId(item);
+		return !!this._values[itemId];
 	}
 
 	public get(item: BareFontInfo): FontInfo {
-		return this._values[item.getId()];
+		let itemId = this._itemId(item);
+		return this._values[itemId];
 	}
 
 	public put(item: BareFontInfo, value: FontInfo): void {
-		this._keys[item.getId()] = item;
-		this._values[item.getId()] = value;
+		let itemId = this._itemId(item);
+		this._keys[itemId] = item;
+		this._values[itemId] = value;
 	}
 
 	public getKeys(): BareFontInfo[] {
