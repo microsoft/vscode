@@ -121,8 +121,11 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
 
+		const offset = this.partService.getTitleBarOffset();
 		const overlay = $(container.parentElement)
 			.div({ 'class': 'welcomeOverlay' })
+			.style({ top: `${offset}px` })
+			.style({ height: `calc(100% - ${offset}px)` })
 			.display('none');
 
 		overlay.on('click', () => {
