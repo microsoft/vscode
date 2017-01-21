@@ -354,6 +354,10 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._replaceInputBox.focus();
 	}
 
+	public highlightFindOptions(): void {
+		this._findInput.highlightFindOptions();
+	}
+
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
 		switch (e.toKeybinding().value) {
