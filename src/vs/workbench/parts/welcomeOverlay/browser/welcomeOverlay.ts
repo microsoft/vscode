@@ -33,27 +33,27 @@ const keys: Key[] = [
 	{
 		id: 'explorer',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.explorer', "Browse Files")
+		label: localize('welcomeOverlay.explorer', "Browse files")
 	},
 	{
 		id: 'search',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.search', "Search Files for Text")
+		label: localize('welcomeOverlay.search', "Search files for text")
 	},
 	{
 		id: 'git',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.git', "View Local Changes")
+		label: localize('welcomeOverlay.git', "View local changes")
 	},
 	{
 		id: 'debug',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.debug', "Launch and Debug")
+		label: localize('welcomeOverlay.debug', "Launch and debug")
 	},
 	{
 		id: 'extensions',
 		arrow: '&larr;',
-		label: localize('welcomeOverlay.extensions', "Manage Extensions")
+		label: localize('welcomeOverlay.extensions', "Manage extensions")
 	},
 	// {
 	// 	id: 'watermark',
@@ -64,7 +64,7 @@ const keys: Key[] = [
 	{
 		id: 'problems',
 		arrow: '&larrpl;',
-		label: localize('welcomeOverlay.problems', "Open Errors and Warnings")
+		label: localize('welcomeOverlay.problems', "Open errors and warnings")
 	},
 	// {
 	// 	id: 'openfile',
@@ -76,7 +76,7 @@ const keys: Key[] = [
 	{
 		id: 'commandPalette',
 		arrow: '&nwarr;',
-		label: localize('welcomeOverlay.commandPalette', "Find and Run All Commands"),
+		label: localize('welcomeOverlay.commandPalette', "Find and run all commands"),
 		command: ShowAllCommandsAction.ID
 	},
 ];
