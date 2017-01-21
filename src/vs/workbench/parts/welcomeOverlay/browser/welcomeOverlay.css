@@ -13,6 +13,19 @@
 	background: rgba(0,0,0,0.5);
 }
 
+#workbench\.parts\.editor {
+	transition: filter .25s, opacity .2s;
+}
+
+#workbench\.parts\.editor.blur-background {
+	filter: blur(3px);
+	opacity: .28;
+}
+
+.hc-black #workbench\.parts\.editor.blur-background {
+	opacity: .2;
+}
+
 .monaco-workbench > .welcomeOverlay > .key {
 	font-family: "Lucida Grande", sans-serif;
 	font-size: 20px;

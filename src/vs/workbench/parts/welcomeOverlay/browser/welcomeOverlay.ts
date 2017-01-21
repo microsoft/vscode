@@ -6,6 +6,7 @@
 
 import 'vs/css!./welcomeOverlay';
 import { $ } from 'vs/base/browser/builder';
+import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -94,7 +95,9 @@ export class WelcomeOverlayAction extends Action {
 
 	public run(): TPromise<void> {
 		const welcomeOverlay = document.querySelector('.monaco-workbench > .welcomeOverlay') as HTMLDivElement;
+		const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
 		welcomeOverlay.style.display = 'block';
+		dom.addClass(welcomePage, 'blur-background');
 		return null;
 	}
 }
@@ -124,6 +127,8 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 
 		overlay.on('click', () => {
 			overlay.display('none');
+			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
+			dom.removeClass(welcomePage, 'blur-background');
 		});
 
 		const editorOpen = !!this.editorService.getVisibleEditors().length;
