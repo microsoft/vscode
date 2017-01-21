@@ -137,6 +137,15 @@
 	color: rgba(255,255,255,.46);
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
+	padding-left: 1em;
+	color: rgba(0,0,0,.53);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
+	color: rgba(255,255,255,.46);
+}
+
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
 	color: white;
 }
