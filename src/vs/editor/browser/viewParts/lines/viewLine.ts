@@ -294,8 +294,8 @@ class FastRenderedViewLine implements IRenderedViewLine {
 			endColumn = stopRenderingLineAfter;
 		}
 
-		const startPosition = this._getCharPosition(startColumn - 1);
-		const endPosition = this._getCharPosition(endColumn - 1);
+		const startPosition = this._getCharPosition(startColumn);
+		const endPosition = this._getCharPosition(endColumn);
 		return [new HorizontalRange(startPosition, endPosition - startPosition)];
 	}
 
