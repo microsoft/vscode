@@ -144,7 +144,7 @@ You can greatly accelerate you editing through the use of snippets.  Simply star
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation.  To use emmet simply press tab after a valid peice for Emmet syntax and the expansion will occur.  Try is by pressing tab after `ul>li.item$*5` to see Emmet in action.
+Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation.  To use emmet simply press tab after a valid piece for Emmet syntax and the expansion will occur.  Try is by pressing tab after `ul>li.item$*5` to see Emmet in action.
 
 ```html
 ul>li.item$*5
@@ -155,10 +155,11 @@ ul>li.item$*5
 
 
 ## Thanks!
-Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.
+Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.  But don't stop now :)  We have lots of additional [documentation](https://code.visualstudio.com/docs) and [introductory videos](https://code.visualstudio.com/docs/introvideos/overview) for the product that will help you learn how to use it.  And while you are here, here are a few additional things you can try:
+- Open the Integrated Terminal by pressing kb(workbench.action.terminal.toggleTerminal) then see whats possible by [reviewing the terminal documentation](https://code.visualstudio.com/docs/editor/integrated-terminal)
+- Work with version control by pressing kb(workbench.view.scm) understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
+- Browse thousands of extensions in our integrated gallery by pressing with kb(workbench.view.extensions) the [documentation](https://code.visualstudio.com/docs/editor/extension-gallery) will show you how to see the most popular extensions, disable installed ones and more.
 
-But don't stop now :)
-
-We have lots of additional [documentation](https://code.visualstudio.com/docs) and [introductory videos](https://code.visualstudio.com/docs/introvideos/overview) for the product that will help you learn how to use the [integrated terminal](https://code.visualstudio.com/docs/editor/integrated-terminal), [debug your code](https://code.visualstudio.com/docs/editor/debugging), work with [version control](https://code.visualstudio.com/docs/editor/versioncontrol) and of course add one of the thousands of available [extensions](https://code.visualstudio.com/docs/editor/extension-marketplace).
+OK thats all for now,
 
 Happy Coding!
