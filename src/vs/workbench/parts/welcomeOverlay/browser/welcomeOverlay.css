@@ -10,7 +10,12 @@
 	height: 100%;
 	width: 100%;
 	z-index: 9999;
-	background: rgba(0,0,0,0.5);
+	background: rgba(0,0,0,0.52);
+	font-size: 10px;
+}
+
+.vs .monaco-workbench > .welcomeOverlay {
+	background: rgba(255,255,255,.52);
 }
 
 #workbench\.parts\.editor {
@@ -27,8 +32,15 @@
 }
 
 .monaco-workbench > .welcomeOverlay > .key {
-	font-family: "Lucida Grande", sans-serif;
-	font-size: 20px;
+	font-size: 1.8em;
+}
+
+.monaco-workbench > .welcomeOverlay > .key {
+	color: #000;
+}
+
+.vs-dark .monaco-workbench > .welcomeOverlay > .key,
+.vs-dark .monaco-workbench > .welcomeOverlay > .key {
 	color: #FFF;
 }
 
@@ -104,7 +116,7 @@
 
 .monaco-workbench > .welcomeOverlay > .key.commandPalette {
 	position: absolute;
-	top: 42px;
+	top: 210px;
 	left: 50%;
 }
 
@@ -125,8 +137,15 @@
 .monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
 	position: absolute;
 	top: 2px;
-	left: calc(50% - 200px);
-	width: 400px;
-	height: 26px;
-	border: 3px dashed white;
+	left: calc(50% - 193px);
+	width: 386px;
+	height: 197px;
+	background-image: url('media/commandpalette.svg');
+	background-repeat: no-repeat;
+	background-size: 100%;
+}
+
+.vs-dark .monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder,
+.hc-black .monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
+	background-image: url('media/commandpalette-dark.svg');
 }
