@@ -1031,6 +1031,25 @@ suite('Tasks Configuration parsing tests', () => {
 		testConfiguration(external, builder);
 	});
 
+	test('tasks: with command os specific', () => {
+		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			tasks: [
+				{
+					taskName: 'taskNameOne',
+					command: 'tsc',
+					windows: {
+						command: 'tsc.win'
+					}
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('taskNameOne', name).suppressTaskName(true);
+		testConfiguration(external, builder);
+	});
+
 	function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 		let logger = new Logger();
 		let result = parse(external, logger);

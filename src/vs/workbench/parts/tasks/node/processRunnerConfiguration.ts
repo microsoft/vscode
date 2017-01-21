@@ -28,16 +28,7 @@ export class ProblemHandling {
 	public static clean: string = 'cleanMatcherMatchers';
 }
 
-/**
- * The description of a task.
- */
-export interface TaskDescription {
-
-	/**
-	 * The task's name
-	 */
-	taskName: string;
-
+export interface PlatformTaskDescription {
 	/**
 	 * The command to be executed. Can be an external program or a shell
 	 * command.
@@ -62,6 +53,32 @@ export interface TaskDescription {
 	 * command when using a global command.
 	 */
 	args?: string[];
+}
+
+/**
+ * The description of a task.
+ */
+export interface TaskDescription extends PlatformTaskDescription {
+
+	/**
+	 * The task's name
+	 */
+	taskName: string;
+
+	/**
+	 * Windows specific task configuration
+	 */
+	windows?: PlatformTaskDescription;
+
+	/**
+	 * Mac specific task configuration
+	 */
+	osx?: PlatformTaskDescription;
+
+	/**
+	 * Linux speciif task configuration
+	 */
+	linux?: PlatformTaskDescription;
 
 	/**
 	 * @deprecated Use `isBackground` instead.
@@ -326,7 +343,7 @@ namespace CommandOptions {
 }
 
 namespace CommandConfiguration {
-	interface CommandConfiguationShape {
+	interface BaseCommandConfiguationShape {
 		command?: string;
 		isShellCommand?: boolean;
 		args?: string[];
@@ -335,7 +352,31 @@ namespace CommandConfiguration {
 		taskSelector?: string;
 	}
 
+	interface CommandConfiguationShape extends BaseCommandConfiguationShape {
+		windows?: BaseCommandConfiguationShape;
+		osx?: BaseCommandConfiguationShape;
+		linux?: BaseCommandConfiguationShape;
+	}
+
 	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): TaskSystem.CommandConfiguration {
+		let result: TaskSystem.CommandConfiguration = fromBase(config, context);
+
+		let osConfig: TaskSystem.CommandConfiguration = undefined;
+		if (config.windows && Platform.platform === Platform.Platform.Windows) {
+			osConfig = fromBase(config.windows, context);
+		} else if (config.osx && Platform.platform === Platform.Platform.Mac) {
+			osConfig = fromBase(config.osx, context);
+		} else if (config.linux && Platform.platform === Platform.Platform.Linux) {
+			osConfig = fromBase(config.linux, context);
+		}
+		if (osConfig) {
+			result = merge(result, osConfig);
+		}
+		fillDefaults(result);
+		return isEmpty(result) ? undefined : result;
+	}
+
+	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): TaskSystem.CommandConfiguration {
 		let result: TaskSystem.CommandConfiguration = {};
 		if (Types.isString(config.command)) {
 			result.name = config.command;
@@ -682,9 +723,31 @@ interface Globals {
 }
 
 namespace Globals {
-	export function from(this: void, config: BaseTaskRunnerConfiguration, context: ParseContext): Globals {
+
+	export function from(config: ExternalTaskRunnerConfiguration, context: ParseContext): Globals {
+		let result = fromBase(config, context);
+		let osGlobals: Globals = undefined;
+		if (config.windows && Platform.platform === Platform.Platform.Windows) {
+			osGlobals = fromBase(config.windows, context);
+		} else if (config.osx && Platform.platform === Platform.Platform.Mac) {
+			osGlobals = fromBase(config.osx, context);
+		} else if (config.linux && Platform.platform === Platform.Platform.Linux) {
+			osGlobals = fromBase(config.linux, context);
+		}
+		if (osGlobals) {
+			result = Globals.merge(result, osGlobals);
+		}
+		Globals.fillDefaults(result);
+		let command = CommandConfiguration.from(config, context);
+		if (command) {
+			result.command = command;
+		}
+		Globals.freeze(result);
+		return result;
+	}
+
+	export function fromBase(this: void, config: BaseTaskRunnerConfiguration, context: ParseContext): Globals {
 		let result: Globals = {};
-		result.command = CommandConfiguration.from(config, context);
 		if (Types.isString(config.showOutput)) {
 			result.showOutput = TaskSystem.ShowOutput.fromString(config.showOutput);
 		}
@@ -708,7 +771,6 @@ namespace Globals {
 		if (isEmpty(target)) {
 			return source;
 		}
-		target.command = CommandConfiguration.merge(target.command, source.command);
 		mergeProperty(target, source, 'promptOnClose');
 		mergeProperty(target, source, 'suppressTaskName');
 		mergeProperty(target, source, 'showOutput');
@@ -719,7 +781,6 @@ namespace Globals {
 		if (!value) {
 			return;
 		}
-		CommandConfiguration.fillDefaults(value.command);
 		if (value.suppressTaskName === void 0) {
 			value.suppressTaskName = false;
 		}
@@ -768,7 +829,7 @@ class ConfigurationParser {
 	}
 
 	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskSystem.TaskRunnerConfiguration {
-		let globals = this.createGlobals(fileConfig, context);
+		let globals = Globals.from(fileConfig, context);
 		if (context.validationStatus.isFatal()) {
 			return undefined;
 		}
@@ -819,24 +880,6 @@ class ConfigurationParser {
 			buildTasks: taskConfig.buildTask ? [taskConfig.buildTask] : [],
 			testTasks: taskConfig.testTask ? [taskConfig.testTask] : []
 		};
-	}
-
-	private createGlobals(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): Globals {
-		let result = Globals.from(fileConfig, context);
-		let osGlobals: Globals = undefined;
-		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
-			osGlobals = Globals.from(fileConfig.windows, context);
-		} else if (fileConfig.osx && Platform.platform === Platform.Platform.Mac) {
-			osGlobals = Globals.from(fileConfig.osx, context);
-		} else if (fileConfig.linux && Platform.platform === Platform.Platform.Linux) {
-			osGlobals = Globals.from(fileConfig.linux, context);
-		}
-		if (osGlobals) {
-			result = Globals.merge(result, osGlobals);
-		}
-		Globals.fillDefaults(result);
-		Globals.freeze(result);
-		return result;
 	}
 }
 
