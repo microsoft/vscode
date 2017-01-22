@@ -92,6 +92,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	protected _overrides: IOverrides<T>[] = [];
 
 	private _raw: any = {};
+	private _unfilteredRaw: any = {};
 	private _parseErrors: any[] = [];
 
 	constructor(content: string, private name: string = '') {
@@ -114,6 +115,10 @@ export class ConfigModel<T> implements IConfigModel<T> {
 
 	public get raw(): T {
 		return this._raw;
+	}
+
+	public get unfilteredRaw(): T {
+		return this._unfilteredRaw;
 	}
 
 	public get errors(): any[] {
@@ -222,7 +227,10 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			this._raw = <T>{};
 			this._parseErrors = [e];
 		}
+		this._unfilteredRaw = this._raw;
+		this._raw = this.filterRaw(this._unfilteredRaw);
 		this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
+
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		this._overrides = overrides.map<IOverrides<T>>(override => {
 			// Filter unknown and non-overridable properties
@@ -237,6 +245,34 @@ export class ConfigModel<T> implements IConfigModel<T> {
 				contents: <T>toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
 			};
 		});
+	}
+
+	/*
+	 * If filterRaw is not a no-op, the returned object needs to be a copy.
+	 * The input may not be modified in place. The default implementation
+	 * is a no op.
+	 */
+	protected filterRaw(raw: any): any {
+		return raw;
+	}
+
+	public refilter(): void {
+		if (this._unfilteredRaw) {
+			this._raw = this.filterRaw(this._unfilteredRaw);
+			this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
+		}
+	}
+
+	public hasActiveFilter(): boolean {
+		if (this._raw === this._unfilteredRaw) {
+			return false;
+		}
+		for (let key in this._unfilteredRaw) {
+			if (!this._raw.hasOwnProperty(key)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
