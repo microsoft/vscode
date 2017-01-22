@@ -38,7 +38,8 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.shell.linux': {
 			'description': nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux."),
 			'type': 'string',
-			'default': TERMINAL_DEFAULT_SHELL_LINUX
+			'default': TERMINAL_DEFAULT_SHELL_LINUX,
+			'isExecutable': true
 		},
 		'terminal.integrated.shellArgs.linux': {
 			'description': nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal."),
@@ -46,12 +47,14 @@ configurationRegistry.registerConfiguration({
 			'items': {
 				'type': 'string'
 			},
-			'default': []
+			'default': [],
+			'isExecutable': true
 		},
 		'terminal.integrated.shell.osx': {
 			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
 			'type': 'string',
-			'default': TERMINAL_DEFAULT_SHELL_OSX
+			'default': TERMINAL_DEFAULT_SHELL_OSX,
+			'isExecutable': true
 		},
 		'terminal.integrated.shellArgs.osx': {
 			'description': nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the OS X terminal."),
@@ -59,12 +62,14 @@ configurationRegistry.registerConfiguration({
 			'items': {
 				'type': 'string'
 			},
-			'default': []
+			'default': [],
+			'isExecutable': true
 		},
 		'terminal.integrated.shell.windows': {
 			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu), prefer C:\\Windows\\sysnative over C:\\Windows\\System32 to use the 64-bit versions."),
 			'type': 'string',
-			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
+			'default': TERMINAL_DEFAULT_SHELL_WINDOWS,
+			'isExecutable': true
 		},
 		'terminal.integrated.shellArgs.windows': {
 			'description': nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
@@ -72,7 +77,8 @@ configurationRegistry.registerConfiguration({
 			'items': {
 				'type': 'string'
 			},
-			'default': []
+			'default': [],
+			'isExecutable': true
 		},
 		'terminal.integrated.rightClickCopyPaste': {
 			'description': nls.localize('terminal.integrated.rightClickCopyPaste', "When set, this will prevent the context menu from appearing when right clicking within the terminal, instead it will copy when there is a selection and paste when there is no selection."),
