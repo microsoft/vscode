@@ -328,8 +328,16 @@ export class LanguageConfigurationRegistryImpl {
 		if (!enterResult) {
 			enterResult = { indentAction: IndentAction.None, appendText: '' };
 		} else {
+			// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
 			if (!enterResult.appendText) {
-				enterResult.appendText = '';
+				if (
+					(enterResult.indentAction === IndentAction.Indent) ||
+					(enterResult.indentAction === IndentAction.IndentOutdent)
+				) {
+					enterResult.appendText = '\t';
+				} else {
+					enterResult.appendText = '';
+				}
 			}
 		}
 
