@@ -920,7 +920,8 @@ export enum TextDocumentSaveReason {
 export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 export enum TextEditorSelectionChangeKind {

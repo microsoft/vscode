@@ -40,10 +40,19 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri, line) => {
-		return vscode.workspace.openTextDocument(vscode.Uri.parse(decodeURIComponent(uri)))
-			.then(document => vscode.window.showTextDocument(document))
-			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: line, at: 'top' }));
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
+		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
+		vscode.window.visibleTextEditors
+			.filter(editor => editor.document.uri.path === sourceUri.path)
+			.forEach(editor => {
+				const sourceLine = Math.floor(line);
+				const text = editor.document.getText(new vscode.Range(sourceLine, 0, sourceLine + 1, 0));
+				const fraction = line - Math.floor(line);
+				const start = fraction * text.length;
+				editor.revealRange(
+					new vscode.Range(sourceLine, start, sourceLine + 1, 0),
+					vscode.TextEditorRevealType.AtTop);
+			});
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
@@ -246,8 +255,9 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
-			const enablePreviewSync = vscode.workspace.getConfiguration('markdown').get('preview.experimentalSyncronizationEnabled', true);
-			const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
+
+			const markdownConfig = vscode.workspace.getConfiguration('markdown');
+			const previewFrontMatter = markdownConfig.get('previewFrontMatter', 'hide');
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
@@ -273,7 +283,8 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 						window.initialData = {
 							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
 							line: ${initialLine},
-							enablePreviewSync: ${!!enablePreviewSync}
+							enablePreviewSync: ${!!markdownConfig.get('preview.experimentalSyncronizationEnabled', true)},
+							enableScrollSync: ${!!markdownConfig.get('synchronizePreviewScrollingToEditor', true)}
 						};
 					</script>
 					<script src="${this.getMediaPath('main.js')}"></script>
