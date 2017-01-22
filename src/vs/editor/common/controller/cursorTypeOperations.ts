@@ -248,12 +248,12 @@ export class TypeOperations {
 
 		} else if (enterAction.indentAction === IndentAction.Indent) {
 			// Indent once
-			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(indentation + '\t' + enterAction.appendText), keepPosition);
+			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
 
 		} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
 			// Ultra special
 			let normalIndent = config.normalizeIndentation(indentation);
-			let increasedIndent = config.normalizeIndentation(indentation + '\t' + enterAction.appendText);
+			let increasedIndent = config.normalizeIndentation(indentation + enterAction.appendText);
 
 			let typeText = beforeText + '\n' + increasedIndent + '\n' + normalIndent;
 
