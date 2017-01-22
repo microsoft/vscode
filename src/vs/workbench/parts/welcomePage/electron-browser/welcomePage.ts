@@ -22,6 +22,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 
 const enabledKey = 'workbench.welcome.enabled';
@@ -32,13 +33,17 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IPartService partService: IPartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		const configured = configurationService.lookup<boolean>(enabledKey).value;
 		const enabled = typeof configured === 'boolean' ? configured : telemetryService.getExperiments().enableWelcomePage;
 		if (enabled) {
 			partService.joinCreation().then(() => {
-				instantiationService.createInstance(WelcomePage);
+				const activeInput = editorService.getActiveEditorInput();
+				if (!activeInput || activeInput instanceof UntitledEditorInput) {
+					instantiationService.createInstance(WelcomePage);
+				}
 			}).then(null, onUnexpectedError);
 		}
 	}
