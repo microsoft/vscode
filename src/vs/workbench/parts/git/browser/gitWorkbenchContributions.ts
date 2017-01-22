@@ -196,7 +196,8 @@ export function registerContributions(): void {
 			'git.path': {
 				type: ['string', 'null'],
 				description: nls.localize('gitPath', "Path to the git executable"),
-				default: null
+				default: null,
+				isExecutable: true
 			},
 			'git.autorefresh': {
 				type: 'boolean',
