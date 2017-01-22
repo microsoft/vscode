@@ -77,23 +77,17 @@
 		}
 	}
 
-	function didUpdateScrollPosition(offset) {
+	function getEditorLineNumberForPageOffset(offset) {
 		const {previous, next} = getLineElementsAtPageOffset(offset);
 		if (previous) {
-			let line = 0;
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
-				line = previous.line + betweenProgress * (next.line - previous.line);
+				return previous.line + betweenProgress * (next.line - previous.line);
 			} else {
-				line = previous.line;
+				return previous.line;
 			}
-
-			const args = [window.initialData.source, line];
-			window.parent.postMessage({
-				command: "did-click-link",
-				data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
-			}, "file://");
 		}
+		return null;
 	}
 
 
@@ -153,7 +147,14 @@
 
 		document.ondblclick = (e) => {
 			const offset = e.pageY;
-			didUpdateScrollPosition(offset);
+			const line = getEditorLineNumberForPageOffset(offset);
+			if (!isNaN(line)) {
+				const args = [window.initialData.source, line];
+				window.parent.postMessage({
+					command: "did-click-link",
+					data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
+				}, "file://");
+			}
 		};
 
 		if (window.initialData.enableScrollSync) {
@@ -161,7 +162,14 @@
 				if (scrollDisabled) {
 					scrollDisabled = false;
 				} else {
-					didUpdateScrollPosition(window.scrollY);
+					const line = getEditorLineNumberForPageOffset(window.scrollY);
+					if (!isNaN(line)) {
+						const args = [window.initialData.source, line];
+						window.parent.postMessage({
+							command: "did-click-link",
+							data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
+						}, "file://");
+					}
 				}
 			};
 		}

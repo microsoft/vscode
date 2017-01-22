@@ -55,6 +55,13 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri, line) => {
+		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
+		return vscode.workspace.openTextDocument(sourceUri)
+			.then(document => vscode.window.showTextDocument(document))
+			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'top' }));
+	}));
+
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {
 			const uri = getMarkdownUri(document.uri);
@@ -284,7 +291,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
 							line: ${initialLine},
 							enablePreviewSync: ${!!markdownConfig.get('preview.experimentalSyncronizationEnabled', true)},
-							enableScrollSync: ${!!markdownConfig.get('synchronizePreviewScrollingToEditor', true)}
+							enableScrollSync: ${!!markdownConfig.get('preview.synchronizePreviewScrollingToEditor', true)}
 						};
 					</script>
 					<script src="${this.getMediaPath('main.js')}"></script>
