@@ -152,6 +152,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%markdown.preview.experimentalSyncronizationEnabled.desc%"
+				},
+				"markdown.preview.synchronizePreviewScrollingToEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.synchronizePreviewScrollingToEditor.desc%"
 				}
 			}
 		}

@@ -83,7 +83,7 @@
 			let line = 0;
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
-				line = previous.line + Math.floor(betweenProgress * (next.line - previous.line));
+				line = previous.line + betweenProgress * (next.line - previous.line);
 			} else {
 				line = previous.line;
 			}
@@ -91,7 +91,7 @@
 			const args = [window.initialData.source, line];
 			window.parent.postMessage({
 				command: "did-click-link",
-				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
+				data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
 			}, "file://");
 		}
 	}
@@ -119,6 +119,7 @@
 		}
 	}
 
+	var scrollDisabled = false;
 	var pageHeight = 0;
 	var marker = new ActiveLineMarker();
 
@@ -127,6 +128,7 @@
 
 		if (window.initialData.enablePreviewSync) {
 			const initialLine = +window.initialData.line || 0;
+			scrollDisabled = true;
 			scrollToRevealSourceLine(initialLine);
 		}
 	};
@@ -144,6 +146,7 @@
 		window.addEventListener('message', event => {
 			const line = +event.data.line;
 			if (!isNaN(line)) {
+				scrollDisabled = true;
 				scrollToRevealSourceLine(line);
 			}
 		}, false);
@@ -153,10 +156,14 @@
 			didUpdateScrollPosition(offset);
 		};
 
-		/**
-		window.onscroll = () => {
-			didUpdateScrollPosition(window.scrollY);
-		};
-		*/
+		if (window.initialData.enableScrollSync) {
+			window.onscroll = () => {
+				if (scrollDisabled) {
+					scrollDisabled = false;
+				} else {
+					didUpdateScrollPosition(window.scrollY);
+				}
+			};
+		}
 	}
 }());
