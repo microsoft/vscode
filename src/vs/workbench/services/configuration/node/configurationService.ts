@@ -17,13 +17,16 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { readFile } from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
-import { ScopedConfigModel, WorkspaceConfigModel } from 'vs/workbench/services/configuration/common/model';
+import { ScopedConfigModel, WorkspaceConfigModel, TrustedWorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/model';
 import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
 import { ConfigModel } from 'vs/platform/configuration/common/model';
 import { ConfigurationService as BaseConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceTrust, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import Event, { Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/platform';
+import { IConfigurationRegistry, IConfigurationNode, Extensions, ISecurityConfiguration } from 'vs/platform/configuration/common/configurationRegistry';
+
 
 interface IStat {
 	resource: uri;
@@ -39,6 +42,39 @@ interface IContent {
 interface IWorkspaceConfiguration<T> {
 	workspace: T;
 	consolidated: any;
+}
+
+export class WorkspaceTrust implements IWorkspaceTrust {
+
+	constructor(private contextService: IWorkspaceContextService, private baseConfigurationService: BaseConfigurationService<any>) { }
+
+	public isTrusted(): boolean {
+		let workspace = this.contextService.getWorkspace();
+		if (workspace) {
+			let path = workspace.resource.path;
+			let securityConfiguration = this.baseConfigurationService.getConfiguration<ISecurityConfiguration>();
+			let whiteList = securityConfiguration.security.workspacesTrustedToSpecifyExecutables;
+			return whiteList && whiteList[path];
+		}
+		return false;
+	}
+
+	public allKnownConfigKeysForExecutables(): { [key: string]: any } {
+		const configKeys: { [key: string]: boolean } = {};
+		const configurations: IConfigurationNode[] = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
+		configurations.forEach((config) => {
+			const properties = config.properties;
+			if (properties) {
+				Object.keys(properties).map((key) => {
+					const property = properties[key];
+					if (property && property.isExecutable) {
+						configKeys[key] = true;
+					}
+				});
+			}
+		});
+		return configKeys;
+	}
 }
 
 /**
@@ -59,6 +95,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigModel<any>> };
 	private reloadConfigurationScheduler: RunOnceScheduler;
+
+	private workspaceTrust: IWorkspaceTrust;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -84,26 +122,30 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			.done(null, errors.onUnexpectedError), WorkspaceConfigurationService.RELOAD_CONFIGURATION_DELAY));
 
 		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
+
+		this.workspaceTrust = new WorkspaceTrust(this.contextService, this.baseConfigurationService);
 	}
 
 	get onDidUpdateConfiguration(): Event<IConfigurationServiceEvent> {
 		return this._onDidUpdateConfiguration.event;
 	}
 
-	private onBaseConfigurationChanged(e: IConfigurationServiceEvent): void {
+	private onBaseConfigurationChanged(event: IConfigurationServiceEvent): void {
+
+		this.cachedWorkspaceConfig.refilter();
 
 		// update cached config when base config changes
-		const newConfig = new ConfigModel<any>(null)
+		const configModel = new ConfigModel<any>(null)
 			.merge(this.baseConfigurationService.getCache().consolidated)		// global/default values (do NOT modify)
 			.merge(this.cachedWorkspaceConfig);									// workspace configured values
 
 		// emit this as update to listeners if changed
-		if (!objects.equals(this.cachedConfig.contents, newConfig.contents)) {
-			this.cachedConfig = newConfig;
+		if (!objects.equals(this.cachedConfig.contents, configModel.contents)) {
+			this.cachedConfig = configModel;
 			this._onDidUpdateConfiguration.fire({
 				config: this.cachedConfig.contents,
-				source: e.source,
-				sourceConfig: e.sourceConfig
+				source: event.source,
+				sourceConfig: event.sourceConfig
 			});
 		}
 	}
@@ -291,18 +333,22 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private createConfigModel<T>(content: IContent): IConfigModel<T> {
 		const path = this.contextService.toWorkspaceRelativePath(content.resource);
 		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
-			return new ConfigModel<T>(content.value, content.resource.toString());
+			return new TrustedWorkspaceSettingsConfigModel<T>(content.value, content.resource.toString(), this.workspaceTrust);
 		} else {
 			const matches = /\/([^\.]*)*\.json/.exec(path);
 			if (matches && matches[1]) {
 				return new ScopedConfigModel<T>(content.value, content.resource.toString(), matches[1]);
 			}
 		}
-		return new ConfigModel<T>(null);
+		return new TrustedWorkspaceSettingsConfigModel<T>(null);
 	}
 
 	private isWorkspaceConfigurationFile(workspaceRelativePath: string): boolean {
 		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === workspaceRelativePath);
+	}
+
+	public hasUntrustedConfigurations(): boolean {
+		return this.cachedWorkspaceConfig.hasActiveFilter();
 	}
 }
 
