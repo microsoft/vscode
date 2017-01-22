@@ -28,6 +28,7 @@ export class EditorModeContext {
 	private _hasDocumentFormattingProvider: IContextKey<boolean>;
 	private _hasDocumentSelectionFormattingProvider: IContextKey<boolean>;
 	private _hasSignatureHelpProvider: IContextKey<boolean>;
+	private _isInWalkThrough: IContextKey<boolean>;
 
 	constructor(
 		editor: ICommonCodeEditor,
@@ -49,6 +50,7 @@ export class EditorModeContext {
 		this._hasDocumentFormattingProvider = ModeContextKeys.hasDocumentFormattingProvider.bindTo(contextKeyService);
 		this._hasDocumentSelectionFormattingProvider = ModeContextKeys.hasDocumentSelectionFormattingProvider.bindTo(contextKeyService);
 		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
+		this._isInWalkThrough = ModeContextKeys.isInEmbeddedEditor.bindTo(contextKeyService);
 
 		// update when model/mode changes
 		this._disposables.push(editor.onDidChangeModel(() => this._update()));
@@ -91,6 +93,7 @@ export class EditorModeContext {
 		this._hasDocumentFormattingProvider.reset();
 		this._hasDocumentSelectionFormattingProvider.reset();
 		this._hasSignatureHelpProvider.reset();
+		this._isInWalkThrough.reset();
 	}
 
 	private _update() {
@@ -113,5 +116,6 @@ export class EditorModeContext {
 		this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 		this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 		this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
+		this._isInWalkThrough.set(model.uri.scheme === 'walkThroughSnippet');
 	}
 }
