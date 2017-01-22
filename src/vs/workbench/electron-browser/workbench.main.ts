@@ -61,9 +61,13 @@ import 'vs/workbench/parts/markers/browser/markersPanel'; // can be packaged sep
 
 import 'vs/workbench/parts/html/browser/html.contribution';
 
+import 'vs/workbench/parts/walkThrough/electron-browser/walkThrough.contribution';
+
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
+
+import 'vs/workbench/parts/welcomePage/electron-browser/welcomePage.contribution';
 
 import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
 import 'vs/workbench/parts/explorers/browser/treeExplorerViewlet'; // can be packaged separately
@@ -109,3 +113,5 @@ import 'vs/workbench/electron-browser/main';
 import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
 
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
+
+import 'vs/workbench/parts/welcomeOverlay/browser/welcomeOverlay';

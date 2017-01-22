@@ -79,6 +79,9 @@ interface MyMessageItem extends MessageItem {
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
+	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
+	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
+
 	private host: ITypescriptServiceClientHost;
 	private storagePath: string | undefined;
 	private globalState: Memento;
@@ -550,6 +553,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public asAbsolutePath(resource: Uri): string | null {
+		if (resource.scheme === TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME) {
+			return resource.toString();
+		}
 		if (resource.scheme !== 'file') {
 			return null;
 		}
@@ -562,6 +568,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public asUrl(filepath: string): Uri {
+		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)) {
+			return Uri.parse(filepath);
+		}
 		return Uri.file(filepath);
 	}
 

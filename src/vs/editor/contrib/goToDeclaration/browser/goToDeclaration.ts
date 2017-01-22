@@ -169,7 +169,9 @@ export class GoToDefinitionAction extends DefinitionAction {
 			id: GoToDefinitionAction.ID,
 			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
 			alias: 'Go to Definition',
-			precondition: ModeContextKeys.hasDefinitionProvider,
+			precondition: ContextKeyExpr.and(
+				ModeContextKeys.hasDefinitionProvider,
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: goToDeclarationKb
@@ -192,7 +194,9 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			id: OpenDefinitionToSideAction.ID,
 			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
 			alias: 'Open Definition to the Side',
-			precondition: ModeContextKeys.hasDefinitionProvider,
+			precondition: ContextKeyExpr.and(
+				ModeContextKeys.hasDefinitionProvider,
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
@@ -208,7 +212,10 @@ export class PeekDefinitionAction extends DefinitionAction {
 			id: 'editor.action.previewDeclaration',
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
-			precondition: ContextKeyExpr.and(ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor),
+			precondition: ContextKeyExpr.and(
+				ModeContextKeys.hasDefinitionProvider,
+				PeekContext.notInPeekEditor,
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
@@ -233,7 +240,9 @@ export class GoToImplementationAction extends DefinitionAction {
 			id: GoToImplementationAction.ID,
 			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
 			alias: 'Go to Implementation',
-			precondition: ModeContextKeys.hasTypeDefinitionProvider,
+			precondition: ContextKeyExpr.and(
+				ModeContextKeys.hasTypeDefinitionProvider,
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12
@@ -260,7 +269,9 @@ export class PeekImplementationAction extends DefinitionAction {
 			id: PeekImplementationAction.ID,
 			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
 			alias: 'Peek Implementation',
-			precondition: ModeContextKeys.hasTypeDefinitionProvider,
+			precondition: ContextKeyExpr.and(
+				ModeContextKeys.hasTypeDefinitionProvider,
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
