@@ -148,15 +148,20 @@
 					"default": 1.6,
 					"description": "%markdown.preview.lineHeight.desc%"
 				},
-				"markdown.preview.experimentalSyncronizationEnabled": {
+				"markdown.preview.scrollPreviewWithEditorSelection": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.experimentalSyncronizationEnabled.desc%"
+					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%"
 				},
-				"markdown.preview.synchronizePreviewScrollingToEditor": {
+				"markdown.preview.markEditorSelection": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.synchronizePreviewScrollingToEditor.desc%"
+					"description": "%markdown.preview.markEditorSelection.desc%"
+				},
+				"markdown.preview.scrollEditorWithPreview": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollEditorWithPreview.desc%"
 				}
 			}
 		}
