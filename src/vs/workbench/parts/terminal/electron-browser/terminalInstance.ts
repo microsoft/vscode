@@ -498,7 +498,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', callback);
 		return {
 			dispose: () => {
-				this._process.removeListener('message', callback);
+				if (this._process) {
+					this._process.removeListener('message', callback);
+				}
 			}
 		};
 	}
@@ -507,7 +509,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('exit', listener);
 		return {
 			dispose: () => {
-				this._process.removeListener('exit', listener);
+				if (this._process) {
+					this._process.removeListener('exit', listener);
+				}
 			}
 		};
 	}
