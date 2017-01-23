@@ -76,6 +76,8 @@ export interface IPreferencesService {
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;
 	openGlobalKeybindingSettings(): TPromise<void>;
+
+	configureSettingsForLanguage(language: string): void;
 }
 
 export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);
