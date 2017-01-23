@@ -293,6 +293,7 @@ export interface IExtensionTipsService {
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
+	getRecommendationsForExtension(extension: string): string[];
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
