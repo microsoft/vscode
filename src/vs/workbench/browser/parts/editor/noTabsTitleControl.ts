@@ -31,7 +31,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
