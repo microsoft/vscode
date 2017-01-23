@@ -775,6 +775,9 @@ class TaskService extends EventEmitter implements ITaskService {
 						}
 						let result: ITaskSystem = null;
 						let parseResult = FileConfig.parse(<FileConfig.ExternalTaskRunnerConfiguration>config, this);
+						if (!parseResult.validationStatus.isOK()) {
+							this.outputChannel.show(true);
+						}
 						if (parseResult.validationStatus.isFatal()) {
 							throw new TaskError(Severity.Error, nls.localize('TaskSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
 						}
@@ -1441,8 +1444,19 @@ let schema: IJSONSchema =
 					},
 					'isWatching': {
 						'type': 'boolean',
-						'description': nls.localize('JsonSchema.tasks.watching', 'Whether the executed task is kept alive and is watching the file system.'),
+						'deprecationMessage': nls.localize('JsonSchema.tasks.watching', 'Deprecated. Use isBackground instead.'),
+						'description': nls.localize('JsonSchema.tasks.watching', 'Deprecated. Use isBackground instead.'),
 						'default': true
+					},
+					'isBackground': {
+						'type': 'boolean',
+						'description': nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
+						'default': true
+					},
+					'promptOnClose': {
+						'type': 'boolean',
+						'description': nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
+						'default': false
 					},
 					'isBuildCommand': {
 						'type': 'boolean',
