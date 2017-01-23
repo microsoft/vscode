@@ -424,7 +424,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				delete this.terminals[key];
 				delete this.idleTaskTerminals[terminalData.lastTask];
 			}
-			if (terminal === this.primaryTerminal.terminal) {
+			if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
 				this.primaryTerminal = undefined;
 			}
 		});
