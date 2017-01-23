@@ -199,11 +199,11 @@ export class SettingsTabsWidget extends Widget {
 		this.onkeyup(this.userSettingsTab, (e) => this.onkeyUp(e, this.userSettingsTab));
 
 		this.workspaceSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		this.workspaceSettingsTab.tabIndex = 0;
 		this.workspaceSettingsTab.textContent = localize('workspaceSettings', "Workspace Settings");
 		if (!this.contextService.hasWorkspace()) {
 			DOM.addClass(this.workspaceSettingsTab, 'disabled');
 		} else {
+			this.workspaceSettingsTab.tabIndex = 0;
 			this.onclick(this.workspaceSettingsTab, () => this.onClick(this.workspaceSettingsTab));
 			this.onkeyup(this.workspaceSettingsTab, (e) => this.onkeyUp(e, this.workspaceSettingsTab));
 		}
@@ -222,6 +222,7 @@ export class SettingsTabsWidget extends Widget {
 
 	private onClick(element: HTMLElement): void {
 		if (!DOM.hasClass(element, 'active')) {
+			DOM.addClass(element, 'active');
 			this._onSwitch.fire();
 		}
 	}
