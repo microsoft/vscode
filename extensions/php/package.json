@@ -39,10 +39,10 @@
 			"type": "object",
 			"order": 20,
 			"properties": {
-				"php.builtInCompletions.enable": {
+				"php.suggest.basic": {
 					"type": "boolean",
 					"default": true,
-					"description": "%configuration.builtInCompletions.enable%"
+					"description": "%configuration.suggest.basic%"
 				},
 				"php.validate.enable": {
 					"type": "boolean",

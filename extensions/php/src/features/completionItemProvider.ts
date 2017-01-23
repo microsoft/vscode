@@ -15,7 +15,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
 		let result: CompletionItem[] = [];
 
-		let shouldProvideCompletionItems = workspace.getConfiguration('php').get<boolean>('builtInCompletions.enable', true);
+		let shouldProvideCompletionItems = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
 		if (!shouldProvideCompletionItems) {
 			return Promise.resolve(result);
 		}
