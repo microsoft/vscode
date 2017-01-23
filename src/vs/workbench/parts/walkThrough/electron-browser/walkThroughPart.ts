@@ -12,7 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -29,8 +29,26 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Scope } from 'vs/workbench/common/memento';
 
 const UNBOUND_COMMAND = localize('walkThrough.unboundCommand', "unbound");
+const WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'walkThroughEditorViewState';
+
+interface IViewState {
+	scrollTop: number;
+	scrollLeft: number;
+}
+
+interface IWalkThroughEditorViewState extends IEditorViewState {
+	viewState: IViewState;
+}
+
+interface IWalkThroughEditorViewStates {
+	0?: IWalkThroughEditorViewState;
+	1?: IWalkThroughEditorViewState;
+	2?: IWalkThroughEditorViewState;
+}
 
 export class WalkThroughPart extends BaseEditor {
 
@@ -49,6 +67,7 @@ export class WalkThroughPart extends BaseEditor {
 		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService,
 		@IModeService private modeService: IModeService
 	) {
 		super(WalkThroughPart.ID, telemetryService);
@@ -131,6 +150,10 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
+		if (this.input instanceof WalkThroughInput) {
+			this.saveTextEditorViewState(this.input.getResource());
+		}
+
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 
@@ -147,6 +170,7 @@ export class WalkThroughPart extends BaseEditor {
 						input.onReady(this.content.firstElementChild as HTMLElement);
 					}
 					this.scrollbar.scanDomNode();
+					this.loadTextEditorViewState(input.getResource());
 					return;
 				}
 
@@ -204,6 +228,7 @@ export class WalkThroughPart extends BaseEditor {
 					input.onReady(innerContent);
 				}
 				this.scrollbar.scanDomNode();
+				this.loadTextEditorViewState(input.getResource());
 			});
 	}
 
@@ -223,6 +248,59 @@ export class WalkThroughPart extends BaseEditor {
 			const label = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
 			key.appendChild(document.createTextNode(label));
 		});
+	}
+	private saveTextEditorViewState(resource: URI): void {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		let editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (!editorViewStateMemento) {
+			editorViewStateMemento = Object.create(null);
+			memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY] = editorViewStateMemento;
+		}
+
+		const editorViewState: IWalkThroughEditorViewState = {
+			viewState: {
+				scrollTop: this.scrollbar.getScrollTop(),
+				scrollLeft: this.scrollbar.getScrollLeft()
+			}
+		};
+
+		let fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+		if (!fileViewState) {
+			fileViewState = Object.create(null);
+			editorViewStateMemento[resource.toString()] = fileViewState;
+		}
+
+		if (typeof this.position === 'number') {
+			fileViewState[this.position] = editorViewState;
+		}
+	}
+
+	private loadTextEditorViewState(resource: URI) {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		const editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (editorViewStateMemento) {
+			const fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+			if (fileViewState) {
+				const state: IWalkThroughEditorViewState = fileViewState[this.position];
+				if (state) {
+					this.scrollbar.updateState(state.viewState);
+				}
+			}
+		}
+	}
+
+	public clearInput(): void {
+		if (this.input instanceof WalkThroughInput) {
+			this.saveTextEditorViewState(this.input.getResource());
+		}
+		super.clearInput();
+	}
+
+	public shutdown(): void {
+		if (this.input instanceof WalkThroughInput) {
+			this.saveTextEditorViewState(this.input.getResource());
+		}
+		super.shutdown();
 	}
 
 	dispose(): void {
