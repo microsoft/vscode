@@ -8,6 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
+import * as Types from 'vs/base/common/types';
 
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
@@ -85,6 +86,24 @@ export interface CommandOptions {
 	env?: { [key: string]: string; };
 }
 
+export interface ShellConfiguration {
+	/**
+	 * The shell executable.
+	 */
+	executable: string;
+	/**
+	 * The arguments to be passed to the shell executable.
+	 */
+	args?: string[];
+}
+
+export namespace ShellConfiguration {
+	export function is(value: any): value is ShellConfiguration {
+		let candidate: ShellConfiguration = value;
+		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
+	}
+}
+
 export interface CommandConfiguration {
 	/**
 	 * The command to execute
@@ -94,7 +113,7 @@ export interface CommandConfiguration {
 	/**
 	 * Whether the command is a shell command or not
 	 */
-	isShellCommand?: boolean;
+	isShellCommand?: boolean | ShellConfiguration;
 
 	/**
 	 * Additional command options.

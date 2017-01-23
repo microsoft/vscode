@@ -1307,9 +1307,16 @@ let schema: IJSONSchema =
 						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
 					},
 					'isShellCommand': {
-						'type': 'boolean',
-						'default': true,
-						'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+						'anyOf': [
+							{
+								'type': 'boolean',
+								'default': true,
+								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+							},
+							{
+								'$ref': '#definitions/shellConfiguration'
+							}
+						]
 					},
 					'args': {
 						'type': 'array',
@@ -1363,6 +1370,23 @@ let schema: IJSONSchema =
 					}
 				}
 			},
+			'shellConfiguration': {
+				'type': 'object',
+				'additionalProperties': false,
+				'properties': {
+					'executable': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.shell.executable', 'The shell to be used.')
+					},
+					'args': {
+						'type': 'array',
+						'description': nls.localize('JsonSchema.shell.args', 'The shell arguments.'),
+						'items': {
+							'type': 'string'
+						}
+					}
+				}
+			},
 			'commandConfiguration': {
 				'type': 'object',
 				'additionalProperties': false,
@@ -1372,9 +1396,16 @@ let schema: IJSONSchema =
 						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
 					},
 					'isShellCommand': {
-						'type': 'boolean',
-						'default': true,
-						'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+						'anyOf': [
+							{
+								'type': 'boolean',
+								'default': true,
+								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+							},
+							{
+								'$ref': '#definitions/shellConfiguration'
+							}
+						]
 					},
 					'args': {
 						'type': 'array',
@@ -1402,9 +1433,16 @@ let schema: IJSONSchema =
 						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
 					},
 					'isShellCommand': {
-						'type': 'boolean',
-						'default': true,
-						'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+						'anyOf': [
+							{
+								'type': 'boolean',
+								'default': true,
+								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+							},
+							{
+								'$ref': '#definitions/shellConfiguration'
+							}
+						]
 					},
 					'args': {
 						'type': 'array',
