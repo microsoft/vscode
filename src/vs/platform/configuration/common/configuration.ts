@@ -113,7 +113,6 @@ export interface IConfigModel<T> {
 	config<V>(section: string): IConfigModel<V>;
 	configWithOverrides<V>(identifier: string, section?: string): IConfigModel<V>;
 	refilter(): void;
-	hasActiveFilter(): boolean;
 }
 
 export interface IOverrides<T> {

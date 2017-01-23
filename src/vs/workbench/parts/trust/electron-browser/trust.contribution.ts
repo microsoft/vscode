@@ -41,7 +41,7 @@ class TrustContribution implements IWorkbenchContribution {
 
 	private checkWorkspaceTrust(): void {
 		const wasUntrusted = this.isUntrusted;
-		this.isUntrusted = this.workspaceConfigurationService.hasUntrustedConfigurations();
+		this.isUntrusted = this.workspaceConfigurationService.getUntrustedConfigurations().length > 0;
 		if (this.isUntrusted && !wasUntrusted) {
 			this.showTrustWarning();
 		}
