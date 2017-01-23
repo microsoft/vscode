@@ -213,7 +213,11 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				});
 			});
 		});
+	}
 
+	getKeywordsForExtension(extension: string): string[] {
+		const keywords = product.extensionKeywords || {};
+		return keywords[extension] || [];
 	}
 
 	dispose() {

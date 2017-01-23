@@ -274,8 +274,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		}
 
 		const text = value = query.value
-			.replace(/\bext:([^\s]+)\b/g, 'tag:"__ext_$1"')
+			.replace(/\bext:([^\s]+)\b/g, (m, ext) => {
+				const tags = this.tipsService.getKeywordsForExtension(ext);
+				return `tag:"__ext_${ext}"${tags.map(tag => ` tag:${tag}`)}`;
+			})
 			.substr(0, 200);
+
+		console.log(text);
 
 		if (text) {
 			options = assign(options, { text });
