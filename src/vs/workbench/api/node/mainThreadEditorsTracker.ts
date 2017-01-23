@@ -56,7 +56,8 @@ export interface IFocusTracker {
 export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 export interface IUndoStopOptions {
@@ -288,14 +289,22 @@ export class MainThreadTextEditor {
 			console.warn('revealRange on invisible editor');
 			return;
 		}
-		if (revealType === TextEditorRevealType.Default) {
-			this._codeEditor.revealRange(range);
-		} else if (revealType === TextEditorRevealType.InCenter) {
-			this._codeEditor.revealRangeInCenter(range);
-		} else if (revealType === TextEditorRevealType.InCenterIfOutsideViewport) {
-			this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
-		} else {
-			console.warn('Unknown revealType');
+		switch (revealType) {
+			case TextEditorRevealType.Default:
+				this._codeEditor.revealRange(range);
+				break;
+			case TextEditorRevealType.InCenter:
+				this._codeEditor.revealRangeInCenter(range);
+				break;;
+			case TextEditorRevealType.InCenterIfOutsideViewport:
+				this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
+				break;
+			case TextEditorRevealType.AtTop:
+				this._codeEditor.revealRangeAtTop(range);
+				break;
+			default:
+				console.warn('Unknown revealType');
+				break;
 		}
 	}
 
