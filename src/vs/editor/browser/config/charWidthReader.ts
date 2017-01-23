@@ -204,22 +204,30 @@ class CanvasCharWidthReader implements ICharWidthReader {
 	}
 }
 
+function readCharWidthsFromDom(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
+	let reader = new DomCharWidthReader(bareFontInfo, requests);
+	reader.read();
+}
+
+function readCharWidthsFromCanvas(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
+	let reader = new CanvasCharWidthReader(bareFontInfo, requests);
+	reader.read();
+}
+
 export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
-	// In IE11, it appears that ctx.measureText() always returns integer results.
-	if (browser.isIE) {
-		let reader = new DomCharWidthReader(bareFontInfo, requests);
-		reader.read();
+	// In IE11 and Firefox, it appears that ctx.measureText() always returns integer results.
+	// In Edge, ctx.measureText() gives floating point results, but they don't make any sense.
+	if (browser.isIE || browser.isFirefox) {
+		readCharWidthsFromDom(bareFontInfo, requests);
 		return;
 	}
 
 	// On Linux, it appears that ctx.measureText() is unaffected by the browser zoom (which is correct),
 	// but the char widths at rendering time are affected by the browser zoom (which is unexpected)
 	if (platform.isLinux) {
-		let reader = new DomCharWidthReader(bareFontInfo, requests);
-		reader.read();
+		readCharWidthsFromDom(bareFontInfo, requests);
 		return;
 	}
 
-	let reader = new CanvasCharWidthReader(bareFontInfo, requests);
-	reader.read();
+	readCharWidthsFromCanvas(bareFontInfo, requests);
 }
