@@ -19,6 +19,7 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 
 interface Key {
 	id: string;
@@ -46,7 +47,7 @@ const keys: Key[] = [
 		id: 'git',
 		arrow: '&larr;',
 		label: localize('welcomeOverlay.git', "Source code management"),
-		command: 'workbench.view.scm'
+		command: SCMPreview.enabled ? 'workbench.view.scm' : 'workbench.view.git'
 	},
 	{
 		id: 'debug',
