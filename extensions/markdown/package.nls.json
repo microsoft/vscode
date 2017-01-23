@@ -7,6 +7,7 @@
 	"markdown.preview.fontFamily.desc": "Controls the font family used in the markdown preview.",
 	"markdown.preview.fontSize.desc": "Controls the font size in pixels used in the markdown preview.",
 	"markdown.preview.lineHeight.desc": "Controls the line height used in the markdown preview. This number is relative to the font size.",
-	"markdown.preview.experimentalSyncronizationEnabled.desc": "Enable experimental syncronization between the markdown preview and the editor",
-	"markdown.preview.synchronizePreviewScrollingToEditor.desc": "When the preview is scrolled, update the view of the editor"
+	"markdown.preview.scrollPreviewWithEditorSelection.desc": "Scrolls the markdown preview to reveal the currently selected line from the editor.",
+	"markdown.preview.scrollEditorWithPreview.desc": "When the markdown preview is scrolled, update the view of the editor.",
+	"markdown.preview.markEditorSelection.desc": "Mark the current editor selection in the markdown preview."
 }
