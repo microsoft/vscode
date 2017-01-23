@@ -31,7 +31,9 @@
 		"onLanguage:typescriptreact",
 		"onLanguage:jsx-tags",
 		"onCommand:typescript.reloadProjects",
-		"onCommand:javascript.reloadProjects"
+		"onCommand:javascript.reloadProjects",
+		"workspaceContains:jsconfig.json",
+		"workspaceContains:tsconfig.json"
 	],
 	"main": "./out/typescriptMain",
 	"enableProposedApi": true,
