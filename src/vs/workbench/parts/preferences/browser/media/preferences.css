@@ -25,7 +25,7 @@
 .settings-tabs-widget > .settings-tab {
 	text-transform: uppercase;
 	font-size: 12px;
-	margin-left: 20px;
+	margin-left: 33px;
 	padding-top: 6px;
 	cursor: pointer;
 }
@@ -35,20 +35,26 @@
 }
 
 .settings-tabs-widget > .settings-tab.disabled {
-	opacity: 0.5;
 	cursor: default;
 }
 
 .vs .settings-tabs-widget > .settings-tab {
-	color: #6f6f6f;
+	opacity: 0.75;
+	color: #424242;
 }
 
 .vs-dark .settings-tabs-widget > .settings-tab {
-	color: #bbbbbb;
+	opacity: 0.5;
+	color: #e7e7e7;
 }
 
 .hc-black .settings-tabs-widget > .settings-tab {
 	color: #fff;
+}
+
+.settings-tabs-widget > .settings-tab:not(.disabled):hover,
+.settings-tabs-widget > .settings-tab.active {
+	opacity: 1;
 }
 
 .vs-dark .settings-tabs-widget > .settings-tab:not(.disabled):hover {
@@ -56,26 +62,24 @@
 }
 
 .vs .settings-tabs-widget > .settings-tab.active {
-	border-bottom: 1px solid #6f6f6f;
+	border-bottom: 1px solid #ccceda;
 }
 
 .vs-dark .settings-tabs-widget > .settings-tab.active {
-	color: white;
-	border-bottom: 1px solid white;
+	border-bottom: 1px solid #404047;
 }
 
 .hc-black .settings-tabs-widget > .settings-tab.active {
-	color: white;
 	border-bottom: 1px solid white;
 }
 
-.vs .settings-tabs-widget > .settings-tab:focus,
-.vs-dark .settings-tabs-widget > .settings-tab:focus {
+.vs .settings-tabs-widget > .settings-tab:not(.disabled):focus,
+.vs-dark .settings-tabs-widget > .settings-tab:not(.disabled):focus {
 	border-bottom: 1px solid #007ACC;
 	outline: none !important;
 }
 
-.hc-black .settings-tabs-widget > .settings-tab:focus {
+.hc-black .settings-tabs-widget > .settings-tab:not(.disabled):focus {
 	border-bottom: 1px solid #f38518;
 	outline: none !important;
 }
