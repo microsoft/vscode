@@ -39,6 +39,11 @@
 			"type": "object",
 			"order": 20,
 			"properties": {
+				"php.builtInCompletions.enable": {
+					"type": "boolean",
+					"default": true,
+					"description": "%configuration.builtInCompletions.enable%"
+				},
 				"php.validate.enable": {
 					"type": "boolean",
 					"default": true,
