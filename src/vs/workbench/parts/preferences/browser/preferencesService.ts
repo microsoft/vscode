@@ -126,7 +126,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openSettings(): TPromise<IEditor> {
-		return this.doOpenSettings(this.getSettingsConfigurationTarget(this.lastOpenedSettingsInput), false);
+		return this.doOpenSettings(ConfigurationTarget.USER, false);
 	}
 
 	openGlobalSettings(): TPromise<IEditor> {
