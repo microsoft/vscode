@@ -592,7 +592,9 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 
 	public render(): void {
 		this.initializationPromise.then(() => {
-			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
+			if (this.editSettingActionRenderer) {
+				this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
+			}
 		});
 	}
 
@@ -600,9 +602,11 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		return this.preferencesService.createDefaultPreferencesEditorModel(this.preferencesService.defaultSettingsResource)
 			.then(defaultSettingsModel => {
 				this.defaultSettingsModel = <DefaultSettingsEditorModel>defaultSettingsModel;
-				this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultSettingsModel, this.settingHighlighter));
+				if (this.editor.getRawConfiguration().glyphMargin) {
+					this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultSettingsModel, this.settingHighlighter));
+					this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
+				}
 				this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
-				this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
 				return null;
 			});
 	}
