@@ -1223,7 +1223,7 @@ declare module DebugProtocol {
 	export type CompletionItemType = 'method' | 'function' | 'constructor' | 'field' | 'variable' | 'class' | 'interface' | 'module' | 'property' | 'unit' | 'value' | 'enum' | 'keyword' | 'snippet' | 'text' | 'color' | 'file' | 'reference' | 'customcolor';
 
 	/** Names of checksum algorithms that may be supported by a debug adapter. */
-	export type ChecksumAlgorithm = 'MD5' | 'SHA1' | 'SHA256' | 'SHA1Normalized' | 'SHA256Normalized' | 'timestamp';
+	export type ChecksumAlgorithm = 'MD5' | 'SHA1' | 'SHA256' | 'timestamp';
 
 	/** The checksum of an item calculated by the specified algorithm. */
 	export interface Checksum {
