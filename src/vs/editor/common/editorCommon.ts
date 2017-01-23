@@ -3620,6 +3620,11 @@ export interface IEditor {
 	revealRangeInCenter(range: IRange): void;
 
 	/**
+	 * Scroll vertically or horizontally as necessary and reveal a range at the top of the viewport.
+	 */
+	revealRangeAtTop(range: IRange): void;
+
+	/**
 	 * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
 	revealRangeInCenterIfOutsideViewport(range: IRange): void;

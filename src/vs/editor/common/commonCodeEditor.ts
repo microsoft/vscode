@@ -460,6 +460,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		);
 	}
 
+	public revealRangeAtTop(range: editorCommon.IRange): void {
+		this._revealRange(
+			range,
+			editorCommon.VerticalRevealType.Top,
+			true
+		);
+	}
+
 	private _revealRange(range: editorCommon.IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Range.isIRange(range)) {
 			throw new Error('Invalid arguments');
