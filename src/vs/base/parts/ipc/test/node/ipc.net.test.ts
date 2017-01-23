@@ -8,84 +8,81 @@
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Duplex } from 'stream';
+import { EventEmitter } from 'events';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 
+class MockDuplex extends EventEmitter {
 
-let _buffer: Buffer[] = [];
+	private _cache: Buffer[] = [];
 
-const testDuplex = new Duplex(<any>{
-	read(size) {
-		const chunks: Buffer[] = [];
-		for (const chunk of _buffer) {
-			chunks.push(chunk);
-			size -= chunk.length;
-			if (size <= 0) {
-				break;
-			}
+	private _deliver(): void {
+		if (this._cache.length) {
+			const data = Buffer.concat(this._cache);
+			this._cache.length = 0;
+			this.emit('data', data);
 		}
-		_buffer = _buffer.slice(chunks.length);
-		this.push(Buffer.concat(chunks));
-	},
-	write(chunk, encoding, callback) {
-		_buffer.push(chunk);
-		callback();
-	}
-});
-
-class TestDuplex extends Duplex {
-
-	private _buffer: Buffer[] = [];
-
-	constructor(options) {
-		super(options);
 	}
 
-	_write(chunk, encoding, callback) {
-		this._buffer.push(chunk);
-		callback();
-	}
-
-	_read(size) {
-		const chunks: Buffer[] = [];
-		for (const chunk of this._buffer) {
-			chunks.push(chunk);
-			size -= chunk.length;
-			if (size <= 0) {
-				break;
-			}
-		}
-		this._buffer = this._buffer.slice(chunks.length);
-		this.push(Buffer.from(chunks));
+	write(data: Buffer, cb?: Function): boolean {
+		this._cache.push(data);
+		setImmediate(() => this._deliver());
+		return true;
 	}
 }
 
 
 suite('IPC, Socket Protocol', () => {
 
-	test('read/write', () => {
+	let stream: Duplex;
 
-		const stream = testDuplex;
+	setup(() => {
+		stream = <any>new MockDuplex();
+	});
+
+	test('read/write', () => {
 
 		const a = new Protocol(stream);
 		const b = new Protocol(stream);
 
-		a.send('foobarfarboo');
-
-		const p1 = new TPromise(resolve => {
-			b.onMessage(data => {
+		return new TPromise(resolve => {
+			const sub = b.onMessage(data => {
+				sub.dispose();
 				assert.equal(data, 'foobarfarboo');
 				resolve(null);
 			});
+			a.send('foobarfarboo');
+		}).then(() => {
+			return new TPromise(resolve => {
+				const sub = b.onMessage(data => {
+					sub.dispose();
+					assert.equal(data, 123);
+					resolve(null);
+				});
+				a.send(123);
+			});
 		});
-		a.send('message2');
+	});
 
-		const p2 = new TPromise(resolve => {
-			b.onMessage(data => {
-				assert.equal(data, 'message2');
+
+	test('read/write, object data', () => {
+
+		const a = new Protocol(stream);
+		const b = new Protocol(stream);
+
+		const data = {
+			pi: Math.PI,
+			foo: 'bar',
+			more: true,
+			data: 'Hello World'.split('')
+		};
+
+		a.send(data);
+
+		return new TPromise(resolve => {
+			b.onMessage(msg => {
+				assert.deepEqual(msg, data);
 				resolve(null);
 			});
 		});
-
-		return TPromise.join([p1, p2]);
 	});
 });
