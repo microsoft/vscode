@@ -10,6 +10,8 @@ import 'vs/editor/browser/widget/diffEditorWidget';
 
 import 'vs/editor/contrib/bracketMatching/common/bracketMatching';
 import 'vs/css!vs/editor/contrib/bracketMatching/browser/bracketMatching';
+import 'vs/editor/contrib/caretOperations/common/caretOperations';
+import 'vs/editor/contrib/caretOperations/common/transpose';
 import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codelens/browser/codelens';
 import 'vs/editor/contrib/comment/common/comment';
@@ -24,7 +26,6 @@ import 'vs/css!vs/editor/contrib/inPlaceReplace/browser/inPlaceReplace';
 import 'vs/editor/contrib/inPlaceReplace/common/inPlaceReplace';
 import 'vs/editor/contrib/iPadShowKeyboard/browser/iPadShowKeyboard';
 import 'vs/editor/contrib/linesOperations/common/linesOperations';
-import 'vs/editor/contrib/caretOperations/common/caretOperations';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/common/multicursor';
 import 'vs/editor/contrib/multicursor/browser/menuPreventer';
