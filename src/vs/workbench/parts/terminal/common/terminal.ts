@@ -152,6 +152,11 @@ export interface ITerminalInstance {
 	onTitleChanged: Event<string>;
 
 	/**
+	 * An event that fires when the terminal instance is disposed.
+	 */
+	onDisposed: Event<ITerminalInstance>;
+
+	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
 	 *

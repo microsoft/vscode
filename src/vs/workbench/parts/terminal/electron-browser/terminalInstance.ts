@@ -49,7 +49,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isLaunching: boolean;
 	private _isVisible: boolean;
-	private _onDisposed: Emitter<TerminalInstance>;
+	private _onDisposed: Emitter<ITerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
@@ -65,7 +65,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
-	public get onClosed(): Event<TerminalInstance> { return this._onDisposed.event; }
+	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
