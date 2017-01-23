@@ -120,7 +120,7 @@
 	window.onload = () => {
 		pageHeight = document.body.getBoundingClientRect().height;
 
-		if (window.initialData.enablePreviewSync) {
+		if (window.initialData.scrollPreviewWithEditorSelection) {
 			const initialLine = +window.initialData.line || 0;
 			scrollDisabled = true;
 			scrollToRevealSourceLine(initialLine);
@@ -135,7 +135,7 @@
 		pageHeight = newPageHeight;
 	}, true);
 
-	if (window.initialData.enablePreviewSync) {
+	if (window.initialData.scrollPreviewWithEditorSelection) {
 
 		window.addEventListener('message', event => {
 			const line = +event.data.line;
@@ -157,7 +157,7 @@
 			}
 		};
 
-		if (window.initialData.enableScrollSync) {
+		if (window.initialData.scrollEditorWithPreview) {
 			window.onscroll = () => {
 				if (scrollDisabled) {
 					scrollDisabled = false;

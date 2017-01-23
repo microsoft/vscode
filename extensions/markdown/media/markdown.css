@@ -15,12 +15,12 @@ body.scrollBeyondLastLine {
 	margin-bottom: calc(100vh - 22px);
 }
 
-.code-line {
+body.showEditorSelection .code-line {
 	position: relative;
 }
 
-.code-active-line:before,
-.code-line:hover:before {
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
 	content: "";
 	display: block;
 	position: absolute;
@@ -29,11 +29,11 @@ body.scrollBeyondLastLine {
 	height: 100%;
 }
 
-.code-active-line:before {
+body.showEditorSelection .code-active-line:before {
 	border-left: 3px solid rgba(0, 122, 204, 0.5);
 }
 
-.code-line:hover:before {
+body.showEditorSelection .code-line:hover:before {
 	border-left: 3px solid #4080D0;
 }
 

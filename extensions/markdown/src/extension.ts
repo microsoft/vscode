@@ -283,14 +283,14 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 					${this.computeCustomStyleSheetIncludes(uri)}
 					<base href="${document.uri.toString(true)}">
 				</head>
-				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''}">
+				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''} ${!!markdownConfig.get('preview.markEditorSelection') ? 'showEditorSelection' : ''}">
 					${body}
 					<script>
 						window.initialData = {
 							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
 							line: ${initialLine},
-							enablePreviewSync: ${!!markdownConfig.get('preview.experimentalSyncronizationEnabled', true)},
-							enableScrollSync: ${!!markdownConfig.get('preview.synchronizePreviewScrollingToEditor', true)}
+							scrollPreviewWithEditorSelection: ${!!markdownConfig.get('preview.scrollPreviewWithEditorSelection', true)},
+							scrollEditorWithPreview: ${!!markdownConfig.get('preview.scrollEditorWithPreview', true)}
 						};
 					</script>
 					<script src="${this.getMediaPath('main.js')}"></script>
