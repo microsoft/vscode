@@ -6,6 +6,7 @@
 'use strict';
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
+import { Duplex } from 'stream';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, once, mapEvent } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
@@ -31,19 +32,19 @@ function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 	return start;
 }
 
-class Protocol implements IMessagePassingProtocol {
+export class Protocol implements IMessagePassingProtocol {
 
 	private static Boundary = new Buffer([0]);
 
-	private _onMessage: Event<any>;
-	get onMessage(): Event<any> { return this._onMessage; }
 
-	constructor(private socket: Socket) {
+	private _onMessage = new Emitter<any>();
+
+	readonly onMessage: Event<any> = this._onMessage.event;
+
+	constructor(private stream: Duplex) {
 		let buffer = null;
-		const emitter = new Emitter<any>();
-		const onRawData = fromEventEmitter(socket, 'data', data => data);
 
-		onRawData((data: Buffer) => {
+		stream.on('data', (data: Buffer) => {
 			let lastIndex = 0;
 			let index = 0;
 
@@ -51,10 +52,10 @@ class Protocol implements IMessagePassingProtocol {
 				const dataToParse = data.slice(lastIndex, index);
 
 				if (buffer) {
-					emitter.fire(JSON.parse(Buffer.concat([buffer, dataToParse]).toString('utf8')));
+					this._onMessage.fire(JSON.parse(Buffer.concat([buffer, dataToParse]).toString('utf8')));
 					buffer = null;
 				} else {
-					emitter.fire(JSON.parse(dataToParse.toString('utf8')));
+					this._onMessage.fire(JSON.parse(dataToParse.toString('utf8')));
 				}
 
 				lastIndex = index + 1;
@@ -70,14 +71,12 @@ class Protocol implements IMessagePassingProtocol {
 				}
 			}
 		});
-
-		this._onMessage = emitter.event;
 	}
 
 	public send(message: any): void {
 		try {
-			this.socket.write(JSON.stringify(message));
-			this.socket.write(Protocol.Boundary);
+			this.stream.write(JSON.stringify(message));
+			this.stream.write(Protocol.Boundary);
 		} catch (e) {
 			// noop
 		}
