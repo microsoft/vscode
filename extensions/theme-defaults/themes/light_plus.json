@@ -74,7 +74,9 @@
 			"scope": [
 				"variable",
 				"meta.definition.variable.name",
-				"support.variable"
+				"support.variable",
+
+				"support.constant.handlebars"
 			],
 			"settings": {
 				"foreground": "#001080"
