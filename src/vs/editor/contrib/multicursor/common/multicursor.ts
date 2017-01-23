@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Handler, ICommonCodeEditor, EditorContextKeys, ISelection } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { Selection } from 'vs/editor/common/core/selection';
 
 @editorAction
 class InsertCursorAbove extends HandlerEditorAction {
@@ -67,10 +68,9 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let selection = editor.getSelection();
+	private getCursorsForSelection(selection: Selection, editor: ICommonCodeEditor): Array<ISelection> {
 		if (selection.isEmpty()) {
-			return;
+			return [];
 		}
 
 		let model = editor.getModel();
@@ -95,6 +95,16 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 				});
 			}
 		}
-		editor.setSelections(newSelections);
+		return newSelections;
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selections = editor.getSelections();
+		let newSelections = selections.map((selection) => this.getCursorsForSelection(selection, editor))
+			.reduce((prev, curr) => { return prev.concat(curr); });
+
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
+		}
 	}
 }
