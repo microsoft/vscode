@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -68,15 +68,17 @@ class TrustContribution implements IWorkbenchContribution {
 	private showTrustWarning(): void {
 		const message = nls.localize('untrustedWorkspace', "This workspace specifies executables. While the workspace is untrusted, these settings are being ignored.");
 
-		const openWorkspaceSettings = new Action('trust.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Review Workspace Settings'), '', true, () => {
-			return this.preferencesService.openWorkspaceSettings();
+		const openWorkspaceSettings = new Action('trust.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Review Settings'), '', true, () => {
+			return this.preferencesService.openWorkspaceSettings().then(() => false);
 		});
 
 		const trustWorkspace = new Action('trust.trustWorkspace', nls.localize('trustWorkspace', 'Trust Workspace'), '', true, () => {
 			return this.updateUserSettings().then(() => this.preferencesService.openGlobalSettings());
 		});
 
-		const actions = [openWorkspaceSettings, trustWorkspace, CloseAction];
+		const noChange = new Action('trust.noChange', nls.localize('noChange', 'Keep Not Trusting Workspace'), '', true, () => TPromise.as(true));
+
+		const actions = [openWorkspaceSettings, trustWorkspace, noChange];
 		this.messageService.show(Severity.Warning, { message, actions });
 	}
 }
