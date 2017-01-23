@@ -6,6 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -265,7 +266,7 @@ export interface ITerminalInstance {
 	 * @param listener The listener function which takes the processes' data stream (including
 	 * ANSI escape sequences).
 	 */
-	onData(listener: (data: string) => void): void;
+	onData(listener: (data: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits.
@@ -273,7 +274,7 @@ export interface ITerminalInstance {
 	 * @param listener The listener function which takes the processes' exit code, an exit code of
 	 * null means the process was killed as a result of the ITerminalInstance being disposed.
 	 */
-	onExit(listener: (exitCode: number) => void): void;
+	onExit(listener: (exitCode: number) => void): IDisposable;
 
 	/**
 	 * Immediately kills the terminal's current pty process and launches a new one to replace it.

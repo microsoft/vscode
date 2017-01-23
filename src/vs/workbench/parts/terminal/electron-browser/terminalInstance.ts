@@ -489,16 +489,27 @@ export class TerminalInstance implements ITerminalInstance {
 		return env;
 	}
 
-	public onData(listener: (data: string) => void): void {
-		this._process.on('message', (message) => {
+	public onData(listener: (data: string) => void): lifecycle.IDisposable {
+		let callback = (message) => {
 			if (message.type === 'data') {
 				listener(message.content);
 			}
-		});
+		};
+		this._process.on('message', callback);
+		return {
+			dispose: () => {
+				this._process.removeListener('message', callback);
+			}
+		};
 	}
 
-	public onExit(listener: (exitCode: number) => void): void {
+	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
 		this._process.on('exit', listener);
+		return {
+			dispose: () => {
+				this._process.removeListener('exit', listener);
+			}
+		};
 	}
 
 	private static _sanitizeCwd(cwd: string) {
