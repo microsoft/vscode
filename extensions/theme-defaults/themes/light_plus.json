@@ -6,7 +6,9 @@
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",
-				"support.function"
+				"support.function",
+
+				"support.constant.handlebars"
 			],
 			"settings": {
 				"foreground": "#795E26"
@@ -74,9 +76,7 @@
 			"scope": [
 				"variable",
 				"meta.definition.variable.name",
-				"support.variable",
-
-				"support.constant.handlebars"
+				"support.variable"
 			],
 			"settings": {
 				"foreground": "#001080"
