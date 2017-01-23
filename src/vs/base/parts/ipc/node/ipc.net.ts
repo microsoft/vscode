@@ -24,59 +24,97 @@ export function generateRandomPipeName(): string {
 	}
 }
 
-function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
-	while (start < buffer.length && buffer[start] !== value) {
-		start++;
-	}
-
-	return start;
-}
-
 export class Protocol implements IMessagePassingProtocol {
 
-	private static Boundary = new Buffer([0]);
-
+	private static _headerLen = 17;
 
 	private _onMessage = new Emitter<any>();
 
 	readonly onMessage: Event<any> = this._onMessage.event;
 
 	constructor(private stream: Duplex) {
-		let buffer = null;
+
+		let chunks = [];
+		let totalLength = 0;
+
+		const state = {
+			readHead: true,
+			bodyIsJson: false,
+			bodyLen: -1,
+		};
 
 		stream.on('data', (data: Buffer) => {
-			let lastIndex = 0;
-			let index = 0;
 
-			while ((index = bufferIndexOf(data, 0, lastIndex)) < data.length) {
-				const dataToParse = data.slice(lastIndex, index);
+			chunks.push(data);
+			totalLength += data.length;
 
-				if (buffer) {
-					this._onMessage.fire(JSON.parse(Buffer.concat([buffer, dataToParse]).toString('utf8')));
-					buffer = null;
-				} else {
-					this._onMessage.fire(JSON.parse(dataToParse.toString('utf8')));
+			while (totalLength > 0) {
+
+				if (state.readHead) {
+					// expecting header -> read 17bytes for header
+					// information: `bodyIsJson` and `bodyLen`
+					if (totalLength >= Protocol._headerLen) {
+						const all = Buffer.concat(chunks);
+
+						state.bodyIsJson = all.readInt8(0) === 1;
+						state.bodyLen = all.readInt32BE(1);
+						state.readHead = false;
+
+						const rest = all.slice(Protocol._headerLen);
+						totalLength = rest.length;
+						chunks = [rest];
+
+					} else {
+						break;
+					}
 				}
 
-				lastIndex = index + 1;
-			}
+				if (!state.readHead) {
+					// expecting body -> read bodyLen-bytes for
+					// the actual message or wait for more data
+					if (totalLength >= state.bodyLen) {
 
-			if (index - lastIndex > 0) {
-				const dataToBuffer = data.slice(lastIndex, index);
+						const all = Buffer.concat(chunks);
+						let message = all.toString('utf8', 0, state.bodyLen);
+						if (state.bodyIsJson) {
+							message = JSON.parse(message);
+						}
+						this._onMessage.fire(message);
 
-				if (buffer) {
-					buffer = Buffer.concat([buffer, dataToBuffer]);
-				} else {
-					buffer = dataToBuffer;
+						const rest = all.slice(state.bodyLen);
+						totalLength = rest.length;
+						chunks = [rest];
+
+						state.bodyIsJson = false;
+						state.bodyLen = -1;
+						state.readHead = true;
+
+					} else {
+						break;
+					}
 				}
 			}
 		});
 	}
 
 	public send(message: any): void {
+
+		// [bodyIsJson|bodyLen|message]
+		// |^header^^^^^^^^^^^|^data^^]
+
+		const header = Buffer.alloc(Protocol._headerLen);
+
+		// ensure string
+		if (typeof message !== 'string') {
+			message = JSON.stringify(message);
+			header.writeInt8(1, 0);
+		}
+		const data = Buffer.from(message);
+		header.writeInt32BE(data.length, 1);
+
 		try {
-			this.stream.write(JSON.stringify(message));
-			this.stream.write(Protocol.Boundary);
+			this.stream.write(header);
+			this.stream.write(data);
 		} catch (e) {
 			// noop
 		}
