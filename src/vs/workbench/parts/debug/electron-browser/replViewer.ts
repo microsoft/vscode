@@ -107,6 +107,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 	}
 
 	public getHeight(tree: ITree, element: any): number {
+		if (element instanceof Variable) {
+			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
+		}
+		if (element instanceof Expression && element.hasChildren) {
+			return 2 * ReplExpressionsRenderer.LINE_HEIGHT_PX;
+		}
+
 		return this.getHeightForString(element.value) + (element instanceof Expression ? this.getHeightForString(element.name) : 0);
 	}
 
@@ -217,7 +224,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private renderExpression(tree: ITree, expression: IExpression, templateData: IExpressionTemplateData): void {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: true,
+			preserveWhitespace: !expression.hasChildren,
 			showHover: false
 		});
 		if (expression.hasChildren) {
