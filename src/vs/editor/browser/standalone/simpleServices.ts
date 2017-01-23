@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
-import { ICommandService, ICommand, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
@@ -270,6 +270,9 @@ export class StandaloneCommandService implements ICommandService {
 	private readonly _instantiationService: IInstantiationService;
 	private _dynamicCommands: { [id: string]: ICommand; };
 
+	private _onWillExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
 		this._dynamicCommands = Object.create(null);
@@ -291,6 +294,7 @@ export class StandaloneCommandService implements ICommandService {
 		}
 
 		try {
+			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {
