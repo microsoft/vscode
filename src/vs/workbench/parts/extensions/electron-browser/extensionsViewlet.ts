@@ -24,7 +24,7 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { append, $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { PagedModel, IPagedModel } from 'vs/base/common/paging';
+import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -273,21 +273,35 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		const text = value = query.value
-			.replace(/\bext:([^\s]+)\b/g, (m, ext) => {
+		const pagers: TPromise<IPager<IExtension>>[] = [];
+		let text = query.value;
+		const extensionRegex = /\bext:([^\s]+)\b/g;
+
+		if (extensionRegex.test(query.value)) {
+			let names: string[] = [];
+
+			text = query.value.replace(extensionRegex, (m, ext) => {
+				names.push(...this.tipsService.getRecommendationsForExtension(ext));
 				const tags = this.tipsService.getKeywordsForExtension(ext);
 				return `tag:"__ext_${ext}"${tags.map(tag => ` tag:${tag}`)}`;
-			})
-			.substr(0, 200);
+			});
 
-		console.log(text);
-
-		if (text) {
-			options = assign(options, { text });
+			if (names.length) {
+				const namesOptions = assign({}, options, { names });
+				pagers.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
+			}
 		}
 
-		return this.extensionsWorkbenchService.queryGallery(options)
-			.then(result => new PagedModel(result));
+		if (text) {
+			options = assign(options, { text: text.substr(0, 350) });
+		}
+
+		pagers.push(this.extensionsWorkbenchService.queryGallery(options));
+
+		return TPromise.join(pagers).then(pagers => {
+			const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
+			return new PagedModel(pager);
+		});
 	}
 
 	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
