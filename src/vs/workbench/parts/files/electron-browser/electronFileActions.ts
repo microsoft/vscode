@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
-import platform = require('vs/base/common/platform');
+import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -19,23 +19,55 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { clipboard } from 'electron';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+// Commands
+
+export const revealInOSCommand = (accessor: ServicesAccessor, resource: uri) => {
+	const windowsService = accessor.get(IWindowsService);
+	windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
+};
+
+export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
+	const windowService = accessor.get(IWindowService);
+	windowService.openFolderPicker(forceNewWindow);
+};
+
+export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
+	const windowsService = accessor.get(IWindowsService);
+	windowsService.openWindow(paths, { forceNewWindow });
+};
+
+export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
+	const windowService = accessor.get(IWindowService);
+	const editorService = accessor.get(IWorkbenchEditorService);
+
+	const fileResource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+
+	return windowService.openFilePicker(true, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
+};
+
+export const copyPathCommand = (accessor: ServicesAccessor, resource: uri) => {
+	clipboard.writeText(labels.getPathLabel(resource));
+};
+
+// Actions
 
 export class RevealInOSAction extends Action {
-	private resource: uri;
+
+	public static LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
 
 	constructor(
-		resource: uri,
-		@IWindowsService private windowsService: IWindowsService
+		private resource: uri,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('workbench.action.files.revealInWindows', platform.isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : (platform.isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")));
-
-		this.resource = resource;
+		super('workbench.action.files.revealInWindows', RevealInOSAction.LABEL);
 
 		this.order = 45;
 	}
 
 	public run(): TPromise<any> {
-		this.windowsService.showItemInFolder(paths.normalize(this.resource.fsPath, true));
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, this.resource]);
 
 		return TPromise.as(true);
 	}
@@ -44,13 +76,13 @@ export class RevealInOSAction extends Action {
 export class GlobalRevealInOSAction extends Action {
 
 	public static ID = 'workbench.action.files.revealActiveFileInWindows';
-	public static LABEL = platform.isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (platform.isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
+	public static LABEL = isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
 
 	constructor(
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWindowsService private windowsService: IWindowsService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
@@ -59,7 +91,7 @@ export class GlobalRevealInOSAction extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		if (fileResource) {
-			this.windowsService.showItemInFolder(paths.normalize(fileResource.fsPath, true));
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, fileResource]);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 		}
@@ -69,18 +101,20 @@ export class GlobalRevealInOSAction extends Action {
 }
 
 export class CopyPathAction extends Action {
-	private resource: uri;
 
-	constructor(resource: uri) {
-		super('workbench.action.files.copyPath', nls.localize('copyPath', "Copy Path"));
+	public static LABEL = nls.localize('copyPath', "Copy Path");
 
-		this.resource = resource;
+	constructor(
+		private resource: uri,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super('workbench.action.files.copyPath', CopyPathAction.LABEL);
 
 		this.order = 140;
 	}
 
 	public run(): TPromise<any> {
-		clipboard.writeText(labels.getPathLabel(this.resource));
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, this.resource]);
 
 		return TPromise.as(true);
 	}
