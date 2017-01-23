@@ -6,7 +6,7 @@
 {
 	"copy": "설정에 복사",
 	"copyToSettings": "설정에 복사",
-	"selectAndCopySetting": "값 선택 및 설정에 복사",
+	"selectAndCopySetting": "값을 선택하여 설정에 복사",
 	"selectValue": "값 선택",
 	"settingsEditorName": "기본 설정"
 }
