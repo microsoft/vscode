@@ -65,6 +65,9 @@ export class WorkspaceConfigModel<T> extends ConfigModel<T> {
 	}
 
 	private consolidate(): void {
+		this._contents = <T>{};
+		this._overrides = [];
+
 		this.doMerge(this, this.workspaceSettingsConfig);
 		for (const configModel of this.scopedConfigs) {
 			this.doMerge(this, configModel);
@@ -88,6 +91,7 @@ export class WorkspaceConfigModel<T> extends ConfigModel<T> {
 		this.scopedConfigs.forEach(scopedConfigModel => {
 			scopedConfigModel.refilter();
 		});
+		this.consolidate();
 	}
 
 	public get untrustedKeys(): string[] {
