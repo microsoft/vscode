@@ -140,6 +140,8 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
+		DOM.toggleClass(this.headerContainer, 'vertical-layout', dimension.width < 700);
+		this.searchWidget.layout(dimension);
 		const headerHeight = DOM.getTotalHeight(this.headerContainer);
 		this.sideBySidePreferencesWidget.layout(new Dimension(dimension.width, dimension.height - headerHeight));
 	}
