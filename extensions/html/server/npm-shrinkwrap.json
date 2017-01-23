@@ -13,9 +13,9 @@
       "resolved": "https://registry.npmjs.org/@types/node/-/node-6.0.58.tgz"
     },
     "vscode-css-languageservice": {
-      "version": "2.0.0-next.7",
+      "version": "2.0.0-next.8",
       "from": "vscode-css-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.0.0-next.7.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.0.0-next.8.tgz"
     },
     "vscode-html-languageservice": {
       "version": "2.0.0-next.6",
