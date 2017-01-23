@@ -168,7 +168,11 @@
 			}
 		}, false);
 
-		document.ondblclick = (e) => {
+		document.addEventListener('dblclick', e => {
+			if (!window.initialData.doubleClickToSwitchToEditor) {
+				return;
+			}
+
 			const offset = e.pageY;
 			const line = getEditorLineNumberForPageOffset(offset);
 			if (!isNaN(line)) {
@@ -178,7 +182,7 @@
 					data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
 				}, "file://");
 			}
-		};
+		});
 
 		if (window.initialData.scrollEditorWithPreview) {
 			window.addEventListener('scroll', throttle(() => {
