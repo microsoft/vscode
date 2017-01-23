@@ -327,6 +327,35 @@ export function compare(a: string, b: string): number {
 	}
 }
 
+export function compareIgnoreCase(a: string, b: string): number {
+	const len = Math.min(a.length, b.length);
+	for (let i = 0; i < len; i++) {
+		const codeA = a.charCodeAt(i);
+		const codeB = b.charCodeAt(i);
+
+		if (codeA === codeB) {
+			// equal
+			continue;
+		}
+
+		const diff = codeA - codeB;
+		if ((diff === 32 || diff === -32) && isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
+			// equal -> ignoreCase
+			continue;
+		}
+
+		return compare(a[i].toLowerCase(), b[i].toLowerCase());
+	}
+
+	if (a.length < b.length) {
+		return -1;
+	} else if (a.length > b.length) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 function isAsciiLetter(code: number): boolean {
 	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
 }
