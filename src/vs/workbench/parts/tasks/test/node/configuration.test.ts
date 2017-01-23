@@ -1050,6 +1050,22 @@ suite('Tasks Configuration parsing tests', () => {
 		testConfiguration(external, builder);
 	});
 
+	test('tasks: global command and task command properties', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			command: 'tsc',
+			tasks: [
+				{
+					taskName: 'taskNameOne',
+					isShellCommand: true,
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('taskNameOne', 'tsc').command().shell(false);
+		testConfiguration(external, builder);
+	});
+
 	function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 		let logger = new Logger();
 		let result = parse(external, logger);
