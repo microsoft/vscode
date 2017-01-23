@@ -112,11 +112,39 @@ export class Protocol implements IMessagePassingProtocol {
 		const data = Buffer.from(message);
 		header.writeInt32BE(data.length, 1);
 
-		try {
-			this.stream.write(header);
-			this.stream.write(data);
-		} catch (e) {
-			// noop
+		this._writeSoon(header, data);
+	}
+
+	private _writeBuffer = new class {
+
+		private _data: Buffer[] = [];
+		private _totalLength = 0;
+
+		add(head: Buffer, body: Buffer): boolean {
+			const wasEmpty = this._totalLength === 0;
+			this._data.push(head, body);
+			this._totalLength += head.length + body.length;
+			return wasEmpty;
+		}
+
+		take(): Buffer {
+			const ret = Buffer.concat(this._data, this._totalLength);
+			this._data.length = 0;
+			this._totalLength = 0;
+			return ret;
+		}
+	};
+
+	private _writeSoon(header: Buffer, data: Buffer): void {
+		if (this._writeBuffer.add(header, data)) {
+			setImmediate(() => {
+				// we ignore the returned value from `write` because we would have to cached the data
+				// anyways and nodejs is already doing that for us:
+				// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
+				// > However, the false return value is only advisory and the writable stream will unconditionally
+				// > accept and buffer chunk even if it has not not been allowed to drain.
+				this.stream.write(this._writeBuffer.take());
+			});
 		}
 	}
 }
