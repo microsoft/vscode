@@ -211,7 +211,6 @@ const configurationValueWhitelist = [
 	'editor.snippetSuggestions',
 	'editor.selectionHighlight',
 	'editor.glyphMargin',
-	'php.validate.run',
 	'editor.wordSeparators',
 	'editor.mouseWheelScrollSensitivity',
 	'editor.suggestOnTriggerCharacters',
@@ -224,7 +223,9 @@ const configurationValueWhitelist = [
 	'editor.trimAutoWhitespace',
 	'editor.folding',
 	'workbench.editor.enablePreviewFromQuickOpen',
+	'php.builtInCompletions.enable',
 	'php.validate.enable',
+	'php.validate.run',
 	'editor.parameterHints',
 ];
 
