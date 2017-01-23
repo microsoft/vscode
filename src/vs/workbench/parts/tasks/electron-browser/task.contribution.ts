@@ -317,7 +317,22 @@ class CloseMessageAction extends Action {
 		if (this.closeFunction) {
 			this.closeFunction();
 		}
-		return TPromise.as(null);
+		return TPromise.as(undefined);
+	}
+}
+
+class ViewTerminalAction extends Action {
+
+	public static ID = 'workbench.action.build.viewTerminal';
+	public static TEXT = nls.localize('ShowTerminalAction.label', 'View Terminal');
+
+	constructor( @ITerminalService private terminalService: ITerminalService) {
+		super(ViewTerminalAction.ID, ViewTerminalAction.TEXT);
+	}
+
+	public run(): TPromise<void> {
+		this.terminalService.showPanel();
+		return TPromise.as(undefined);
 	}
 }
 
@@ -326,7 +341,9 @@ class TerminateAction extends AbstractTaskAction {
 	public static TEXT = nls.localize('TerminateAction.label', "Terminate Running Task");
 
 	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 	}
 
@@ -334,19 +351,26 @@ class TerminateAction extends AbstractTaskAction {
 		if (!this.canRun()) {
 			return TPromise.as(undefined);
 		}
-		return this.taskService.isActive().then((active) => {
-			if (active) {
-				return this.taskService.terminate().then((response) => {
-					if (response.success) {
-						return;
-					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-						this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-					} else {
-						return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
-					}
-				});
-			}
-		});
+		if (this.taskService.inTerminal) {
+			this.messageService.show(Severity.Info, {
+				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the intergrated terminal. Use the terminal to manage the tasks.'),
+				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
+			});
+		} else {
+			return this.taskService.isActive().then((active) => {
+				if (active) {
+					return this.taskService.terminate().then((response) => {
+						if (response.success) {
+							return;
+						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+						} else {
+							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+						}
+					});
+				}
+			});
+		}
 	}
 }
 
@@ -618,6 +642,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
+	private _inTerminal: boolean;
 	private taskSystemListeners: IDisposable[];
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
@@ -652,6 +677,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.extensionService = extensionService;
 		this.quickOpenService = quickOpenService;
 
+		this._inTerminal = false;
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
 		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
@@ -753,8 +779,10 @@ class TaskService extends EventEmitter implements ITaskService {
 							throw new TaskError(Severity.Error, nls.localize('TaskSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
 						}
 						if (this.isRunnerConfig(config)) {
+							this._inTerminal = false;
 							result = new ProcessRunnerSystem(parseResult.configuration, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
 						} else if (this.isTerminalConfig(config)) {
+							this._inTerminal = true;
 							result = new TerminalTaskSystem(
 								parseResult.configuration,
 								this.terminalService, this.outputService, this.markerService,
@@ -798,6 +826,10 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private isTerminalConfig(config: TaskConfiguration): boolean {
 		return config._runner === 'terminal';
+	}
+
+	public inTerminal(): boolean {
+		return this._inTerminal;
 	}
 
 	private hasDetectorSupport(config: FileConfig.ExternalTaskRunnerConfiguration): boolean {
@@ -968,7 +1000,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				let closeAction = new CloseMessageAction();
 				let action = needsConfig
 					? this.getConfigureAction(buildError.code)
-					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService);
+					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService, this.terminalService);
 
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
 			} else {
