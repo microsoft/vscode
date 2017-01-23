@@ -183,8 +183,8 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 export class SettingsTabsWidget extends Widget {
 
 	private settingsSwitcherBar: ActionBar;
-	private userSettingsTab: Action;
-	private workspaceSettingsTab: Action;
+	private userSettings: Action;
+	private workspaceSettings: Action;
 
 	private _onSwitch: Emitter<void> = new Emitter<void>();
 	public readonly onSwitch: Event<void> = this._onSwitch.event;
@@ -201,14 +201,17 @@ export class SettingsTabsWidget extends Widget {
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false
 		}));
-		this.userSettingsTab = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettingsTab));
-		this.workspaceSettingsTab = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettingsTab));
-		this.settingsSwitcherBar.push([this.userSettingsTab, this.workspaceSettingsTab]);
+		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettings));
+		this.userSettings.tooltip = this.userSettings.label;
+		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettings));
+		this.workspaceSettings.tooltip = this.workspaceSettings.label;
+
+		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings]);
 	}
 
 	public show(configurationTarget: ConfigurationTarget): void {
-		this.userSettingsTab.checked = ConfigurationTarget.USER === configurationTarget;
-		this.workspaceSettingsTab.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
+		this.userSettings.checked = ConfigurationTarget.USER === configurationTarget;
+		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
 	}
 
 	private onClick(action: Action): TPromise<any> {
