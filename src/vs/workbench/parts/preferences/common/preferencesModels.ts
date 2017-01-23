@@ -252,7 +252,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			}
 			if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 				// settings value started
-				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
+				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
 				let valueStartPosition = model.getPositionAt(offset);
 				let valueEndPosition = model.getPositionAt(offset + length);
 				setting.value = value;
@@ -287,7 +287,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting started
 					let settingStartPosition = model.getPositionAt(offset);
-					const setting = {
+					const setting: ISetting = {
 						description: [],
 						key: name,
 						keyRange: {
@@ -305,7 +305,8 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						value: null,
 						valueRange: null,
 						descriptionRanges: null,
-						settings: []
+						overrides: [],
+						overrideOf: overrideSetting
 					};
 					if (previousParents.length === 1) {
 						settings.push(setting);
@@ -313,7 +314,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 							overrideSetting = setting;
 						}
 					} else {
-						overrideSetting.settings.push(setting);
+						overrideSetting.overrides.push(setting);
 					}
 				}
 			},
@@ -321,7 +322,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentParent = previousParents.pop();
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
 					let valueEndPosition = model.getPositionAt(offset + length);
 					setting.valueRange = assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
@@ -354,7 +355,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentParent = previousParents.pop();
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting value ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
 					let valueEndPosition = model.getPositionAt(offset + length);
 					setting.valueRange = assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
@@ -466,7 +467,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					value: setting.value,
 					range: null,
 					valueRange: null,
-					settings: []
+					overrides: []
 				};
 			}
 			return null;
@@ -506,7 +507,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				const prop = config.properties[key];
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
-				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], settings: [] };
+				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] };
 			});
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}

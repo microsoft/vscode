@@ -33,7 +33,8 @@ export interface ISetting {
 	valueRange: IRange;
 	description: string[];
 	descriptionRanges: IRange[];
-	settings: ISetting[];
+	overrides?: ISetting[];
+	overrideOf?: ISetting;
 }
 
 export interface IFilterResult {

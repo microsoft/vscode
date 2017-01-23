@@ -179,7 +179,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 
 		function onOverrideSettingsValue(property: string, value: any): void {
 			overrides.push({
-				identifiers: [property.substring(1, property.length - 1).trim()],
+				identifiers: [overrideIdentifierFromKey(property).trim()],
 				raw: value,
 				contents: null
 			});
@@ -256,4 +256,12 @@ export class DefaultConfigModel<T> extends ConfigModel<T> {
 	public get keys(): string[] {
 		return getConfigurationKeys();
 	}
+}
+
+export function overrideIdentifierFromKey(key: string): string {
+	return key.substring(1, key.length - 1);
+}
+
+export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
+	return `[${overrideIdentifier}]`;
 }

@@ -55,6 +55,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -469,7 +470,7 @@ export interface IPreferencesRenderer<T> {
 	onClearFocusPreference: Event<ISetting>;
 	preferencesModel: ISettingsEditorModel;
 	render(): void;
-	updatePreference(setting: ISetting, value: any): void;
+	updatePreference(key: string, value: any, source: T): void;
 	filterPreferences(filterResult: IFilterResult): void;
 	focusPreference(setting: ISetting): void;
 	clearFocus(setting: ISetting): void;
@@ -601,7 +602,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 				this.defaultSettingsModel = <DefaultSettingsEditorModel>defaultSettingsModel;
 				this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultSettingsModel, this.settingHighlighter));
 				this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
-				this._register(this.editSettingActionRenderer.onUpdateSetting(({setting, value}) => this.updatePreference(setting, value)));
+				this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
 				return null;
 			});
 	}
@@ -614,18 +615,35 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		this.render();
 	}
 
-	public updatePreference(setting: ISetting, value: any): void {
-		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [setting.key] });
-		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key: setting.key, value }, { writeToBuffer: true, autoSave: true })
-			.then(() => this.onSettingUpdated(setting), error => this.messageService.show(Severity.Error, error));
+	public updatePreference(key: string, value: any, source: ISetting): void {
+		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
+		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
+		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, { writeToBuffer: true, autoSave: true })
+			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
 	}
 
 	private onSettingUpdated(setting: ISetting) {
 		this.editor.focus();
-		setting = this.preferencesModel.getPreference(setting.key);
-		// TODO:@sandy Selection range should be template range
-		this.editor.setSelection(setting.valueRange);
-		this.settingHighlighter.highlight(this.preferencesModel.getPreference(setting.key), true);
+		setting = this.getSetting(setting);
+		if (setting) {
+			// TODO:@sandy Selection range should be template range
+			this.editor.setSelection(setting.valueRange);
+			this.settingHighlighter.highlight(setting, true);
+		}
+	}
+
+	private getSetting(setting: ISetting): ISetting {
+		const {key, overrideOf} = setting;
+		if (overrideOf) {
+			const setting = this.getSetting(overrideOf);
+			for (const override of setting.overrides) {
+				if (override.key === key) {
+					return override;
+				}
+			}
+			return null;
+		}
+		return this.preferencesModel.getPreference(key);
 	}
 
 	public filterPreferences(filterResult: IFilterResult): void {
@@ -635,7 +653,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 			const settings = distinct(filterResult.filteredGroups.reduce((settings: ISetting[], settingsGroup: ISettingsGroup) => {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
-						const s = this.preferencesModel.getPreference(setting.key);
+						const s = this.getSetting(setting);
 						if (s) {
 							settings.push(s);
 						}
@@ -648,7 +666,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	}
 
 	public focusPreference(setting: ISetting): void {
-		const s = this.preferencesModel.getPreference(setting.key);
+		const s = this.getSetting(setting);
 		if (s) {
 			this.settingHighlighter.highlight(s, true);
 		} else {
@@ -691,7 +709,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.filteredSettingsNavigationRenderer = this._register(instantiationService.createInstance(FilteredSettingsNavigationRenderer, editor, this.settingHighlighter));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, () => (<DefaultPreferencesCodeEditor>this.editor).settingsModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({setting, value}) => this.updatePreference(setting, value)));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
 		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, preferencesModel.settingsGroups));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
 
@@ -739,10 +757,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer.collapseAll();
 	}
 
-	public updatePreference(setting: ISetting, value: any): void {
+	public updatePreference(key: string, value: any, source: ISetting): void {
 		const settingsEditor = this.getEditableSettingsEditor();
 		if (settingsEditor) {
-			settingsEditor.getContribution<PreferencesEditorContribution<ISetting>>(SettingsEditorContribution.ID).getPreferencesRenderer().updatePreference(setting, value);
+			settingsEditor.getContribution<PreferencesEditorContribution<ISetting>>(SettingsEditorContribution.ID).getPreferencesRenderer().updatePreference(key, value, source);
 		}
 	}
 
@@ -1080,8 +1098,8 @@ class EditSettingRenderer extends Disposable {
 	private settingsGroups: ISettingsGroup[];
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private _onUpdateSetting: Emitter<{ setting: ISetting, value: any }> = new Emitter<{ setting: ISetting, value: any }>();
-	public readonly onUpdateSetting: Event<{ setting: ISetting, value: any }> = this._onUpdateSetting.event;
+	private _onUpdateSetting: Emitter<{ key: string, value: any, source: ISetting }> = new Emitter<{ key: string, value: any, source: ISetting }>();
+	public readonly onUpdateSetting: Event<{ key: string, value: any, source: ISetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private otherSettingsModel: () => ISettingsEditorModel,
@@ -1186,7 +1204,16 @@ class EditSettingRenderer extends Disposable {
 							break;
 						}
 						if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-							settings.push(setting);
+							if (setting.overrides.length > 0) {
+								// Only one level because override settings cannot have override settings
+								for (const overrideSetting of setting.overrides) {
+									if (lineNumber >= overrideSetting.range.startLineNumber && lineNumber <= overrideSetting.range.endLineNumber) {
+										settings.push(overrideSetting);
+									}
+								}
+							} else {
+								settings.push(setting);
+							}
 						}
 					}
 				}
@@ -1220,12 +1247,12 @@ class EditSettingRenderer extends Disposable {
 				id: 'truthyValue',
 				label: 'true',
 				enabled: true,
-				run: () => this.updateSetting(setting, true)
+				run: () => this.updateSetting(setting.key, true, setting)
 			}, <IAction>{
 				id: 'falsyValue',
 				label: 'false',
 				enabled: true,
-				run: () => this.updateSetting(setting, false)
+				run: () => this.updateSetting(setting.key, false, setting)
 			}];
 		}
 		if (jsonSchema.enum) {
@@ -1234,7 +1261,7 @@ class EditSettingRenderer extends Disposable {
 					id: value,
 					label: JSON.stringify(value),
 					enabled: true,
-					run: () => this.updateSetting(setting, value)
+					run: () => this.updateSetting(setting.key, value, setting)
 				};
 			});
 		}
@@ -1248,14 +1275,14 @@ class EditSettingRenderer extends Disposable {
 				id: 'setDefaultValue',
 				label: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),
 				enabled: true,
-				run: () => this.updateSetting(setting, setting.value)
+				run: () => this.updateSetting(setting.key, setting.value, setting)
 			}];
 		}
 		return [];
 	}
 
-	private updateSetting(setting: ISetting, value: any): void {
-		this._onUpdateSetting.fire({ setting, value });
+	private updateSetting(key: string, value: any, source: ISetting): void {
+		this._onUpdateSetting.fire({ key, value, source });
 	}
 }
 

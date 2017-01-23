@@ -926,8 +926,8 @@ export class ChangeModeAction extends Action {
 				const configuration = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
 				const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
 				if (setting) {
-					if (setting.settings.length) {
-						const lastSetting = setting.settings[setting.settings.length - 1];
+					if (setting.overrides.length) {
+						const lastSetting = setting.overrides[setting.overrides.length - 1];
 						let content;
 						if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
 							content = ',' + eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
