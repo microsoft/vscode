@@ -46,6 +46,7 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/message
 import Severity from 'vs/base/common/severity';
 import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -77,7 +78,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IModeService private modeService: IModeService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -282,9 +284,21 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 			text = query.value.replace(extensionRegex, (m, ext) => {
 				names.push(...this.tipsService.getRecommendationsForExtension(ext));
-				const tags = this.tipsService.getKeywordsForExtension(ext);
-				return `tag:"__ext_${ext}"${tags.map(tag => ` tag:${tag}`)}`;
+
+				// Get curated keywords
+				const keywords = this.tipsService.getKeywordsForExtension(ext);
+
+				// Get mode name
+				const modeId = this.modeService.getModeIdByFilenameOrFirstLine(`.${ext}`);
+				const languageName = modeId && this.modeService.getLanguageName(modeId);
+				const languageTag = languageName ? ` tag:"${languageName}"` : '';
+
+				// Construct a rich query
+				return `tag:"__ext_${ext}"${keywords.map(tag => ` tag:${tag}`)}${languageTag}`;
 			});
+
+			console.log(text);
+			console.log(names);
 
 			if (names.length) {
 				const namesOptions = assign({}, options, { names });
