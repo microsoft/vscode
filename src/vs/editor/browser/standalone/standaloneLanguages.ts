@@ -275,7 +275,7 @@ export function registerDefinitionProvider(languageId: string, provider: modes.D
 }
 
 /**
- * Register a type definition provider (used by e.g. go to implementation).
+ * Register a type implementation provider (used by e.g. go to implementation).
  */
 export function registerTypeImplementationProvider(languageId: string, provider: modes.TypeImplementationProvider): IDisposable {
 	return modes.TypeImplementationProviderRegistry.register(languageId, provider);

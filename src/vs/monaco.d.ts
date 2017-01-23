@@ -3937,7 +3937,7 @@ declare module monaco.languages {
     export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
 
     /**
-     * Register a type definition provider (used by e.g. go to implementation).
+     * Register a type implementation provider (used by e.g. go to implementation).
      */
     export function registerTypeImplementationProvider(languageId: string, provider: TypeImplementationProvider): IDisposable;
 

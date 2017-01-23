@@ -352,7 +352,7 @@ suite('ExtHostLanguageFeatures', function () {
 		});
 	});
 
-	// --- type definition
+	// --- type implementation
 
 	test('TypeImplementation, data conversion', function () {
 

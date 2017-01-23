@@ -1646,7 +1646,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The type definition provider interface defines the contract between extensions and
+	 * The type implemenetation provider interface defines the contract between extensions and
 	 * the go to implementation feature.
 	 */
 	export interface TypeImplementationProvider {
@@ -4155,7 +4155,7 @@ declare module 'vscode' {
 		export function registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable;
 
 		/**
-		 * Register an type definition provider.
+		 * Register an type implementation provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used.
