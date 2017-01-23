@@ -85,13 +85,16 @@
 }
 @keyframes monaco-findInput-highlight-1 {
 	0% { background: rgba(253, 255, 0, 0.8); }
-	100% { background: transparent; }
+	/* Made intentionally different such that the CSS minifier does not collapse the two animations into a single one*/
+	99% { background: transparent; }
 }
+
 @keyframes monaco-findInput-highlight-dark-0 {
 	0% { background: rgba(255, 255, 255, 0.44); }
 	100% { background: transparent; }
 }
 @keyframes monaco-findInput-highlight-dark-1 {
 	0% { background: rgba(255, 255, 255, 0.44); }
-	100% { background: transparent; }
+	/* Made intentionally different such that the CSS minifier does not collapse the two animations into a single one*/
+	99% { background: transparent; }
 }
