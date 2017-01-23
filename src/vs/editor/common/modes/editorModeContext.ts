@@ -8,6 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
 import { ICommonCodeEditor, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { Schemas } from 'vs/base/common/network';
 
 export class EditorModeContext {
 
@@ -116,6 +117,6 @@ export class EditorModeContext {
 		this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 		this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 		this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-		this._isInWalkThrough.set(model.uri.scheme === 'walkThroughSnippet');
+		this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
 	}
 }

@@ -14,9 +14,9 @@ import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { marked } from 'vs/base/common/marked/marked';
+import { Schemas } from 'vs/base/common/network';
 
 export const WALK_THROUGH_SCHEME = 'walkThrough';
-export const WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
@@ -55,7 +55,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 	) {
-		this.textModelResolverService.registerTextModelContentProvider(WALK_THROUGH_SNIPPET_SCHEME, this);
+		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {

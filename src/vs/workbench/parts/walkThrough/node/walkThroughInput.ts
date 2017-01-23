@@ -12,7 +12,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { marked } from 'vs/base/common/marked/marked';
-import { WALK_THROUGH_SNIPPET_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
+import { Schemas } from 'vs/base/common/network';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -93,7 +93,7 @@ export class WalkThroughInput extends EditorInput {
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const resource = this.resource.with({ scheme: WALK_THROUGH_SNIPPET_SCHEME, fragment: `${i++}.${lang}` });
+						const resource = this.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return '';
 					};
