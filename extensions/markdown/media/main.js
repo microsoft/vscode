@@ -6,6 +6,29 @@
 'use strict';
 
 (function () {
+	// From https://remysharp.com/2010/07/21/throttling-function-calls
+	function throttle(fn, threshhold, scope) {
+		threshhold || (threshhold = 250);
+		var last, deferTimer;
+		return function () {
+			var context = scope || this;
+
+			var now = +new Date,
+				args = arguments;
+			if (last && now < last + threshhold) {
+				// hold on to it
+				clearTimeout(deferTimer);
+				deferTimer = setTimeout(function () {
+					last = now;
+					fn.apply(context, args);
+				}, threshhold + last - now);
+			} else {
+				last = now;
+				fn.apply(context, args);
+			}
+		};
+	}
+
 	/**
 	 * Find the html elements that map to a specific target line in the editor.
 	 *
@@ -127,13 +150,13 @@
 		}
 	};
 
-	window.addEventListener('resize', () => {
+	window.addEventListener('resize', throttle(() => {
 		const currentOffset = window.scrollY;
 		const newPageHeight = document.body.getBoundingClientRect().height;
 		const dHeight = newPageHeight / pageHeight;
 		window.scrollTo(0, currentOffset * dHeight);
 		pageHeight = newPageHeight;
-	}, true);
+	}, 100), true);
 
 	if (window.initialData.scrollPreviewWithEditorSelection) {
 
@@ -158,7 +181,7 @@
 		};
 
 		if (window.initialData.scrollEditorWithPreview) {
-			window.onscroll = () => {
+			window.addEventListener('scroll', throttle(() => {
 				if (scrollDisabled) {
 					scrollDisabled = false;
 				} else {
@@ -171,7 +194,7 @@
 						}, "file://");
 					}
 				}
-			};
+			}, 50));
 		}
 	}
 }());
