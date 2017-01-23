@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -18,6 +19,8 @@ import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preference
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -179,8 +182,9 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 export class SettingsTabsWidget extends Widget {
 
-	private userSettingsTab: HTMLElement;
-	private workspaceSettingsTab: HTMLElement;
+	private settingsSwitcherBar: ActionBar;
+	private userSettingsTab: Action;
+	private workspaceSettingsTab: Action;
 
 	private _onSwitch: Emitter<void> = new Emitter<void>();
 	public readonly onSwitch: Event<void> = this._onSwitch.event;
@@ -192,39 +196,26 @@ export class SettingsTabsWidget extends Widget {
 
 	private create(parent: HTMLElement): void {
 		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
-		this.userSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		this.userSettingsTab.tabIndex = 0;
-		this.userSettingsTab.textContent = localize('userSettings', "User Settings");
-		this.onclick(this.userSettingsTab, () => this.onClick(this.userSettingsTab));
-		this.onkeyup(this.userSettingsTab, (e) => this.onkeyUp(e, this.userSettingsTab));
-
-		this.workspaceSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		this.workspaceSettingsTab.textContent = localize('workspaceSettings', "Workspace Settings");
-		if (!this.contextService.hasWorkspace()) {
-			DOM.addClass(this.workspaceSettingsTab, 'disabled');
-		} else {
-			this.workspaceSettingsTab.tabIndex = 0;
-			this.onclick(this.workspaceSettingsTab, () => this.onClick(this.workspaceSettingsTab));
-			this.onkeyup(this.workspaceSettingsTab, (e) => this.onkeyUp(e, this.workspaceSettingsTab));
-		}
+		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
+			animated: false
+		}));
+		this.userSettingsTab = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettingsTab));
+		this.workspaceSettingsTab = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettingsTab));
+		this.settingsSwitcherBar.push([this.userSettingsTab, this.workspaceSettingsTab]);
 	}
 
 	public show(configurationTarget: ConfigurationTarget): void {
-		DOM.toggleClass(this.userSettingsTab, 'active', ConfigurationTarget.USER === configurationTarget);
-		DOM.toggleClass(this.workspaceSettingsTab, 'active', ConfigurationTarget.WORKSPACE === configurationTarget);
+		this.userSettingsTab.checked = ConfigurationTarget.USER === configurationTarget;
+		this.workspaceSettingsTab.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
 	}
 
-	private onkeyUp(keyboardEvent: IKeyboardEvent, element: HTMLElement): void {
-		if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
-			this.onClick(element);
-		}
-	}
-
-	private onClick(element: HTMLElement): void {
-		if (!DOM.hasClass(element, 'active')) {
-			DOM.addClass(element, 'active');
+	private onClick(action: Action): TPromise<any> {
+		if (!action.checked) {
 			this._onSwitch.fire();
 		}
+		return TPromise.as(null);
 	}
 }
 

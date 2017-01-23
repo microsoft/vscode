@@ -20,66 +20,60 @@
 .settings-tabs-widget {
 	display: flex;
 	flex-wrap: wrap;
+	line-height: 28px;
 }
 
-.settings-tabs-widget > .settings-tab {
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
 	font-size: 12px;
 	margin-left: 33px;
 	padding-top: 6px;
 	cursor: pointer;
+	padding-bottom: 4px; /* puts the bottom border down */
 }
 
-.settings-tabs-widget > .settings-tab.active {
-	border-bottom: 2px solid #ccc;
-}
-
-.settings-tabs-widget > .settings-tab.disabled {
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.disabled {
 	cursor: default;
 }
 
-.vs .settings-tabs-widget > .settings-tab {
-	opacity: 0.75;
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
 	color: #424242;
+	opacity: 0.75;
 }
 
-.vs-dark .settings-tabs-widget > .settings-tab {
-	opacity: 0.5;
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
 	color: #e7e7e7;
+	opacity: 0.5;
 }
 
-.hc-black .settings-tabs-widget > .settings-tab {
+.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
 	color: #fff;
 }
 
-.settings-tabs-widget > .settings-tab:not(.disabled):hover,
-.settings-tabs-widget > .settings-tab.active {
+.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label:not(.disabled),
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(.disabled) {
 	opacity: 1;
 }
 
-.vs-dark .settings-tabs-widget > .settings-tab:not(.disabled):hover {
-	color: white;
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 1px solid;
 }
 
-.vs .settings-tabs-widget > .settings-tab.active {
-	border-bottom: 1px solid #ccceda;
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #ccceda;
 }
 
-.vs-dark .settings-tabs-widget > .settings-tab.active {
-	border-bottom: 1px solid #404047;
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #404047;
 }
 
-.hc-black .settings-tabs-widget > .settings-tab.active {
-	border-bottom: 1px solid white;
-}
-
-.vs .settings-tabs-widget > .settings-tab:not(.disabled):focus,
-.vs-dark .settings-tabs-widget > .settings-tab:not(.disabled):focus {
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
 	border-bottom: 1px solid #007ACC;
 	outline: none !important;
 }
 
-.hc-black .settings-tabs-widget > .settings-tab:not(.disabled):focus {
+.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
 	border-bottom: 1px solid #f38518;
 	outline: none !important;
 }
