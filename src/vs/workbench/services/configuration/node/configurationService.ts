@@ -51,7 +51,7 @@ export class WorkspaceTrust implements IWorkspaceTrust {
 	public isTrusted(): boolean {
 		let workspace = this.contextService.getWorkspace();
 		if (workspace) {
-			let path = workspace.resource.path;
+			let path = workspace.resource.fsPath;
 			let securityConfiguration = this.baseConfigurationService.getConfiguration<ISecurityConfiguration>();
 			let whiteList = securityConfiguration.security.workspacesTrustedToSpecifyExecutables;
 			return whiteList && whiteList[path];
