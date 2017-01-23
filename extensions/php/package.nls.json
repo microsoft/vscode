@@ -1,5 +1,5 @@
 ﻿{
-	"configuration.builtInCompletions.enable": "Enable/disable built-in PHP completions.",
+	"configuration.suggest.basic": "Configures if the built-in HTML language suggestions are enabled. The support suggests PHP globals and variables.",
 	"configuration.validate.enable": "Enable/disable built-in PHP validation.",
 	"configuration.validate.executablePath": "Points to the PHP executable.",
 	"configuration.validate.run": "Whether the linter is run on save or on type.",
