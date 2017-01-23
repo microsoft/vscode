@@ -7,6 +7,7 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
@@ -14,6 +15,10 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
 
 class TrustContribution implements IWorkbenchContribution {
 
@@ -25,6 +30,9 @@ class TrustContribution implements IWorkbenchContribution {
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IMessageService private messageService: IMessageService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.workspaceConfigurationService.onDidUpdateConfiguration(e => this.checkWorkspaceTrust()));
@@ -47,15 +55,28 @@ class TrustContribution implements IWorkbenchContribution {
 		}
 	}
 
+	private updateUserSettings(): TPromise<void> {
+		const key = 'security.workspacesTrustedToSpecifyExecutables';
+		const path = this.workspaceContextService.getWorkspace().resource.path;
+
+		const value = this.configurationService.lookup(key).user || {};
+		value[path] = true;
+
+		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: key, value: value }, { writeToBuffer: true, autoSave: false });
+	}
+
 	private showTrustWarning(): void {
 		const message = nls.localize('untrustedWorkspace', "This workspace specifies executables. While the workspace is untrusted, these settings are being ignored.");
 
-		const openWorkspaceSettings = new Action('trust.openWorkspaceSettings', nls.localize('openWorkspaceSettings', "Review Workspace Settings"), '', true, () => {
+		const openWorkspaceSettings = new Action('trust.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Review Workspace Settings'), '', true, () => {
 			return this.preferencesService.openWorkspaceSettings();
 		});
 
+		const trustWorkspace = new Action('trust.trustWorkspace', nls.localize('trustWorkspace', 'Trust Workspace'), '', true, () => {
+			return this.updateUserSettings().then(() => this.preferencesService.openGlobalSettings());
+		});
 
-		const actions = [openWorkspaceSettings, CloseAction];
+		const actions = [openWorkspaceSettings, trustWorkspace, CloseAction];
 		this.messageService.show(Severity.Warning, { message, actions });
 	}
 }
