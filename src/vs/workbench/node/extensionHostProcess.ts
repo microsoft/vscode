@@ -9,11 +9,12 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { IRemoteCom, createProxyProtocol } from 'vs/platform/extensions/common/ipcRemoteCom';
-import marshalling = require('vs/base/common/marshalling');
-import { createQueuedSender } from 'vs/base/node/processes';
+import { parse } from 'vs/base/common/marshalling';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
+import { createConnection } from 'net';
+import Event, { filterEvent } from 'vs/base/common/event';
 
 interface IRendererConnection {
 	remoteCom: IRemoteCom;
@@ -26,40 +27,49 @@ let onTerminate = function () {
 	exit();
 };
 
-const protocol = new class implements IMessagePassingProtocol {
+function createExtHostProtocol(): TPromise<IMessagePassingProtocol> {
 
-	private _sender = createQueuedSender(process);
-	private _onMessage = new Emitter<any>();
-	private _terminating: boolean = false;
+	const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST;
 
-	readonly onMessage: Event<any> = this._onMessage.event;
+	return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
 
-	constructor() {
-		process.on('message', (msg) => {
-			if (msg.type === '__$terminate') {
+		const socket = createConnection(pipeName, () => {
+			socket.removeListener('error', reject);
+			resolve(new Protocol(socket));
+		});
+		socket.once('error', reject);
+
+	}).then(protocol => {
+
+		return new class implements IMessagePassingProtocol {
+
+			private _terminating = false;
+
+			readonly onMessage: Event<any> = filterEvent(protocol.onMessage, msg => {
+				if (msg.type !== '__$terminate') {
+					return true;
+				}
 				this._terminating = true;
 				onTerminate();
-				return;
+			});
+
+			send(msg: any): void {
+				if (!this._terminating) {
+					protocol.send(msg);
+				}
 			}
-			this._onMessage.fire(msg);
-		});
-	}
+		};
+	});
+}
 
-	send(data: any): void {
-		if (!this._terminating) {
-			this._sender.send(data);
-		}
-	}
-};
-
-function connectToRenderer(): TPromise<IRendererConnection> {
+function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendererConnection> {
 	return new TPromise<IRendererConnection>((c, e) => {
 
 		// Listen init data message
-		process.once('message', raw => {
+		const first = protocol.onMessage(raw => {
+			first.dispose();
 
-			let msg = marshalling.parse(raw);
-
+			const initData = parse(raw);
 			const remoteCom = createProxyProtocol(protocol);
 
 			// Print a console message when rejection isn't handled within N seconds. For details:
@@ -92,7 +102,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			// Kill oneself if one's parent dies. Much drama.
 			setInterval(function () {
 				try {
-					process.kill(msg.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
 				} catch (e) {
 					onTerminate();
 				}
@@ -101,7 +111,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			// Tell the outside that we are initialized
 			protocol.send('initialized');
 
-			c({ remoteCom, initData: msg });
+			c({ remoteCom, initData });
 		});
 
 		// Tell the outside that we are ready to receive messages
@@ -109,7 +119,11 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 	});
 }
 
-connectToRenderer().then(renderer => {
+createExtHostProtocol().then(protocol => {
+	// connect to main side
+	return connectToRenderer(protocol);
+}).then(renderer => {
+	// setup things
 	const extensionHostMain = new ExtensionHostMain(renderer.remoteCom, renderer.initData);
 	onTerminate = () => extensionHostMain.terminate();
 	return extensionHostMain.start();
