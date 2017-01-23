@@ -216,8 +216,9 @@ function readCharWidthsFromCanvas(bareFontInfo: BareFontInfo, requests: CharWidt
 
 export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
 	// In IE11 and Firefox, it appears that ctx.measureText() always returns integer results.
-	// In Edge, ctx.measureText() gives floating point results, but they don't make any sense.
-	if (browser.isIE || browser.isFirefox) {
+	// In Edge, ctx.measureText() gives floating point results, but they are not the same.
+	// In Safari, ctx.measureText() also gives floating point results, but they are not the same.
+	if (browser.isIE || browser.isFirefox || browser.isSafari) {
 		readCharWidthsFromDom(bareFontInfo, requests);
 		return;
 	}
