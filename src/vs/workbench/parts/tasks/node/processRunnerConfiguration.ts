@@ -279,6 +279,7 @@ interface ParseContext {
 	logger: ILogger;
 	validationStatus: ValidationStatus;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
+	isTermnial: boolean;
 }
 
 namespace CommandOptions {
@@ -612,6 +613,10 @@ namespace TaskDescription {
 			mergeGlobals(task, globals);
 			fillDefaults(task);
 			result[task.id] = task;
+			if (context.isTermnial && task.command && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
+				context.validationStatus.state = ValidationState.Warning;
+				context.logger.log(nls.localize('ConfigurationParser.shellArgs', 'The task {0} is a shell command and specifies arguments. To ensure correct command line quoting please merge args into the command.', task.name));
+			}
 			if (!Types.isUndefined(externalTask.isBuildCommand) && externalTask.isBuildCommand && defaultBuildTask.exact < 2) {
 				defaultBuildTask.id = task.id;
 				defaultBuildTask.exact = 2;
@@ -821,7 +826,7 @@ class ConfigurationParser {
 	}
 
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
-		let context: ParseContext = { logger: this.logger, validationStatus: this.validationStatus, namedProblemMatchers: undefined };
+		let context: ParseContext = { logger: this.logger, validationStatus: this.validationStatus, namedProblemMatchers: undefined, isTermnial: fileConfig._runner === 'terminal' };
 		return {
 			validationStatus: this.validationStatus,
 			configuration: this.createTaskRunnerConfiguration(fileConfig, context),

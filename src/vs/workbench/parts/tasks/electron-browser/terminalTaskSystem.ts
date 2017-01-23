@@ -108,7 +108,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		super();
 
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
-		this.clearOutput();
 		this.activeTasks = Object.create(null);
 		this.terminals = Object.create(null);
 		this.idleTaskTerminals = Object.create(null);
@@ -120,10 +119,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 
 	protected showOutput(): void {
 		this.outputChannel.show(true);
-	}
-
-	private clearOutput(): void {
-		this.outputChannel.clear();
 	}
 
 	public build(): ITaskExecuteResult {
@@ -193,7 +188,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public canAutoTerminate(): boolean {
-		return Object.keys(this.activeTasks).every(key => this.configuration.tasks[key].isBackground);
+		return Object.keys(this.activeTasks).every(key => !this.configuration.tasks[key].promptOnClose);
 	}
 
 	public terminate(): TPromise<TerminateResponse> {
@@ -259,7 +254,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						onData.dispose();
 						onExit.dispose();
 						delete this.activeTasks[task.id];
-						if (this.primaryTerminal.terminal === terminal) {
+						if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
 							this.primaryTerminal.busy = false;
 						}
 						this.idleTaskTerminals[task.id] = terminal.id.toString();
@@ -292,7 +287,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						onData.dispose();
 						onExit.dispose();
 						delete this.activeTasks[task.id];
-						if (this.primaryTerminal.terminal === terminal) {
+						if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
 							this.primaryTerminal.busy = false;
 						}
 						this.idleTaskTerminals[task.id] = terminal.id.toString();
@@ -345,38 +340,39 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let basename = path.basename(shellConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
 					toAdd.push('-Command');
+					commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 				} else {
 					toAdd.push('/d', '/c');
-				}
-				let quotedCommand: boolean = false;
-				let quotedArg: boolean = false;
-				let quoted = this.ensureDoubleQuotes(command);
-				let commandPieces: string[] = [];
-				commandPieces.push(quoted.value);
-				quotedCommand = quoted.quoted;
-				if (args) {
-					args.forEach((arg) => {
-						quoted = this.ensureDoubleQuotes(arg);
-						commandPieces.push(quoted.value);
-						quotedArg = quotedArg && quoted.quoted;
-					});
-				}
-				if (quotedCommand) {
-					if (quotedArg) {
-						commandLine = '"' + commandPieces.join(' ') + '"';
-					} else {
-						if (commandPieces.length > 1) {
-							commandLine = '"' + commandPieces[0] + '"' + ' ' + commandPieces.slice(1).join(' ');
-						} else {
-							commandLine = '"' + commandPieces[0] + '"';
-						}
+					let quotedCommand: boolean = false;
+					let quotedArg: boolean = false;
+					let quoted = this.ensureDoubleQuotes(command);
+					let commandPieces: string[] = [];
+					commandPieces.push(quoted.value);
+					quotedCommand = quoted.quoted;
+					if (args) {
+						args.forEach((arg) => {
+							quoted = this.ensureDoubleQuotes(arg);
+							commandPieces.push(quoted.value);
+							quotedArg = quotedArg && quoted.quoted;
+						});
 					}
-				} else {
-					commandLine = commandPieces.join(' ');
+					if (quotedCommand) {
+						if (quotedArg) {
+							commandLine = '"' + commandPieces.join(' ') + '"';
+						} else {
+							if (commandPieces.length > 1) {
+								commandLine = '"' + commandPieces[0] + '"' + ' ' + commandPieces.slice(1).join(' ');
+							} else {
+								commandLine = '"' + commandPieces[0] + '"';
+							}
+						}
+					} else {
+						commandLine = commandPieces.join(' ');
+					}
 				}
 			} else {
 				toAdd.push('-c');
-				commandLine = `${command} ${args.join(' ')}`;
+				commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 			}
 			toAdd.forEach(element => {
 				if (!shellArgs.some(arg => arg.toLowerCase() === element)) {
