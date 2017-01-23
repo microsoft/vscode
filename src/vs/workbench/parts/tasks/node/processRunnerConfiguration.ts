@@ -343,10 +343,59 @@ namespace CommandOptions {
 	}
 }
 
+interface ShellConfiguration {
+	executable: string;
+	args?: string[];
+}
+
+namespace ShellConfiguration {
+	export function is(value: any): value is ShellConfiguration {
+		let candidate: ShellConfiguration = value;
+		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
+	}
+
+	export function from(this: void, config: ShellConfiguration, context: ParseContext): TaskSystem.ShellConfiguration {
+		if (!is(config)) {
+			return undefined;
+		}
+		let result: ShellConfiguration = { executable: config.executable };
+		if (config.args !== void 0) {
+			result.args = config.args.slice();
+		}
+		return result;
+	}
+
+	export function isEmpty(value: TaskSystem.ShellConfiguration): boolean {
+		return !value || value.executable === void 0 && (value.args === void 0 || value.args.length === 0);
+	}
+
+	export function merge(target: TaskSystem.ShellConfiguration, source: TaskSystem.ShellConfiguration): TaskSystem.ShellConfiguration {
+		if (isEmpty(source)) {
+			return target;
+		}
+		if (isEmpty(target)) {
+			return source;
+		}
+		mergeProperty(target, source, 'executable');
+		mergeProperty(target, source, 'args');
+		return target;
+	}
+
+	export function fillDefaults(value: TaskSystem.ShellConfiguration): void {
+	}
+
+	export function freeze(value: TaskSystem.ShellConfiguration): void {
+		if (!value) {
+			return;
+		}
+		Object.freeze(value);
+	}
+}
+
 namespace CommandConfiguration {
 	interface BaseCommandConfiguationShape {
 		command?: string;
-		isShellCommand?: boolean;
+		isShellCommand?: boolean | ShellConfiguration;
 		args?: string[];
 		options?: ProcessConfig.CommandOptions;
 		echoCommand?: boolean;
@@ -384,6 +433,14 @@ namespace CommandConfiguration {
 		}
 		if (Types.isBoolean(config.isShellCommand)) {
 			result.isShellCommand = config.isShellCommand;
+		} else if (ShellConfiguration.is(config.isShellCommand)) {
+			result.isShellCommand = ShellConfiguration.from(config.isShellCommand, context);
+			if (!context.isTermnial) {
+				context.validationStatus.state = ValidationState.Warning;
+				context.logger.log(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
+			}
+		} else if (config.isShellCommand !== void 0) {
+			result.isShellCommand = !!config.isShellCommand;
 		}
 		if (config.args !== void 0) {
 			if (Types.isStringArray(config.args)) {
@@ -421,7 +478,17 @@ namespace CommandConfiguration {
 			return source;
 		}
 		mergeProperty(target, source, 'name');
-		mergeProperty(target, source, 'isShellCommand');
+		// Merge isShellCommand
+		if (target.isShellCommand === void 0) {
+			target.isShellCommand = source.isShellCommand;
+		} if (Types.isBoolean(target.isShellCommand) && Types.isBoolean(source.isShellCommand)) {
+			mergeProperty(target, source, 'isShellCommand');
+		} else if (ShellConfiguration.is(target.isShellCommand) && ShellConfiguration.is(source.isShellCommand)) {
+			ShellConfiguration.merge(target.isShellCommand, source.isShellCommand);
+		} else if (Types.isBoolean(target.isShellCommand) && ShellConfiguration.is(source.isShellCommand)) {
+			target.isShellCommand = source.isShellCommand;
+		}
+
 		mergeProperty(target, source, 'echo');
 		mergeProperty(target, source, 'taskSelector');
 		if (source.args !== void 0) {
@@ -460,6 +527,9 @@ namespace CommandConfiguration {
 		}
 		if (value.options) {
 			CommandOptions.freeze(value.options);
+		}
+		if (ShellConfiguration.is(value.isShellCommand)) {
+			ShellConfiguration.freeze(value.isShellCommand);
 		}
 	}
 }

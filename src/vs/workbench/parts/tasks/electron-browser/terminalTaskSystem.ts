@@ -31,7 +31,10 @@ import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/work
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, CommandOptions } from 'vs/workbench/parts/tasks/common/taskSystem';
+import {
+	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, ShowOutput,
+	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, CommandOptions, ShellConfiguration
+} from 'vs/workbench/parts/tasks/common/taskSystem';
 
 class TerminalDecoder {
 	// See https://en.wikipedia.org/wiki/ANSI_escape_code & http://stackoverflow.com/questions/25189651/how-to-remove-ansi-control-chars-vt100-from-a-java-string &
@@ -332,17 +335,32 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				});
 				shellConfig.env = env;
 			}
-			(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellConfig);
+			let shellSpecified: boolean = false;
+			if (ShellConfiguration.is(task.command.isShellCommand)) {
+				shellConfig.executable = task.command.isShellCommand.executable;
+				shellSpecified = true;
+				if (task.command.isShellCommand.args) {
+					shellConfig.args = task.command.isShellCommand.args.slice();
+				} else {
+					shellConfig.args = [];
+				}
+			} else {
+				(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellConfig);
+			}
 			let shellArgs = shellConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine: string;
 			if (Platform.isWindows) {
 				let basename = path.basename(shellConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
-					toAdd.push('-Command');
+					if (!shellSpecified) {
+						toAdd.push('-Command');
+					}
 					commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 				} else {
-					toAdd.push('/d', '/c');
+					if (!shellSpecified) {
+						toAdd.push('/d', '/c');
+					}
 					let quotedCommand: boolean = false;
 					let quotedArg: boolean = false;
 					let quoted = this.ensureDoubleQuotes(command);
@@ -371,7 +389,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					}
 				}
 			} else {
-				toAdd.push('-c');
+				if (!shellSpecified) {
+					toAdd.push('-c');
+				}
 				commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 			}
 			toAdd.forEach(element => {
