@@ -408,6 +408,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.wrappingColumn = 0;
 			options.renderIndentGuides = false;
 			options.rulers = [];
+			options.glyphMargin = true;
 		}
 		return options;
 	}
@@ -592,9 +593,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 
 	public render(): void {
 		this.initializationPromise.then(() => {
-			if (this.editSettingActionRenderer) {
-				this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
-			}
+			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
 		});
 	}
 
@@ -602,13 +601,18 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		return this.preferencesService.createDefaultPreferencesEditorModel(this.preferencesService.defaultSettingsResource)
 			.then(defaultSettingsModel => {
 				this.defaultSettingsModel = <DefaultSettingsEditorModel>defaultSettingsModel;
-				if (this.editor.getRawConfiguration().glyphMargin) {
-					this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultSettingsModel, this.settingHighlighter));
-					this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
-				}
+				this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultSettingsModel, this.settingHighlighter));
+				this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
 				this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 				return null;
 			});
+	}
+
+	public updatePreference(key: string, value: any, source: ISetting): void {
+		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
+		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
+		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, { writeToBuffer: true, autoSave: true })
+			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
 	}
 
 	private onModelChanged(): void {
@@ -617,13 +621,6 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 			return;
 		}
 		this.render();
-	}
-
-	public updatePreference(key: string, value: any, source: ISetting): void {
-		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
-		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
-		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, { writeToBuffer: true, autoSave: true })
-			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
 	}
 
 	private onSettingUpdated(setting: ISetting) {
@@ -1126,6 +1123,7 @@ class EditSettingRenderer extends Disposable {
 
 		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
 		this._register(this.editor.onMouseMove(mouseMoveEvent => this.onMouseMoved(mouseMoveEvent)));
+		this._register(this.editor.onDidChangeConfiguration(() => this.onConfigurationChanged()));
 	}
 
 	public render(settingsGroups: ISettingsGroup[]): void {
@@ -1141,6 +1139,13 @@ class EditSettingRenderer extends Disposable {
 
 	private isDefaultSettings(): boolean {
 		return this.masterSettingsModel instanceof DefaultSettingsEditorModel;
+	}
+
+	private onConfigurationChanged(): void {
+		if (!this.editor.getRawConfiguration().glyphMargin) {
+			this.editPreferenceWidgetForCusorPosition.hide();
+			this.editPreferenceWidgetForMouseMove.hide();
+		}
 	}
 
 	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
@@ -1183,8 +1188,10 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: ISetting[]) {
-		editPreferencesWidget.show(settings[0].valueRange.startLineNumber, settings);
-		editPreferencesWidget.getDomNode().title = nls.localize('editTtile', "Edit");
+		if (this.editor.getRawConfiguration().glyphMargin) {
+			editPreferencesWidget.show(settings[0].valueRange.startLineNumber, settings);
+			editPreferencesWidget.getDomNode().title = nls.localize('editTtile', "Edit");
+		}
 	}
 
 	private getSettings(lineNumber: number): ISetting[] {
