@@ -13,6 +13,12 @@
 	padding-top: 11px;
 }
 
+.preferences-editor > .preferences-header.vertical-layout {
+	flex-direction: column;
+	align-items: flex-end;
+	padding-bottom: 5px;
+}
+
 .vs-dark .preferences-editor > .preferences-header {
 	border-bottom: 1px solid #2d2d2d;
 }
@@ -23,10 +29,15 @@
 	line-height: 28px;
 }
 
+.settings-tabs-widget > .monaco-action-bar > .actions-container {
+	flex-wrap: wrap;
+}
+
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
 	font-size: 12px;
 	margin-left: 33px;
+	margin-right: 0px;
 	padding-top: 6px;
 	cursor: pointer;
 	padding-bottom: 4px; /* puts the bottom border down */
@@ -82,6 +93,7 @@
 	flex: 1;
 	display: flex;
 	position: relative;
+	align-self: stretch;
 }
 
 .settings-header-widget > .settings-header-container {
@@ -96,10 +108,11 @@
 	position: absolute;
 	right: 10px;
 	border-radius: 2px;
+	background-color: #EFEFF2;
 }
 
-.settings-header-widget > .settings-count-widget {
-	background-color: #EFEFF2;
+.settings-header-widget > .settings-count-widget.hide {
+	display: none;
 }
 
 .hc-black .settings-header-widget > .settings-count-widget,
@@ -126,7 +139,6 @@
 
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
 	height: 30px;
-	min-width: 350px;
 }
 
 .vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {

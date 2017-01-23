@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { Dimension } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -265,6 +266,18 @@ export class SearchWidget extends Widget {
 	public showMessage(message: string, count: number): void {
 		this.countElement.textContent = message;
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
+		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+	}
+
+	public layout(dimension: Dimension) {
+		if (dimension.width < 400) {
+			DOM.addClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = '0px';
+		} else {
+			DOM.removeClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		}
+
 	}
 
 	public focus() {
