@@ -131,6 +131,19 @@ export class ExtensionHostProcessWorker {
 			// Run Extension Host as fork of current process
 			this.extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
 
+			// Support logging from extension host
+			this.extensionHostProcess.on('message', msg => {
+				if (msg && (<ILogEntry>msg).type === '__$console') {
+					this.logExtensionHostMessage(<ILogEntry>msg);
+				}
+			});
+
+			// Lifecycle
+			let onExit = () => this.terminate();
+			process.once('exit', onExit);
+			this.extensionHostProcess.on('error', (err) => this.onError(err));
+			this.extensionHostProcess.on('exit', (code: any, signal: any) => this.onExit(code, signal, onExit));
+
 			// Notify debugger that we are ready to attach to the process if we run a development extension
 			if (this.isExtensionDevelopmentHost && port) {
 				this.windowService.broadcast({
@@ -138,12 +151,6 @@ export class ExtensionHostProcessWorker {
 					payload: { port }
 				}, this.environmentService.extensionDevelopmentPath /* target */);
 			}
-
-			// Lifecycle
-			let onExit = () => this.terminate();
-			process.once('exit', onExit);
-			this.extensionHostProcess.on('error', (err) => this.onError(err));
-			this.extensionHostProcess.on('exit', (code: any, signal: any) => this.onExit(code, signal, onExit));
 
 			// Help in case we fail to start it
 			let startupTimeoutHandle: number;
@@ -216,11 +223,7 @@ export class ExtensionHostProcessWorker {
 		}).then(protocol => {
 
 			protocol.onMessage(msg => {
-				if (msg && (<ILogEntry>msg).type === '__$console') {
-					// Support logging from extension host
-					this.logExtensionHostMessage(<ILogEntry>msg);
-
-				} else if (msg === 'ready') {
+				if (msg === 'ready') {
 					// 1) Host is ready to receive messages, initialize it
 					return this.createExtHostInitData().then(data => protocol.send(stringify(data)));
 
