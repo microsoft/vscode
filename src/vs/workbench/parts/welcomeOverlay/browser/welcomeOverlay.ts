@@ -22,6 +22,8 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 interface Key {
 	id: string;
@@ -90,10 +92,12 @@ const keys: Key[] = [
 	},
 ];
 
+const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', false);
+
 export class WelcomeOverlayAction extends Action {
 
-	public static ID = 'workbench.action.weclomeOverlay';
-	public static LABEL = localize('weclomeOverlay', "User Interface Key");
+	public static ID = 'workbench.action.welcomeOverlay';
+	public static LABEL = localize('welcomeOverlay', "User Interface Overview");
 
 	constructor(
 		id: string,
@@ -107,6 +111,31 @@ export class WelcomeOverlayAction extends Action {
 		const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
 		welcomeOverlay.style.display = 'block';
 		dom.addClass(welcomePage, 'blur-background');
+		WelcomeOverlayContribution._overlayVisible.set(true);
+		return null;
+	}
+}
+
+export class HideWelcomeOverlayAction extends Action {
+
+	public static ID = 'workbench.action.hideWelcomeOverlay';
+	public static LABEL = localize('hideWelcomeOverlay', "Hide Interface Overview");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		const welcomeOverlay = document.querySelector('.monaco-workbench > .welcomeOverlay') as HTMLDivElement;
+		if (welcomeOverlay.style.display !== 'none') {
+			welcomeOverlay.style.display = 'none';
+			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
+			dom.removeClass(welcomePage, 'blur-background');
+			WelcomeOverlayContribution._overlayVisible.reset();
+		}
 		return null;
 	}
 }
@@ -114,14 +143,17 @@ export class WelcomeOverlayAction extends Action {
 export class WelcomeOverlayContribution implements IWorkbenchContribution {
 
 	private _toDispose: IDisposable[] = [];
+	/*private*/ static _overlayVisible: IContextKey<boolean>;
 	private _overlay: Builder;
 
 	constructor(
 		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ICommandService private commandService: ICommandService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
+		WelcomeOverlayContribution._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
 		this.partService.joinCreation().then(() => {
 			this.create();
 		}, errors.onUnexpectedError);
@@ -172,6 +204,7 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 			this._overlay.display('none');
 			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
 			dom.removeClass(welcomePage, 'blur-background');
+			WelcomeOverlayContribution._overlayVisible.reset();
 		}
 	}
 
@@ -184,4 +217,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WelcomeOverlayContribution);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: User Interface Overlay', localize('help', "Help"));
+	.registerWorkbenchAction(new SyncActionDescriptor(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: Show Interface Overview', localize('help', "Help"));
+
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
+	.registerWorkbenchAction(new SyncActionDescriptor(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
