@@ -262,18 +262,6 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
 		}
 	}
-
-	public hasActiveFilter(): boolean {
-		if (this._raw === this._unfilteredRaw) {
-			return false;
-		}
-		for (let key in this._unfilteredRaw) {
-			if (!this._raw.hasOwnProperty(key)) {
-				return true;
-			}
-		}
-		return false;
-	}
 }
 
 export class DefaultConfigModel<T> extends ConfigModel<T> {

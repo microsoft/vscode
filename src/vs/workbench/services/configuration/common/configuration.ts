@@ -34,9 +34,9 @@ export interface IWorkspaceConfigurationService extends IConfigurationService {
 	hasWorkspaceConfiguration(): boolean;
 
 	/**
-	 * Returns iff the workspace configuration contains configuration keys that are untrusted.
+	 * Returns untrusted configuration keys for the current workspace
 	 */
-	hasUntrustedConfigurations(): boolean;
+	getUntrustedConfigurations(): string[];
 
 	/**
 	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.

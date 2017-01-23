@@ -56,6 +56,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
+import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -568,6 +570,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	private editSettingActionRenderer: EditSettingRenderer;
 	private highlightPreferencesRenderer: HighlightPreferencesRenderer;
 	private defaultSettingsModel: DefaultSettingsEditorModel;
+	private untrustedSettingRenderer: UnTrustedWorkspaceSettingsRenderer;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 
 	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
@@ -584,6 +587,9 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
+		if (this.preferencesService.workspaceSettingsResource.toString() === preferencesModel.uri.toString()) {
+			this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnTrustedWorkspaceSettingsRenderer, editor, preferencesModel));
+		}
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightPreferencesRenderer = this._register(instantiationService.createInstance(HighlightPreferencesRenderer, editor));
 		this.initializationPromise = this.initialize();
@@ -596,6 +602,9 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	public render(): void {
 		this.initializationPromise.then(() => {
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
+			if (this.untrustedSettingRenderer) {
+				this.untrustedSettingRenderer.render();
+			}
 		});
 	}
 
@@ -1336,6 +1345,42 @@ class SettingHighlighter extends Disposable {
 			this.fixedHighlighter.removeHighlightRange();
 		}
 		this.clearFocusEventEmitter.fire(this.highlightedSetting);
+	}
+}
+
+class UnTrustedWorkspaceSettingsRenderer extends Disposable {
+
+	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IMarkerService private markerService: IMarkerService
+	) {
+		super();
+	}
+
+	public render(): void {
+		const untrustedConfigurations = this.configurationService.getUntrustedConfigurations();
+		if (untrustedConfigurations.length) {
+			const markerData: IMarkerData[] = [];
+			for (const untrustedConfiguration of untrustedConfigurations) {
+				const setting = this.workspaceSettingsEditorModel.getPreference(untrustedConfiguration);
+				if (setting) {
+					markerData.push({
+						severity: Severity.Error,
+						startLineNumber: setting.keyRange.startLineNumber,
+						startColumn: setting.keyRange.startColumn,
+						endLineNumber: setting.keyRange.endLineNumber,
+						endColumn: setting.keyRange.endColumn,
+						message: nls.localize('untrustedWorkspaceWithExectuables', "`{0}` is an executable property and since current workspace is untrusted, it is ignored. To enable it, open User settings and add current workspace to trusted workspaces list using setting `security.workspacesTrustedToSpecifyExecutables`", setting.key)
+					});
+				}
+			}
+			this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
+		}
+	}
+
+	public dispose(): void {
+		this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
+		super.dispose();
 	}
 }
 

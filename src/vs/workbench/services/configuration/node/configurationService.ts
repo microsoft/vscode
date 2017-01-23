@@ -107,7 +107,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		this.workspaceFilePathToConfiguration = Object.create(null);
 
 		this.cachedConfig = new ConfigModel<any>(null);
-		this.cachedWorkspaceConfig = new WorkspaceConfigModel(new ConfigModel(null), []);
+		this.cachedWorkspaceConfig = new WorkspaceConfigModel(new TrustedWorkspaceSettingsConfigModel(null), []);
 
 		this._onDidUpdateConfiguration = this._register(new Emitter<IConfigurationServiceEvent>());
 
@@ -228,7 +228,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.loadWorkspaceConfigFiles().then(workspaceConfigFiles => {
 
 			// Consolidate (support *.json files in the workspace settings folder)
-			let workspaceSettingsModel: IConfigModel<T> = <IConfigModel<T>>workspaceConfigFiles[WORKSPACE_CONFIG_DEFAULT_PATH] || new ConfigModel<T>(null);
+			let workspaceSettingsModel: TrustedWorkspaceSettingsConfigModel<T> = <TrustedWorkspaceSettingsConfigModel<T>>workspaceConfigFiles[WORKSPACE_CONFIG_DEFAULT_PATH] || new TrustedWorkspaceSettingsConfigModel<T>(null);
 			let otherConfigModels = Object.keys(workspaceConfigFiles).filter(key => key !== WORKSPACE_CONFIG_DEFAULT_PATH).map(key => <ScopedConfigModel<T>>workspaceConfigFiles[key]);
 
 			this.cachedWorkspaceConfig = new WorkspaceConfigModel<T>(workspaceSettingsModel, otherConfigModels);
@@ -347,8 +347,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === workspaceRelativePath);
 	}
 
-	public hasUntrustedConfigurations(): boolean {
-		return this.cachedWorkspaceConfig.hasActiveFilter();
+	public getUntrustedConfigurations(): string[] {
+		return this.cachedWorkspaceConfig.untrustedKeys;
 	}
 }
 
