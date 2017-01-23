@@ -290,7 +290,8 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
 							line: ${initialLine},
 							scrollPreviewWithEditorSelection: ${!!markdownConfig.get('preview.scrollPreviewWithEditorSelection', true)},
-							scrollEditorWithPreview: ${!!markdownConfig.get('preview.scrollEditorWithPreview', true)}
+							scrollEditorWithPreview: ${!!markdownConfig.get('preview.scrollEditorWithPreview', true)},
+							doubleClickToSwitchToEditor: ${!!markdownConfig.get('preview.doubleClickToSwitchToEditor', true)},
 						};
 					</script>
 					<script src="${this.getMediaPath('main.js')}"></script>
