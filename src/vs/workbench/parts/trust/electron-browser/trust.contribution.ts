@@ -57,7 +57,7 @@ class TrustContribution implements IWorkbenchContribution {
 
 	private updateUserSettings(): TPromise<void> {
 		const key = 'security.workspacesTrustedToSpecifyExecutables';
-		const path = this.workspaceContextService.getWorkspace().resource.path;
+		const path = this.workspaceContextService.getWorkspace().resource.fsPath;
 
 		const value = this.configurationService.lookup(key).user || {};
 		value[path] = true;
