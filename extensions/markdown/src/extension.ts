@@ -21,8 +21,7 @@ interface IPackageInfo {
 var telemetryReporter: TelemetryReporter | null;
 
 export function activate(context: vscode.ExtensionContext) {
-
-	let packageInfo = getPackageInfo(context);
+	const packageInfo = getPackageInfo();
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	const engine = new MarkdownEngine();
@@ -177,13 +176,13 @@ function showSource(mdUri: vscode.Uri) {
 	});
 }
 
-function getPackageInfo(context: vscode.ExtensionContext): IPackageInfo | null {
-	let extensionPackage = require(context.asAbsolutePath('./package.json'));
-	if (extensionPackage) {
+function getPackageInfo(): IPackageInfo | null {
+	const extention = vscode.extensions.getExtension('Microsoft.vscode-markdown');
+	if (extention && extention.packageJSON) {
 		return {
-			name: extensionPackage.name,
-			version: extensionPackage.version,
-			aiKey: extensionPackage.aiKey
+			name: extention.packageJSON.name,
+			version: extention.packageJSON.version,
+			aiKey: extention.packageJSON.aiKey
 		};
 	}
 	return null;
