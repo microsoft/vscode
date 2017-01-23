@@ -29,7 +29,8 @@
     },
     "jsonc-parser": {
       "version": "0.3.0",
-      "from": "jsonc-parser@latest"
+      "from": "jsonc-parser@0.3.0",
+      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.3.0.tgz"
     },
     "ms": {
       "version": "0.7.2",
@@ -38,7 +39,8 @@
     },
     "request-light": {
       "version": "0.2.0",
-      "from": "request-light@>=0.2.0 <0.3.0"
+      "from": "request-light@0.2.0",
+      "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.2.0.tgz"
     },
     "vscode-json-languageservice": {
       "version": "2.0.0-next.12",
