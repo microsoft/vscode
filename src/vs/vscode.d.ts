@@ -3739,11 +3739,6 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
-
-		/**
-		 * Whether the terminal should wait on exit for a keypress before closing the instance.
-		 */
-		waitOnExit?: boolean;
 	}
 
 	/**

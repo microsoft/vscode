@@ -114,7 +114,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		let terminal = new ExtHostTerminal(this._proxy, options.name, options.shellPath, options.shellArgs, options.waitOnExit);
+		let terminal = new ExtHostTerminal(this._proxy, options.name, options.shellPath, options.shellArgs/*, options.waitOnExit*/);
 		this._terminals.push(terminal);
 		return terminal;
 	}
