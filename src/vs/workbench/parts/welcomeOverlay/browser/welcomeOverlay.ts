@@ -5,7 +5,7 @@
 'use strict';
 
 import 'vs/css!./welcomeOverlay';
-import { $ } from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/platform';
@@ -20,6 +20,8 @@ import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 interface Key {
 	id: string;
@@ -111,9 +113,13 @@ export class WelcomeOverlayAction extends Action {
 
 export class WelcomeOverlayContribution implements IWorkbenchContribution {
 
+	private _toDispose: IDisposable[] = [];
+	private _overlay: Builder;
+
 	constructor(
 		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ICommandService private commandService: ICommandService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.partService.joinCreation().then(() => {
@@ -129,22 +135,19 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
 
 		const offset = this.partService.getTitleBarOffset();
-		const overlay = $(container.parentElement)
+		this._overlay = $(container.parentElement)
 			.div({ 'class': 'welcomeOverlay' })
 			.style({ top: `${offset}px` })
 			.style({ height: `calc(100% - ${offset}px)` })
 			.display('none');
 
-		overlay.on('click', () => {
-			overlay.display('none');
-			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
-			dom.removeClass(welcomePage, 'blur-background');
-		});
+		this._overlay.on('click', () => this._hide(), this._toDispose);
+		this.commandService.onWillExecuteCommand(() => this._hide());
 
 		const editorOpen = !!this.editorService.getVisibleEditors().length;
 		keys.filter(key => !('withEditor' in key) || key.withEditor === editorOpen)
 			.forEach(({ id, arrow, label, command, arrowLast }) => {
-				const div = $(overlay).div({ 'class': ['key', id] });
+				const div = $(this._overlay).div({ 'class': ['key', id] });
 				if (!arrowLast) {
 					$(div).span({ 'class': 'arrow' }).innerHtml(arrow);
 				}
@@ -161,7 +164,19 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 					$(div).span({ 'class': 'arrow' }).innerHtml(arrow);
 				}
 			});
-		$(overlay).div({ 'class': 'commandPalettePlaceholder' });
+		$(this._overlay).div({ 'class': 'commandPalettePlaceholder' });
+	}
+
+	private _hide() {
+		if (this._overlay.style('display') !== 'none') {
+			this._overlay.display('none');
+			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
+			dom.removeClass(welcomePage, 'blur-background');
+		}
+	}
+
+	dispose() {
+		this._toDispose = dispose(this._toDispose);
 	}
 }
 
