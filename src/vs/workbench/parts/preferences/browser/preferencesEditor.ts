@@ -211,7 +211,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private showSearchResultsMessage(count: number): string {
-		return count === 0 ? nls.localize('noSettingsFound', "No Settings matched") :
+		return count === 0 ? nls.localize('noSettingsFound', "No Results") :
 			count === 1 ? nls.localize('oneSettingFound', "1 Setting matched") :
 				nls.localize('settingsFound', "{0} Settings matched", count);
 	}
