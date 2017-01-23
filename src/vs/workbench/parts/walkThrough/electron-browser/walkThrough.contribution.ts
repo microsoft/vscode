@@ -22,12 +22,12 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 		localize('walkThrough.editor.label', "Walk-Through"),
 		'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart',
 		'WalkThroughPart'),
-		[new SyncDescriptor(WalkThroughInput)]);
+	[new SyncDescriptor(WalkThroughInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(
-		new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
-		'Help: Editor Walk-Through', localize('help', "Help"));
+	new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
+	'Help: Editor Walk-Through', localize('help', "Help"));
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WalkThroughContentProvider);
