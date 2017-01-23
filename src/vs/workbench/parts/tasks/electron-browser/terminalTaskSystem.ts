@@ -33,11 +33,6 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, CommandOptions } from 'vs/workbench/parts/tasks/common/taskSystem';
 
-interface TerminalData {
-	terminal: ITerminalInstance;
-	promise: TPromise<ITaskSummary>;
-}
-
 class TerminalDecoder {
 	// See https://en.wikipedia.org/wiki/ANSI_escape_code & http://stackoverflow.com/questions/25189651/how-to-remove-ansi-control-chars-vt100-from-a-java-string &
 	// https://www.npmjs.com/package/strip-ansi
@@ -81,12 +76,31 @@ class TerminalDecoder {
 		return this.remaining;
 	}
 }
+
+interface PrimaryTerminal {
+	terminal: ITerminalInstance;
+	busy: boolean;
+}
+
+interface TerminalData {
+	terminal: ITerminalInstance;
+	lastTask: string;
+}
+
+interface ActiveTerminalData {
+	terminal: ITerminalInstance;
+	promise: TPromise<ITaskSummary>;
+}
+
 export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
 	private outputChannel: IOutputChannel;
-	private activeTasks: IStringDictionary<TerminalData>;
+	private activeTasks: IStringDictionary<ActiveTerminalData>;
+	private primaryTerminal: PrimaryTerminal;
+	private terminals: IStringDictionary<TerminalData>;
+	private idleTaskTerminals: IStringDictionary<string>;
 
 	constructor(private configuration: TaskRunnerConfiguration, private terminalService: ITerminalService, private outputService: IOutputService,
 		private markerService: IMarkerService, private modelService: IModelService, private configurationResolverService: IConfigurationResolverService,
@@ -96,6 +110,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.clearOutput();
 		this.activeTasks = Object.create(null);
+		this.terminals = Object.create(null);
+		this.idleTaskTerminals = Object.create(null);
 	}
 
 	public log(value: string): void {
@@ -227,7 +243,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					let delayer: Async.Delayer<any> = null;
 					let decoder = new TerminalDecoder();
 					terminal = this.createTerminal(task);
-					terminal.onData((data: string) => {
+					const onData = terminal.onData((data: string) => {
 						decoder.write(data).forEach(line => {
 							watchingProblemMatcher.processLine(line);
 							if (delayer === null) {
@@ -239,8 +255,14 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 							});
 						});
 					});
-					terminal.onExit((exitCode) => {
+					const onExit = terminal.onExit((exitCode) => {
+						onData.dispose();
+						onExit.dispose();
 						delete this.activeTasks[task.id];
+						if (this.primaryTerminal.terminal === terminal) {
+							this.primaryTerminal.busy = false;
+						}
+						this.idleTaskTerminals[task.id] = terminal.id.toString();
 						watchingProblemMatcher.dispose();
 						toUnbind = dispose(toUnbind);
 						toUnbind = null;
@@ -261,23 +283,25 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					this.emit(TaskSystemEvents.Active, event);
 					let decoder = new TerminalDecoder();
 					let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
-					terminal.onData((data: string) => {
+					const onData = terminal.onData((data: string) => {
 						decoder.write(data).forEach((line) => {
 							startStopProblemMatcher.processLine(line);
 						});
 					});
-					terminal.onExit((exitCode) => {
+					const onExit = terminal.onExit((exitCode) => {
+						onData.dispose();
+						onExit.dispose();
 						delete this.activeTasks[task.id];
+						if (this.primaryTerminal.terminal === terminal) {
+							this.primaryTerminal.busy = false;
+						}
+						this.idleTaskTerminals[task.id] = terminal.id.toString();
 						startStopProblemMatcher.processLine(decoder.end());
 						startStopProblemMatcher.done();
 						startStopProblemMatcher.dispose();
 						this.emit(TaskSystemEvents.Inactive, event);
 						resolve({ exitCode });
 					});
-					this.terminalService.setActiveInstance(terminal);
-					if (task.showOutput === ShowOutput.Always) {
-						this.terminalService.showPanel(false);
-					}
 				});
 			}
 			this.terminalService.setActiveInstance(terminal);
@@ -294,6 +318,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
 		let waitOnExit = task.showOutput !== ShowOutput.Never || !task.isBackground;
+		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		if (task.command.isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
@@ -359,26 +384,55 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			const shellLaunchConfig: IShellLaunchConfig = {
+			shellLaunchConfig = {
 				name: terminalName,
 				executable: shellConfig.executable,
 				args: shellArgs,
 				waitOnExit
 			};
-			return this.terminalService.createInstance(shellLaunchConfig);
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
 			let executable = Platform.isWindows && !task.command.isShellCommand ? this.findExecutable(command, cwd) : command;
-			const shellLaunchConfig: IShellLaunchConfig = {
+			shellLaunchConfig = {
 				name: terminalName,
 				executable: executable,
 				args,
 				waitOnExit
 			};
-			return this.terminalService.createInstance(shellLaunchConfig);
 		}
+		let terminalId = this.idleTaskTerminals[task.id];
+		if (terminalId) {
+			let taskTerminal = this.terminals[terminalId];
+			if (taskTerminal) {
+				delete this.idleTaskTerminals[task.id];
+				taskTerminal.terminal.reuseTerminal(shellLaunchConfig);
+				return taskTerminal.terminal;
+			}
+		}
+		if (this.primaryTerminal && !this.primaryTerminal.busy) {
+			this.primaryTerminal.terminal.reuseTerminal(shellLaunchConfig);
+			this.primaryTerminal.busy = true;
+			return this.primaryTerminal.terminal;
+		}
+		const result = this.terminalService.createInstance(shellLaunchConfig);
+		const key = result.id.toString();
+		result.onDisposed((terminal) => {
+			let terminalData = this.terminals[key];
+			if (terminalData) {
+				delete this.terminals[key];
+				delete this.idleTaskTerminals[terminalData.lastTask];
+			}
+			if (terminal === this.primaryTerminal.terminal) {
+				this.primaryTerminal = undefined;
+			}
+		});
+		this.terminals[key] = { terminal: result, lastTask: task.id };
+		if (!task.isBackground && !this.primaryTerminal) {
+			this.primaryTerminal = { terminal: result, busy: true };
+		}
+		return result;
 	}
 
 	private resolveCommandAndArgs(task: TaskDescription): { command: string, args: string[] } {
