@@ -26,7 +26,7 @@ import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { getDeclarationsAtPosition, getTypeDefinitionAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import { getDeclarationsAtPosition, getTypeImplementationAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -241,7 +241,7 @@ export class GoToImplementationAction extends DefinitionAction {
 			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
 			alias: 'Go to Implementation',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasTypeDefinitionProvider,
+				ModeContextKeys.hasTypeImplementationProvider,
 				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
@@ -255,7 +255,7 @@ export class GoToImplementationAction extends DefinitionAction {
 	}
 
 	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
-		return getTypeDefinitionAtPosition(model, position);
+		return getTypeImplementationAtPosition(model, position);
 	}
 }
 
@@ -270,7 +270,7 @@ export class PeekImplementationAction extends DefinitionAction {
 			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
 			alias: 'Peek Implementation',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasTypeDefinitionProvider,
+				ModeContextKeys.hasTypeImplementationProvider,
 				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
@@ -284,7 +284,7 @@ export class PeekImplementationAction extends DefinitionAction {
 	}
 
 	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
-		return getTypeDefinitionAtPosition(model, position);
+		return getTypeImplementationAtPosition(model, position);
 	}
 }
 
