@@ -428,9 +428,10 @@ export class TypeOperations {
 		}
 
 		if (electricAction.matchOpenBracket) {
+			let endColumn = (lineTokens.getLineContent() + ch).lastIndexOf(electricAction.matchOpenBracket) + 1;
 			let match = model.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
-				column: position.column
+				column: endColumn
 			});
 
 			if (match) {
