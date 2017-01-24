@@ -29,6 +29,10 @@ body.showEditorSelection .code-line:hover:before {
 	height: 100%;
 }
 
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
 
 .vscode-light.showEditorSelection .code-active-line:before {
 	border-left: 3px solid rgba(0, 0, 0, 0.15);
