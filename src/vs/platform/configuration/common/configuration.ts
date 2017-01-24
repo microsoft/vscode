@@ -106,11 +106,13 @@ export interface IConfigModel<T> {
 	overrides: IOverrides<T>[];
 	keys: string[];
 	raw: any;
+	unfilteredRaw: any;
 	errors: any[];
 
 	merge(other: IConfigModel<T>, overwrite?: boolean): IConfigModel<T>;
 	config<V>(section: string): IConfigModel<V>;
 	configWithOverrides<V>(identifier: string, section?: string): IConfigModel<V>;
+	refilter(): void;
 }
 
 export interface IOverrides<T> {
