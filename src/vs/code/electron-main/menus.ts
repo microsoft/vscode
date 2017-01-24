@@ -16,7 +16,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
@@ -161,6 +160,9 @@ export class VSCodeMenu {
 
 	private extensionViewlets: IExtensionViewlet[];
 
+	private _welcome: Electron.MenuItem;
+	private _welcomeEnabled = false;
+
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -205,6 +207,13 @@ export class VSCodeMenu {
 			if (extensionViewlets.length) {
 				this.extensionViewlets = extensionViewlets;
 				this.updateMenu();
+			}
+		});
+
+		ipc.on('vscode:welcomeEnabled', (event, enabled: string) => {
+			this._welcomeEnabled = enabled === 'true';
+			if (this._welcome) {
+				this._welcome.visible = this._welcomeEnabled;
 			}
 		});
 
@@ -846,13 +855,14 @@ export class VSCodeMenu {
 			}
 		}
 
-		const enableWelcomePage = isWelcomePageEnabled();
+		this._welcome = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.welcomePage') });
+		this._welcome.visible = this._welcomeEnabled;
 		const keyboardShortcutsUrl = platform.isLinux ? product.keyboardShortcutsUrlLinux : platform.isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
-			enableWelcomePage ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.welcomePage') }) : null,
+			this._welcome,
 			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openDocumentationUrl') }) : null,
 			product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
-			enableWelcomePage || product.documentationUrl || product.releaseNotesUrl ? __separator__() : null,
+			product.documentationUrl || product.releaseNotesUrl ? __separator__() : null,
 			keyboardShortcutsUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.keybindingsReference') }) : null,
 			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openIntroductoryVideosUrl') }) : null,
 			(product.introductoryVideosUrl || keyboardShortcutsUrl) ? __separator__() : null,
