@@ -435,6 +435,10 @@ export class TypeOperations {
 			});
 
 			if (match) {
+				if (match.startLineNumber === position.lineNumber) {
+					// matched something on the same line => no change in indentation
+					return null;
+				}
 				let matchLine = model.getLineContent(match.startLineNumber);
 				let matchLineIndentation = strings.getLeadingWhitespace(matchLine);
 				let newIndentation = config.normalizeIndentation(matchLineIndentation);
