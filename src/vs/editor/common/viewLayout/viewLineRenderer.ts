@@ -495,10 +495,14 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 			}
 
 			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
+				// This line decoration ends before this token ends
 				lastResultEndIndex = lineDecoration.endOffset + 1;
 				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				lineDecorationIndex++;
 			} else {
+				// This line decoration continues on to the next token
+				lastResultEndIndex = tokenEndIndex;
+				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				break;
 			}
 		}
