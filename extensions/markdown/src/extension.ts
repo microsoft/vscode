@@ -89,7 +89,7 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
 				getMarkdownUri(event.textEditor.document.uri),
 				{
-					line: event.selections[0].start.line
+					line: event.selections[0].active.line
 				});
 		}
 	}));
