@@ -41,6 +41,7 @@ export class OutputService implements IOutputService {
 	private _onActiveOutputChannel: Emitter<string>;
 
 	private _outputLinkDetector: OutputLinkProvider;
+	private _outputContentProvider: OutputContentProvider;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -61,8 +62,10 @@ export class OutputService implements IOutputService {
 
 		this._outputLinkDetector = new OutputLinkProvider(contextService, modelService);
 
+		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
+
 		// Register as text model content provider for output
-		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, instantiationService.createInstance(OutputContentProvider, this));
+		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this._outputContentProvider);
 	}
 
 	public get onOutput(): Event<IOutputEvent> {
@@ -86,6 +89,12 @@ export class OutputService implements IOutputService {
 			label: channelData ? channelData.label : id,
 			get output() {
 				return self.getOutput(id);
+			},
+			get scrollLock() {
+				return self._outputContentProvider.scrollLock(id);
+			},
+			set scrollLock(value: boolean) {
+				self._outputContentProvider.setScrollLock(id, value);
 			},
 			append: (output: string) => this.append(id, output),
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
@@ -154,6 +163,7 @@ class OutputContentProvider implements ITextModelContentProvider {
 
 	private bufferedOutput: { [channel: string]: string; };
 	private appendOutputScheduler: { [channel: string]: RunOnceScheduler; };
+	private channelIdsWithScrollLock: Set<string> = new Set();
 
 	private toDispose: IDisposable[];
 
@@ -265,15 +275,29 @@ class OutputContentProvider implements ITextModelContentProvider {
 			model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), bufferedOutput)]);
 		}
 
-		// reveal last line
-		const panel = this.panelService.getActivePanel();
-		(<OutputPanel>panel).revealLastLine(true);
+		if (!this.channelIdsWithScrollLock.has(channel)) {
+			// reveal last line
+			const panel = this.panelService.getActivePanel();
+			(<OutputPanel>panel).revealLastLine(true);
+		}
 	}
 
 	private isVisible(channel: string): boolean {
 		const panel = this.panelService.getActivePanel();
 
 		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === channel;
+	}
+
+	public scrollLock(channelId): boolean {
+		return this.channelIdsWithScrollLock.has(channelId);
+	}
+
+	public setScrollLock(channelId: string, value: boolean): void {
+		if (value) {
+			this.channelIdsWithScrollLock.add(channelId);
+		} else {
+			this.channelIdsWithScrollLock.delete(channelId);
+		}
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {
