@@ -13,14 +13,15 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { randomBytes } from 'crypto';
 
 export function generateRandomPipeName(): string {
-	let randomName = 'vscode-' + Math.floor(Math.random() * 10000).toString(16);
+	const randomSuffix = randomBytes(21).toString('hex');
 	if (process.platform === 'win32') {
-		return '\\\\.\\pipe\\' + randomName + '-sock';
+		return `\\\\.\\pipe\\vscode-${randomSuffix}-sock`;
 	} else {
 		// Mac/Unix: use socket file
-		return join(tmpdir(), randomName + '.sock');
+		return join(tmpdir(), `vscode-${randomSuffix}.sock`);
 	}
 }
 
