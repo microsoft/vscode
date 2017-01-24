@@ -17,6 +17,13 @@ export const Extensions = {
 	Configuration: 'base.contributions.configuration'
 };
 
+// Locally extend IJSONSchema with the vscode-specific `isExecutable` property
+declare module 'vs/base/common/jsonSchema' {
+	export interface IJSONSchema {
+		isExecutable?: boolean;
+	}
+}
+
 export interface IConfigurationRegistry {
 
 	/**
@@ -254,6 +261,32 @@ function getDefaultValue(type: string | string[]): any {
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
+export interface ISecurityConfiguration {
+	security: {
+		workspacesTrustedToSpecifyExecutables: { [path: string]: boolean }
+	};
+}
+
+configurationRegistry.registerConfiguration({
+	'id': 'Security',
+	'order': 5,
+	'title': nls.localize('securityConfigurationTitle', "Security"),
+	'type': 'object',
+	'properties': {
+		'security.workspacesTrustedToSpecifyExecutables': {
+			'type': 'object',
+			'description': nls.localize('security.workspacesTrustedToSpecifyExecutables', "Specifes which workspaces are trusted to specify executables in their settings. This option can only configured in the user settings."),
+			'default': {},
+			defaultSnippets: [{ body: '${1:workspace_path} : ${2:true}' }],
+			'additionalProperties': {
+				'type': 'boolean',
+				'description': nls.localize('exclude.boolean', "Path to a workspaces. Set to true or false to trust or distrust a workspace."),
+			}
+		}
+	}
+
+});
+
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
@@ -267,9 +300,19 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
 			type: 'object',
 			additionalProperties: {
-				$ref: 'http://json-schema.org/draft-04/schema#'
+				anyOf: [
+					{ $ref: 'http://json-schema.org/draft-04/schema#' },
+					{
+						type: 'object',
+						properties: {
+							isExecutable: {
+								type: 'boolean'
+							}
+						}
+					}
+				]
 			}
-		}
+		},
 	}
 });
 
