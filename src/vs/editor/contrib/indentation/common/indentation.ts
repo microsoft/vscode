@@ -312,7 +312,9 @@ export class ReindentLinesAction extends EditorAction {
 			return;
 		}
 		let edits = getReindentEditOperations(model, 1, model.getLineCount());
-		editor.executeEdits(this.id, edits);
+		if (edits) {
+			editor.executeEdits(this.id, edits);
+		}
 	}
 }
 
