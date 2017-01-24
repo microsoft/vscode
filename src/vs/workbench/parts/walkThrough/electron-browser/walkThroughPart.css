@@ -33,15 +33,35 @@
 	border-bottom: 2px solid;
 }
 
+.monaco-workbench > .part.editor > .content .walkThroughContent h1, h2, h3 {
+	font-weight: lighter;
+	margin-top: 20px;
+	margin-bottom: 10px;
+}
+
 .monaco-workbench > .part.editor > .content .walkThroughContent h1 {
 	padding-bottom: 0.3em;
 	line-height: 1.2;
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
+	font-size: 40px;
+	margin-bottom: 15px;
 }
 
-.monaco-workbench > .part.editor > .content .walkThroughContent h1, h2, h3 {
-	font-weight: normal;
+.monaco-workbench > .part.editor > .content .walkThroughContent h2 {
+	font-size: 30px;
+	margin-top: 30px;
+}
+
+.monaco-workbench > .part.editor > .content .walkThroughContent h3 {
+	font-size: 22px;
+}
+
+.monaco-workbench > .part.editor > .content .walkThroughContent h4 {
+	font-size: 12px;
+	text-transform: uppercase;
+	margin-top: 30px;
+	margin-bottom: 10px;
 }
 
 .monaco-workbench > .part.editor > .content .walkThroughContent a:hover {
@@ -75,21 +95,42 @@
 	border-left: 5px solid;
 }
 
-.monaco-workbench > .part.editor > .content .walkThroughContent code {
+.monaco-workbench > .part.editor > .content .walkThroughContent code,
+.monaco-workbench > .part.editor > .content .walkThroughContent .shortcut {
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 14px;
 	line-height: 19px;
 }
 
-.monaco-workbench.mac > .part.editor > .content .walkThroughContent  code {
+/*.monaco-workbench.mac > .part.editor > .content .walkThroughContent code,
+.monaco-workbench.mac > .part.editor > .content .walkThroughContent .shortcut {
 	font-size: 12px;
 	line-height: 18px;
+}*/
+
+.vs .monaco-workbench > .part.editor > .content .walkThroughContent code,
+.vs .monaco-workbench > .part.editor > .content .walkThroughContent .shortcut {
+	color: #A31515;
 }
 
-.monaco-workbench > .part.editor > .content .walkThroughContent code > div {
-	padding: 16px;
-	border-radius: 3px;
-	overflow: auto;
+.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent code,
+.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent .shortcut {
+	color: #D7BA7D;
+}
+
+.monaco-workbench > .part.editor > .content .walkThroughContent blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left: 5px solid;
+}
+.vs .monaco-workbench > .part.editor > .content .walkThroughContent blockquote,
+.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+.hc-black .monaco-workbench > .part.editor > .content .walkThroughContent blockquote {
+	background: transparent;
+	border-color: #fff;
 }
 
 .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-tokenized-source {

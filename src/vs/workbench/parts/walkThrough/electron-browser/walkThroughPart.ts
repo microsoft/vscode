@@ -184,6 +184,8 @@ export class WalkThroughPart extends BaseEditor {
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
 				innerContent.innerHTML = marked(markdown, { renderer });
+				this.style(innerContent);
+				this.contentDisposables.push(this.themeService.onDidColorThemeChange(() => this.style(innerContent)));
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -230,6 +232,16 @@ export class WalkThroughPart extends BaseEditor {
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input.getResource());
 			});
+	}
+
+	private style(div: HTMLElement) {
+		const styleElement = document.querySelector('.monaco-editor-background');
+		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
+		div.style.color = color;
+		div.style.backgroundColor = backgroundColor;
+		div.style.fontFamily = fontFamily;
+		div.style.fontWeight = fontWeight;
+		div.style.fontSize = fontSize;
 	}
 
 	private expandMacros(input: string) {
