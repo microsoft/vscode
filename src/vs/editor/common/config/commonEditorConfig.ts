@@ -672,7 +672,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.formatOnPaste': {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.formatOnPaste,
-			'description': nls.localize('formatOnPaste', "Controls if the editor should automatically format the pasted content")
+			'description': nls.localize('formatOnPaste', "Controls if the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
