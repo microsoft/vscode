@@ -19,7 +19,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DefaultDragAndDrop, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -198,7 +198,7 @@ export class BaseDebugController extends TreeControllerBase {
 		@IMenuService menuService: IMenuService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP }, configurationService);
+		super(configurationService);
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 		if (isMacintosh) {

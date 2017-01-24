@@ -23,7 +23,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { LegacyRenderer, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -215,7 +215,7 @@ class DataSource implements tree.IDataSource {
 class Controller extends TreeControllerBase {
 
 	constructor( @IConfigurationService private configurationService: IConfigurationService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP }, configurationService);
+		super(configurationService);
 	}
 
 	static Events = {

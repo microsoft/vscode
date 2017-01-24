@@ -212,7 +212,7 @@ export class Controller extends TreeControllerBase {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN }, configurationService);
+		super(configurationService, { clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
 	}
 
 	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {

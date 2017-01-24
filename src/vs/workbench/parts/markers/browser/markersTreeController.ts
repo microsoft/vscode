@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
-import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -38,7 +37,7 @@ export class Controller extends TreeControllerBase {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_UP }, configurationService);
+		super(configurationService);
 
 		this.contextMenu = menuService.createMenu(MenuId.ProblemsPanelContext, contextKeyService);
 	}

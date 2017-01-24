@@ -15,8 +15,8 @@ interface IConfiguration {
 
 export class TreeControllerBase extends DefaultController {
 	constructor(
-		options: IControllerOptions,
-		configurationService: IConfigurationService
+		configurationService: IConfigurationService,
+		options?: IControllerOptions
 	) {
 		super(options);
 
