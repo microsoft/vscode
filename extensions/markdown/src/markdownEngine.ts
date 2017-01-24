@@ -50,6 +50,8 @@ export class MarkdownEngine {
 			this.addLineNumberRenderer(this.md, 'heading_open');
 			this.addLineNumberRenderer(this.md, 'image');
 			this.addLineNumberRenderer(this.md, 'code_block');
+			this.addLineNumberRenderer(this.md, 'blockquote_open');
+			this.addLineNumberRenderer(this.md, 'list_item_open');
 
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
@@ -96,7 +98,7 @@ export class MarkdownEngine {
 		const original = md.renderer.rules[ruleName];
 		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
-			if (token.level === 0 && token.map && token.map.length) {
+			if ((token.level === 0 || token.type === 'list_item_open' && token.level === 1) && token.map && token.map.length) {
 				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}
@@ -113,7 +115,7 @@ export class MarkdownEngine {
 		md.normalizeLink = (link: string) => {
 			try {
 				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && !uri.fragment) {
+				if (!uri.scheme && uri.path && !uri.fragment) {
 					// Assume it must be a file
 					if (uri.path[0] === '/') {
 						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath, uri.path));

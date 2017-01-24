@@ -16,8 +16,7 @@
 		"onLanguage:markdown",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
-		"onCommand:markdown.showSource",
-		"onLanguage:markdown"
+		"onCommand:markdown.showSource"
 	],
 	"contributes": {
 		"languages": [
