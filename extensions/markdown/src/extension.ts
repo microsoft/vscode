@@ -86,7 +86,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
 		if (isMarkdownFile(event.textEditor.document)) {
-			console.log('event.selections[0].active.line');
 			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
 				getMarkdownUri(event.textEditor.document.uri),
 				{
