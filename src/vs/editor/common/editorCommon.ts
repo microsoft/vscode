@@ -3096,7 +3096,7 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasTypeImplementationProvider = new RawContextKey<boolean>('editorHasTypeImplementationProvider', undefined);
+	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
 	/**
 	 * @internal
 	 */

@@ -125,17 +125,17 @@ class DefinitionAdapter {
 class ImplementationAdapter {
 
 	private _documents: ExtHostDocuments;
-	private _provider: vscode.TypeImplementationProvider;
+	private _provider: vscode.ImplementationProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.TypeImplementationProvider) {
+	constructor(documents: ExtHostDocuments, provider: vscode.ImplementationProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
 
-	provideTypeImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
-		return asWinJsPromise(token => this._provider.provideTypeImplementation(doc, pos, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
 			} else if (value) {
@@ -736,15 +736,15 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(resource, position));
 	}
 
-	registerTypeImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.TypeImplementationProvider): vscode.Disposable {
+	registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new ImplementationAdapter(this._documents, provider));
 		this._proxy.$registerImplementationSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
 
-	$provideTypeImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
-		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideTypeImplementation(resource, position));
+	$provideImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
+		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(resource, position));
 	}
 
 	// --- extra info
