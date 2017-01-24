@@ -1370,7 +1370,7 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 						startColumn: setting.keyRange.startColumn,
 						endLineNumber: setting.keyRange.endLineNumber,
 						endColumn: setting.keyRange.endColumn,
-						message: nls.localize('untrustedWorkspaceWithExectuables', "`{0}` specifies an executable. It is ignored because the workspace is untrusted. To mark a workspace as trusted, open the User settings and add this workspace's path  to `security.workspacesTrustedToSpecifyExecutables`", setting.key)
+						message: nls.localize('untrustedWorkspaceWithExectuables', "`{0}` specifies an executable. It is ignored because the workspace is untrusted. To mark a workspace as trusted, open the User settings and add workspace folder to `security.workspacesTrustedToSpecifyExecutables`", setting.key)
 					});
 				}
 			}
