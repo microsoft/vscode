@@ -103,9 +103,9 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	}
 
 	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.TypeDefinitionProviderRegistry.register(selector, <modes.TypeDefinitionProvider>{
-			provideTypeDefinition: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._proxy.$provideTypeDefinition(handle, model.uri, position));
+		this._registrations[handle] = modes.TypeImplementationProviderRegistry.register(selector, <modes.TypeImplementationProvider>{
+			provideTypeImplementation: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._proxy.$provideTypeImplementation(handle, model.uri, position));
 			}
 		});
 		return undefined;

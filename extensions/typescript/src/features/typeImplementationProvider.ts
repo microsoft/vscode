@@ -5,18 +5,18 @@
 
 'use strict';
 
-import { TypeDefinitionProvider, TextDocument, Position, CancellationToken, Definition } from 'vscode';
+import { TypeImplementationProvider, TextDocument, Position, CancellationToken, Definition } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import DefinitionProviderBase from './definitionProviderBase';
 
-export default class TypeScriptTypeDefinitionProvider extends DefinitionProviderBase implements TypeDefinitionProvider {
+export default class TypeScriptTypeImplementationProvider extends DefinitionProviderBase implements TypeImplementationProvider {
 
 	constructor(client: ITypescriptServiceClient) {
 		super(client);
 	}
 
-	public provideTypeDefinition(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | null> {
+	public provideTypeImplementation(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | null> {
 		return this.getSymbolLocations('implementation', document, position, token);
 	}
 }
