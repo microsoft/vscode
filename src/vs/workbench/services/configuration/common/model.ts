@@ -88,9 +88,6 @@ export class WorkspaceConfigModel<T> extends ConfigModel<T> {
 
 	public refilter(): void {
 		this.workspaceSettingsConfig.refilter();
-		this.scopedConfigs.forEach(scopedConfigModel => {
-			scopedConfigModel.refilter();
-		});
 		this.consolidate();
 	}
 
