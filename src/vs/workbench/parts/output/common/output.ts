@@ -111,6 +111,11 @@ export interface IOutputChannel {
 	output: string;
 
 	/**
+	 * Returns the value indicating whether the channel has scroll locked.
+	 */
+	scrollLock: boolean;
+
+	/**
 	 * Appends output to the channel.
 	 */
 	append(output: string): void;
