@@ -5,6 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export const enum CharWidthRequestType {
@@ -203,13 +204,31 @@ class CanvasCharWidthReader implements ICharWidthReader {
 	}
 }
 
+function readCharWidthsFromDom(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
+	let reader = new DomCharWidthReader(bareFontInfo, requests);
+	reader.read();
+}
+
+function readCharWidthsFromCanvas(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
+	let reader = new CanvasCharWidthReader(bareFontInfo, requests);
+	reader.read();
+}
+
 export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
-	// In IE11, it appears that ctx.measureText() always returns integer results.
-	if (browser.isIE) {
-		let reader = new DomCharWidthReader(bareFontInfo, requests);
-		reader.read();
-	} else {
-		let reader = new CanvasCharWidthReader(bareFontInfo, requests);
-		reader.read();
+	// In IE11 and Firefox, it appears that ctx.measureText() always returns integer results.
+	// In Edge, ctx.measureText() gives floating point results, but they are not the same.
+	// In Safari, ctx.measureText() also gives floating point results, but they are not the same.
+	if (browser.isIE || browser.isFirefox || browser.isSafari) {
+		readCharWidthsFromDom(bareFontInfo, requests);
+		return;
 	}
+
+	// On Linux, it appears that ctx.measureText() is unaffected by the browser zoom (which is correct),
+	// but the char widths at rendering time are affected by the browser zoom (which is unexpected)
+	if (platform.isLinux) {
+		readCharWidthsFromDom(bareFontInfo, requests);
+		return;
+	}
+
+	readCharWidthsFromCanvas(bareFontInfo, requests);
 }

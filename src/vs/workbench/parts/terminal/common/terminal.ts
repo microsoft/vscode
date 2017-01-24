@@ -6,6 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -28,6 +29,12 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEY
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
+export const TerminalCursorStyle = {
+	BLOCK: 'block',
+	LINE: 'line',
+	UNDERLINE: 'underline'
+};
+
 export interface ITerminalConfiguration {
 	terminal: {
 		integrated: {
@@ -43,6 +50,7 @@ export interface ITerminalConfiguration {
 			},
 			rightClickCopyPaste: boolean,
 			cursorBlinking: boolean,
+			cursorStyle: string,
 			fontFamily: string,
 			fontLigatures: boolean,
 			fontSize: number,
@@ -143,6 +151,11 @@ export interface ITerminalInstance {
 	 * An event that fires when the terminal instance's title changes.
 	 */
 	onTitleChanged: Event<string>;
+
+	/**
+	 * An event that fires when the terminal instance is disposed.
+	 */
+	onDisposed: Event<ITerminalInstance>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
@@ -253,7 +266,7 @@ export interface ITerminalInstance {
 	 * @param listener The listener function which takes the processes' data stream (including
 	 * ANSI escape sequences).
 	 */
-	onData(listener: (data: string) => void): void;
+	onData(listener: (data: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits.
@@ -261,7 +274,7 @@ export interface ITerminalInstance {
 	 * @param listener The listener function which takes the processes' exit code, an exit code of
 	 * null means the process was killed as a result of the ITerminalInstance being disposed.
 	 */
-	onExit(listener: (exitCode: number) => void): void;
+	onExit(listener: (exitCode: number) => void): IDisposable;
 
 	/**
 	 * Immediately kills the terminal's current pty process and launches a new one to replace it.

@@ -96,6 +96,7 @@ import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
@@ -286,7 +287,7 @@ export class WorkbenchShell {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: loadExperiments(this.contextService, this.storageService, this.configurationService)
+				experiments: instantiationService.invokeFunction(loadExperiments)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -303,7 +304,7 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = loadExperiments(this.contextService, this.storageService, this.configurationService);
+			NullTelemetryService._experiments = instantiationService.invokeFunction(loadExperiments);
 			this.telemetryService = NullTelemetryService;
 		}
 
@@ -331,7 +332,10 @@ export class WorkbenchShell {
 		serviceCollection.set(IThreadService, this.threadService);
 
 		this.timerService.beforeExtensionLoad = new Date();
-		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
+
+		// TODO@Joao: remove
+		const disabledExtensions = SCMPreview.enabled ? [] : ['vscode.git'];
+		this.extensionService = instantiationService.createInstance(MainProcessExtensionService, disabledExtensions);
 		serviceCollection.set(IExtensionService, this.extensionService);
 		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {

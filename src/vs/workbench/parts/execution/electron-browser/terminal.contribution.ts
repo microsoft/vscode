@@ -36,17 +36,20 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 			'terminal.external.windowsExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': DEFAULT_TERMINAL_WINDOWS
+				'default': DEFAULT_TERMINAL_WINDOWS,
+				'isExecutable': true
 			},
 			'terminal.external.osxExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
-				'default': DEFAULT_TERMINAL_OSX
+				'default': DEFAULT_TERMINAL_OSX,
+				'isExecutable': true
 			},
 			'terminal.external.linuxExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				'default': defaultTerminalLinux
+				'default': defaultTerminalLinux,
+				'isExecutable': true
 			}
 		}
 	});

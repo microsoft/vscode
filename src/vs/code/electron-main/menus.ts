@@ -91,13 +91,15 @@ class KeybindingsResolver {
 			// Fill hash map of resolved keybindings and check for changes
 			let keybindingsChanged = false;
 			let keybindingsCount = 0;
+			const resolvedKeybindings: { [commandId: string]: string } = Object.create(null);
 			keybindings.forEach(keybinding => {
 				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
 				if (accelerator) {
 					keybindingsCount++;
 
+					resolvedKeybindings[keybinding.id] = accelerator;
+
 					if (accelerator !== this.keybindings[keybinding.id]) {
-						this.keybindings[keybinding.id] = accelerator;
 						keybindingsChanged = true;
 					}
 				}
@@ -109,6 +111,7 @@ class KeybindingsResolver {
 			}
 
 			if (keybindingsChanged) {
+				this.keybindings = resolvedKeybindings;
 				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
 
 				this._onKeybindingsChanged.fire();
@@ -157,6 +160,9 @@ export class VSCodeMenu {
 
 	private extensionViewlets: IExtensionViewlet[];
 
+	private _welcome: Electron.MenuItem;
+	private _welcomeEnabled = false;
+
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -201,6 +207,13 @@ export class VSCodeMenu {
 			if (extensionViewlets.length) {
 				this.extensionViewlets = extensionViewlets;
 				this.updateMenu();
+			}
+		});
+
+		ipc.on('vscode:welcomeEnabled', (event, enabled: string) => {
+			this._welcomeEnabled = enabled === 'true';
+			if (this._welcome) {
+				this._welcome.visible = this._welcomeEnabled;
 			}
 		});
 
@@ -842,13 +855,16 @@ export class VSCodeMenu {
 			}
 		}
 
+		this._welcome = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.welcomePage') });
+		this._welcome.visible = this._welcomeEnabled;
 		const keyboardShortcutsUrl = platform.isLinux ? product.keyboardShortcutsUrlLinux : platform.isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
-			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.openUrl(product.documentationUrl, 'openDocumentationUrl') }) : null,
+			this._welcome,
+			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openDocumentationUrl') }) : null,
 			product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
-			(product.documentationUrl || product.releaseNotesUrl) ? __separator__() : null,
+			product.documentationUrl || product.releaseNotesUrl ? __separator__() : null,
 			keyboardShortcutsUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.keybindingsReference') }) : null,
-			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.openUrl(product.introductoryVideosUrl, 'openIntroductoryVideosUrl') }) : null,
+			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openIntroductoryVideosUrl') }) : null,
 			(product.introductoryVideosUrl || keyboardShortcutsUrl) ? __separator__() : null,
 			product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') }) : null,
 			product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,

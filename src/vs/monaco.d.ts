@@ -3008,6 +3008,10 @@ declare module monaco.editor {
          */
         revealRangeInCenter(range: IRange): void;
         /**
+         * Scroll vertically or horizontally as necessary and reveal a range at the top of the viewport.
+         */
+        revealRangeAtTop(range: IRange): void;
+        /**
          * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
          */
         revealRangeInCenterIfOutsideViewport(range: IRange): void;
@@ -3933,9 +3937,9 @@ declare module monaco.languages {
     export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
 
     /**
-     * Register a type definition provider (used by e.g. go to implementation).
+     * Register a type implementation provider (used by e.g. go to implementation).
      */
-    export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
+    export function registerTypeImplementationProvider(languageId: string, provider: TypeImplementationProvider): IDisposable;
 
     /**
      * Register a code lens provider (used by e.g. inline code lenses).
@@ -4553,11 +4557,11 @@ declare module monaco.languages {
      * The type definition provider interface defines the contract between extensions and
      * the go to implementation feature.
      */
-    export interface TypeDefinitionProvider {
+    export interface TypeImplementationProvider {
         /**
          * Provide the implementation of the symbol at the given position and document.
          */
-        provideTypeDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+        provideTypeImplementation(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
     }
 
     /**

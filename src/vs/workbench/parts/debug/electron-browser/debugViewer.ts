@@ -298,6 +298,10 @@ export class CallStackController extends BaseDebugController {
 
 	protected getContext(element: any): any {
 		if (element instanceof StackFrame) {
+			if (element.source.inMemory) {
+				return element.source.raw.path || element.source.reference;
+			}
+
 			return element.source.uri.toString();
 		}
 	}

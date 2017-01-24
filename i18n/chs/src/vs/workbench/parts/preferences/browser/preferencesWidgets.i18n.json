@@ -9,5 +9,5 @@
 	"defaultSettingsInfo": " - 通过将其放入右侧的设置文件中进行覆盖",
 	"defaultSettingsTitle": "默认设置",
 	"noSettings": "未找到任何设置",
-	"showCount": "显示 {0} 个设置，共 {1} 个"
+	"showCount": "正在显示第 {0} 个设置，共 {1} 个"
 }

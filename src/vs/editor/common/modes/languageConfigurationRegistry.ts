@@ -17,7 +17,7 @@ import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
@@ -39,6 +39,7 @@ export class RichEditSupport {
 	public readonly wordDefinition: RegExp;
 	public readonly onEnter: OnEnterSupport;
 	public readonly brackets: RichEditBrackets;
+	public readonly indentationRules: IndentationRule;
 
 	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
@@ -61,6 +62,8 @@ export class RichEditSupport {
 		this.electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
+
+		this.indentationRules = this._conf.indentationRules;
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
@@ -150,6 +153,16 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
 		return this._entries[languageId] || null;
+	}
+
+	public getIndentationRules(languageId: LanguageId) {
+		let value = this._entries[languageId];
+
+		if (!value) {
+			return null;
+		}
+
+		return value.indentationRules || null;
 	}
 
 	// begin electricCharacter
@@ -328,8 +341,16 @@ export class LanguageConfigurationRegistryImpl {
 		if (!enterResult) {
 			enterResult = { indentAction: IndentAction.None, appendText: '' };
 		} else {
+			// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
 			if (!enterResult.appendText) {
-				enterResult.appendText = '';
+				if (
+					(enterResult.indentAction === IndentAction.Indent) ||
+					(enterResult.indentAction === IndentAction.IndentOutdent)
+				) {
+					enterResult.appendText = '\t';
+				} else {
+					enterResult.appendText = '';
+				}
 			}
 		}
 
@@ -403,12 +424,16 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 
-		let currentLineScopedLineTokens = this.getScopedLineTokens(model, lineNumber);
-		let lastLineScopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
+		// it's Okay that lineNumber > model.getLineCount(), a good example is guessing the indentation of next potential line
+		// when the cursor is at the end of file.
+		if (lineNumber <= model.getLineCount()) {
+			let currentLineScopedLineTokens = this.getScopedLineTokens(model, lineNumber);
+			let lastLineScopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
 
-		if (currentLineScopedLineTokens.languageId !== lastLineScopedLineTokens.languageId) {
-			// The language mode of last valid line is not the same as current line.
-			return null;
+			if (currentLineScopedLineTokens.languageId !== lastLineScopedLineTokens.languageId) {
+				// The language mode of last valid line is not the same as current line.
+				return null;
+			}
 		}
 
 		let lineText = model.getLineContent(lastLineNumber);

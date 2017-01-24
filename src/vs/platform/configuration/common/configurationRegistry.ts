@@ -17,6 +17,13 @@ export const Extensions = {
 	Configuration: 'base.contributions.configuration'
 };
 
+// Locally extend IJSONSchema with the vscode-specific `isExecutable` property
+declare module 'vs/base/common/jsonSchema' {
+	export interface IJSONSchema {
+		isExecutable?: boolean;
+	}
+}
+
 export interface IConfigurationRegistry {
 
 	/**
@@ -45,6 +52,7 @@ export interface IConfigurationRegistry {
 	 */
 	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
 
+	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
@@ -70,12 +78,15 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private configurationSchema: IJSONSchema;
 	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
+	private overrideIdentifiers: string[] = [];
+	private overridePropertyPattern: string;
 
 	constructor() {
 		this.configurationContributors = [];
 		this.configurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
+		this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 		this.registerOverrideSettingsConfiguration();
@@ -98,6 +109,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		});
 
 		this._onDidRegisterConfiguration.fire(this);
+	}
+
+	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
+		this.overrideIdentifiers.push(...overrideIdentifiers);
+		this.updateOverridePropertyPatternKey();
 	}
 
 	private registerProperties(configuration: IConfigurationNode, overridable: boolean = false) {
@@ -150,7 +166,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			}
 		};
 		if (configuration.id === SETTINGS_OVERRRIDE_NODE_ID) {
-			configurationSchema.patternProperties[OVERRIDE_PROPERTY] = objects.clone(configuration.properties['[]']);
+			configurationSchema.patternProperties[this.overridePropertyPattern] = objects.clone(configuration.properties['[]']);
 		} else {
 			register(configuration);
 		}
@@ -159,13 +175,24 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
 		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
-			let patternProperties = this.configurationSchema.patternProperties[OVERRIDE_PROPERTY];
+			let patternProperties = this.configurationSchema.patternProperties[this.overridePropertyPattern];
 			if (patternProperties) {
 				if (!patternProperties.properties) {
 					patternProperties.properties = {};
 				}
 				this.update(configuration, patternProperties);
+				contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 			}
+		}
+	}
+
+	private updateOverridePropertyPatternKey(): void {
+		let patternProperties = this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		if (patternProperties) {
+			delete this.configurationSchema.patternProperties[this.overridePropertyPattern];
+			this.computeOverridePropertyPattern();
+			this.configurationSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
+			contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 		}
 	}
 
@@ -184,13 +211,17 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
+	private computeOverridePropertyPattern(): void {
+		this.overridePropertyPattern = this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.join('|')) : OVERRIDE_PROPERTY;
+	}
+
 	private registerOverrideSettingsConfiguration(): void {
 		const properties = {
 			'[]': {
 				type: 'object',
 				description: nls.localize('overrideSettings.description', "Configure settings to be overridden for a set of language identifiers."),
 				additionalProperties: false,
-				errorMessage: 'Unknown configuration setting'
+				errorMessage: 'Unknown Identifier. Use language identifiers'
 			}
 		};
 		this.registerConfiguration({
@@ -204,6 +235,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 const SETTINGS_OVERRRIDE_NODE_ID = 'override';
 const OVERRIDE_PROPERTY = '\\[.*\\]$';
+const OVERRIDE_PATTERN_WITH_SUBSTITUTION = '\\[(${0})\\]$';
 export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
 
 function getDefaultValue(type: string | string[]): any {
@@ -229,6 +261,32 @@ function getDefaultValue(type: string | string[]): any {
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
+export interface ISecurityConfiguration {
+	security: {
+		workspacesTrustedToSpecifyExecutables: { [path: string]: boolean }
+	};
+}
+
+configurationRegistry.registerConfiguration({
+	'id': 'Security',
+	'order': 5,
+	'title': nls.localize('securityConfigurationTitle', "Security"),
+	'type': 'object',
+	'properties': {
+		'security.workspacesTrustedToSpecifyExecutables': {
+			'type': 'object',
+			'description': nls.localize('security.workspacesTrustedToSpecifyExecutables', "Specifes which workspaces are trusted to specify executables in their settings. This option can only configured in the user settings."),
+			'default': {},
+			defaultSnippets: [{ body: '${1:workspace_path} : ${2:true}' }],
+			'additionalProperties': {
+				'type': 'boolean',
+				'description': nls.localize('exclude.boolean', "Path to a workspaces. Set to true or false to trust or distrust a workspace."),
+			}
+		}
+	}
+
+});
+
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
@@ -242,9 +300,19 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
 			type: 'object',
 			additionalProperties: {
-				$ref: 'http://json-schema.org/draft-04/schema#'
+				anyOf: [
+					{ $ref: 'http://json-schema.org/draft-04/schema#' },
+					{
+						type: 'object',
+						properties: {
+							isExecutable: {
+								type: 'boolean'
+							}
+						}
+					}
+				]
 			}
-		}
+		},
 	}
 });
 

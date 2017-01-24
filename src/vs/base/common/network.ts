@@ -24,6 +24,11 @@ export namespace Schemas {
 	 */
 	export const internal: string = 'private';
 
+	/**
+	 * An embedded code snippet.
+	 */
+	export const walkThroughSnippet: string = 'walkThroughSnippet';
+
 	export const http: string = 'http';
 
 	export const https: string = 'https';

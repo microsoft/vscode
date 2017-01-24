@@ -28,6 +28,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { GitSCMProvider } from './gitScm';
 
 import IGitService = git.IGitService;
 
@@ -164,6 +165,11 @@ export function registerContributions(): void {
 		StatusUpdater
 	);
 
+	// Register GitSCMProvider
+	(<ext.IWorkbenchContributionsRegistry>platform.Registry.as(ext.Extensions.Workbench)).registerWorkbenchContribution(
+		GitSCMProvider
+	);
+
 	// Register Quick Open for git
 	(<quickopen.IQuickOpenRegistry>platform.Registry.as(quickopen.Extensions.Quickopen)).registerQuickOpenHandler(
 		new quickopen.QuickOpenHandlerDescriptor(
@@ -190,7 +196,8 @@ export function registerContributions(): void {
 			'git.path': {
 				type: ['string', 'null'],
 				description: nls.localize('gitPath', "Path to the git executable"),
-				default: null
+				default: null,
+				isExecutable: true
 			},
 			'git.autorefresh': {
 				type: 'boolean',

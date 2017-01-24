@@ -55,6 +55,9 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
+import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -139,6 +142,8 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
+		DOM.toggleClass(this.headerContainer, 'vertical-layout', dimension.width < 700);
+		this.searchWidget.layout(dimension);
 		const headerHeight = DOM.getTotalHeight(this.headerContainer);
 		this.sideBySidePreferencesWidget.layout(new Dimension(dimension.width, dimension.height - headerHeight));
 	}
@@ -150,6 +155,11 @@ export class PreferencesEditor extends BaseEditor {
 
 	public focus(): void {
 		this.searchWidget.focus();
+	}
+
+	public clearInput(): void {
+		this.sideBySidePreferencesWidget.clearInput();
+		super.clearInput();
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -169,6 +179,10 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private switchSettings(): void {
+		// Focus the editor if this editor is not active editor
+		if (this.editorService.getActiveEditor() !== this) {
+			this.focus();
+		}
 		const promise = this.input.isDirty() ? this.input.save() : TPromise.as(true);
 		promise.done(value => this.preferencesService.switchSettings());
 	}
@@ -201,7 +215,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private showSearchResultsMessage(count: number): string {
-		return count === 0 ? nls.localize('noSettingsFound', "No Settings matched") :
+		return count === 0 ? nls.localize('noSettingsFound', "No Results") :
 			count === 1 ? nls.localize('oneSettingFound', "1 Setting matched") :
 				nls.localize('settingsFound', "{0} Settings matched", count);
 	}
@@ -273,6 +287,7 @@ export class SideBySidePreferencesWidget extends Widget {
 		this.defaultPreferencesEditorContainer.style.position = 'absolute';
 		this.defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesEditor);
 		this.defaultPreferencesEditor.create(new Builder(this.defaultPreferencesEditorContainer));
+		this.defaultPreferencesEditor.setVisible(true);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
@@ -299,6 +314,12 @@ export class SideBySidePreferencesWidget extends Widget {
 
 	public getDefaultPreferencesEditor(): DefaultPreferencesEditor {
 		return this.defaultPreferencesEditor;
+	}
+
+	public clearInput(): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.clearInput();
+		}
 	}
 
 	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
@@ -391,6 +412,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.wrappingColumn = 0;
 			options.renderIndentGuides = false;
 			options.rulers = [];
+			options.glyphMargin = true;
 		}
 		return options;
 	}
@@ -412,6 +434,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	public clearInput(): void {
 		this.getControl().setModel(null);
 		super.clearInput();
+	}
+
+	protected getAriaLabel(): string {
+		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly text editor.");
 	}
 }
 
@@ -449,7 +475,7 @@ export interface IPreferencesRenderer<T> {
 	onClearFocusPreference: Event<ISetting>;
 	preferencesModel: ISettingsEditorModel;
 	render(): void;
-	updatePreference(setting: ISetting, value: any): void;
+	updatePreference(key: string, value: any, source: T): void;
 	filterPreferences(filterResult: IFilterResult): void;
 	focusPreference(setting: ISetting): void;
 	clearFocus(setting: ISetting): void;
@@ -544,6 +570,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	private editSettingActionRenderer: EditSettingRenderer;
 	private highlightPreferencesRenderer: HighlightPreferencesRenderer;
 	private defaultSettingsModel: DefaultSettingsEditorModel;
+	private untrustedSettingRenderer: UnTrustedWorkspaceSettingsRenderer;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 
 	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
@@ -560,6 +587,9 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
+		if (this.preferencesService.workspaceSettingsResource.toString() === preferencesModel.uri.toString()) {
+			this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnTrustedWorkspaceSettingsRenderer, editor, preferencesModel));
+		}
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightPreferencesRenderer = this._register(instantiationService.createInstance(HighlightPreferencesRenderer, editor));
 		this.initializationPromise = this.initialize();
@@ -572,6 +602,9 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	public render(): void {
 		this.initializationPromise.then(() => {
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
+			if (this.untrustedSettingRenderer) {
+				this.untrustedSettingRenderer.render();
+			}
 		});
 	}
 
@@ -580,10 +613,17 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 			.then(defaultSettingsModel => {
 				this.defaultSettingsModel = <DefaultSettingsEditorModel>defaultSettingsModel;
 				this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultSettingsModel, this.settingHighlighter));
+				this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
 				this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
-				this._register(this.editSettingActionRenderer.onUpdateSetting(({setting, value}) => this.updatePreference(setting, value)));
 				return null;
 			});
+	}
+
+	public updatePreference(key: string, value: any, source: ISetting): void {
+		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
+		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
+		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, { writeToBuffer: true, autoSave: true })
+			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
 	}
 
 	private onModelChanged(): void {
@@ -594,18 +634,28 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		this.render();
 	}
 
-	public updatePreference(setting: ISetting, value: any): void {
-		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [setting.key] });
-		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key: setting.key, value }, { writeToBuffer: true, autoSave: true })
-			.then(() => this.onSettingUpdated(setting), error => this.messageService.show(Severity.Error, error));
-	}
-
 	private onSettingUpdated(setting: ISetting) {
 		this.editor.focus();
-		setting = this.preferencesModel.getPreference(setting.key);
-		// TODO:@sandy Selection range should be template range
-		this.editor.setSelection(setting.valueRange);
-		this.settingHighlighter.highlight(this.preferencesModel.getPreference(setting.key), true);
+		setting = this.getSetting(setting);
+		if (setting) {
+			// TODO:@sandy Selection range should be template range
+			this.editor.setSelection(setting.valueRange);
+			this.settingHighlighter.highlight(setting, true);
+		}
+	}
+
+	private getSetting(setting: ISetting): ISetting {
+		const {key, overrideOf} = setting;
+		if (overrideOf) {
+			const setting = this.getSetting(overrideOf);
+			for (const override of setting.overrides) {
+				if (override.key === key) {
+					return override;
+				}
+			}
+			return null;
+		}
+		return this.preferencesModel.getPreference(key);
 	}
 
 	public filterPreferences(filterResult: IFilterResult): void {
@@ -615,7 +665,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 			const settings = distinct(filterResult.filteredGroups.reduce((settings: ISetting[], settingsGroup: ISettingsGroup) => {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
-						const s = this.preferencesModel.getPreference(setting.key);
+						const s = this.getSetting(setting);
 						if (s) {
 							settings.push(s);
 						}
@@ -628,7 +678,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	}
 
 	public focusPreference(setting: ISetting): void {
-		const s = this.preferencesModel.getPreference(setting.key);
+		const s = this.getSetting(setting);
 		if (s) {
 			this.settingHighlighter.highlight(s, true);
 		} else {
@@ -671,7 +721,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.filteredSettingsNavigationRenderer = this._register(instantiationService.createInstance(FilteredSettingsNavigationRenderer, editor, this.settingHighlighter));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, () => (<DefaultPreferencesCodeEditor>this.editor).settingsModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({setting, value}) => this.updatePreference(setting, value)));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
 		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, preferencesModel.settingsGroups));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
 
@@ -719,10 +769,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer.collapseAll();
 	}
 
-	public updatePreference(setting: ISetting, value: any): void {
+	public updatePreference(key: string, value: any, source: ISetting): void {
 		const settingsEditor = this.getEditableSettingsEditor();
 		if (settingsEditor) {
-			settingsEditor.getContribution<PreferencesEditorContribution<ISetting>>(SettingsEditorContribution.ID).getPreferencesRenderer().updatePreference(setting, value);
+			settingsEditor.getContribution<PreferencesEditorContribution<ISetting>>(SettingsEditorContribution.ID).getPreferencesRenderer().updatePreference(key, value, source);
 		}
 	}
 
@@ -1060,8 +1110,8 @@ class EditSettingRenderer extends Disposable {
 	private settingsGroups: ISettingsGroup[];
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private _onUpdateSetting: Emitter<{ setting: ISetting, value: any }> = new Emitter<{ setting: ISetting, value: any }>();
-	public readonly onUpdateSetting: Event<{ setting: ISetting, value: any }> = this._onUpdateSetting.event;
+	private _onUpdateSetting: Emitter<{ key: string, value: any, source: ISetting }> = new Emitter<{ key: string, value: any, source: ISetting }>();
+	public readonly onUpdateSetting: Event<{ key: string, value: any, source: ISetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private otherSettingsModel: () => ISettingsEditorModel,
@@ -1084,6 +1134,7 @@ class EditSettingRenderer extends Disposable {
 
 		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
 		this._register(this.editor.onMouseMove(mouseMoveEvent => this.onMouseMoved(mouseMoveEvent)));
+		this._register(this.editor.onDidChangeConfiguration(() => this.onConfigurationChanged()));
 	}
 
 	public render(settingsGroups: ISettingsGroup[]): void {
@@ -1099,6 +1150,13 @@ class EditSettingRenderer extends Disposable {
 
 	private isDefaultSettings(): boolean {
 		return this.masterSettingsModel instanceof DefaultSettingsEditorModel;
+	}
+
+	private onConfigurationChanged(): void {
+		if (!this.editor.getRawConfiguration().glyphMargin) {
+			this.editPreferenceWidgetForCusorPosition.hide();
+			this.editPreferenceWidgetForMouseMove.hide();
+		}
 	}
 
 	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
@@ -1141,8 +1199,10 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: ISetting[]) {
-		editPreferencesWidget.show(settings[0].valueRange.startLineNumber, settings);
-		editPreferencesWidget.getDomNode().title = nls.localize('editTtile', "Edit");
+		if (this.editor.getRawConfiguration().glyphMargin) {
+			editPreferencesWidget.show(settings[0].valueRange.startLineNumber, settings);
+			editPreferencesWidget.getDomNode().title = nls.localize('editTtile', "Edit");
+		}
 	}
 
 	private getSettings(lineNumber: number): ISetting[] {
@@ -1166,7 +1226,16 @@ class EditSettingRenderer extends Disposable {
 							break;
 						}
 						if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-							settings.push(setting);
+							if (setting.overrides.length > 0) {
+								// Only one level because override settings cannot have override settings
+								for (const overrideSetting of setting.overrides) {
+									if (lineNumber >= overrideSetting.range.startLineNumber && lineNumber <= overrideSetting.range.endLineNumber) {
+										settings.push(overrideSetting);
+									}
+								}
+							} else {
+								settings.push(setting);
+							}
 						}
 					}
 				}
@@ -1200,12 +1269,12 @@ class EditSettingRenderer extends Disposable {
 				id: 'truthyValue',
 				label: 'true',
 				enabled: true,
-				run: () => this.updateSetting(setting, true)
+				run: () => this.updateSetting(setting.key, true, setting)
 			}, <IAction>{
 				id: 'falsyValue',
 				label: 'false',
 				enabled: true,
-				run: () => this.updateSetting(setting, false)
+				run: () => this.updateSetting(setting.key, false, setting)
 			}];
 		}
 		if (jsonSchema.enum) {
@@ -1214,7 +1283,7 @@ class EditSettingRenderer extends Disposable {
 					id: value,
 					label: JSON.stringify(value),
 					enabled: true,
-					run: () => this.updateSetting(setting, value)
+					run: () => this.updateSetting(setting.key, value, setting)
 				};
 			});
 		}
@@ -1228,14 +1297,14 @@ class EditSettingRenderer extends Disposable {
 				id: 'setDefaultValue',
 				label: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),
 				enabled: true,
-				run: () => this.updateSetting(setting, setting.value)
+				run: () => this.updateSetting(setting.key, setting.value, setting)
 			}];
 		}
 		return [];
 	}
 
-	private updateSetting(setting: ISetting, value: any): void {
-		this._onUpdateSetting.fire({ setting, value });
+	private updateSetting(key: string, value: any, source: ISetting): void {
+		this._onUpdateSetting.fire({ key, value, source });
 	}
 }
 
@@ -1276,6 +1345,42 @@ class SettingHighlighter extends Disposable {
 			this.fixedHighlighter.removeHighlightRange();
 		}
 		this.clearFocusEventEmitter.fire(this.highlightedSetting);
+	}
+}
+
+class UnTrustedWorkspaceSettingsRenderer extends Disposable {
+
+	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IMarkerService private markerService: IMarkerService
+	) {
+		super();
+	}
+
+	public render(): void {
+		const untrustedConfigurations = this.configurationService.getUntrustedConfigurations();
+		if (untrustedConfigurations.length) {
+			const markerData: IMarkerData[] = [];
+			for (const untrustedConfiguration of untrustedConfigurations) {
+				const setting = this.workspaceSettingsEditorModel.getPreference(untrustedConfiguration);
+				if (setting) {
+					markerData.push({
+						severity: Severity.Error,
+						startLineNumber: setting.keyRange.startLineNumber,
+						startColumn: setting.keyRange.startColumn,
+						endLineNumber: setting.keyRange.endLineNumber,
+						endColumn: setting.keyRange.endColumn,
+						message: nls.localize('untrustedWorkspaceWithExectuables', "`{0}` specifies an executable. It is ignored because the workspace is untrusted. To mark a workspace as trusted, open the User settings and add workspace folder to `security.workspacesTrustedToSpecifyExecutables`", setting.key)
+					});
+				}
+			}
+			this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
+		}
+	}
+
+	public dispose(): void {
+		this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
+		super.dispose();
 	}
 }
 

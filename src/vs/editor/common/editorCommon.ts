@@ -3096,7 +3096,7 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
+	export const hasTypeImplementationProvider = new RawContextKey<boolean>('editorHasTypeImplementationProvider', undefined);
 	/**
 	 * @internal
 	 */
@@ -3129,6 +3129,10 @@ export namespace ModeContextKeys {
 	 * @internal
 	 */
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
 }
 
 
@@ -3614,6 +3618,11 @@ export interface IEditor {
 	 * Scroll vertically or horizontally as necessary and reveal a range centered vertically.
 	 */
 	revealRangeInCenter(range: IRange): void;
+
+	/**
+	 * Scroll vertically or horizontally as necessary and reveal a range at the top of the viewport.
+	 */
+	revealRangeAtTop(range: IRange): void;
 
 	/**
 	 * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.

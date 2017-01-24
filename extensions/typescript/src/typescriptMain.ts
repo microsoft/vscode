@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -25,7 +25,7 @@ import { ITypescriptServiceClientHost } from './typescriptService';
 
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
-import TypeDefinitionProvider from './features/TypeDefinitionProvider';
+import TypeImplementationProvider from './features/TypeImplementationProvider';
 import DocumentHighlightProvider from './features/documentHighlightProvider';
 import ReferenceProvider from './features/referenceProvider';
 import DocumentSymbolProvider from './features/documentSymbolProvider';
@@ -40,7 +40,7 @@ import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
-import TypingsStatus from './utils/typingsStatus';
+import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as VersionStatus from './utils/versionStatus';
 
 interface LanguageDescription {
@@ -113,7 +113,7 @@ class LanguageProvider {
 
 	private _validate: boolean;
 
-	constructor(client: TypeScriptServiceClient, description: LanguageDescription) {
+	constructor(private client: TypeScriptServiceClient, description: LanguageDescription) {
 		this.description = description;
 		this.extensions = Object.create(null);
 		description.extensions.forEach(extension => this.extensions[extension] = true);
@@ -121,13 +121,14 @@ class LanguageProvider {
 
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
-				this.currentDiagnostics.delete(Uri.file(file));
+				this.currentDiagnostics.delete(client.asUrl(file));
 			}
 		}, this.extensions);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
 		this.typingsStatus = new TypingsStatus(client);
+		new AtaProgressReporter(client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
@@ -148,7 +149,7 @@ class LanguageProvider {
 
 		let hoverProvider = new HoverProvider(client);
 		let definitionProvider = new DefinitionProvider(client);
-		let typeDefinitionProvider = new TypeDefinitionProvider(client);
+		let typeImplementationProvider = new TypeImplementationProvider(client);
 		let documentHighlightProvider = new DocumentHighlightProvider(client);
 		let referenceProvider = new ReferenceProvider(client);
 		let documentSymbolProvider = new DocumentSymbolProvider(client);
@@ -167,13 +168,13 @@ class LanguageProvider {
 		}
 
 		this.description.modeIds.forEach(modeId => {
-			let selector: DocumentFilter = { scheme: 'file', language: modeId };
+			let selector: DocumentFilter = modeId;
 			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
 			languages.registerHoverProvider(selector, hoverProvider);
 			languages.registerDefinitionProvider(selector, definitionProvider);
 			if (client.apiVersion.has220Features()) {
 				// TODO: TS 2.1.5 returns incorrect results for implementation locations.
-				languages.registerTypeDefinitionProvider(selector, typeDefinitionProvider);
+				languages.registerTypeImplementationProvider(selector, typeImplementationProvider);
 			}
 			languages.registerDocumentHighlightProvider(selector, documentHighlightProvider);
 			languages.registerReferenceProvider(selector, referenceProvider);
@@ -316,11 +317,11 @@ class LanguageProvider {
 			delete this.syntaxDiagnostics[file];
 			diagnostics = syntaxMarkers.concat(diagnostics);
 		}
-		this.currentDiagnostics.set(Uri.file(file), diagnostics);
+		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.currentDiagnostics.set(Uri.file(file), diagnostics);
+		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 	}
 }
 

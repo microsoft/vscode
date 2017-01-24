@@ -8,6 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
+import * as Types from 'vs/base/common/types';
 
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
@@ -71,6 +72,70 @@ export namespace ShowOutput {
 	}
 }
 
+export interface CommandOptions {
+	/**
+	 * The current working directory of the executed program or shell.
+	 * If omitted VSCode's current workspace root is used.
+	 */
+	cwd?: string;
+
+	/**
+	 * The environment of the executed program or shell. If omitted
+	 * the parent process' environment is used.
+	 */
+	env?: { [key: string]: string; };
+}
+
+export interface ShellConfiguration {
+	/**
+	 * The shell executable.
+	 */
+	executable: string;
+	/**
+	 * The arguments to be passed to the shell executable.
+	 */
+	args?: string[];
+}
+
+export namespace ShellConfiguration {
+	export function is(value: any): value is ShellConfiguration {
+		let candidate: ShellConfiguration = value;
+		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
+	}
+}
+
+export interface CommandConfiguration {
+	/**
+	 * The command to execute
+	 */
+	name?: string;
+
+	/**
+	 * Whether the command is a shell command or not
+	 */
+	isShellCommand?: boolean | ShellConfiguration;
+
+	/**
+	 * Additional command options.
+	 */
+	options?: CommandOptions;
+
+	/**
+	 * Command arguments.
+	 */
+	args?: string[];
+
+	/**
+	 * The task selector if needed.
+	 */
+	taskSelector?: string;
+
+	/**
+	 * Controls whether the executed command is printed to the output windows as well.
+	 */
+	echo?: boolean;
+}
+
 /**
  * A task description
  */
@@ -85,6 +150,11 @@ export interface TaskDescription {
 	 * The task's name
 	 */
 	name: string;
+
+	/**
+	 * The command configuration
+	 */
+	command: CommandConfiguration;
 
 	/**
 	 * Suppresses the task name when calling the task using the task runner.
@@ -114,71 +184,29 @@ export interface TaskDescription {
 	showOutput: ShowOutput;
 
 	/**
-	 * Controls whether the executed command is printed to the output windows as well.
-	 */
-	echoCommand?: boolean;
-
-	/**
 	 * The problem watchers to use for this task
 	 */
 	problemMatchers?: ProblemMatcher[];
 }
 
-export interface CommandOptions {
-	/**
-	 * The current working directory of the executed program or shell.
-	 * If omitted VSCode's current workspace root is used.
-	 */
-	cwd?: string;
-
-	/**
-	 * The environment of the executed program or shell. If omitted
-	 * the parent process' environment is used.
-	 */
-	env?: { [key: string]: string; };
-}
-
-
 /**
  * Describs the settings of a task runner
  */
-export interface BaseTaskRunnerConfiguration {
+export interface TaskRunnerConfiguration {
+	/**
+	 * The inferred build tasks
+	 */
+	buildTasks: string[];
 
 	/**
-	 * The command to execute
+	 * The inferred test tasks;
 	 */
-	command?: string;
-
-	/**
-	 * Whether the task is a shell command or not
-	 */
-	isShellCommand?: boolean;
-
-	/**
-	 * Additional command options
-	 */
-	options?: CommandOptions;
-
-	/**
-	 * General args
-	 */
-	args?: string[];
+	testTasks: string[];
 
 	/**
 	 * The configured tasks
 	 */
 	tasks?: { [id: string]: TaskDescription; };
-}
-
-/**
- * Describs the settings of a task runner
- */
-export interface TaskRunnerConfiguration extends BaseTaskRunnerConfiguration {
-
-	/**
-	 * The command to execute. Not optional.
-	 */
-	command: string;
 }
 
 export interface ITaskSummary {

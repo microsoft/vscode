@@ -6,6 +6,29 @@
 'use strict';
 
 (function () {
+	// From https://remysharp.com/2010/07/21/throttling-function-calls
+	function throttle(fn, threshhold, scope) {
+		threshhold || (threshhold = 250);
+		var last, deferTimer;
+		return function () {
+			var context = scope || this;
+
+			var now = +new Date,
+				args = arguments;
+			if (last && now < last + threshhold) {
+				// hold on to it
+				clearTimeout(deferTimer);
+				deferTimer = setTimeout(function () {
+					last = now;
+					fn.apply(context, args);
+				}, threshhold + last - now);
+			} else {
+				last = now;
+				fn.apply(context, args);
+			}
+		};
+	}
+
 	/**
 	 * Find the html elements that map to a specific target line in the editor.
 	 *
@@ -13,15 +36,16 @@
 	 * returns the element prior to and the element after the given line.
 	 */
 	function getElementsForSourceLine(targetLine) {
-		let previous = null;
-		for (const element of document.getElementsByClassName('code-line')) {
+		const lines = document.getElementsByClassName('code-line');
+		let previous = lines[0] && +lines[0].getAttribute('data-line') ? { line: +lines[0].getAttribute('data-line'), element: lines[0] } : null;
+		for (const element of lines) {
 			const lineNumber = +element.getAttribute('data-line');
 			if (isNaN(lineNumber)) {
 				continue;
 			}
 			const entry = { line: lineNumber, element: element };
 			if (lineNumber === targetLine) {
-				return { before: entry, next: null };
+				return { previous: entry, next: null };
 			} else if (lineNumber > targetLine) {
 				return { previous, next: entry };
 			}
@@ -34,21 +58,22 @@
 	 * Find the html elements that are at a specific pixel offset on the page.
 	 */
 	function getLineElementsAtPageOffset(offset) {
-		let before = null;
-		for (const element of document.getElementsByClassName('code-line')) {
+		const lines = document.getElementsByClassName('code-line');
+		let previous = null;
+		for (const element of lines) {
 			const line = +element.getAttribute('data-line');
 			if (isNaN(line)) {
 				continue;
 			}
-			const entry = {element, line };
+			const entry = { element, line };
 			if (offset >= window.scrollY + element.getBoundingClientRect().top && offset <= window.scrollY + element.getBoundingClientRect().top + element.getBoundingClientRect().height) {
-				return { before: entry };
+				return { previous: entry };
 			} else if (offset < window.scrollY + element.getBoundingClientRect().top) {
-				return { before, after: entry};
+				return { previous, next: entry };
 			}
-			before = entry;
+			previous = entry;
 		}
-		return {before};
+		return { previous };
 	}
 
 	function getSourceRevealAddedOffset() {
@@ -75,23 +100,17 @@
 		}
 	}
 
-	function didUpdateScrollPosition(offset) {
-		const {before, after } = getLineElementsAtPageOffset(offset);
-		if (before) {
-			let line = 0;
-			if (after) {
-				const betweenProgress = (offset - window.scrollY - before.element.getBoundingClientRect().top) / (after.element.getBoundingClientRect().top - before.element.getBoundingClientRect().top);
-				line = before.line + Math.floor(betweenProgress * (after.line - before.line));
+	function getEditorLineNumberForPageOffset(offset) {
+		const {previous, next} = getLineElementsAtPageOffset(offset);
+		if (previous) {
+			if (next) {
+				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
+				return previous.line + betweenProgress * (next.line - previous.line);
 			} else {
-				line = before.line;
+				return previous.line;
 			}
-
-			const args = [window.initialData.source, line];
-			window.parent.postMessage({
-				command: "did-click-link",
-				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
-			}, "file://");
 		}
+		return null;
 	}
 
 
@@ -117,44 +136,69 @@
 		}
 	}
 
+	var scrollDisabled = false;
 	var pageHeight = 0;
 	var marker = new ActiveLineMarker();
 
 	window.onload = () => {
 		pageHeight = document.body.getBoundingClientRect().height;
 
-		if (window.initialData.enablePreviewSync) {
+		if (window.initialData.scrollPreviewWithEditorSelection) {
 			const initialLine = +window.initialData.line || 0;
+			scrollDisabled = true;
 			scrollToRevealSourceLine(initialLine);
 		}
 	};
 
-	window.addEventListener('resize', () => {
+	window.addEventListener('resize', throttle(() => {
 		const currentOffset = window.scrollY;
 		const newPageHeight = document.body.getBoundingClientRect().height;
 		const dHeight = newPageHeight / pageHeight;
 		window.scrollTo(0, currentOffset * dHeight);
 		pageHeight = newPageHeight;
-	}, true);
+	}, 100), true);
 
-	if (window.initialData.enablePreviewSync) {
+	if (window.initialData.scrollPreviewWithEditorSelection) {
 
 		window.addEventListener('message', event => {
 			const line = +event.data.line;
 			if (!isNaN(line)) {
+				scrollDisabled = true;
 				scrollToRevealSourceLine(line);
 			}
 		}, false);
 
-		document.ondblclick = (e) => {
-			const offset = e.pageY;
-			didUpdateScrollPosition(offset);
-		};
+		document.addEventListener('dblclick', e => {
+			if (!window.initialData.doubleClickToSwitchToEditor) {
+				return;
+			}
 
-		/**
-		window.onscroll = () => {
-			didUpdateScrollPosition(window.scrollY);
-		};
-		*/
+			const offset = e.pageY;
+			const line = getEditorLineNumberForPageOffset(offset);
+			if (!isNaN(line)) {
+				const args = [window.initialData.source, line];
+				window.parent.postMessage({
+					command: "did-click-link",
+					data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
+				}, "file://");
+			}
+		});
+
+		if (window.initialData.scrollEditorWithPreview) {
+			window.addEventListener('scroll', throttle(() => {
+				if (scrollDisabled) {
+					scrollDisabled = false;
+				} else {
+					const line = getEditorLineNumberForPageOffset(window.scrollY);
+					if (!isNaN(line)) {
+						const args = [window.initialData.source, line];
+						window.parent.postMessage({
+							command: "did-click-link",
+							data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
+						}, "file://");
+					}
+				}
+			}, 50));
+		}
 	}
 }());

@@ -1970,4 +1970,36 @@ suite('FindModel', () => {
 		findModel.dispose();
 		findState.dispose();
 	});
+
+	findTest('issue #18711 replaceAll with empty string', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', replaceString: '', wholeWord: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.replaceAll();
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << " world, !" << endl;');
+		assert.equal(editor.getModel().getLineContent(7), '    cout << " world again" << endl;');
+		assert.equal(editor.getModel().getLineContent(8), '    cout << " world again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
 });

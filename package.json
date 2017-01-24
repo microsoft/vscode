@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.9.0",
   "electronVersion": "1.4.6",
-  "distro": "07e460da0e2854e12c183abaa5acbcd7b8c48d7f",
+  "distro": "d183c9fb99184edfdbb5c08da47ad8cc60d20444",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -30,9 +30,9 @@
     "iconv-lite": "0.4.15",
     "minimist": "1.2.0",
     "native-keymap": "0.3.0",
-    "node-pty": "0.6.0-beta2",
+    "node-pty": "0.6.1",
     "semver": "4.3.6",
-    "vscode-debugprotocol": "1.15.0",
+    "vscode-debugprotocol": "1.16.0",
     "vscode-textmate": "3.1.0",
     "winreg": "1.2.0",
     "xterm": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.9",

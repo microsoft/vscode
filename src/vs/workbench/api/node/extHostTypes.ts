@@ -519,6 +519,16 @@ export class WorkspaceEdit {
 
 export class SnippetString {
 
+	static isSnippetString(thing: any): thing is SnippetString {
+		if (thing instanceof SnippetString) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<SnippetString>thing).value === 'string';
+	}
+
 	private static _escape(value: string): string {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
@@ -910,7 +920,8 @@ export enum TextDocumentSaveReason {
 export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 export enum TextEditorSelectionChangeKind {

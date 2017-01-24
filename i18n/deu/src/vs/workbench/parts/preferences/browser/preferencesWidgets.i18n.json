@@ -9,5 +9,5 @@
 	"defaultSettingsInfo": " - Überschreiben Sie diese, indem Sie sie in Ihrer Einstellungsdatei auf der rechten Seite platzieren.",
 	"defaultSettingsTitle": "Standardeinstellungen",
 	"noSettings": "Keine Einstellungen gefunden.",
-	"showCount": "Es werden {0} von {1} Einstellungen angezeigt."
+	"showCount": "{0} von {1} Ergebnissen werden angezeigt."
 }

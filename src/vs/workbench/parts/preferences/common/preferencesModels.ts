@@ -123,19 +123,17 @@ export abstract class AbstractSettingsModel extends Disposable {
 				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
 
-			if (schema.type === 'string' || schema.enum) {
-				const valueMatches = matchesContiguousSubString(word, setting.value);
-				if (valueMatches) {
-					valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
-				} else if (schema.enum && schema.enum.some(enumValue => !!matchesContiguousSubString(word, enumValue))) {
-					valueMatchingWords.set(word, []);
-				}
+			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
+			if (valueMatches) {
+				valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+			} else if (schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
+				valueMatchingWords.set(word, []);
 			}
 		}
 
 		const descriptionRanges: IRange[] = [];
 		for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex]) || [];
+			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
 			descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 		}
 		if (descriptionRanges.length === 0) {
@@ -146,7 +144,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, keyMatchingWords, [descriptionMatchingWords, valueMatchingWords]);
 
 		let valueRanges: IRange[] = [];
-		if (typeof setting.value === 'string') {
+		if (setting.value && typeof setting.value === 'string') {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, valueMatchingWords, [keyMatchingWords, descriptionMatchingWords]);
 		}
@@ -254,7 +252,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			}
 			if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 				// settings value started
-				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
+				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
 				let valueStartPosition = model.getPositionAt(offset);
 				let valueEndPosition = model.getPositionAt(offset + length);
 				setting.value = value;
@@ -289,7 +287,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting started
 					let settingStartPosition = model.getPositionAt(offset);
-					const setting = {
+					const setting: ISetting = {
 						description: [],
 						key: name,
 						keyRange: {
@@ -307,7 +305,8 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						value: null,
 						valueRange: null,
 						descriptionRanges: null,
-						settings: []
+						overrides: [],
+						overrideOf: overrideSetting
 					};
 					if (previousParents.length === 1) {
 						settings.push(setting);
@@ -315,7 +314,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 							overrideSetting = setting;
 						}
 					} else {
-						overrideSetting.settings.push(setting);
+						overrideSetting.overrides.push(setting);
 					}
 				}
 			},
@@ -323,7 +322,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentParent = previousParents.pop();
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
 					let valueEndPosition = model.getPositionAt(offset + length);
 					setting.valueRange = assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
@@ -356,7 +355,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentParent = previousParents.pop();
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting value ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
 					let valueEndPosition = model.getPositionAt(offset + length);
 					setting.valueRange = assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
@@ -468,7 +467,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					value: setting.value,
 					range: null,
 					valueRange: null,
-					settings: []
+					overrides: []
 				};
 			}
 			return null;
@@ -508,7 +507,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				const prop = config.properties[key];
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
-				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], settings: [] };
+				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] };
 			});
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}

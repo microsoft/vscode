@@ -33,7 +33,8 @@ export interface ISetting {
 	valueRange: IRange;
 	description: string[];
 	descriptionRanges: IRange[];
-	settings: ISetting[];
+	overrides?: ISetting[];
+	overrideOf?: ISetting;
 }
 
 export interface IFilterResult {
@@ -75,6 +76,8 @@ export interface IPreferencesService {
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;
 	openGlobalKeybindingSettings(): TPromise<void>;
+
+	configureSettingsForLanguage(language: string): void;
 }
 
 export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);

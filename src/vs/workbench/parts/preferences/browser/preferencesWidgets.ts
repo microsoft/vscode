@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { Dimension } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -18,6 +20,8 @@ import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preference
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -58,7 +62,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._domNode = DOM.$('.settings-group-title-widget');
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		this.titleContainer.tabIndex = 1;
+		this.titleContainer.tabIndex = 0;
 		this.onclick(this.titleContainer, () => this.toggle());
 		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
 		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
@@ -179,8 +183,9 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 export class SettingsTabsWidget extends Widget {
 
-	private userSettingsTab: HTMLElement;
-	private workspaceSettingsTab: HTMLElement;
+	private settingsSwitcherBar: ActionBar;
+	private userSettings: Action;
+	private workspaceSettings: Action;
 
 	private _onSwitch: Emitter<void> = new Emitter<void>();
 	public readonly onSwitch: Event<void> = this._onSwitch.event;
@@ -192,28 +197,29 @@ export class SettingsTabsWidget extends Widget {
 
 	private create(parent: HTMLElement): void {
 		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
-		this.userSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		DOM.append(this.userSettingsTab, DOM.$('')).textContent = localize('userSettings', "User Settings");
-		this.onclick(this.userSettingsTab, () => this.onClick(this.userSettingsTab));
+		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
+			animated: false
+		}));
+		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettings));
+		this.userSettings.tooltip = this.userSettings.label;
+		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettings));
+		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
-		this.workspaceSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		DOM.append(this.workspaceSettingsTab, DOM.$('')).textContent = localize('workspaceSettings', "Workspace Settings");
-		if (!this.contextService.hasWorkspace()) {
-			DOM.addClass(this.workspaceSettingsTab, 'disabled');
-		} else {
-			this.onclick(this.workspaceSettingsTab, () => this.onClick(this.workspaceSettingsTab));
-		}
+		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings]);
 	}
 
 	public show(configurationTarget: ConfigurationTarget): void {
-		DOM.toggleClass(this.userSettingsTab, 'active', ConfigurationTarget.USER === configurationTarget);
-		DOM.toggleClass(this.workspaceSettingsTab, 'active', ConfigurationTarget.WORKSPACE === configurationTarget);
+		this.userSettings.checked = ConfigurationTarget.USER === configurationTarget;
+		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
 	}
 
-	private onClick(element: HTMLElement): void {
-		if (!DOM.hasClass(element, 'active')) {
+	private onClick(action: Action): TPromise<any> {
+		if (!action.checked) {
 			this._onSwitch.fire();
 		}
+		return TPromise.as(null);
 	}
 }
 
@@ -260,6 +266,18 @@ export class SearchWidget extends Widget {
 	public showMessage(message: string, count: number): void {
 		this.countElement.textContent = message;
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
+		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+	}
+
+	public layout(dimension: Dimension) {
+		if (dimension.width < 400) {
+			DOM.addClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = '0px';
+		} else {
+			DOM.removeClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		}
+
 	}
 
 	public focus() {

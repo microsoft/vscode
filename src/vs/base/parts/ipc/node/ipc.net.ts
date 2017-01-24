@@ -6,68 +6,145 @@
 'use strict';
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
+import { Duplex } from 'stream';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, once, mapEvent } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
-function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
-	while (start < buffer.length && buffer[start] !== value) {
-		start++;
+export function generateRandomPipeName(): string {
+	let randomName = 'vscode-' + Math.floor(Math.random() * 10000).toString(16);
+	if (process.platform === 'win32') {
+		return '\\\\.\\pipe\\' + randomName + '-sock';
+	} else {
+		// Mac/Unix: use socket file
+		return join(tmpdir(), randomName + '.sock');
 	}
-
-	return start;
 }
 
-class Protocol implements IMessagePassingProtocol {
+export class Protocol implements IMessagePassingProtocol {
 
-	private static Boundary = new Buffer([0]);
+	private static _headerLen = 17;
 
-	private _onMessage: Event<any>;
-	get onMessage(): Event<any> { return this._onMessage; }
+	private _onMessage = new Emitter<any>();
 
-	constructor(private socket: Socket) {
-		let buffer = null;
-		const emitter = new Emitter<any>();
-		const onRawData = fromEventEmitter(socket, 'data', data => data);
+	readonly onMessage: Event<any> = this._onMessage.event;
 
-		onRawData((data: Buffer) => {
-			let lastIndex = 0;
-			let index = 0;
+	constructor(private stream: Duplex) {
 
-			while ((index = bufferIndexOf(data, 0, lastIndex)) < data.length) {
-				const dataToParse = data.slice(lastIndex, index);
+		let chunks = [];
+		let totalLength = 0;
 
-				if (buffer) {
-					emitter.fire(JSON.parse(Buffer.concat([buffer, dataToParse]).toString('utf8')));
-					buffer = null;
-				} else {
-					emitter.fire(JSON.parse(dataToParse.toString('utf8')));
+		const state = {
+			readHead: true,
+			bodyIsJson: false,
+			bodyLen: -1,
+		};
+
+		stream.on('data', (data: Buffer) => {
+
+			chunks.push(data);
+			totalLength += data.length;
+
+			while (totalLength > 0) {
+
+				if (state.readHead) {
+					// expecting header -> read 17bytes for header
+					// information: `bodyIsJson` and `bodyLen`
+					if (totalLength >= Protocol._headerLen) {
+						const all = Buffer.concat(chunks);
+
+						state.bodyIsJson = all.readInt8(0) === 1;
+						state.bodyLen = all.readInt32BE(1);
+						state.readHead = false;
+
+						const rest = all.slice(Protocol._headerLen);
+						totalLength = rest.length;
+						chunks = [rest];
+
+					} else {
+						break;
+					}
 				}
 
-				lastIndex = index + 1;
-			}
+				if (!state.readHead) {
+					// expecting body -> read bodyLen-bytes for
+					// the actual message or wait for more data
+					if (totalLength >= state.bodyLen) {
 
-			if (index - lastIndex > 0) {
-				const dataToBuffer = data.slice(lastIndex, index);
+						const all = Buffer.concat(chunks);
+						let message = all.toString('utf8', 0, state.bodyLen);
+						if (state.bodyIsJson) {
+							message = JSON.parse(message);
+						}
+						this._onMessage.fire(message);
 
-				if (buffer) {
-					buffer = Buffer.concat([buffer, dataToBuffer]);
-				} else {
-					buffer = dataToBuffer;
+						const rest = all.slice(state.bodyLen);
+						totalLength = rest.length;
+						chunks = [rest];
+
+						state.bodyIsJson = false;
+						state.bodyLen = -1;
+						state.readHead = true;
+
+					} else {
+						break;
+					}
 				}
 			}
 		});
-
-		this._onMessage = emitter.event;
 	}
 
 	public send(message: any): void {
-		try {
-			this.socket.write(JSON.stringify(message));
-			this.socket.write(Protocol.Boundary);
-		} catch (e) {
-			// noop
+
+		// [bodyIsJson|bodyLen|message]
+		// |^header^^^^^^^^^^^|^data^^]
+
+		const header = Buffer.alloc(Protocol._headerLen);
+
+		// ensure string
+		if (typeof message !== 'string') {
+			message = JSON.stringify(message);
+			header.writeInt8(1, 0);
+		}
+		const data = Buffer.from(message);
+		header.writeInt32BE(data.length, 1);
+
+		this._writeSoon(header, data);
+	}
+
+	private _writeBuffer = new class {
+
+		private _data: Buffer[] = [];
+		private _totalLength = 0;
+
+		add(head: Buffer, body: Buffer): boolean {
+			const wasEmpty = this._totalLength === 0;
+			this._data.push(head, body);
+			this._totalLength += head.length + body.length;
+			return wasEmpty;
+		}
+
+		take(): Buffer {
+			const ret = Buffer.concat(this._data, this._totalLength);
+			this._data.length = 0;
+			this._totalLength = 0;
+			return ret;
+		}
+	};
+
+	private _writeSoon(header: Buffer, data: Buffer): void {
+		if (this._writeBuffer.add(header, data)) {
+			setImmediate(() => {
+				// we ignore the returned value from `write` because we would have to cached the data
+				// anyways and nodejs is already doing that for us:
+				// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
+				// > However, the false return value is only advisory and the writable stream will unconditionally
+				// > accept and buffer chunk even if it has not not been allowed to drain.
+				this.stream.write(this._writeBuffer.take());
+			});
 		}
 	}
 }

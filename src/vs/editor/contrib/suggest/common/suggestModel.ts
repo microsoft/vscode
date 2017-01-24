@@ -6,6 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { TimeoutTimer } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -87,8 +88,8 @@ export class SuggestModel implements IDisposable {
 	private toDispose: IDisposable[] = [];
 	private quickSuggestDelay: number;
 	private triggerCharacterListener: IDisposable;
-
 	private triggerAutoSuggestPromise: TPromise<void>;
+	private triggerRefilter = new TimeoutTimer();
 	private state: State;
 
 	private requestPromise: TPromise<void>;
@@ -138,7 +139,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this.triggerCharacterListener]);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this.triggerCharacterListener, this.triggerRefilter]);
 		this.toDispose = dispose(this.toDispose);
 		this.cancel();
 	}
@@ -254,8 +255,11 @@ export class SuggestModel implements IDisposable {
 
 		} else {
 			// refine active suggestion
-			const ctx = new LineContext(model, this.editor.getPosition(), this.state === State.Auto);
-			this.onNewContext(ctx);
+			this.triggerRefilter.cancelAndSet(() => {
+				const position = this.editor.getPosition();
+				const ctx = new LineContext(model, position, this.state === State.Auto);
+				this.onNewContext(ctx);
+			}, 25);
 		}
 	}
 

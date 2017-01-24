@@ -46,6 +46,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
 
@@ -282,6 +283,8 @@ export class ElectronWindow {
 				});
 			}
 		});
+
+		ipc.send('vscode:welcomeEnabled', String(isWelcomePageEnabled()));
 
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
