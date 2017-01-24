@@ -136,7 +136,7 @@
 		}
 	}
 
-	var scrollDisabled = false;
+	var scrollDisabled = true;
 	var pageHeight = 0;
 	var marker = new ActiveLineMarker();
 
@@ -145,8 +145,10 @@
 
 		if (window.initialData.scrollPreviewWithEditorSelection) {
 			const initialLine = +window.initialData.line || 0;
-			scrollDisabled = true;
-			scrollToRevealSourceLine(initialLine);
+			setTimeout(() => {
+				scrollDisabled = true;
+				scrollToRevealSourceLine(initialLine);
+			}, 0);
 		}
 	};
 
@@ -159,7 +161,6 @@
 	}, 100), true);
 
 	if (window.initialData.scrollPreviewWithEditorSelection) {
-
 		window.addEventListener('message', event => {
 			const line = +event.data.line;
 			if (!isNaN(line)) {
@@ -185,6 +186,7 @@
 		});
 
 		if (window.initialData.scrollEditorWithPreview) {
+
 			window.addEventListener('scroll', throttle(() => {
 				if (scrollDisabled) {
 					scrollDisabled = false;
