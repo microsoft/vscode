@@ -30,6 +30,6 @@ export class TreeControllerBase extends DefaultController {
 
 	private getOpenModeSetting(config: IConfiguration): WorkbenchOpenMode {
 		const openModeSetting = config && config.workbench && config.workbench.openMode;
-		return openModeSetting === 'doubleClick' ? 'doubleClick' : 'singleClick';
+		return openModeSetting === 'doubleClick' ? WorkbenchOpenMode.DOUBLE_CLICK : WorkbenchOpenMode.SINGLE_CLICK;
 	}
 }
