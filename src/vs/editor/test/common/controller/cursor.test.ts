@@ -3274,6 +3274,23 @@ suite('ElectricCharacter', () => {
 		mode.dispose();
 	});
 
+	test('is no-op if pairs are all matched before', () => {
+		let mode = new ElectricCharMode();
+		usingCursor({
+			text: [
+				'foo(() => {',
+				'  ( 1 + 2 ) ',
+				'})'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 13);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  ( 1 + 2 ) *');
+		});
+		mode.dispose();
+	});
+
 	test('appends text', () => {
 		let mode = new ElectricCharMode();
 		usingCursor({
