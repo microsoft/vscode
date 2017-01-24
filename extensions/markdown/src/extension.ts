@@ -86,6 +86,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
 		if (isMarkdownFile(event.textEditor.document)) {
+			console.log('event.selections[0].active.line');
 			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
 				getMarkdownUri(event.textEditor.document.uri),
 				{
@@ -268,7 +269,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
 			if (editor && editor.document.uri.path === sourceUri.path) {
-				initialLine = editor.selection.start.line;
+				initialLine = editor.selection.active.line;
 			}
 
 			const body = this.engine.render(sourceUri, previewFrontMatter === 'hide', document.getText());
