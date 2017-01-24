@@ -88,7 +88,7 @@ class TrustContribution implements IWorkbenchContribution {
 			return this.updateUserSettings().then(() => this.preferencesService.openGlobalSettings());
 		});
 
-		const noChange = new Action('trust.noChange', nls.localize('noChange', 'Keep Not Trusting Workspace'), '', true, () => TPromise.as(true));
+		const noChange = new Action('trust.noChange', nls.localize('noChange', 'Do Not Trust Workspace'), '', true, () => TPromise.as(true));
 
 		const actions = [openWorkspaceSettings, trustWorkspace, noChange];
 		this.messageService.show(Severity.Warning, { message, actions });
