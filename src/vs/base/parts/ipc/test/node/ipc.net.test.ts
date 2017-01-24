@@ -7,13 +7,15 @@
 
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Duplex } from 'stream';
+import { Socket } from 'net';
 import { EventEmitter } from 'events';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 
 class MockDuplex extends EventEmitter {
 
 	private _cache: Buffer[] = [];
+
+	readonly destroyed = false;
 
 	private _deliver(): void {
 		if (this._cache.length) {
@@ -33,7 +35,7 @@ class MockDuplex extends EventEmitter {
 
 suite('IPC, Socket Protocol', () => {
 
-	let stream: Duplex;
+	let stream: Socket;
 
 	setup(() => {
 		stream = <any>new MockDuplex();

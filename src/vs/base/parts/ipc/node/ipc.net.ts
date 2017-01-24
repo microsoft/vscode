@@ -6,7 +6,6 @@
 'use strict';
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
-import { Duplex } from 'stream';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, once, mapEvent } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
@@ -33,7 +32,7 @@ export class Protocol implements IMessagePassingProtocol {
 
 	readonly onMessage: Event<any> = this._onMessage.event;
 
-	constructor(private stream: Duplex) {
+	constructor(private _socket: Socket) {
 
 		let chunks = [];
 		let totalLength = 0;
@@ -44,7 +43,7 @@ export class Protocol implements IMessagePassingProtocol {
 			bodyLen: -1,
 		};
 
-		stream.on('data', (data: Buffer) => {
+		_socket.on('data', (data: Buffer) => {
 
 			chunks.push(data);
 			totalLength += data.length;
@@ -139,12 +138,16 @@ export class Protocol implements IMessagePassingProtocol {
 	private _writeSoon(header: Buffer, data: Buffer): void {
 		if (this._writeBuffer.add(header, data)) {
 			setImmediate(() => {
+				// return early if socket has been destroyed in the meantime
+				if (this._socket.destroyed) {
+					return;
+				}
 				// we ignore the returned value from `write` because we would have to cached the data
 				// anyways and nodejs is already doing that for us:
 				// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
 				// > However, the false return value is only advisory and the writable stream will unconditionally
 				// > accept and buffer chunk even if it has not not been allowed to drain.
-				this.stream.write(this._writeBuffer.take());
+				this._socket.write(this._writeBuffer.take());
 			});
 		}
 	}
