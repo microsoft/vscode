@@ -113,11 +113,6 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 	// Calculate indentation adjustment for all following lines
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 		let text = model.getLineContent(lineNumber);
-
-		if (indentationRules.unIndentedLinePattern && indentationRules.unIndentedLinePattern.test(text)) {
-			continue;
-		}
-
 		let oldIndentation = strings.getLeadingWhitespace(text);
 		let adjustedLineContent = idealIndentForNextLine + text.substring(oldIndentation.length);
 
@@ -131,11 +126,14 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 		}
 
 		// calculate idealIndentForNextLine
-		if (indentationRules.increaseIndentPattern && indentationRules.increaseIndentPattern.test(adjustedLineContent)) {
+		if (indentationRules.unIndentedLinePattern && indentationRules.unIndentedLinePattern.test(text)) {
+			// In reindent phase, if the line matches `unIndentedLinePattern` we inherit indentation from above lines
+			// but don't change globalIndent and idealIndentForNextLine.
+			continue;
+		} else if (indentationRules.increaseIndentPattern && indentationRules.increaseIndentPattern.test(adjustedLineContent)) {
 			globalIndent = shiftIndent(tabSize, globalIndent);
 			idealIndentForNextLine = globalIndent;
-		}
-		else if (indentationRules.indentNextLinePattern && indentationRules.indentNextLinePattern.test(adjustedLineContent)) {
+		} else if (indentationRules.indentNextLinePattern && indentationRules.indentNextLinePattern.test(adjustedLineContent)) {
 			idealIndentForNextLine = shiftIndent(tabSize, idealIndentForNextLine);
 		} else {
 			idealIndentForNextLine = globalIndent;
