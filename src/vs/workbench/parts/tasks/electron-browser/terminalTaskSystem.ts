@@ -349,50 +349,22 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			}
 			let shellArgs = shellConfig.args.slice(0);
 			let toAdd: string[] = [];
-			let commandLine: string;
+			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 			if (Platform.isWindows) {
 				let basename = path.basename(shellConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-					commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 				} else {
 					if (!shellSpecified) {
 						toAdd.push('/d', '/c');
-					}
-					let quotedCommand: boolean = false;
-					let quotedArg: boolean = false;
-					let quoted = this.ensureDoubleQuotes(command);
-					let commandPieces: string[] = [];
-					commandPieces.push(quoted.value);
-					quotedCommand = quoted.quoted;
-					if (args) {
-						args.forEach((arg) => {
-							quoted = this.ensureDoubleQuotes(arg);
-							commandPieces.push(quoted.value);
-							quotedArg = quotedArg && quoted.quoted;
-						});
-					}
-					if (quotedCommand) {
-						if (quotedArg) {
-							commandLine = '"' + commandPieces.join(' ') + '"';
-						} else {
-							if (commandPieces.length > 1) {
-								commandLine = '"' + commandPieces[0] + '"' + ' ' + commandPieces.slice(1).join(' ');
-							} else {
-								commandLine = '"' + commandPieces[0] + '"';
-							}
-						}
-					} else {
-						commandLine = commandPieces.join(' ');
 					}
 				}
 			} else {
 				if (!shellSpecified) {
 					toAdd.push('-c');
 				}
-				commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 			}
 			toAdd.forEach(element => {
 				if (!shellArgs.some(arg => arg.toLowerCase() === element)) {
@@ -552,7 +524,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private static doubleQuotes = /^[^"].* .*[^"]$/;
-	private ensureDoubleQuotes(value: string) {
+	protected ensureDoubleQuotes(value: string) {
 		if (TerminalTaskSystem.doubleQuotes.test(value)) {
 			return {
 				value: '"' + value + '"',
