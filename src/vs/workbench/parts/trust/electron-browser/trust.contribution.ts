@@ -19,7 +19,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import baseplatform = require('vs/base/common/platform');
-
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 
 class TrustContribution implements IWorkbenchContribution {
@@ -34,7 +34,8 @@ class TrustContribution implements IWorkbenchContribution {
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.workspaceConfigurationService.onDidUpdateConfiguration(e => this.checkWorkspaceTrust()));
@@ -81,17 +82,23 @@ class TrustContribution implements IWorkbenchContribution {
 		const message = nls.localize('untrustedWorkspace', "This workspace specifies executables. While the workspace is untrusted, these settings are being ignored.");
 
 		const openWorkspaceSettings = new Action('trust.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Review Settings'), '', true, () => {
+			this.telemetryService.publicLog('workspace.trust.review');
 			return this.preferencesService.openWorkspaceSettings().then(() => false);
 		});
 
 		const trustWorkspace = new Action('trust.trustWorkspace', nls.localize('trustWorkspace', 'Trust Workspace'), '', true, () => {
+			this.telemetryService.publicLog('workspace.trust.granted');
 			return this.updateUserSettings().then(() => this.preferencesService.openGlobalSettings());
 		});
 
-		const noChange = new Action('trust.noChange', nls.localize('noChange', 'Do Not Trust Workspace'), '', true, () => TPromise.as(true));
+		const noChange = new Action('trust.noChange', nls.localize('noChange', 'Do Not Trust Workspace'), '', true, () => {
+			this.telemetryService.publicLog('workspace.trust.rejected');
+			return TPromise.as(true);
+		});
 
 		const actions = [openWorkspaceSettings, trustWorkspace, noChange];
 		this.messageService.show(Severity.Warning, { message, actions });
+		this.telemetryService.publicLog('workspace.trust.warning');
 	}
 }
 
