@@ -3291,6 +3291,26 @@ suite('ElectricCharacter', () => {
 		mode.dispose();
 	});
 
+	test('is no-op if matching bracket is on the same line', () => {
+		let mode = new ElectricCharMode();
+		usingCursor({
+			text: [
+				'(div',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 5);
+			let changeText: string = null;
+			model.onDidChangeContent(e => {
+				changeText = e.text;
+			});
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(1), '(div)');
+			assert.deepEqual(changeText, ')');
+		});
+		mode.dispose();
+	});
+
 	test('appends text', () => {
 		let mode = new ElectricCharMode();
 		usingCursor({
