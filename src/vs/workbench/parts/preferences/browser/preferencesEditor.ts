@@ -587,7 +587,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		if (this.preferencesService.workspaceSettingsResource.toString() === preferencesModel.uri.toString()) {
+		if (ConfigurationTarget.WORKSPACE === preferencesModel.configurationTarget) {
 			this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnTrustedWorkspaceSettingsRenderer, editor, preferencesModel));
 		}
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
