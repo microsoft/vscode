@@ -11,23 +11,26 @@ import { WelcomePageContribution, WelcomePageAction } from 'vs/workbench/parts/w
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		'id': 'workbench',
-		'order': 7,
-		'title': localize('workbenchConfigurationTitle', "Workbench"),
-		'properties': {
-			'workbench.welcome.enabled': {
-				'type': 'boolean',
-				'default': null,
-				'description': localize('welcomePage.enabled', "When enabled, will show the Welcome experience on startup.")
-			},
-		}
-	});
+if (isWelcomePageEnabled()) {
+	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+		.registerConfiguration({
+			'id': 'workbench',
+			'order': 7,
+			'title': localize('workbenchConfigurationTitle', "Workbench"),
+			'properties': {
+				'workbench.welcome.enabled': {
+					'type': 'boolean',
+					'default': true,
+					'description': localize('welcomePage.enabled', "When enabled, will show the Welcome experience on startup.")
+				},
+			}
+		});
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomePageContribution);
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+		.registerWorkbenchContribution(WelcomePageContribution);
 
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WelcomePageAction, WelcomePageAction.ID, WelcomePageAction.LABEL), 'Help: Welcome', localize('help', "Help"));
+	Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(WelcomePageAction, WelcomePageAction.ID, WelcomePageAction.LABEL), 'Help: Welcome', localize('help', "Help"));
+}

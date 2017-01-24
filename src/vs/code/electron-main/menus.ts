@@ -846,7 +846,7 @@ export class VSCodeMenu {
 			}
 		}
 
-		const enableWelcomePage = isWelcomePageEnabled(this.configurationService, this.environmentService);
+		const enableWelcomePage = isWelcomePageEnabled();
 		const keyboardShortcutsUrl = platform.isLinux ? product.keyboardShortcutsUrlLinux : platform.isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
 			enableWelcomePage ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.welcomePage') }) : null,
