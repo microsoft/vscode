@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { DefinitionProviderRegistry, TypeImplementationProviderRegistry, Location } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, ImplementationProviderRegistry, Location } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -44,14 +44,14 @@ export function getDeclarationsAtPosition(model: IReadOnlyModel, position: Posit
 	return outputResults(promises);
 }
 
-export function getTypeImplementationAtPosition(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
+export function getImplementationAtPosition(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
 
-	const provider = TypeImplementationProviderRegistry.ordered(model);
+	const provider = ImplementationProviderRegistry.ordered(model);
 
 	// get results
 	const promises = provider.map((provider, idx) => {
 		return asWinJsPromise((token) => {
-			return provider.provideTypeImplementation(model, position, token);
+			return provider.provideImplementation(model, position, token);
 		}).then(result => {
 			return result;
 		}, err => {
@@ -62,4 +62,4 @@ export function getTypeImplementationAtPosition(model: IReadOnlyModel, position:
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeDefinitionProvider', getDeclarationsAtPosition);
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeTypeImplementationProvider', getTypeImplementationAtPosition);
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeImplementationProvider', getImplementationAtPosition);
