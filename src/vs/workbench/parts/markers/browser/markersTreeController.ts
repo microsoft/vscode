@@ -51,7 +51,7 @@ export class Controller extends TreeControllerBase {
 			if (isDoubleClick && this.openFileAtElement(element, false, sideBySide, true)) {
 				return true;
 			}
-			else if (this.isInSingleClickOpenMode() && this.openFileAtElement(element, !isDoubleClick, sideBySide, isDoubleClick)) {
+			else if (this.openOnSingleClick() && this.openFileAtElement(element, !isDoubleClick, sideBySide, isDoubleClick)) {
 				return true;
 			}
 

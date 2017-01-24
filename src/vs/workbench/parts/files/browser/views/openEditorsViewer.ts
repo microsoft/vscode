@@ -269,7 +269,7 @@ export class Controller extends TreeControllerBase {
 			if (isDoubleClick) {
 				this.openEditor(element, true, event.ctrlKey || event.metaKey);
 			}
-			else if (this.isInSingleClickOpenMode()) {
+			else if (this.openOnSingleClick()) {
 				this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
 			}
 		}

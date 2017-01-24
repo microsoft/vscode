@@ -243,7 +243,7 @@ class Controller extends TreeControllerBase {
 			if (element instanceof FileReferences) {
 				event.preventDefault();
 				event.stopPropagation();
-				if (this.isInSingleClickOpenMode() || isDoubleClick) {
+				if (this.openOnSingleClick() || isDoubleClick) {
 					return this._expandCollapse(tree, element);
 				}
 

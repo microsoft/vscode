@@ -453,7 +453,7 @@ export class FileController extends TreeControllerBase {
 		tree.DOMFocus();
 
 		// Expand / Collapse
-		if (this.isInSingleClickOpenMode() || isDoubleClick) {
+		if (this.openOnSingleClick() || isDoubleClick) {
 			tree.toggleExpansion(stat);
 		}
 
@@ -480,7 +480,7 @@ export class FileController extends TreeControllerBase {
 				if (isDoubleClick) {
 					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), true);
 				}
-				else if (this.isInSingleClickOpenMode()) {
+				else if (this.openOnSingleClick()) {
 					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
 				}
 			}

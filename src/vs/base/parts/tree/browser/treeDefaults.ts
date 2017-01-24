@@ -216,7 +216,7 @@ export class DefaultController implements _.IController {
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
-			if (this.isInSingleClickOpenMode() || isDoubleClick) {
+			if (this.openOnSingleClick() || isDoubleClick) {
 				if (tree.isExpanded(element)) {
 					tree.collapse(element).done(null, errors.onUnexpectedError);
 				} else {
@@ -405,7 +405,7 @@ export class DefaultController implements _.IController {
 		}
 	}
 
-	protected isInSingleClickOpenMode() {
+	protected openOnSingleClick() {
 		return this.options.openMode === WorkbenchOpenMode.SINGLE_CLICK;
 	}
 }

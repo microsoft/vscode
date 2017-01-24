@@ -277,7 +277,7 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		if (element instanceof StackFrame && (this.isInSingleClickOpenMode() || isDoubleClick)) {
+		if (element instanceof StackFrame && (this.openOnSingleClick() || isDoubleClick)) {
 			this.focusStackFrame(element, event, true);
 		}
 
@@ -774,7 +774,7 @@ export class VariablesController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (expression.hasChildren && !this.isInSingleClickOpenMode()) {
+			if (expression.hasChildren && !this.openOnSingleClick()) {
 				// is in doubleClick openMode, toggle expand/collapse
 				return super.onLeftClick(tree, element, event);
 			}
@@ -999,7 +999,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (expression.hasChildren && !this.isInSingleClickOpenMode()) {
+			if (expression.hasChildren && !this.openOnSingleClick()) {
 				// is in doubleClick openMode, toggle expand/collapse
 				return super.onLeftClick(tree, element, event);
 			}
@@ -1321,7 +1321,7 @@ export class BreakpointsController extends BaseDebugController {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
-		if (element instanceof Breakpoint && (this.isInSingleClickOpenMode() || isDoubleClick)) {
+		if (element instanceof Breakpoint && (this.openOnSingleClick() || isDoubleClick)) {
 			this.openBreakpointSource(element, event, true);
 		}
 
