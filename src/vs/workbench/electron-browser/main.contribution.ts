@@ -182,21 +182,14 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'default': 'default',
-		'description': platform.isMacintosh ?
-			nls.localize('openFilesInNewWindowMac',
-				`Controls if files should open in a new window or the last active window.
-- default: files will open in the last active window unless opened via the dock or from finder
+		'description':
+		nls.localize('openFilesInNewWindow',
+			`Controls if files should open in a new window or the last active window.
+- default: files will open in the last active window unless opened via the dock or from finder (macOS only)
 - on: files will open in a new window
 - off: files will open in the last active window
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
-			) :
-			nls.localize('openFilesInNewWindow',
-				`Controls if files should open in a new window or the last active window.
-- default: files will open in the last active window
-- on: files will open in a new window
-- off: files will open in the last active window
-Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
-			)
+		)
 	},
 	'window.openFoldersInNewWindow': {
 		'type': 'string',
