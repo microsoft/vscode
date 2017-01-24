@@ -18,6 +18,8 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import baseplatform = require('vs/base/common/platform');
+
 
 
 class TrustContribution implements IWorkbenchContribution {
@@ -55,12 +57,22 @@ class TrustContribution implements IWorkbenchContribution {
 		}
 	}
 
+	private getWorkspaceTrustKey(): string {
+		let path = this.workspaceContextService.getWorkspace().resource.fsPath;
+		if (baseplatform.isWindows && path.length > 2) {
+			if (path.charAt(1) === ':') {
+				return path.charAt(0).toLocaleUpperCase().concat(path.substr(1));
+			}
+		}
+		return path;
+	}
+
 	private updateUserSettings(): TPromise<void> {
 		const key = 'security.workspacesTrustedToSpecifyExecutables';
-		const path = this.workspaceContextService.getWorkspace().resource.fsPath;
+		const workspace = this.getWorkspaceTrustKey();
 
 		const value = this.configurationService.lookup(key).user || {};
-		value[path] = true;
+		value[workspace] = true;
 
 		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: key, value: value }, { writeToBuffer: true, autoSave: false });
 	}

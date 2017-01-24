@@ -26,6 +26,7 @@ import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, IConfigurationNode, Extensions, ISecurityConfiguration } from 'vs/platform/configuration/common/configurationRegistry';
+import baseplatform = require('vs/base/common/platform');
 
 
 interface IStat {
@@ -48,13 +49,26 @@ export class WorkspaceTrust implements IWorkspaceTrust {
 
 	constructor(private contextService: IWorkspaceContextService, private baseConfigurationService: BaseConfigurationService<any>) { }
 
-	public isTrusted(): boolean {
-		let workspace = this.contextService.getWorkspace();
+	private getWorkspaceTrustKey(): string {
+		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
-			let path = workspace.resource.fsPath;
-			let securityConfiguration = this.baseConfigurationService.getConfiguration<ISecurityConfiguration>();
-			let whiteList = securityConfiguration.security.workspacesTrustedToSpecifyExecutables;
-			return whiteList && whiteList[path];
+			const path = workspace.resource.fsPath;
+			if (baseplatform.isWindows && path.length > 2) {
+				if (path.charAt(1) === ':') {
+					return path.charAt(0).toLocaleUpperCase().concat(path.substr(1));
+				}
+			}
+			return path;
+		}
+		return null;
+	}
+
+	public isTrusted(): boolean {
+		const workspaceTrustKey = this.getWorkspaceTrustKey();
+		if (workspaceTrustKey) {
+			const securityConfiguration = this.baseConfigurationService.getConfiguration<ISecurityConfiguration>();
+			const whiteList = securityConfiguration.security.workspacesTrustedToSpecifyExecutables;
+			return whiteList && whiteList[workspaceTrustKey];
 		}
 		return false;
 	}
