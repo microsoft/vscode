@@ -164,12 +164,19 @@
 		}
 	}, false);
 
-	document.addEventListener('dblclick', e => {
+	document.addEventListener('dblclick', event => {
 		if (!window.initialData.doubleClickToSwitchToEditor) {
 			return;
 		}
 
-		const offset = e.pageY;
+		// Ignore clicks on links
+		for (let node = event.target; node; node = node.parentNode) {
+			if (node.tagName === "A") {
+				return;
+			}
+		}
+
+		const offset = event.pageY;
 		const line = getEditorLineNumberForPageOffset(offset);
 		if (!isNaN(line)) {
 			const args = [window.initialData.source, line];
