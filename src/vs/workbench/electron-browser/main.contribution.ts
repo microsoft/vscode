@@ -196,10 +196,10 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'enum': ['on', 'off', 'default'],
 		'default': 'default',
 		'description': nls.localize('openFoldersInNewWindow',
-			`Controls if folders should open in a new window or the last active window.
+			`Controls if folders should open in a new window or replace the last active window.
 - default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)
 - on: folders will open in a new window
-- off: folders will open in the last active window
+- off: folders will replace the last active window
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
 		)
 	},
