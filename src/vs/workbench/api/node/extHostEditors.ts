@@ -595,17 +595,10 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- editing
 
-	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
-	edit(snippet: SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
-
-	edit(callbackOrSnippet: ((edit: TextEditorEdit) => void) | SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
-		if (SnippetString.isSnippetString(callbackOrSnippet)) {
-			return this._proxy.$tryInsertSnippet(this._id, callbackOrSnippet.value, options);
-		} else {
-			let edit = new TextEditorEdit(this._documentData.document, options);
-			callbackOrSnippet(edit);
-			return this._applyEdit(edit);
-		}
+	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+		let edit = new TextEditorEdit(this._documentData.document, options);
+		callback(edit);
+		return this._applyEdit(edit);
 	}
 
 	_applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
@@ -625,6 +618,10 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			undoStopBefore: editData.undoStopBefore,
 			undoStopAfter: editData.undoStopAfter
 		});
+	}
+
+	insertSnippet(snippet: SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+		return this._proxy.$tryInsertSnippet(this._id, snippet.value, options);
 	}
 
 	// ---- util
