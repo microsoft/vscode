@@ -137,12 +137,9 @@
 	}
 
 	var scrollDisabled = true;
-	var pageHeight = 0;
 	var marker = new ActiveLineMarker();
 
 	window.onload = () => {
-		pageHeight = document.body.getBoundingClientRect().height;
-
 		if (window.initialData.scrollPreviewWithEditorSelection) {
 			const initialLine = +window.initialData.line || 0;
 			setTimeout(() => {
@@ -152,13 +149,9 @@
 		}
 	};
 
-	window.addEventListener('resize', throttle(() => {
-		const currentOffset = window.scrollY;
-		const newPageHeight = document.body.getBoundingClientRect().height;
-		const dHeight = newPageHeight / pageHeight;
-		window.scrollTo(0, currentOffset * dHeight);
-		pageHeight = newPageHeight;
-	}, 100), true);
+	window.addEventListener('resize', () => {
+		scrollDisabled = true;
+	}, true);
 
 	if (window.initialData.scrollPreviewWithEditorSelection) {
 		window.addEventListener('message', event => {
