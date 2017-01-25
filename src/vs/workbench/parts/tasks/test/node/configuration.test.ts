@@ -1050,6 +1050,46 @@ suite('Tasks Configuration parsing tests', () => {
 		testConfiguration(external, builder);
 	});
 
+	test('tasks: with Windows specific args', () => {
+		let args: string[] = Platform.isWindows ? ['arg1', 'arg2'] : ['arg1'];
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			tasks: [
+				{
+					taskName: 'tsc',
+					command: 'tsc',
+					args: ['arg1'],
+					windows: {
+						args: ['arg2']
+					}
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('tsc', 'tsc').suppressTaskName(true).command().args(args);
+		testConfiguration(external, builder);
+	});
+
+	test('tasks: with Linux specific args', () => {
+		let args: string[] = Platform.isLinux ? ['arg1', 'arg2'] : ['arg1'];
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			tasks: [
+				{
+					taskName: 'tsc',
+					command: 'tsc',
+					args: ['arg1'],
+					linux: {
+						args: ['arg2']
+					}
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('tsc', 'tsc').suppressTaskName(true).command().args(args);
+		testConfiguration(external, builder);
+	});
+
 	test('tasks: global command and task command properties', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
