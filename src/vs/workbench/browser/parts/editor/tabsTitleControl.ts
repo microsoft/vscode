@@ -496,10 +496,11 @@ export class TabsTitleControl extends TitleControl {
 
 		// Context menu
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
+			DOM.EventHelper.stop(e, true);
 			const { group, editor } = this.toTabContext(index);
 
 			this.onContextMenu({ group, editor }, e, tab);
-		}));
+		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag start
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
