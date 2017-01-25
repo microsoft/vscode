@@ -154,7 +154,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	public focus(): void {
-		this.searchWidget.focus();
+		this.sideBySidePreferencesWidget.focus();
 	}
 
 	public clearInput(): void {
@@ -306,6 +306,12 @@ export class SideBySidePreferencesWidget extends Widget {
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		this.sash.setDimenesion(this.dimension);
+	}
+
+	public focus(): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.focus();
+		}
 	}
 
 	public getEditablePreferencesEditor(): IEditor {
