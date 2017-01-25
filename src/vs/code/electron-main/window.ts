@@ -19,6 +19,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IWindowState {
 	width?: number;
@@ -151,6 +152,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private currentWindowMode: WindowMode;
+	private toDispose: IDisposable[];
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
 
@@ -170,6 +172,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
 		this._isExtensionTestHost = config.isExtensionTestHost;
 		this.whenReadyCallbacks = [];
+		this.toDispose = [];
 
 		// Load window state
 		this.restoreWindowState(config.state);
@@ -415,7 +418,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		}
 
 		// Handle configuration changes
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
 	private onConfigurationUpdated(config: IConfiguration): void {
@@ -743,6 +746,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 		if (this.showTimeoutHandle) {
 			clearTimeout(this.showTimeoutHandle);
 		}
+
+		this.toDispose = dispose(this.toDispose);
 
 		this._win = null; // Important to dereference the window object to allow for GC
 	}
