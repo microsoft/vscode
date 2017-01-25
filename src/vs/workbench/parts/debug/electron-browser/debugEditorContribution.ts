@@ -168,6 +168,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
+		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
+			this.wordToLineNumbersMap = null;
+		}));
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			const sf = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
