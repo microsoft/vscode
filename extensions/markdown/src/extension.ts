@@ -58,7 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		return vscode.workspace.openTextDocument(sourceUri)
 			.then(document => vscode.window.showTextDocument(document))
-			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'top' }).then(() => editor))
+			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'center' }).then(() => editor))
 			.then(editor => {
 				if (editor) {
 					editor.selection = new vscode.Selection(
