@@ -331,6 +331,8 @@ export class SuggestModel implements IDisposable {
 			// typed -> moved cursor LEFT -> retrigger if still on a word
 			if (ctx.leadingWord.word) {
 				this.trigger(this.context.auto, true);
+			} else {
+				this.cancel();
 			}
 			return;
 		}
