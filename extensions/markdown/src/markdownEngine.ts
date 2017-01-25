@@ -131,11 +131,8 @@ export class MarkdownEngine {
 	private addLinkValidator(md: any): void {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
-			if (validateLink(link)) {
-				return true;
-			}
 			// support file:// links
-			return link.indexOf('file:') === 0;
+			return validateLink(link) || link.indexOf('file:') === 0;
 		};
 	}
 }
