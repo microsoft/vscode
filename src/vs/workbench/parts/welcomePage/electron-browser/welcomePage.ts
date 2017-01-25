@@ -36,8 +36,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		const configured = configurationService.lookup<boolean>(enabledKey).value;
-		const enabled = typeof configured === 'boolean' ? configured : telemetryService.getExperiments().enableWelcomePage;
+		const enabled = configurationService.lookup<boolean>(enabledKey).value;
 		if (enabled) {
 			partService.joinCreation().then(() => {
 				const activeInput = editorService.getActiveEditorInput();
@@ -97,8 +96,7 @@ class WelcomePage {
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; folders: string[]; }>): void {
-		const configured = this.configurationService.lookup<boolean>(enabledKey).value;
-		const enabled = typeof configured === 'boolean' ? configured : this.telemetryService.getExperiments().enableWelcomePage;
+		const enabled = this.configurationService.lookup<boolean>(enabledKey).value;
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
 			showOnStartup.setAttribute('checked', 'checked');

@@ -13,24 +13,22 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
 
-if (isWelcomePageEnabled()) {
-	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-		.registerConfiguration({
-			'id': 'workbench',
-			'order': 7,
-			'title': localize('workbenchConfigurationTitle', "Workbench"),
-			'properties': {
-				'workbench.welcome.enabled': {
-					'type': 'boolean',
-					'default': true,
-					'description': localize('welcomePage.enabled', "When enabled, will show the Welcome experience on startup.")
-				},
-			}
-		});
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		'id': 'workbench',
+		'order': 7,
+		'title': localize('workbenchConfigurationTitle', "Workbench"),
+		'properties': {
+			'workbench.welcome.enabled': {
+				'type': 'boolean',
+				'default': isWelcomePageEnabled(),
+				'description': localize('welcomePage.enabled', "When enabled, will show the Welcome experience on startup.")
+			},
+		}
+	});
 
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-		.registerWorkbenchContribution(WelcomePageContribution);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(WelcomePageContribution);
 
-	Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
-		.registerWorkbenchAction(new SyncActionDescriptor(WelcomePageAction, WelcomePageAction.ID, WelcomePageAction.LABEL), 'Help: Welcome', localize('help', "Help"));
-}
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
+	.registerWorkbenchAction(new SyncActionDescriptor(WelcomePageAction, WelcomePageAction.ID, WelcomePageAction.LABEL), 'Help: Welcome', localize('help', "Help"));
