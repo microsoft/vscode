@@ -73,9 +73,13 @@ export function main(argv: string[]): TPromise<void> {
 	return TPromise.as(null);
 }
 
+function eventuallyExit(code: number): void {
+	setTimeout(() => process.exit(code), 0);
+}
+
 main(process.argv)
-	.then(() => process.exit(0))
+	.then(() => eventuallyExit(0))
 	.then(null, err => {
 		console.error(err.stack ? err.stack : err);
-		process.exit(1);
+		eventuallyExit(1);
 	});
