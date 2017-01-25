@@ -73,6 +73,16 @@ export class WorkspaceTrust implements IWorkspaceTrust {
 		return false;
 	}
 
+	public isExplicitlyUntrusted(): boolean {
+		const workspaceTrustKey = this.getWorkspaceTrustKey();
+		if (workspaceTrustKey) {
+			const securityConfiguration = this.baseConfigurationService.getConfiguration<ISecurityConfiguration>();
+			const whiteList = securityConfiguration.security.workspacesTrustedToSpecifyExecutables;
+			return whiteList && whiteList.hasOwnProperty(workspaceTrustKey) && !whiteList[workspaceTrustKey];
+		}
+		return false;
+	}
+
 	public allKnownConfigKeysForExecutables(): { [key: string]: any } {
 		const configKeys: { [key: string]: boolean } = {};
 		const configurations: IConfigurationNode[] = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
@@ -363,6 +373,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	public getUntrustedConfigurations(): string[] {
 		return this.cachedWorkspaceConfig.untrustedKeys;
+	}
+
+	public isExplicitlyUntrusted(): boolean {
+		return this.workspaceTrust && this.workspaceTrust.isExplicitlyUntrusted();
 	}
 }
 
