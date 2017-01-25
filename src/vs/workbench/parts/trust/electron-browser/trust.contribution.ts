@@ -51,9 +51,18 @@ class TrustContribution implements IWorkbenchContribution {
 	}
 
 	private checkWorkspaceTrust(): void {
-		const wasUntrusted = this.isUntrusted;
+
+		if (this.isUntrusted) {
+			return;
+		}
+
+		if (this.workspaceConfigurationService.isExplicitlyUntrusted()) {
+			this.isUntrusted = true;
+			return;
+		}
+
 		this.isUntrusted = this.workspaceConfigurationService.getUntrustedConfigurations().length > 0;
-		if (this.isUntrusted && !wasUntrusted) {
+		if (this.isUntrusted) {
 			this.showTrustWarning();
 		}
 	}
@@ -68,14 +77,14 @@ class TrustContribution implements IWorkbenchContribution {
 		return path;
 	}
 
-	private updateUserSettings(): TPromise<void> {
+	private updateTrustInUserSettings(trust: boolean, writeToBuffer: boolean, autoSave: boolean): TPromise<void> {
 		const key = 'security.workspacesTrustedToSpecifyExecutables';
 		const workspace = this.getWorkspaceTrustKey();
 
 		const value = this.configurationService.lookup(key).user || {};
-		value[workspace] = true;
+		value[workspace] = trust;
 
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: key, value: value }, { writeToBuffer: true, autoSave: false });
+		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: key, value: value }, { writeToBuffer: writeToBuffer, autoSave: autoSave });
 	}
 
 	private showTrustWarning(): void {
@@ -88,12 +97,12 @@ class TrustContribution implements IWorkbenchContribution {
 
 		const trustWorkspace = new Action('trust.trustWorkspace', nls.localize('trustWorkspace', 'Trust Workspace'), '', true, () => {
 			this.telemetryService.publicLog('workspace.trust.granted');
-			return this.updateUserSettings().then(() => this.preferencesService.openGlobalSettings());
+			return this.updateTrustInUserSettings(true, true, false).then(() => this.preferencesService.openGlobalSettings());
 		});
 
 		const noChange = new Action('trust.noChange', nls.localize('noChange', 'Do Not Trust Workspace'), '', true, () => {
 			this.telemetryService.publicLog('workspace.trust.rejected');
-			return TPromise.as(true);
+			return this.updateTrustInUserSettings(false, true, true);
 		});
 
 		const actions = [openWorkspaceSettings, trustWorkspace, noChange];

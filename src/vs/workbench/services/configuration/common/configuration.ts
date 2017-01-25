@@ -21,6 +21,11 @@ export interface IWorkspaceTrust {
 	isTrusted(): boolean;
 
 	/**
+	 * Returns iff the user explicitly configured to not trust the workspace.
+	 */
+	isExplicitlyUntrusted(): boolean;
+
+	/**
 	 * Returns a hash of all known configuration keys that can be used to specify executables.
 	 */
 	allKnownConfigKeysForExecutables(): { [configKey: string]: any };
@@ -34,9 +39,14 @@ export interface IWorkspaceConfigurationService extends IConfigurationService {
 	hasWorkspaceConfiguration(): boolean;
 
 	/**
-	 * Returns untrusted configuration keys for the current workspace
+	 * Returns untrusted configuration keys for the current workspace.
 	 */
 	getUntrustedConfigurations(): string[];
+
+	/**
+	 * Returns if the user explicitly configured to not trust the current workspace.
+	 */
+	isExplicitlyUntrusted(): boolean;
 
 	/**
 	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.
