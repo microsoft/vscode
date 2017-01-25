@@ -80,13 +80,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.content.tabIndex = 0;
 		this.content.style.outlineStyle = 'none';
 		this.content.addEventListener('mousedown', e => {
-			let active = document.activeElement;
-			while (active && active !== this.content) {
-				active = active.parentElement;
-			}
-			if (!active) {
-				this.focus();
-			}
+			this.focus();
 		});
 
 		this.scrollbar = new DomScrollableElement(this.content, {
@@ -170,7 +164,13 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	focus(): void {
-		this.content.focus();
+		let active = document.activeElement;
+		while (active && active !== this.content) {
+			active = active.parentElement;
+		}
+		if (!active) {
+			this.content.focus();
+		}
 	}
 
 	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
