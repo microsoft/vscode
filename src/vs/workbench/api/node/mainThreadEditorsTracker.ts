@@ -397,19 +397,20 @@ export class MainThreadTextEditor {
 		return false;
 	}
 
-	insertSnippet(template: string, opts: IUndoStopOptions) {
-		const snippetController = SnippetController.get(this._codeEditor);
+	insertSnippet(template: string, selections: EditorCommon.ISelection[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;
 		}
 
 		this._codeEditor.focus();
+		this._codeEditor.setSelections(selections);
 
 		if (opts.undoStopBefore) {
 			this._codeEditor.pushUndoStop();
 		}
 
+		const snippetController = SnippetController.get(this._codeEditor);
 		snippetController.insertSnippet(template, 0, 0);
 
 		if (opts.undoStopAfter) {
