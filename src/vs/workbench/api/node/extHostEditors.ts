@@ -620,8 +620,17 @@ class ExtHostTextEditor implements vscode.TextEditor {
 		});
 	}
 
-	insertSnippet(snippet: SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
-		return this._proxy.$tryInsertSnippet(this._id, snippet.value, options);
+	insertSnippet(snippet: SnippetString, where?: Selection | Selection[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+
+		if (!where || (Array.isArray(where) && where.length === 0)) {
+			where = this._selections;
+		}
+
+		const selections = Array.isArray(where)
+			? where.map(TypeConverters.fromSelection)
+			: [TypeConverters.fromSelection(where)];
+
+		return this._proxy.$tryInsertSnippet(this._id, snippet.value, selections, options);
 	}
 
 	// ---- util

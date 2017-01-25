@@ -293,11 +293,11 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits, opts));
 	}
 
-	$tryInsertSnippet(id: string, template: string, opts: IUndoStopOptions): TPromise<boolean> {
+	$tryInsertSnippet(id: string, template: string, selections: ISelection[], opts: IUndoStopOptions): TPromise<boolean> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
-		return TPromise.as(this._textEditorsMap[id].insertSnippet(template, opts));
+		return TPromise.as(this._textEditorsMap[id].insertSnippet(template, selections, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {

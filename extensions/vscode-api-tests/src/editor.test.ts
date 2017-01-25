@@ -49,7 +49,7 @@ suite('editor tests', () => {
 		});
 	});
 
-	test('insert snippet with replacement', () => {
+	test('insert snippet with replacement, editor selection', () => {
 		const snippetString = new SnippetString()
 			.appendText('has been');
 
@@ -60,6 +60,24 @@ suite('editor tests', () => {
 			);
 
 			return editor.insertSnippet(snippetString).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This has been replaced');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
+	test('insert snippet with replacement, selection as argument', () => {
+		const snippetString = new SnippetString()
+			.appendText('has been');
+
+		return withRandomFileEditor('This will be replaced', (editor, doc) => {
+			const selection = new Selection(
+				new Position(0, 5),
+				new Position(0, 12)
+			);
+
+			return editor.insertSnippet(snippetString, selection).then(inserted => {
 				assert.ok(inserted);
 				assert.equal(doc.getText(), 'This has been replaced');
 				assert.ok(doc.isDirty);
