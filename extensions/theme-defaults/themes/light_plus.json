@@ -95,15 +95,13 @@
 		{
 			"name": "CSS property value",
 			"scope": [
-				"constant.other.color.rgb-value.css",
-				"constant.other.rgb-value.css",
-				"meta.property-value.css support.function",
-				"meta.property-value.css support",
-
-				"constant.numeric.color.rgb-value.scss",
-				"constant.rgb-value.scss",
-				"meta.property-value.scss support.function",
-				"meta.property-value.scss support"
+				"support.constant.property-value",
+				"support.constant.font-name",
+				"support.constant.media-type",
+				"support.constant.media",
+				"constant.other.color.rgb-value",
+				"constant.other.rgb-value",
+				"support.constant.color"
 			],
 			"settings": {
 				"foreground": "#0451a5"

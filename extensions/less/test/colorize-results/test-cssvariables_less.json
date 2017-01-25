@@ -366,10 +366,10 @@
 		"c": "calc",
 		"t": "source.css.less meta.property-list.css meta.property-value.css support.function.any-method.builtin.less",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: #CE9178",
-			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},

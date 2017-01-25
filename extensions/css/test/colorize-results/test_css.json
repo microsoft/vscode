@@ -531,10 +531,10 @@
 		"c": "projection",
 		"t": "source.css meta.at-rule.import.css support.constant.media.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.media: #CE9178",
+			"light_plus": "support.constant.media: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.media: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -564,10 +564,10 @@
 		"c": "tv",
 		"t": "source.css meta.at-rule.import.css support.constant.media.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.media: #CE9178",
+			"light_plus": "support.constant.media: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.media: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -883,10 +883,10 @@
 		"c": "georgia",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.font-name.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -905,10 +905,10 @@
 		"c": "sans-serif",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.font-name.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1037,22 +1037,22 @@
 		"c": "#",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
 		"c": "555753",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
@@ -1114,22 +1114,22 @@
 		"c": "#",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
 		"c": "fff",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
@@ -1147,10 +1147,10 @@
 		"c": "url",
 		"t": "source.css meta.property-list.css meta.property-value.css support.function.misc.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: #CE9178",
-			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1202,10 +1202,10 @@
 		"c": "no-repeat",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1224,10 +1224,10 @@
 		"c": "bottom",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1246,10 +1246,10 @@
 		"c": "right",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1444,10 +1444,10 @@
 		"c": "top",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1466,10 +1466,10 @@
 		"c": "start",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1488,10 +1488,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1510,10 +1510,10 @@
 		"c": "end",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1532,10 +1532,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1609,10 +1609,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1631,10 +1631,10 @@
 		"c": "top",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1653,10 +1653,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1675,10 +1675,10 @@
 		"c": "bottom",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1697,10 +1697,10 @@
 		"c": "start",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1719,10 +1719,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1741,10 +1741,10 @@
 		"c": "end",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1763,10 +1763,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1840,10 +1840,10 @@
 		"c": "top",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1862,10 +1862,10 @@
 		"c": "start",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1884,10 +1884,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1906,10 +1906,10 @@
 		"c": "end",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1928,10 +1928,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2005,10 +2005,10 @@
 		"c": "bottom",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2027,10 +2027,10 @@
 		"c": "start",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2049,10 +2049,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2071,10 +2071,10 @@
 		"c": "end",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2093,10 +2093,10 @@
 		"c": "color",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2280,10 +2280,10 @@
 		"c": "justify",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2390,10 +2390,10 @@
 		"c": "italic",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2412,10 +2412,10 @@
 		"c": "normal",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2467,10 +2467,10 @@
 		"c": "georgia",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.font-name.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2489,10 +2489,10 @@
 		"c": "sans-serif",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.font-name.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2698,22 +2698,22 @@
 		"c": "#",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
 		"c": "7D775C",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
@@ -2841,10 +2841,10 @@
 		"c": "bold",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2907,10 +2907,10 @@
 		"c": "none",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2973,22 +2973,22 @@
 		"c": "#",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
 		"c": "B7A5DF",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
@@ -3116,10 +3116,10 @@
 		"c": "bold",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3182,10 +3182,10 @@
 		"c": "none",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3248,22 +3248,22 @@
 		"c": "#",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
 		"c": "D4CDDC",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
@@ -3325,10 +3325,10 @@
 		"c": "pointer",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3545,10 +3545,10 @@
 		"c": "underline",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3611,22 +3611,22 @@
 		"c": "#",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
 		"c": "9685BA",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
@@ -3732,10 +3732,10 @@
 		"c": "none",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3886,10 +3886,10 @@
 		"c": "url",
 		"t": "source.css meta.property-list.css meta.property-value.css support.function.misc.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: #CE9178",
-			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3941,10 +3941,10 @@
 		"c": "no-repeat",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3963,10 +3963,10 @@
 		"c": "top",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3985,10 +3985,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4271,10 +4271,10 @@
 		"c": "relative",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4612,10 +4612,10 @@
 		"c": "transparent",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4634,10 +4634,10 @@
 		"c": "url",
 		"t": "source.css meta.property-list.css meta.property-value.css support.function.misc.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: #CE9178",
-			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4689,10 +4689,10 @@
 		"c": "no-repeat",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4711,10 +4711,10 @@
 		"c": "top",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4733,10 +4733,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4876,10 +4876,10 @@
 		"c": "block",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5096,10 +5096,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5239,10 +5239,10 @@
 		"c": "nowrap",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5305,10 +5305,10 @@
 		"c": "hidden",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5624,10 +5624,10 @@
 		"c": "both",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5943,10 +5943,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6086,10 +6086,10 @@
 		"c": "italic",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6163,10 +6163,10 @@
 		"c": "georgia",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.font-name.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6229,10 +6229,10 @@
 		"c": "center",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6350,10 +6350,10 @@
 		"c": "right",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6845,10 +6845,10 @@
 		"c": "center",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7263,10 +7263,10 @@
 		"c": "absolute",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7582,10 +7582,10 @@
 		"c": "verdana",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.font-name.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7604,10 +7604,10 @@
 		"c": "sans-serif",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.font-name.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7670,10 +7670,10 @@
 		"c": "transparent",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7692,10 +7692,10 @@
 		"c": "url",
 		"t": "source.css meta.property-list.css meta.property-value.css support.function.misc.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: #CE9178",
-			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7747,10 +7747,10 @@
 		"c": "top",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7769,10 +7769,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7791,10 +7791,10 @@
 		"c": "repeat-y",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8209,22 +8209,22 @@
 		"c": "#",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
 		"c": "988F5E",
 		"t": "source.css meta.property-list.css meta.property-value.css constant.other.color.rgb-value.css",
 		"r": {
-			"dark_plus": "constant.other.color.rgb-value.css: #CE9178",
-			"light_plus": "constant.other.color.rgb-value.css: #0451A5",
-			"dark_vs": "constant.other.color.rgb-value.css: #D4D4D4",
-			"light_vs": "constant.other.color.rgb-value.css: #0451A5",
-			"hc_black": "constant.other.color.rgb-value.css: #D4D4D4"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
 		}
 	},
 	{
@@ -8550,10 +8550,10 @@
 		"c": "transparent",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8572,10 +8572,10 @@
 		"c": "url",
 		"t": "source.css meta.property-list.css meta.property-value.css support.function.misc.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support.function: #CE9178",
-			"light_plus": "meta.property-value.css support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8627,10 +8627,10 @@
 		"c": "top",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8649,10 +8649,10 @@
 		"c": "left",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8671,10 +8671,10 @@
 		"c": "no-repeat",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8737,10 +8737,10 @@
 		"c": "absolute",
 		"t": "source.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "meta.property-value.css support: #CE9178",
-			"light_plus": "meta.property-value.css support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.css support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},

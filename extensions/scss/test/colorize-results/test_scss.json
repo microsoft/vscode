@@ -553,10 +553,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -894,11 +894,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -1004,10 +1004,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1136,11 +1136,11 @@
 		"c": "red",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -1356,10 +1356,10 @@
 		"c": "/",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.mathematical-symbols.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1565,10 +1565,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2544,11 +2544,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -2731,11 +2731,11 @@
 		"c": "green",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -3721,11 +3721,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -3875,11 +3875,11 @@
 		"c": "100",
 		"t": "source.css.scss meta.set.variable.scss constant.numeric.color.rgb-value.scss",
 		"r": {
-			"dark_plus": "constant.numeric.color.rgb-value.scss: #CE9178",
-			"light_plus": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"dark_vs": "constant.numeric.color.rgb-value.scss: #D4D4D4",
-			"light_vs": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"hc_black": "constant.numeric.color.rgb-value.scss: #D4D4D4"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -3908,11 +3908,11 @@
 		"c": "100",
 		"t": "source.css.scss meta.set.variable.scss constant.numeric.color.rgb-value.scss",
 		"r": {
-			"dark_plus": "constant.numeric.color.rgb-value.scss: #CE9178",
-			"light_plus": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"dark_vs": "constant.numeric.color.rgb-value.scss: #D4D4D4",
-			"light_vs": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"hc_black": "constant.numeric.color.rgb-value.scss: #D4D4D4"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -3941,11 +3941,11 @@
 		"c": "225",
 		"t": "source.css.scss meta.set.variable.scss constant.numeric.color.rgb-value.scss",
 		"r": {
-			"dark_plus": "constant.numeric.color.rgb-value.scss: #CE9178",
-			"light_plus": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"dark_vs": "constant.numeric.color.rgb-value.scss: #D4D4D4",
-			"light_vs": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"hc_black": "constant.numeric.color.rgb-value.scss: #D4D4D4"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -4645,10 +4645,10 @@
 		"c": "auto",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4887,10 +4887,10 @@
 		"c": "hsl",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5074,10 +5074,10 @@
 		"c": "hsl",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5932,10 +5932,10 @@
 		"c": "grid-width",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6757,10 +6757,10 @@
 		"c": "screen",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.media.scss support.constant.media.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.media: #CE9178",
+			"light_plus": "support.constant.media: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.media: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6823,10 +6823,10 @@
 		"c": "landscape",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.media.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7582,11 +7582,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -7648,10 +7648,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8924,10 +8924,10 @@
 		"c": "relative",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9430,10 +9430,10 @@
 		"c": "solid",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9672,10 +9672,10 @@
 		"c": "dotted",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9760,10 +9760,10 @@
 		"c": "null",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9870,10 +9870,10 @@
 		"c": "double",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -10178,11 +10178,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -10310,11 +10310,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -11069,10 +11069,10 @@
 		"c": "url",
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -12873,10 +12873,10 @@
 		"c": "Arial",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.font-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -13016,10 +13016,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -13764,10 +13764,10 @@
 		"c": "dashed",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -13918,11 +13918,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -15777,10 +15777,10 @@
 		"c": "url",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -16822,11 +16822,11 @@
 		"c": "white",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -16866,10 +16866,10 @@
 		"c": "default",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -16965,11 +16965,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -17152,10 +17152,10 @@
 		"c": "s",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -17328,10 +17328,10 @@
 		"c": "false",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.mixin.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -18164,10 +18164,10 @@
 		"c": "url",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
