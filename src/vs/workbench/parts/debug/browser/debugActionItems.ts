@@ -55,7 +55,9 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				manager.openConfigFile(false).then(editor => {
 					if (editor) {
 						const codeEditor = <ICommonCodeEditor>editor.getControl();
-						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+						if (codeEditor) {
+							return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+						}
 					}
 				});
 			} else {

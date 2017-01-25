@@ -393,7 +393,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
-			const model = (<ICommonCodeEditor>editor.getControl()).getModel();
+			const codeEditor = <ICommonCodeEditor>editor.getControl();
+			const model = codeEditor ? codeEditor.getModel() : undefined;
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			const adapter = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0).pop();
 			if (adapter) {
