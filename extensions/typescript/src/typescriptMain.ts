@@ -84,6 +84,10 @@ export function activate(context: ExtensionContext): void {
 		clientHost.reloadProjects();
 	}));
 
+	context.subscriptions.push(commands.registerCommand('_typescript.onVersionStatusClicked', () => {
+		client.onVersionStatusClicked();
+	}));
+
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
 		context.subscriptions.push(ProjectStatus.create(client,
