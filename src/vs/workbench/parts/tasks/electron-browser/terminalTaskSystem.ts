@@ -116,6 +116,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		this.idleTaskTerminals = Object.create(null);
 	}
 
+	public setConfiguration(configuration: TaskRunnerConfiguration) {
+		this.configuration = configuration;
+	}
+
 	public log(value: string): void {
 		this.outputChannel.append(value + '\n');
 	}
