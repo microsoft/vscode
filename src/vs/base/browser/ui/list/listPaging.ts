@@ -91,6 +91,10 @@ export class PagedList<T> {
 		this.list.splice(0, this.list.length, range(model.length));
 	}
 
+	get length(): number {
+		return this.list.length;
+	}
+
 	get scrollTop(): number {
 		return this.list.scrollTop;
 	}
