@@ -1208,6 +1208,8 @@ class EditSettingRenderer extends Disposable {
 		if (this.editor.getRawConfiguration().glyphMargin) {
 			editPreferencesWidget.show(settings[0].valueRange.startLineNumber, settings);
 			editPreferencesWidget.getDomNode().title = nls.localize('editTtile', "Edit");
+			const editPreferenceWidgetToHide = editPreferencesWidget === this.editPreferenceWidgetForCusorPosition ? this.editPreferenceWidgetForMouseMove : this.editPreferenceWidgetForCusorPosition;
+			editPreferenceWidgetToHide.hide();
 		}
 	}
 
