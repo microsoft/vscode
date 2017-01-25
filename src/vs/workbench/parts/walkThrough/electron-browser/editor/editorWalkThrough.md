@@ -4,7 +4,7 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 * [Multi-cursor Editing](#multi-cursor-editing) - block selection, select all occurrences, add additional cursors and more
 * [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.
 * [Line Actions](#line-actions) - quickly move lines around to re-order your code.
-* [Rename Refactoring](#reference-information) - Quickly rename symbols across your code base.
+* [Rename Refactoring](#rename-refactoring) - Quickly rename symbols across your code base.
 * [Formatting](#formatting) - keep your code looking great with inbuilt document & selection formatting.
 * [Code Folding](#code-folding) - focus on the most relevant parts of your code by folding other areas.
 * [Errors and Warnings](#errors-and-warnings) - see errors and warning as you type.
