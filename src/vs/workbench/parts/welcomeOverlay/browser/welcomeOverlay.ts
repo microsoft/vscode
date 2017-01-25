@@ -96,7 +96,7 @@ const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', f
 
 export class WelcomeOverlayAction extends Action {
 
-	public static ID = 'workbench.action.welcomeOverlay';
+	public static ID = 'workbench.action.showInterfaceOverview';
 	public static LABEL = localize('welcomeOverlay', "User Interface Overview");
 
 	constructor(
@@ -118,7 +118,7 @@ export class WelcomeOverlayAction extends Action {
 
 export class HideWelcomeOverlayAction extends Action {
 
-	public static ID = 'workbench.action.hideWelcomeOverlay';
+	public static ID = 'workbench.action.hideInterfaceOverview';
 	public static LABEL = localize('hideWelcomeOverlay', "Hide Interface Overview");
 
 	constructor(
