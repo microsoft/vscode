@@ -891,7 +891,13 @@ export class WindowsManager implements IWindowsMainService {
 				state.mode = WindowMode.Fullscreen;
 				ensureNoOverlap = false;
 			} else if (windowConfig.newWindowDimensions === 'inherit' && lastActive) {
-				state = lastActive.serializeWindowState();
+				const lastActiveState = lastActive.serializeWindowState();
+				if (lastActiveState.mode === WindowMode.Fullscreen) {
+					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/Microsoft/vscode/issues/19331)
+				} else {
+					state = lastActiveState;
+				}
+
 				ensureNoOverlap = false;
 			}
 		}
