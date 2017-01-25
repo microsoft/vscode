@@ -1365,7 +1365,7 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 				const setting = this.workspaceSettingsEditorModel.getPreference(untrustedConfiguration);
 				if (setting) {
 					markerData.push({
-						severity: Severity.Error,
+						severity: Severity.Warning,
 						startLineNumber: setting.keyRange.startLineNumber,
 						startColumn: setting.keyRange.startColumn,
 						endLineNumber: setting.keyRange.endLineNumber,
