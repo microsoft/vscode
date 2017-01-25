@@ -86,7 +86,7 @@
 	function scrollToRevealSourceLine(line) {
 		const {previous, next} = getElementsForSourceLine(line);
 		marker.update(previous && previous.element);
-		if (previous) {
+		if (previous && window.initialData.scrollPreviewWithEditorSelection) {
 			let scrollTo = 0;
 			if (next) {
 				// Between two elements. Go to percentage offset between them.
@@ -153,15 +153,13 @@
 		scrollDisabled = true;
 	}, true);
 
-	if (window.initialData.scrollPreviewWithEditorSelection) {
-		window.addEventListener('message', event => {
-			const line = +event.data.line;
-			if (!isNaN(line)) {
-				scrollDisabled = true;
-				scrollToRevealSourceLine(line);
-			}
-		}, false);
-	}
+	window.addEventListener('message', event => {
+		const line = +event.data.line;
+		if (!isNaN(line)) {
+			scrollDisabled = true;
+			scrollToRevealSourceLine(line);
+		}
+	}, false);
 
 	document.addEventListener('dblclick', e => {
 		if (!window.initialData.doubleClickToSwitchToEditor) {
