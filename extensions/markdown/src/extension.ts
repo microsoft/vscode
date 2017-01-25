@@ -47,7 +47,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const sourceLine = Math.floor(line);
 				const text = editor.document.getText(new vscode.Range(sourceLine, 0, sourceLine + 1, 0));
 				const fraction = line - Math.floor(line);
-				const start = fraction * text.length;
+				const start = Math.floor(fraction * text.length);
 				editor.revealRange(
 					new vscode.Range(sourceLine, start, sourceLine + 1, 0),
 					vscode.TextEditorRevealType.AtTop);

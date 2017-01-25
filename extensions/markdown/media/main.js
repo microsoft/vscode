@@ -65,10 +65,13 @@
 			if (isNaN(line)) {
 				continue;
 			}
+			const bounds = element.getBoundingClientRect();
 			const entry = { element, line };
-			if (offset >= window.scrollY + element.getBoundingClientRect().top && offset <= window.scrollY + element.getBoundingClientRect().top + element.getBoundingClientRect().height) {
+			if (offset >= window.scrollY + bounds.top && offset <= window.scrollY + bounds.top + bounds.height) {
+				// add progress through element
+				entry.line += (offset - (window.scrollY + bounds.top)) / (bounds.height);
 				return { previous: entry };
-			} else if (offset < window.scrollY + element.getBoundingClientRect().top) {
+			} else if (offset < window.scrollY + bounds.top) {
 				return { previous, next: entry };
 			}
 			previous = entry;
