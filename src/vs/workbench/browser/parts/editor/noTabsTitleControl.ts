@@ -54,7 +54,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private onTitleLabelClick(e: MouseEvent): void {
 		DOM.EventHelper.stop(e, false);
 		if (!this.dragged) {
-			this.quickOpenService.show();
+			setTimeout(() => this.quickOpenService.show()); // delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
 		}
 	}
 
@@ -70,7 +70,6 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private onTitleClick(e: MouseEvent): void {
-		DOM.EventHelper.stop(e, false);
 		if (!this.context) {
 			return;
 		}
