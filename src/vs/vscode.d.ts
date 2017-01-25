@@ -941,11 +941,14 @@ declare module 'vscode' {
 		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
-		 * Enters snippet mode in the editor with the specified snippet.
+		 * Insert a [snippet](#SnippetString) and put the editor into snippet mode. "Snippet mode"
+		 * means the editor adds placeholders and additionals cursors so that the user can complete
+		 * or accept the snippet.
 		 *
 		 * @param snippet The snippet to insert in this edit.
 		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
-		 * @return A promise that resolves with a value indicating if the snippet could be inserted.
+		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
+		 * that the snippet is completely filled-in or accepted.
 		 */
 		insertSnippet(snippet: SnippetString, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
