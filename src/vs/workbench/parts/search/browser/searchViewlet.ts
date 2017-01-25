@@ -498,9 +498,11 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Reveal the newly selected element
-		this.tree.setFocus(prev, eventPayload);
-		this.tree.setSelection([prev], eventPayload);
-		this.tree.reveal(prev);
+		if (prev) {
+			this.tree.setFocus(prev, eventPayload);
+			this.tree.setSelection([prev], eventPayload);
+			this.tree.reveal(prev);
+		}
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
