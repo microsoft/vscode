@@ -351,7 +351,7 @@ class TerminateAction extends AbstractTaskAction {
 		if (!this.canRun()) {
 			return TPromise.as(undefined);
 		}
-		if (this.taskService.inTerminal) {
+		if (this.taskService.inTerminal()) {
 			this.messageService.show(Severity.Info, {
 				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
 				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
