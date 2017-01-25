@@ -15,15 +15,14 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import baseplatform = require('vs/base/common/platform');
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+
 
 
 class TrustContribution implements IWorkbenchContribution {
 
+	private static storageKey = 'workspace.settings.unsupported.warning';
 	private toDispose: IDisposable[] = [];
 	private isUntrusted = false;
 
@@ -32,82 +31,66 @@ class TrustContribution implements IWorkbenchContribution {
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IMessageService private messageService: IMessageService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IStorageService private storageService: IStorageService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
-		this.toDispose.push(this.workspaceConfigurationService.onDidUpdateConfiguration(e => this.checkWorkspaceTrust()));
-		this.checkWorkspaceTrust();
+		this.toDispose.push(this.workspaceConfigurationService.onDidUpdateConfiguration(e => this.checkWorkspaceSettings()));
+		this.checkWorkspaceSettings();
 	}
 
 	getId(): string {
-		return 'trust';
+		return 'unsupportedWorkspaceSettings';
 	}
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 
-	private checkWorkspaceTrust(): void {
-
+	private checkWorkspaceSettings(): void {
 		if (this.isUntrusted) {
-			return;
-		}
-
-		if (this.workspaceConfigurationService.isExplicitlyUntrusted()) {
-			this.isUntrusted = true;
 			return;
 		}
 
 		this.isUntrusted = this.workspaceConfigurationService.getUntrustedConfigurations().length > 0;
-		if (this.isUntrusted) {
-			this.showTrustWarning();
+		if (this.isUntrusted && !this.hasShownWarning()) {
+			this.showWarning();
 		}
 	}
 
-	private getWorkspaceTrustKey(): string {
-		let path = this.workspaceContextService.getWorkspace().resource.fsPath;
-		if (baseplatform.isWindows && path.length > 2) {
-			if (path.charAt(1) === ':') {
-				return path.charAt(0).toLocaleUpperCase().concat(path.substr(1));
-			}
-		}
-		return path;
+	private hasShownWarning(): boolean {
+		return this.storageService.getBoolean(TrustContribution.storageKey, StorageScope.WORKSPACE, false);
 	}
 
-	private updateTrustInUserSettings(trust: boolean, writeToBuffer: boolean, autoSave: boolean): TPromise<void> {
-		const key = 'security.workspacesTrustedToSpecifyExecutables';
-		const workspace = this.getWorkspaceTrustKey();
-
-		const value = this.configurationService.lookup(key).user || {};
-		value[workspace] = trust;
-
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: key, value: value }, { writeToBuffer: writeToBuffer, autoSave: autoSave });
+	private rememberWarningWasShown(): void {
+		this.storageService.store(TrustContribution.storageKey, true, StorageScope.WORKSPACE);
 	}
 
-	private showTrustWarning(): void {
-		const message = nls.localize('untrustedWorkspace', "This workspace specifies executables. While the workspace is untrusted, these settings are being ignored.");
+	private showWarning(): void {
+		const message = nls.localize('unsupportedWorkspaceSettings', 'This workspace defines settings that must be User Settings.');
 
-		const openWorkspaceSettings = new Action('trust.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Review Settings'), '', true, () => {
-			this.telemetryService.publicLog('workspace.trust.review');
-			return this.preferencesService.openWorkspaceSettings().then(() => false);
+		const openWorkspaceSettings = new Action('unsupportedWorkspaceSettings.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), '', true, () => {
+			this.telemetryService.publicLog('workspace.settings.unsupported.review');
+			this.rememberWarningWasShown();
+			return this.preferencesService.openWorkspaceSettings();
 		});
 
-		const trustWorkspace = new Action('trust.trustWorkspace', nls.localize('trustWorkspace', 'Trust Workspace'), '', true, () => {
-			this.telemetryService.publicLog('workspace.trust.granted');
-			return this.updateTrustInUserSettings(true, true, false).then(() => this.preferencesService.openGlobalSettings());
+		const openDocumentation = new Action('unsupportedWorkspaceSettings.openDocumentation', nls.localize('openDocumentation', 'Learn More'), '', true, () => {
+			this.telemetryService.publicLog('workspace.settings.unsupported.documentation');
+			this.rememberWarningWasShown();
+			window.open('https://go.microsoft.com/fwlink/?linkid=839878'); // Don't change link.
+			return TPromise.as(true);
 		});
 
-		const noChange = new Action('trust.noChange', nls.localize('noChange', 'Do Not Trust Workspace'), '', true, () => {
-			this.telemetryService.publicLog('workspace.trust.rejected');
-			return this.updateTrustInUserSettings(false, true, true);
+		const close = new Action('unsupportedWorkspaceSettings.Close', nls.localize('close', 'Close'), '', true, () => {
+			this.telemetryService.publicLog('workspace.settings.unsupported.close');
+			this.rememberWarningWasShown();
+			return TPromise.as(true);
 		});
 
-		const actions = [openWorkspaceSettings, trustWorkspace, noChange];
+		const actions = [openWorkspaceSettings, openDocumentation, close];
 		this.messageService.show(Severity.Warning, { message, actions });
-		this.telemetryService.publicLog('workspace.trust.warning');
+		this.telemetryService.publicLog('workspace.settings.unsupported.warning');
 	}
 }
 
