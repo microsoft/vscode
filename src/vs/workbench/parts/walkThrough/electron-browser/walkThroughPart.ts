@@ -96,22 +96,25 @@ export class WalkThroughPart extends BaseEditor {
 					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
 						let scrollTarget = this.content.querySelector(node.hash);
+						this.telemetryService.publicLog('revealInDocument', {
+							hash: node.hash,
+							broken: !scrollTarget,
+							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
+						});
 						if (scrollTarget) {
 							const targetTop = scrollTarget.getBoundingClientRect().top;
 							const containerTop = this.content.getBoundingClientRect().top;
 							this.scrollbar.updateState({ scrollTop: targetTop - containerTop });
 						}
 					} else {
-						const uri = this.addFrom(URI.parse(node.href));
-						this.openerService.open(uri);
+						this.open(URI.parse(node.href));
 					}
 					event.preventDefault();
 					break;
 				} else if (node instanceof HTMLButtonElement) {
 					const href = node.getAttribute('data-href');
 					if (href) {
-						const uri = this.addFrom(URI.parse(href));
-						this.openerService.open(uri);
+						this.open(URI.parse(href));
 					}
 					break;
 				} else if (node === event.currentTarget) {
@@ -121,12 +124,22 @@ export class WalkThroughPart extends BaseEditor {
 		});
 	}
 
+	private open(uri: URI) {
+		if (uri.scheme === 'http' || uri.scheme === 'https') {
+			this.telemetryService.publicLog('openExternal', {
+				uri: uri.toString(true),
+				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
+			});
+		}
+		this.openerService.open(this.addFrom(uri));
+	}
+
 	private addFrom(uri: URI) {
-		if (uri.scheme !== 'command') {
+		if (uri.scheme !== 'command' || !(this.input instanceof WalkThroughInput)) {
 			return uri;
 		}
 		const query = uri.query ? JSON.parse(uri.query) : {};
-		query.from = (<WalkThroughInput>this.input).getTelemetryFrom();
+		query.from = this.input.getTelemetryFrom();
 		return uri.with({ query: JSON.stringify(query) });
 	}
 
