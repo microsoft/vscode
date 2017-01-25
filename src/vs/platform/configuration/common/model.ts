@@ -135,9 +135,12 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	protected doMerge(source: ConfigModel<T>, target: IConfigModel<T>, overwrite: boolean = true) {
 		source._contents = objects.clone(this.contents);
 		merge(source.contents, target.contents, overwrite);
-		const overrides = objects.clone(target.overrides);
-		for (const override of source.overrides) {
-			if (overrides.every(o => !arrays.equals(o.identifiers, override.identifiers))) {
+		const overrides = objects.clone(source.overrides);
+		for (const override of target.overrides) {
+			const [sourceOverride] = overrides.filter(o => arrays.equals(o.identifiers, override.identifiers));
+			if (sourceOverride) {
+				merge(sourceOverride.contents, override.contents, overwrite);
+			} else {
 				overrides.push(override);
 			}
 		}
