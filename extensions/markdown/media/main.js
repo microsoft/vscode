@@ -161,39 +161,39 @@
 				scrollToRevealSourceLine(line);
 			}
 		}, false);
+	}
 
-		document.addEventListener('dblclick', e => {
-			if (!window.initialData.doubleClickToSwitchToEditor) {
-				return;
-			}
-
-			const offset = e.pageY;
-			const line = getEditorLineNumberForPageOffset(offset);
-			if (!isNaN(line)) {
-				const args = [window.initialData.source, line];
-				window.parent.postMessage({
-					command: "did-click-link",
-					data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
-				}, "file://");
-			}
-		});
-
-		if (window.initialData.scrollEditorWithPreview) {
-
-			window.addEventListener('scroll', throttle(() => {
-				if (scrollDisabled) {
-					scrollDisabled = false;
-				} else {
-					const line = getEditorLineNumberForPageOffset(window.scrollY);
-					if (!isNaN(line)) {
-						const args = [window.initialData.source, line];
-						window.parent.postMessage({
-							command: "did-click-link",
-							data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
-						}, "file://");
-					}
-				}
-			}, 50));
+	document.addEventListener('dblclick', e => {
+		if (!window.initialData.doubleClickToSwitchToEditor) {
+			return;
 		}
+
+		const offset = e.pageY;
+		const line = getEditorLineNumberForPageOffset(offset);
+		if (!isNaN(line)) {
+			const args = [window.initialData.source, line];
+			window.parent.postMessage({
+				command: "did-click-link",
+				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
+			}, "file://");
+		}
+	});
+
+	if (window.initialData.scrollEditorWithPreview) {
+
+		window.addEventListener('scroll', throttle(() => {
+			if (scrollDisabled) {
+				scrollDisabled = false;
+			} else {
+				const line = getEditorLineNumberForPageOffset(window.scrollY);
+				if (!isNaN(line)) {
+					const args = [window.initialData.source, line];
+					window.parent.postMessage({
+						command: "did-click-link",
+						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
+					}, "file://");
+				}
+			}
+		}, 50));
 	}
 }());
