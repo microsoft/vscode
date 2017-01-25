@@ -1,5 +1,5 @@
 ## Interactive Editor Playground
-The core editor in VS Code is packed with features.  This page highlights a number of them and lets you interactively try them our through the use of a number of embedded editors.  For full details on the editor features for VS Code and more head over to our [documentation](command:workbench.action.openDocumentationUrl).
+The core editor in VS Code is packed with features.  This page highlights a number of them and lets you interactively try them out through the use of a number of embedded editors.  For full details on the editor features for VS Code and more head over to our [documentation](command:workbench.action.openDocumentationUrl).
 
 * [Multi-cursor Editing](#multi-cursor-editing) - block selection, select all occurrences, add additional cursors and more
 * [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.
@@ -19,7 +19,7 @@ Using multiple cursors allows you to edit multiple parts of the document at once
 2. Add a cursor - press kb(cursorColumnSelectDown) or kb(cursorColumnSelectUp) to add a new cursor above or below, you can also use your mouse with <span class="shortcut mac-only">`⌥+Click`</span><span class="shortcut windows-only linux-only">`Alt+Click`</span> to add a cursor anywhere.
 3. Create cursors on all occurrences of a string - select one instance of a string e.g. `background-color` and press kb(editor.action.selectHighlights).  Now you can replace all instances by simply typing.
 
-Thats the tip of th iceberg for multi-cursor editing have a look at the `selection menu` and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
+That is the tip of the iceberg for multi-cursor editing have a look at the `selection menu` and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
 
 ```css
 #p1 {background-color: #ff0000;}   /* red */
@@ -31,7 +31,7 @@ Thats the tip of th iceberg for multi-cursor editing have a look at the `selecti
 
 ### IntelliSense
 
-Visual Studio Code comes with powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the require api.
+Visual Studio Code comes with powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the Request API.
 
 ```js
 var express = require('express');
@@ -86,7 +86,7 @@ function Book(title, author) {
 
 
 ### Formatting
-Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content either the entire document with kb(editor.action.formatDocument) or formatting can be applied to the current selection with kb(editor.action.formatSelection).  Both of these options are also available thorough the right click context menu.
+Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content either the entire document with kb(editor.action.formatDocument) or formatting can be applied to the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right click context menu.
 
 ```js
 var cars = ["Saab", "Volvo", "BMW"];
@@ -134,7 +134,7 @@ function Add(a : Number, b : Number) : Int {
 
 
 ###  Snippets
-You can greatly accelerate you editing through the use of snippets.  Simply start typing `try` and select `trycatch` from the suggestion list and press kb(insertSnippet) to create a `try`->`catch` block.  Your cursor will be placed on the text `error` for easy editing.  If more than one parameter exists then press kb(jumpToNextSnippetPlaceholder) to jump to it.
+You can greatly accelerate your editing through the use of snippets.  Simply start typing `try` and select `trycatch` from the suggestion list and press kb(insertSnippet) to create a `try`->`catch` block.  Your cursor will be placed on the text `error` for easy editing.  If more than one parameter exists then press kb(jumpToNextSnippetPlaceholder) to jump to it.
 
 ```js
 
@@ -144,7 +144,7 @@ You can greatly accelerate you editing through the use of snippets.  Simply star
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation.  To use emmet simply press tab after a valid piece for Emmet syntax and the expansion will occur.  Try is by pressing tab after `ul>li.item$*5` to see Emmet in action.
+Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation.  To use emmet simply press tab after a valid piece for Emmet syntax and the expansion will occur.  Try it by pressing tab after `ul>li.item$*5` to see Emmet in action.
 
 ```html
 ul>li.item$*5
@@ -157,7 +157,7 @@ ul>li.item$*5
 ## Thanks!
 Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.  But don't stop now :)  We have lots of additional [documentation](https://code.visualstudio.com/docs) and [introductory videos](https://code.visualstudio.com/docs/introvideos/overview) for the product that will help you learn how to use it.  And while you are here, here are a few additional things you can try:
 - Open the Integrated Terminal by pressing kb(workbench.action.terminal.toggleTerminal) then see whats possible by [reviewing the terminal documentation](https://code.visualstudio.com/docs/editor/integrated-terminal)
-- Work with version control by pressing kb(workbench.view.scm) understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
+- Work with version control by pressing kb(workbench.view.git) understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
 - Browse thousands of extensions in our integrated gallery by pressing with kb(workbench.view.extensions) the [documentation](https://code.visualstudio.com/docs/editor/extension-gallery) will show you how to see the most popular extensions, disable installed ones and more.
 
 OK thats all for now,
