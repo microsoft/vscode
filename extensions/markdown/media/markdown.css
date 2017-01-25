@@ -43,11 +43,11 @@ body.showEditorSelection li.code-line:hover:before {
 }
 
 .vscode-dark.showEditorSelection .code-active-line:before {
-	border-left: 3px solid rgba(255, 255, 255, 0.25);
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
 }
 
 .vscode-dark.showEditorSelection .code-line:hover:before {
-	border-left: 3px solid rgba(255, 255, 255, 0.50);
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
 }
 
 .vscode-high-contrast.showEditorSelection .code-active-line:before {
