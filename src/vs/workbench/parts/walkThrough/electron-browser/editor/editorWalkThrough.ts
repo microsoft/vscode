@@ -17,7 +17,7 @@ import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThr
 export class EditorWalkThroughAction extends Action {
 
 	public static ID = 'workbench.action.editorWalkThrough';
-	public static LABEL = localize('editorWalkThrough', "Editor Walk-Through");
+	public static LABEL = localize('editorWalkThrough', "Interactive Playground");
 
 	constructor(
 		id: string,
@@ -31,7 +31,7 @@ export class EditorWalkThroughAction extends Action {
 	public run(): TPromise<void> {
 		const uri = URI.parse(require.toUrl('./editorWalkThrough.md'))
 			.with({ scheme: WALK_THROUGH_SCHEME });
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Editor Walk-Through"), '', uri, /* telemetryFrom */ null, /* onReady */ null);
+		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Interactive Playground"), '', uri, /* telemetryFrom */ null, /* onReady */ null);
 		return this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(() => void (0));
 	}

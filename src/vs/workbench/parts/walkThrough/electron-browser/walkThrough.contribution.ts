@@ -21,7 +21,7 @@ import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtil
 if (isWelcomePageEnabled()) {
 	Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 		.registerEditor(new EditorDescriptor(WalkThroughPart.ID,
-			localize('walkThrough.editor.label', "Walk-Through"),
+			localize('walkThrough.editor.label', "Interactive Playground"),
 			'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart',
 			'WalkThroughPart'),
 		[new SyncDescriptor(WalkThroughInput)]);
@@ -29,7 +29,7 @@ if (isWelcomePageEnabled()) {
 	Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 		.registerWorkbenchAction(
 		new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
-		'Help: Editor Walk-Through', localize('help', "Help"));
+		'Help: Interactive Playground', localize('help', "Help"));
 
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 		.registerWorkbenchContribution(WalkThroughContentProvider);
