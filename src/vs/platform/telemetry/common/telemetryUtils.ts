@@ -55,11 +55,12 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 	updateExperimentsOverrides(configurationService);
 	configurationService.onDidUpdateConfiguration(e => updateExperimentsOverrides(configurationService));
 
-	const random1 = getExperimentsRandomness();
-	let [random2, showNewUserWatermark] = splitRandom(random1);
-	let [random3, openUntitledFile] = splitRandom(random2);
-	let [, openGettingStarted] = splitRandom(random3);
-	let enableWelcomePage = isWelcomePageEnabled();
+	let {
+		showNewUserWatermark,
+		openUntitledFile,
+		openGettingStarted,
+		enableWelcomePage
+	} = splitExperimentsRandomness();
 
 	const newUserDuration = 24 * 60 * 60 * 1000;
 	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
@@ -84,8 +85,8 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 }
 
 export function isWelcomePageEnabled() {
-	const override = getExperimentsOverrides().enableWelcomePage;
-	return typeof override === 'boolean' ? override : !!process.env['VSCODE_DEV'];
+	const overrides = getExperimentsOverrides();
+	return 'enableWelcomePage' in overrides ? overrides.enableWelcomePage : splitExperimentsRandomness().enableWelcomePage;
 }
 
 function applyOverrides(experiments: ITelemetryExperiments): ITelemetryExperiments {
@@ -96,6 +97,20 @@ function applyOverrides(experiments: ITelemetryExperiments): ITelemetryExperimen
 		}
 	});
 	return experiments;
+}
+
+function splitExperimentsRandomness(): ITelemetryExperiments {
+	const random1 = getExperimentsRandomness();
+	const [random2, showNewUserWatermark] = splitRandom(random1);
+	const [random3, openUntitledFile] = splitRandom(random2);
+	const [random4, openGettingStarted] = splitRandom(random3);
+	const [, enableWelcomePage] = splitRandom(random4);
+	return {
+		showNewUserWatermark,
+		openUntitledFile,
+		openGettingStarted,
+		enableWelcomePage
+	};
 }
 
 function getExperimentsRandomness() {
