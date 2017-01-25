@@ -68,7 +68,8 @@ export interface IBackupFileService {
 	discardResourceBackup(resource: Uri): TPromise<void>;
 
 	/**
-	 * Discards all backups associated with the current workspace.
+	 * Discards all backups associated with the current workspace and prevents further backups from
+	 * being made.
 	 */
 	discardAllWorkspaceBackups(): TPromise<void>;
 }
