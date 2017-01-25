@@ -353,7 +353,7 @@ class TerminateAction extends AbstractTaskAction {
 		}
 		if (this.taskService.inTerminal) {
 			this.messageService.show(Severity.Info, {
-				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the intergrated terminal. Use the terminal to manage the tasks.'),
+				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
 				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
 			});
 		} else {
