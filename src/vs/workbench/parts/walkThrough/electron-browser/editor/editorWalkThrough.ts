@@ -16,7 +16,7 @@ import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThr
 
 export class EditorWalkThroughAction extends Action {
 
-	public static ID = 'workbench.action.editorWalkThrough';
+	public static ID = 'workbench.action.showInteractivePlayground';
 	public static LABEL = localize('editorWalkThrough', "Interactive Playground");
 
 	constructor(

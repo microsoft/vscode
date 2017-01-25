@@ -54,7 +54,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 export class WelcomePageAction extends Action {
 
-	public static ID = 'workbench.action.welcomePage';
+	public static ID = 'workbench.action.showWelcomePage';
 	public static LABEL = localize('welcomePage', "Welcome");
 
 	constructor(
