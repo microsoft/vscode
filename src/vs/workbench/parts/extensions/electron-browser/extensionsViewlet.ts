@@ -109,6 +109,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		});
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
+			.filter(() => this.list.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
 
 		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
