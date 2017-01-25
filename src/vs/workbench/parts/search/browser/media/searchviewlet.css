@@ -30,6 +30,7 @@
 	margin-left: 17px;
 }
 
+.search-viewlet .search-widget .input-box,
 .search-viewlet .search-widget .input-box .monaco-inputbox {
 	height: 25px;
 }
@@ -43,7 +44,6 @@
 	margin-top: 6px;
 	position: relative;
 	display: inline-flex;
-	height: 25px;
 }
 
 .search-viewlet .search-widget .replace-container.disabled {
