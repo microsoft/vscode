@@ -77,6 +77,17 @@ export class WalkThroughPart extends BaseEditor {
 		const container = parent.getHTMLElement();
 
 		this.content = document.createElement('div');
+		this.content.tabIndex = 0;
+		this.content.style.outlineStyle = 'none';
+		this.content.addEventListener('mousedown', e => {
+			let active = document.activeElement;
+			while (active && active !== this.content) {
+				active = active.parentElement;
+			}
+			if (!active) {
+				this.focus();
+			}
+		});
 
 		this.scrollbar = new DomScrollableElement(this.content, {
 			canUseTranslate3d: false,
