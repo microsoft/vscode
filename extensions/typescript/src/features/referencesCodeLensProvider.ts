@@ -44,7 +44,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 			return Promise.resolve([]);
 		}
 
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve([]);
 		}

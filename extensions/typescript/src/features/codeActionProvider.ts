@@ -46,7 +46,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	}
 
 	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Thenable<Command[]> {
-		const file = this.client.asAbsolutePath(document.uri);
+		const file = this.client.normalizePath(document.uri);
 		if (!file) {
 			return Promise.resolve<Command[]>([]);
 		}

@@ -21,7 +21,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	}
 
 	public provideReferences(document: TextDocument, position: Position, options: { includeDeclaration: boolean }, token: CancellationToken): Promise<Location[]> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve<Location[]>([]);
 		}

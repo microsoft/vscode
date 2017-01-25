@@ -552,10 +552,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 	}
 
-	public asAbsolutePath(resource: Uri): string | null {
+	public normalizePath(resource: Uri): string | null {
 		if (resource.scheme === TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME) {
 			return resource.toString();
 		}
+
+		if (resource.scheme === 'untitled' && this._apiVersion.has213Features()) {
+			return resource.toString();
+		}
+
 		if (resource.scheme !== 'file') {
 			return null;
 		}

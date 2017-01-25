@@ -21,7 +21,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 	}
 
 	public provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): Promise<WorkspaceEdit | undefined | null> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve(null);
 		}
