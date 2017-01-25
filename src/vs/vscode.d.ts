@@ -946,12 +946,12 @@ declare module 'vscode' {
 		 * or accept the snippet.
 		 *
 		 * @param snippet The snippet to insert in this edit.
-		 * @param selection One or many selections at which to insert the snippets. Defaults to the current editor selection.
+		 * @param location Ranges or position at which to insert the snippet, defaults to the current editor selection.
 		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */
-		insertSnippet(snippet: SnippetString, selection?: Selection | Selection[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		insertSnippet(snippet: SnippetString, location?: Position | Position[] | Range | Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with

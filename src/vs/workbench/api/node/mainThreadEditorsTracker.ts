@@ -397,14 +397,15 @@ export class MainThreadTextEditor {
 		return false;
 	}
 
-	insertSnippet(template: string, selections: EditorCommon.ISelection[], opts: IUndoStopOptions) {
+	insertSnippet(template: string, ranges: EditorCommon.IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;
 		}
 
-		this._codeEditor.focus();
+		const selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
 		this._codeEditor.setSelections(selections);
+		this._codeEditor.focus();
 
 		if (opts.undoStopBefore) {
 			this._codeEditor.pushUndoStop();
