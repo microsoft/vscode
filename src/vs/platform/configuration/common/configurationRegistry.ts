@@ -275,7 +275,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'security.workspacesTrustedToSpecifyExecutables': {
 			'type': 'object',
-			'description': nls.localize('security.workspacesTrustedToSpecifyExecutables', "Specifes which workspaces are trusted to specify executables in their settings. This option can only configured in the user settings."),
+			'description': nls.localize('security.workspacesTrustedToSpecifyExecutables', "Controls which workspaces are trusted to specify executables in their settings. This option can only be configured in the user settings."),
 			'default': {},
 			defaultSnippets: [{ body: '${1:workspace_path} : ${2:true}' }],
 			'additionalProperties': {
