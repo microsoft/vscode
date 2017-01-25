@@ -395,10 +395,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		});
 	}
 
-	private informAboutTS20(modulePath: string): Thenable<string> {
-		return Promise.resolve(modulePath);
-	}
-
 	public onVersionStatusClicked(): Thenable<string> {
 		const modulePath = this.modulePath;
 
