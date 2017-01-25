@@ -585,6 +585,8 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
+	private filterResult: IFilterResult;
+
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -610,6 +612,9 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
 			if (this.untrustedSettingRenderer) {
 				this.untrustedSettingRenderer.render();
+			}
+			if (this.filterResult) {
+				this.filterPreferences(this.filterResult);
 			}
 		});
 	}
@@ -665,6 +670,7 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	}
 
 	public filterPreferences(filterResult: IFilterResult): void {
+		this.filterResult = filterResult;
 		this.highlightPreferencesRenderer.render([]);
 		this.settingHighlighter.clear(true);
 		if (this.defaultSettingsModel && filterResult) {
