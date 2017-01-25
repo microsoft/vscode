@@ -3269,7 +3269,7 @@ suite('ElectricCharacter', () => {
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2);
 			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
-			assert.deepEqual(model.getLineContent(2), '  a}');
+			assert.deepEqual(model.getLineContent(2), 'a}');
 		});
 		mode.dispose();
 	});
@@ -3307,6 +3307,23 @@ suite('ElectricCharacter', () => {
 			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
 			assert.deepEqual(model.getLineContent(1), '(div)');
 			assert.deepEqual(changeText, ')');
+		});
+		mode.dispose();
+	});
+
+	test('is no-op if the line has other content', () => {
+		let mode = new ElectricCharMode();
+		usingCursor({
+			text: [
+				'Math.max(',
+				'\t2',
+				'\t3'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 3);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(3), '\t3)');
 		});
 		mode.dispose();
 	});
