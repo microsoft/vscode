@@ -2852,7 +2852,7 @@ declare module 'vscode' {
 		/**
 		 * Readable dictionary that backs this configuration.
 		 */
-		readonly[key: string]: any;
+		readonly [key: string]: any;
 	}
 
 	/**
@@ -4155,10 +4155,11 @@ declare module 'vscode' {
 		export function registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable;
 
 		/**
-		 * Register an type implementation provider.
+		 * Register an implementation provider.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An implementation provider.
