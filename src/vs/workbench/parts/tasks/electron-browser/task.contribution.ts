@@ -1334,7 +1334,13 @@ let schema: IJSONSchema =
 					},
 					'isWatching': {
 						'type': 'boolean',
+						'deprecationMessage': nls.localize('JsonSchema.watching.deprecation', 'Deprecated. Use isBackground instead.'),
 						'description': nls.localize('JsonSchema.watching', 'Whether the executed task is kept alive and is watching the file system.'),
+						'default': true
+					},
+					'isBackground': {
+						'type': 'boolean',
+						'description': nls.localize('JsonSchema.background', 'Whether the executed task is kept alive and is running in the background.'),
 						'default': true
 					},
 					'promptOnClose': {
@@ -1482,8 +1488,8 @@ let schema: IJSONSchema =
 					},
 					'isWatching': {
 						'type': 'boolean',
-						'deprecationMessage': nls.localize('JsonSchema.tasks.watching', 'Deprecated. Use isBackground instead.'),
-						'description': nls.localize('JsonSchema.tasks.watching', 'Deprecated. Use isBackground instead.'),
+						'deprecationMessage': nls.localize('JsonSchema.tasks.watching.deprecation', 'Deprecated. Use isBackground instead.'),
+						'description': nls.localize('JsonSchema.tasks.watching', 'Whether the executed task is kept alive and is watching the file system.'),
 						'default': true
 					},
 					'isBackground': {
