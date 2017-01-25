@@ -63,9 +63,9 @@ class Theme {
 	constructor(private themeId: string, themeSettings: IThemeSetting[]) {
 		this.selector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
 		this.settings = themeSettings;
-		let settings = this.settings[0];
-		if (!settings.scope) {
-			this.globalSettings = settings.settings;
+		let globalSettings = this.settings.filter(s => !s.scope);
+		if (globalSettings.length > 0) {
+			this.globalSettings = globalSettings[0].settings;
 		}
 	}
 
