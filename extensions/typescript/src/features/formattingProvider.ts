@@ -108,7 +108,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
 			return Promise.resolve(currentOptions);
 		} else {
-			const absPath = this.client.asAbsolutePath(document.uri);
+			const absPath = this.client.normalizePath(document.uri);
 			if (!absPath) {
 				return Promise.resolve(Object.create(null));
 			}
@@ -139,7 +139,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	public provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
-		const absPath = this.client.asAbsolutePath(document.uri);
+		const absPath = this.client.normalizePath(document.uri);
 		if (!absPath) {
 			return Promise.resolve([]);
 		}
@@ -154,7 +154,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	public provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve([]);
 		}

@@ -155,18 +155,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			});
 		}
 
-		let filepath = this.client.asAbsolutePath(document.uri);
-		if (!filepath) {
+		const file = this.client.normalizePath(document.uri);
+		if (!file) {
 			return Promise.resolve<CompletionItem[]>([]);
 		}
-		let args: CompletionsRequestArgs = {
-			file: filepath,
+		const args: CompletionsRequestArgs = {
+			file: file,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve<CompletionItem[]>([]);
-		}
 
 		return this.client.execute('completions', args, token).then((msg) => {
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
@@ -185,8 +182,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			// 	isMemberCompletion = value === '.';
 			// }
 
-			let completionItems: CompletionItem[] = [];
-			let body = msg.body;
+			const completionItems: CompletionItem[] = [];
+			const body = msg.body;
 			if (body) {
 				// Only enable dot completions in TS files for now
 				let enableDotCompletions = document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact');
@@ -217,7 +214,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem> {
 		if (item instanceof MyCompletionItem) {
-			const filepath = this.client.asAbsolutePath(item.document.uri);
+			const filepath = this.client.normalizePath(item.document.uri);
 			if (!filepath) {
 				return null;
 			}
