@@ -382,6 +382,10 @@ class Renderer extends LegacyRenderer {
 
 			const preview = element.parent.preview.preview(element.range);
 
+			if (!preview) {
+				return;
+			}
+
 			$('.reference').innerHtml(
 				strings.format(
 					'<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
