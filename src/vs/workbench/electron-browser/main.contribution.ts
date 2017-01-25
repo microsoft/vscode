@@ -235,9 +235,9 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 if (platform.isWindows || platform.isLinux) {
 	properties['window.menuBarVisibility'] = {
 		'type': 'string',
-		'enum': ['visible', 'toggle', 'hidden'],
-		'default': 'visible',
-		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that a single press of the alt key will show and hide the menu bar.")
+		'enum': ['default', 'visible', 'toggle', 'hidden'],
+		'default': 'default',
+		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
 	};
 }
 
