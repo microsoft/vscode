@@ -767,7 +767,7 @@ export class WindowsManager implements IWindowsMainService {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen) || (windowConfig && windowConfig.newWindowDimensions && windowConfig.newWindowDimensions === 'fullscreen'),
+				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen) || (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0),
 				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			},
 				this.logService,
