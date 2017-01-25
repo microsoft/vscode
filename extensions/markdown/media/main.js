@@ -144,11 +144,13 @@
 
 	window.onload = () => {
 		if (window.initialData.scrollPreviewWithEditorSelection) {
-			const initialLine = +window.initialData.line || 0;
-			setTimeout(() => {
-				scrollDisabled = true;
-				scrollToRevealSourceLine(initialLine);
-			}, 0);
+			const initialLine = +window.initialData.line;
+			if (!isNaN(initialLine)) {
+				setTimeout(() => {
+					scrollDisabled = true;
+					scrollToRevealSourceLine(initialLine);
+				}, 0);
+			}
 		}
 	};
 
