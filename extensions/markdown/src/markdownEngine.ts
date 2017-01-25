@@ -46,12 +46,9 @@ export class MarkdownEngine {
 				}
 			}).use(mdnh, {});
 
-			this.addLineNumberRenderer(this.md, 'paragraph_open');
-			this.addLineNumberRenderer(this.md, 'heading_open');
-			this.addLineNumberRenderer(this.md, 'image');
-			this.addLineNumberRenderer(this.md, 'code_block');
-			this.addLineNumberRenderer(this.md, 'blockquote_open');
-			this.addLineNumberRenderer(this.md, 'list_item_open');
+			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
+				this.addLineNumberRenderer(this.md, renderName);
+			}
 
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
