@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export const enum CharWidthRequestType {
@@ -152,83 +150,7 @@ class DomCharWidthReader implements ICharWidthReader {
 	}
 }
 
-class CanvasCharWidthReader implements ICharWidthReader {
-
-	private readonly _bareFontInfo: BareFontInfo;
-	private readonly _requests: CharWidthRequest[];
-
-	constructor(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]) {
-		this._bareFontInfo = bareFontInfo;
-		this._requests = requests;
-	}
-
-	public read(): void {
-		let canvasElement = <HTMLCanvasElement>document.createElement('canvas');
-		let context = canvasElement.getContext('2d');
-
-		context.font = CanvasCharWidthReader._createFontString(this._bareFontInfo);
-		for (let i = 0, len = this._requests.length; i < len; i++) {
-			const request = this._requests[i];
-			if (request.type === CharWidthRequestType.Regular) {
-				request.fulfill(context.measureText(request.chr).width);
-			}
-		}
-
-		context.font = CanvasCharWidthReader._createFontString(this._bareFontInfo, undefined, 'bold');
-		for (let i = 0, len = this._requests.length; i < len; i++) {
-			const request = this._requests[i];
-			if (request.type === CharWidthRequestType.Bold) {
-				request.fulfill(context.measureText(request.chr).width);
-			}
-		}
-
-		context.font = CanvasCharWidthReader._createFontString(this._bareFontInfo, 'italic');
-		for (let i = 0, len = this._requests.length; i < len; i++) {
-			const request = this._requests[i];
-			if (request.type === CharWidthRequestType.Italic) {
-				request.fulfill(context.measureText(request.chr).width);
-			}
-		}
-	}
-
-	private static _createFontString(bareFontInfo: BareFontInfo, overwriteFontStyle: string = 'normal', overwriteFontWeight: string = bareFontInfo.fontWeight): string {
-		return this._doCreateFontString(overwriteFontStyle, overwriteFontWeight, bareFontInfo.fontSize, bareFontInfo.lineHeight, bareFontInfo.fontFamily);
-	}
-
-	private static _doCreateFontString(fontStyle: string, fontWeight: string, fontSize: number, lineHeight: number, fontFamily: string): string {
-		// The full font syntax is:
-		// style | variant | weight | stretch | size/line-height | fontFamily
-		// (https://developer.mozilla.org/en-US/docs/Web/CSS/font)
-		// But it appears Edge and IE11 cannot properly parse `stretch`.
-		return `${fontStyle} normal ${fontWeight} ${fontSize}px / ${lineHeight}px ${fontFamily}`;
-	}
-}
-
-function readCharWidthsFromDom(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
+export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
 	let reader = new DomCharWidthReader(bareFontInfo, requests);
 	reader.read();
-}
-
-function readCharWidthsFromCanvas(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
-	let reader = new CanvasCharWidthReader(bareFontInfo, requests);
-	reader.read();
-}
-
-export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
-	// In IE11 and Firefox, it appears that ctx.measureText() always returns integer results.
-	// In Edge, ctx.measureText() gives floating point results, but they are not the same.
-	// In Safari, ctx.measureText() also gives floating point results, but they are not the same.
-	if (browser.isIE || browser.isFirefox || browser.isSafari) {
-		readCharWidthsFromDom(bareFontInfo, requests);
-		return;
-	}
-
-	// On Linux, it appears that ctx.measureText() is unaffected by the browser zoom (which is correct),
-	// but the char widths at rendering time are affected by the browser zoom (which is unexpected)
-	if (platform.isLinux) {
-		readCharWidthsFromDom(bareFontInfo, requests);
-		return;
-	}
-
-	readCharWidthsFromCanvas(bareFontInfo, requests);
 }
