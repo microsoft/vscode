@@ -109,6 +109,7 @@
 	margin-top: 17px;
 	margin-bottom: 5px;
 	font-size: 1.9em;
+	line-height: initial;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .splash .section {
