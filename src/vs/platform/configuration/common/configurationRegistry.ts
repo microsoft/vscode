@@ -261,32 +261,6 @@ function getDefaultValue(type: string | string[]): any {
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
-export interface ISecurityConfiguration {
-	security: {
-		workspacesTrustedToSpecifyExecutables: { [path: string]: boolean }
-	};
-}
-
-configurationRegistry.registerConfiguration({
-	'id': 'Security',
-	'order': 5,
-	'title': nls.localize('securityConfigurationTitle', "Security"),
-	'type': 'object',
-	'properties': {
-		'security.workspacesTrustedToSpecifyExecutables': {
-			'type': 'object',
-			'description': nls.localize('security.workspacesTrustedToSpecifyExecutables', "Controls which workspaces are trusted to specify executables in their settings. This option can only be configured in the user settings."),
-			'default': {},
-			defaultSnippets: [{ body: '${1:workspace_path} : ${2:true}' }],
-			'additionalProperties': {
-				'type': 'boolean',
-				'description': nls.localize('exclude.boolean', "Path to a workspaces. Set to true or false to trust or distrust a workspace."),
-			}
-		}
-	}
-
-});
-
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
