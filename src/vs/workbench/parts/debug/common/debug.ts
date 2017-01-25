@@ -360,9 +360,9 @@ export interface IConfigurationManager {
 	getCompound(name: string): ICompound;
 
 	/**
-	 * Opens the launch.json file
+	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean): TPromise<IEditor>;
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
 
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
@@ -374,7 +374,7 @@ export interface IConfigurationManager {
 	 * If no type is specified will try to automatically pick an adapter by looking at
 	 * the active editor language and matching it against the "languages" contribution of an adapter.
 	 */
-	getStartSessionCommand(type?: string): TPromise<string>;
+	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
 }
 
 // Debug service interfaces
