@@ -3958,9 +3958,11 @@ declare module 'vscode' {
 		export function openTextDocument(fileName: string): Thenable<TextDocument>;
 
 		/**
-		 * Opens a untitled file document with an optional language.
+		 * Opens an untitled text document. The editor will prompt the user for a file
+		 * path when the document is to be saved. The `options` parameter allows to
+		 * specify the *language* of the document.
 		 *
-		 * @param options an optional language identifier to use for the untitled file document.
+		 * @param options Options to control how the document will be created.
 		 * @return A promise that resolves to a [document](#TextDocument).
 		 */
 		export function openTextDocument(options?: { language: string; }): Thenable<TextDocument>;
