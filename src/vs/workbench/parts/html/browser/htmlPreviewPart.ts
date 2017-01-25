@@ -41,7 +41,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	private _baseUrl: URI;
 
 	private _modelRef: IReference<ITextEditorModel>;
-	public get model(): IModel { return this._modelRef.object.textEditorModel; }
+	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
