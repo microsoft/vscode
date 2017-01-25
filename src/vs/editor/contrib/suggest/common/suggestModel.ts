@@ -12,6 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition, IWordAtPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 
@@ -94,6 +95,7 @@ export class SuggestModel implements IDisposable {
 
 	private requestPromise: TPromise<void>;
 	private context: LineContext;
+	private currentPosition: Position;
 
 	private completionModel: CompletionModel;
 
@@ -112,6 +114,7 @@ export class SuggestModel implements IDisposable {
 		this.requestPromise = null;
 		this.completionModel = null;
 		this.context = null;
+		this.currentPosition = editor.getPosition();
 
 		// wire up various listeners
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
@@ -222,6 +225,9 @@ export class SuggestModel implements IDisposable {
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
 
+		const prevPosition = this.currentPosition;
+		this.currentPosition = this.editor.getPosition();
+
 		if (!e.selection.isEmpty()
 			|| e.source !== 'keyboard'
 			|| e.reason !== CursorChangeReason.NotSet) {
@@ -241,9 +247,13 @@ export class SuggestModel implements IDisposable {
 
 		if (this.state === State.Idle) {
 
-			if (this.editor.getConfiguration().contribInfo.quickSuggestions) {
-				// trigger 24x7 IntelliSense when idle and enabled
+			// trigger 24x7 IntelliSense when idle, enabled, when cursor
+			// moved RIGHT, and when at a good position
+			if (this.editor.getConfiguration().contribInfo.quickSuggestions
+				&& prevPosition.isBefore(this.currentPosition)) {
+
 				this.cancel();
+
 				if (LineContext.shouldAutoTrigger(this.editor)) {
 					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
 					this.triggerAutoSuggestPromise.then(() => {
