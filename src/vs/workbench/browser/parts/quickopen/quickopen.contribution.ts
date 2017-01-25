@@ -157,21 +157,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 function navigateKeybinding(shift: boolean): IKeybindings {
 	if (!shift) {
 		return {
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.Tab, KeyMod.CtrlCmd | KeyCode.KEY_Q],
+			primary: KeyMod.CtrlCmd | KeyCode.Tab,
+			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_Q],
 			mac: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-				secondary: [KeyMod.WinCtrl | KeyCode.Tab, KeyMod.WinCtrl | KeyCode.KEY_Q]
+				primary: KeyMod.WinCtrl | KeyCode.Tab,
+				secondary: [KeyMod.WinCtrl | KeyCode.KEY_Q]
 			}
 		};
 	}
 
 	return {
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Q],
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Q],
 		mac: {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
-			secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_Q]
+			primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab,
+			secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_Q]
 		}
 	};
 }
