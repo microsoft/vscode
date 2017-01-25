@@ -54,7 +54,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
 
-		const filepath = this.client.asAbsolutePath(uri);
+		const filepath = this.client.normalizePath(uri);
 		if (!filepath) {
 			return Promise.resolve<SymbolInformation[]>([]);
 		}

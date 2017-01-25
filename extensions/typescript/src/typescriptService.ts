@@ -60,7 +60,7 @@ export class API {
 }
 
 export interface ITypescriptServiceClient {
-	asAbsolutePath(resource: Uri): string | null;
+	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 
 	info(message: string, data?: any): void;

@@ -19,7 +19,7 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 	}
 
 	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined | null> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve(null);
 		}
