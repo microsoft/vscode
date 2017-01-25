@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-case-sensitive {
+.vs .custom-checkbox.monaco-case-sensitive {
 	background: url('case-sensitive.svg') center center no-repeat;
 }
-.hc-black .monaco-case-sensitive,
-.vs-dark .monaco-case-sensitive {
+.hc-black .custom-checkbox.monaco-case-sensitive,
+.hc-black .custom-checkbox.monaco-case-sensitive:hover,
+.vs-dark .custom-checkbox.monaco-case-sensitive {
 	background: url('case-sensitive-dark.svg') center center no-repeat;
 }
 
-.vs .monaco-whole-word {
+.vs .custom-checkbox.monaco-whole-word {
 	background: url('whole-word.svg') center center no-repeat;
 }
-.hc-black .monaco-whole-word,
-.vs-dark .monaco-whole-word {
+.hc-black .custom-checkbox.monaco-whole-word,
+.hc-black .custom-checkbox.monaco-whole-word:hover,
+.vs-dark .custom-checkbox.monaco-whole-word {
 	background: url('whole-word-dark.svg') center center no-repeat;
 }
 
-.vs .monaco-regex {
+.vs .custom-checkbox.monaco-regex {
 	background: url('regex.svg') center center no-repeat;
 }
-.hc-black .monaco-regex,
-.vs-dark .monaco-regex {
+.hc-black .custom-checkbox.monaco-regex,
+.hc-black .custom-checkbox.monaco-regex:hover,
+.vs-dark .custom-checkbox.monaco-regex {
 	background: url('regex-dark.svg') center center no-repeat;
 }
