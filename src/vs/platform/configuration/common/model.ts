@@ -268,20 +268,21 @@ export class ConfigModel<T> implements IConfigModel<T> {
 }
 
 export class DefaultConfigModel<T> extends ConfigModel<T> {
+
+	private _keys: string[];
+
 	constructor() {
 		super(null);
-	}
-
-	protected get _contents(): T {
-		return getDefaultValues(); // defaults coming from contributions to registries
-	}
-
-	protected set _contents(arg: T) {
-		//no op
+		this.update();
 	}
 
 	public get keys(): string[] {
-		return getConfigurationKeys();
+		return this._keys;
+	}
+
+	public update(): void {
+		this._contents = getDefaultValues(); // defaults coming from contributions to registries
+		this._keys = getConfigurationKeys();
 	}
 }
 
