@@ -67,7 +67,7 @@ class TrustContribution implements IWorkbenchContribution {
 	}
 
 	private showWarning(): void {
-		const message = nls.localize('unsupportedWorkspaceSettings', 'This workspace defines settings that must be User Settings.');
+		const message = nls.localize('unsupportedWorkspaceSettings', 'This Workspace contains settings that can only be set in User level settings.');
 
 		const openWorkspaceSettings = new Action('unsupportedWorkspaceSettings.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), '', true, () => {
 			this.telemetryService.publicLog('workspace.settings.unsupported.review');
@@ -82,8 +82,8 @@ class TrustContribution implements IWorkbenchContribution {
 			return TPromise.as(true);
 		});
 
-		const close = new Action('unsupportedWorkspaceSettings.Close', nls.localize('close', 'Close'), '', true, () => {
-			this.telemetryService.publicLog('workspace.settings.unsupported.close');
+		const close = new Action('unsupportedWorkspaceSettings.Ignore', nls.localize('ignore', 'Ignore'), '', true, () => {
+			this.telemetryService.publicLog('workspace.settings.unsupported.ignore');
 			this.rememberWarningWasShown();
 			return TPromise.as(true);
 		});
