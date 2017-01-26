@@ -70,7 +70,8 @@ enum MessageAction {
 	useLocal,
 	useBundled,
 	learnMore,
-	close
+	close,
+	reportIssue
 }
 
 interface MyMessageItem extends MessageItem {
@@ -553,12 +554,32 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.numberRestarts++;
 			let startService = true;
 			if (this.numberRestarts > 5) {
+				let prompt: Thenable<MyMessageItem | undefined> | undefined = undefined;
 				if (diff < 60 * 1000 /* 1 Minutes */) {
-					window.showWarningMessage(localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
+					prompt = window.showWarningMessage<MyMessageItem>(
+						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
+						{
+							title: localize('serverDiedReportIssue', 'Report Issue'),
+							id: MessageAction.reportIssue,
+							isCloseAffordance: true
+						});
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
-					window.showErrorMessage(localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.'));
+					prompt = window.showErrorMessage<MyMessageItem>(
+						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
+						{
+							title: localize('serverDiedReportIssue', 'Report Issue'),
+							id: MessageAction.reportIssue,
+							isCloseAffordance: true
+						});
 					this.logTelemetry('serviceExited');
+				}
+				if (prompt) {
+					prompt.then(item => {
+						if (item && item.id === MessageAction.reportIssue) {
+							return commands.executeCommand('workbench.action.reportIssues');
+						}
+					});
 				}
 			}
 			if (startService) {
