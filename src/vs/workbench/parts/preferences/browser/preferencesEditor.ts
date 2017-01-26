@@ -1384,7 +1384,7 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 						startColumn: setting.keyRange.startColumn,
 						endLineNumber: setting.keyRange.endLineNumber,
 						endColumn: setting.keyRange.endColumn,
-						message: nls.localize('unsupportedWorkspaceSetting', "This setting must be a User Setting.")
+						message: untrustedConfiguration === 'typescript.tsdk' ? nls.localize('unsupportedTypeScriptTsdkSetting', "This setting must be a User Setting. To configure TypeScript for the workspace, open a TypeScript file and click on the TypeScript version in the status bar.") : nls.localize('unsupportedWorkspaceSetting', "This setting must be a User Setting.")
 					});
 				}
 			}
