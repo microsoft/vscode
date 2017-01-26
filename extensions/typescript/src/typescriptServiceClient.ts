@@ -414,84 +414,73 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return Promise.resolve(this.modulePath);
 		}
 
-		let shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
-
+		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
 		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
-		if (fs.existsSync(localModulePath)) {
-			const usingWorkspaceVersion = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
+
+		let messageShown: Thenable<MyMessageItem | undefined>;
+		if (fs.existsSync(localModulePath) && this.getTypeScriptVersion(localModulePath)) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
-			if (localVersion) {
-				return window.showInformationMessage<MyMessageItem>(
-					usingWorkspaceVersion
-						? localize(
-							'usingWorkspaceTsVersion',
-							'Using TypeScript version {0} from workspace for IntelliSense.',
-							localVersion)
-						: localize(
-							'usingVSCodeTsVersion',
-							'Using VSCode\'s TypeScript version {0} for IntelliSense.',
-							shippedVersion
-						), {
-						title: localize('use', 'Use workspace version ({0})', localVersion),
-						id: MessageAction.useLocal
-					}, {
-						title: localize(
-							'useVSCodeVersionOption',
-							'Use VSCode\'s version ({0})',
-							shippedVersion),
-						id: MessageAction.useBundled,
-					}, {
-						title: localize('learnMore', 'Learn More'),
-						id: MessageAction.learnMore,
-						isCloseAffordance: true
-					}
-				).then((selected) => {
-					if (!selected) {
-						return modulePath;
-					}
-					switch (selected.id) {
-						case MessageAction.useLocal:
-							return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
-								.then(_ => localModulePath);
-						case MessageAction.useBundled:
-							return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
-								.then(_ => modulePath);
-						case MessageAction.learnMore:
-							commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/languages/typescript'));
-							return modulePath;
-						default:
-							return modulePath;
-					}
+			const usingWorkspaceVersion = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
+			messageShown = window.showInformationMessage<MyMessageItem>(
+				usingWorkspaceVersion
+					? localize(
+						'usingWorkspaceTsVersion',
+						'Using TypeScript version {0} from workspace for IntelliSense.',
+						localVersion)
+					: localize(
+						'usingVSCodeTsVersion',
+						'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+						shippedVersion
+					),
+				{
+					title: localize('use', 'Use workspace version ({0})', localVersion),
+					id: MessageAction.useLocal
+				}, {
+					title: localize(
+						'useVSCodeVersionOption',
+						'Use VSCode\'s version ({0})',
+						shippedVersion),
+					id: MessageAction.useBundled,
+				}, {
+					title: localize('learnMore', 'Learn More'),
+					id: MessageAction.learnMore,
+					isCloseAffordance: true
 				});
-			}
-			return Promise.resolve(modulePath);
+		} else {
+			messageShown = window.showInformationMessage<MyMessageItem>(
+				localize(
+					'versionCheckUsingBundledTS',
+					'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+					shippedVersion),
+				{
+					title: localize('learnMore', 'Learn More'),
+					id: MessageAction.learnMore,
+					isCloseAffordance: true,
+				}, {
+					title: localize('close', 'Close'),
+					id: MessageAction.close,
+					isCloseAffordance: true,
+				});
 		}
-		window.showInformationMessage<MyMessageItem>(
-			localize(
-				'versionCheckUsingBundledTS',
-				'Using VSCode\'s TypeScript version {0} for IntelliSense.',
-				shippedVersion),
-			{
-				title: localize('learnMore', 'Learn More'),
-				id: MessageAction.learnMore,
-				isCloseAffordance: true,
-			}, {
-				title: localize('close', 'Close'),
-				id: MessageAction.close,
-				isCloseAffordance: true,
-			}).then(selected => {
-				if (!selected) {
-					return;
-				}
-				switch (selected.id) {
-					case MessageAction.learnMore:
-						commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/languages/typescript'));
-						return;
-					default:
-						return;
-				}
-			});
-		return Promise.resolve(modulePath);
+
+		return messageShown.then(selected => {
+			if (!selected) {
+				return modulePath;
+			}
+			switch (selected.id) {
+				case MessageAction.useLocal:
+					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
+						.then(_ => localModulePath);
+				case MessageAction.useBundled:
+					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
+						.then(_ => modulePath);
+				case MessageAction.learnMore:
+					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+					return modulePath;
+				default:
+					return modulePath;
+			}
+		});
 	}
 
 	private serviceStarted(resendModels: boolean): void {
