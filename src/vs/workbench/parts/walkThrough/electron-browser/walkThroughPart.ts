@@ -302,6 +302,12 @@ export class WalkThroughPart extends BaseEditor {
 							snippet: i
 						});
 					}));
+					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
+						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+							type: 'changeModelContent',
+							snippet: i
+						});
+					}));
 				});
 				if (input.onReady) {
 					input.onReady(innerContent);
