@@ -10,8 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import * as denodeify from 'denodeify';
-import { IDisposable, toDisposable, dispose } from './util';
-import * as _ from 'lodash';
+import { assign, uniqBy, groupBy, IDisposable, toDisposable, dispose } from './util';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
 
@@ -292,12 +291,12 @@ export class Git {
 	}
 
 	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
-		options = _.assign({ cwd }, options || {});
+		options = assign({ cwd }, options || {});
 		return await this._exec(args, options);
 	}
 
 	stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
-		options = _.assign({ cwd }, options || {});
+		options = assign({ cwd }, options || {});
 		return this.spawn(args, options);
 	}
 
@@ -357,7 +356,7 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = _.assign({}, process.env, options.env || {});
+		options.env = assign({}, process.env, options.env || {});
 
 		if (options.log !== false) {
 			this.log(`git ${args.join(' ')}\n`);
@@ -394,22 +393,22 @@ export class Repository {
 
 	// TODO@Joao: rename to exec
 	async run(args: string[], options: any = {}): Promise<IExecutionResult> {
-		options.env = _.assign({}, options.env || {});
-		options.env = _.assign(options.env, this.env);
+		options.env = assign({}, options.env || {});
+		options.env = assign(options.env, this.env);
 
 		return await this.git.exec(this.repository, args, options);
 	}
 
 	stream(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = _.assign({}, options.env || {});
-		options.env = _.assign(options.env, this.env);
+		options.env = assign({}, options.env || {});
+		options.env = assign(options.env, this.env);
 
 		return this.git.stream(this.repository, args, options);
 	}
 
 	spawn(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = _.assign({}, options.env || {});
-		options.env = _.assign(options.env, this.env);
+		options.env = assign({}, options.env || {});
+		options.env = assign(options.env, this.env);
 
 		return this.git.spawn(args, options);
 	}
@@ -573,11 +572,9 @@ export class Repository {
 	}
 
 	async clean(paths: string[]): Promise<void> {
-		const tasks = _(paths)
-			.groupBy(p => path.dirname(p))
-			.values<string[]>()
-			.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)))
-			.value();
+		const pathsByGroup = groupBy(paths, p => path.dirname(p));
+		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
+		const tasks = groups.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)));
 
 		for (let task of tasks) {
 			await task();
@@ -802,14 +799,13 @@ export class Repository {
 	async getRemotes(): Promise<IRemote[]> {
 		const result = await this.run(['remote', '--verbose']);
 		const regex = /^([^\s]+)\s+([^\s]+)\s/;
-
-		return _(result.stdout.trim().split('\n'))
+		const rawRemotes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
 			.map(line => regex.exec(line))
 			.filter(g => !!g)
-			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }))
-			.uniqBy(remote => remote.name)
-			.value();
+			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
+
+		return uniqBy(rawRemotes, remote => remote.name);
 	}
 
 	async getBranch(name: string): Promise<IBranch> {
