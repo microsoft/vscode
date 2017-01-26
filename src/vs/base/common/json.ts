@@ -885,7 +885,6 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 
 	function onValue(valueNode: Node): Node {
 		currentParent.children.push(valueNode);
-		ensurePropertyComplete(valueNode.offset + valueNode.length);
 		return valueNode;
 	}
 
@@ -898,9 +897,9 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 			currentParent.children.push({ type: 'string', value: name, offset, length, parent: currentParent });
 		},
 		onObjectEnd: (offset: number, length: number) => {
-			ensurePropertyComplete(offset);
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
+			ensurePropertyComplete(offset + length);
 		},
 		onArrayBegin: (offset: number, length: number) => {
 			currentParent = onValue({ type: 'array', offset, length: -1, parent: currentParent, children: [] });
@@ -908,9 +907,11 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 		onArrayEnd: (offset: number, length: number) => {
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
+			ensurePropertyComplete(offset + length);
 		},
 		onLiteralValue: (value: any, offset: number, length: number) => {
 			onValue({ type: getLiteralNodeType(value), offset, length, parent: currentParent, value });
+			ensurePropertyComplete(offset + length);
 		},
 		onSeparator: (sep: string, offset: number, length: number) => {
 			if (currentParent.type === 'property') {
