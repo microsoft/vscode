@@ -70,7 +70,7 @@ export class ViewLine implements IVisibleLineData {
 	private _renderWhitespace: 'none' | 'boundary' | 'all';
 	private _renderControlCharacters: boolean;
 	private _spaceWidth: number;
-	private _fontIsMonospace: boolean;
+	private _useMonospaceOptimizations: boolean;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
 
@@ -83,7 +83,10 @@ export class ViewLine implements IVisibleLineData {
 		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
+		this._useMonospaceOptimizations = (
+			this._context.configuration.editor.fontInfo.isMonospace
+			&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
+		);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 
@@ -126,10 +129,20 @@ export class ViewLine implements IVisibleLineData {
 			this._isMaybeInvalid = true;
 			this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		}
+		if (e.viewInfo.disableMonospaceOptimizations) {
+			this._isMaybeInvalid = true;
+			this._useMonospaceOptimizations = (
+				this._context.configuration.editor.fontInfo.isMonospace
+				&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
+			);
+		}
 		if (e.fontInfo) {
 			this._isMaybeInvalid = true;
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-			this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
+			this._useMonospaceOptimizations = (
+				this._context.configuration.editor.fontInfo.isMonospace
+				&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
+			);
 		}
 		if (e.lineHeight) {
 			this._isMaybeInvalid = true;
@@ -153,7 +166,7 @@ export class ViewLine implements IVisibleLineData {
 		const lineContent = model.getLineContent(lineNumber);
 
 		let renderLineInput = new RenderLineInput(
-			this._fontIsMonospace,
+			this._useMonospaceOptimizations,
 			lineContent,
 			model.mightContainRTL(),
 			model.getLineMinColumn(lineNumber) - 1,
@@ -174,7 +187,7 @@ export class ViewLine implements IVisibleLineData {
 		const output = renderViewLine(renderLineInput);
 
 		let renderedViewLine: IRenderedViewLine = null;
-		if (canUseFastRenderedViewLine && this._fontIsMonospace && !output.containsForeignElements) {
+		if (canUseFastRenderedViewLine && this._useMonospaceOptimizations && !output.containsForeignElements) {
 			let isRegularASCII = true;
 			if (model.mightContainNonBasicASCII()) {
 				isRegularASCII = strings.isBasicASCII(lineContent);

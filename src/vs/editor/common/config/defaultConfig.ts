@@ -63,6 +63,7 @@ class ConfigClass implements IConfiguration {
 			cursorStyle: 'line',
 			fontLigatures: false,
 			disableTranslate3d: false,
+			disableMonospaceOptimizations: false,
 			hideCursorInOverviewRuler: false,
 			scrollBeyondLastLine: true,
 			automaticLayout: false,
