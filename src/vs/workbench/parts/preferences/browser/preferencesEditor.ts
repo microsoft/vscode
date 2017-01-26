@@ -1371,6 +1371,17 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 		super();
 	}
 
+	private getMarkerMessage(settingKey): string {
+		switch (settingKey) {
+			case 'typescript.tsdk':
+				return nls.localize('unsupportedTypeScriptTsdkSetting', "This setting must be a User Setting. To configure TypeScript for the workspace, open a TypeScript file and click on the TypeScript version in the status bar.");
+			case 'php.validate.executablePath':
+				return nls.localize('unsupportedPHPExecutablePathSetting', "This setting must be a User Setting. To configure PHP for the workspace, open a PHP file and click on 'PHP path' in the status bar.");
+			default:
+				return nls.localize('unsupportedWorkspaceSetting', "This setting must be a User Setting.");
+		}
+	}
+
 	public render(): void {
 		const untrustedConfigurations = this.configurationService.getUntrustedConfigurations();
 		if (untrustedConfigurations.length) {
@@ -1384,7 +1395,7 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 						startColumn: setting.keyRange.startColumn,
 						endLineNumber: setting.keyRange.endLineNumber,
 						endColumn: setting.keyRange.endColumn,
-						message: untrustedConfiguration === 'typescript.tsdk' ? nls.localize('unsupportedTypeScriptTsdkSetting', "This setting must be a User Setting. To configure TypeScript for the workspace, open a TypeScript file and click on the TypeScript version in the status bar.") : nls.localize('unsupportedWorkspaceSetting', "This setting must be a User Setting.")
+						message: this.getMarkerMessage(untrustedConfiguration)
 					});
 				}
 			}
