@@ -12,17 +12,16 @@ import * as PConst from '../protocol.const';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
+const localize = nls.loadMessageBundle();
 
 
 class ReferencesCodeLens extends CodeLens {
-	public document: Uri;
-	public file: string;
-
-	constructor(document: Uri, file: string, range: Range) {
+	constructor(
+		public tsDocument: Uri,
+		public tsFile: string,
+		range: Range
+	) {
 		super(range);
-		this.document = document;
-		this.file = file;
 	}
 }
 
@@ -31,14 +30,14 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 
 	private onDidChangeCodeLensesEmitter = new EventEmitter<CodeLensProvider>();
 
+	public constructor(private client: ITypescriptServiceClient) { }
+
 	public get onDidChangeCodeLenses(): Event<CodeLensProvider> {
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
-	constructor(private client: ITypescriptServiceClient) { }
-
 	public updateConfiguration(config: WorkspaceConfiguration): void {
-		let typeScriptConfig = workspace.getConfiguration('typescript');
+		const typeScriptConfig = workspace.getConfiguration('typescript');
 		const wasEnabled = this.enabled;
 		this.enabled = typeScriptConfig.get('referencesCodeLens.enabled', false);
 		if (wasEnabled !== this.enabled) {
@@ -56,22 +55,25 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 			return Promise.resolve([]);
 		}
 		return this.client.execute('navtree', { file: filepath }, token).then(response => {
+			if (!response) {
+				return [];
+			}
 			const tree = response.body;
 			const referenceableSpans: Range[] = [];
 			if (tree && tree.childItems) {
 				tree.childItems.forEach(item => this.extractReferenceableSymbols(document, item, referenceableSpans));
 			}
-			return Promise.resolve(referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span)));
+			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
 		});
 	}
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		if (!codeLens.document) {
+		if (!codeLens.tsDocument) {
 			return Promise.reject<CodeLens>(codeLens);
 		}
 		const args: Proto.FileLocationRequestArgs = {
-			file: codeLens.file,
+			file: codeLens.tsFile,
 			line: codeLens.range.start.line + 1,
 			offset: codeLens.range.start.character + 1
 		};
@@ -90,7 +92,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				codeLens.command = {
 					title: locations.length + ' ' + (locations.length === 1 ? localize('oneReferenceLabel', 'reference') : localize('manyReferenceLabel', 'references')),
 					command: 'editor.action.showReferences',
-					arguments: [codeLens.document, codeLens.range.start, locations]
+					arguments: [codeLens.tsDocument, codeLens.range.start, locations]
 				};
 				return Promise.resolve(codeLens);
 			}
