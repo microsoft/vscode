@@ -8,50 +8,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { MarkdownEngine, IToken } from './markdownEngine';
-
-class TableOfContentProvider {
-
-	private headings: any;
-
-	constructor(
-		private engine: MarkdownEngine,
-		private document: vscode.TextDocument) { }
-
-
-	getLine(fragment: string): number {
-		if (!this.headings) {
-			try {
-				const tokens = this.engine.parse(this.document.getText());
-				this.headings = TableOfContentProvider.extractHeaders(tokens, this.document);
-			} catch (e) {
-				this.headings = {};
-			}
-		}
-		const href = TableOfContentProvider.normalizeHeader(fragment);
-		return +this.headings[href];
-	}
-
-	private static extractHeaders(tokens: IToken[], document: vscode.TextDocument): any {
-		const headers: any = {};
-		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
-			const lineNumber = heading.map[0];
-			const line = document.lineAt(lineNumber);
-			const href = this.normalizeHeader(line.text);
-			if (href) {
-				headers[href] = headers[href] || line.range.start.line;
-			}
-		}
-		return headers;
-	}
-
-	private static normalizeHeader(header: string): string {
-		return encodeURI(header.replace(/^\s*(#)+\s*(.*?)\s*\1*$/, '$2')
-			.toLowerCase()
-			.trim()
-			.replace(/\s/g, '-'));
-	}
-}
+import { MarkdownEngine } from './markdownEngine';
+import { TableOfContentProvider } from './tableOfContentsProvider';
 
 export default class MarkdownDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
@@ -64,7 +22,7 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 		const base = path.dirname(document.uri.fsPath);
 		const text = document.getText();
 
-		const tocProvider = new TableOfContentProvider(this.engine, document);
+		const toc = new TableOfContentProvider(this.engine, document);
 
 		this._linkPattern.lastIndex = 0;
 		let match: RegExpMatchArray | null;
@@ -77,7 +35,7 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 			try {
 				results.push(new vscode.DocumentLink(
 					new vscode.Range(linkStart, linkEnd),
-					this.normalizeLink(link, base, tocProvider)));
+					this.normalizeLink(link, base, toc)));
 			} catch (e) {
 				// noop
 			}
@@ -85,12 +43,13 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 
 		return results;
 	}
+
 	private normalizeLink(link: string, base: string, toc: TableOfContentProvider): vscode.Uri {
 		let uri = vscode.Uri.parse(link);
 		if (!uri.scheme) {
 			if (uri.fragment && !uri.path) {
 				// local link
-				const line = toc.getLine(uri.fragment);
+				const line = toc.lookup(uri.fragment);
 				if (!isNaN(line)) {
 					return vscode.Uri.parse(`command:revealLine?${encodeURIComponent(JSON.stringify({ lineNumber: line, at: 'top' }))}`);
 				}
