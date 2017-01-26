@@ -17,8 +17,8 @@ const localize = nls.loadMessageBundle();
 
 class ReferencesCodeLens extends CodeLens {
 	constructor(
-		public tsDocument: Uri,
-		public tsFile: string,
+		public document: Uri,
+		public file: string,
 		range: Range
 	) {
 		super(range);
@@ -69,11 +69,11 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		if (!codeLens.tsDocument) {
+		if (!codeLens.document) {
 			return Promise.reject<CodeLens>(codeLens);
 		}
 		const args: Proto.FileLocationRequestArgs = {
-			file: codeLens.tsFile,
+			file: codeLens.file,
 			line: codeLens.range.start.line + 1,
 			offset: codeLens.range.start.character + 1
 		};
@@ -92,7 +92,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				codeLens.command = {
 					title: locations.length + ' ' + (locations.length === 1 ? localize('oneReferenceLabel', 'reference') : localize('manyReferenceLabel', 'references')),
 					command: 'editor.action.showReferences',
-					arguments: [codeLens.tsDocument, codeLens.range.start, locations]
+					arguments: [codeLens.document, codeLens.range.start, locations]
 				};
 				return Promise.resolve(codeLens);
 			}
@@ -149,9 +149,10 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 					const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${item.text}\\b`, 'gm');
 					const match = identifierMatch.exec(text);
 					const start = match ? match.index + match[1].length : 0;
+					const startPosition = new Position(range.start.line, range.start.character + start);
 					results.push(new Range(
-						new Position(range.start.line, range.start.character + start),
-						new Position(range.start.line, range.start.character + start + item.text.length)));
+						startPosition,
+						document.positionAt(document.offsetAt(startPosition) + item.text.length)));
 					break;
 			}
 		}
