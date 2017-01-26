@@ -20,7 +20,7 @@ This project incorporates components from the projects listed below. The origina
 13.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
 14.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
 15.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-16.	js-beautify version 1.6.4 (https://github.com/beautify-web/js-beautify)
+16.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
 17.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 18.	language-docker (https://github.com/docker/docker)
 19.	language-go version 0.39.0 (https://github.com/atom/language-go)
@@ -58,7 +58,7 @@ This project incorporates components from the projects listed below. The origina
 51.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
 52.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
 53.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-54.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
+54.	typescript-legacy version 1.5 (https://github.com/Microsoft/TypeScript)
 55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
 56.	unity-shader-files version 0.1.0 (https://github.com/nadege/unity-shader-files)
 57.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
@@ -470,7 +470,7 @@ END OF TERMS AND CONDITIONS
 =========================================
 END OF Ionic documentation NOTICES AND INFORMATION
 
-%% ionide/ionide-fsharp NOTICES AND INFORMATION BEGIN HERE
+%% ionide/ionide-fsgrammar NOTICES AND INFORMATION BEGIN HERE
 =========================================
 The MIT License (MIT)
 
@@ -494,7 +494,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
-END OF ionide/ionide-fsharp NOTICES AND INFORMATION
+END OF ionide/ionide-fsgrammar NOTICES AND INFORMATION
 
 %% js-beautify NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1772,7 +1772,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 =========================================
 END OF textmate/yaml.tmbundle NOTICES AND INFORMATION
 
-%% typescript NOTICES AND INFORMATION BEGIN HERE
+%% typescript-legacy NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) Microsoft Corporation. All rights reserved.
 
@@ -1832,7 +1832,7 @@ If the Work includes a "NOTICE" text file as part of its distribution, then any 
 
 END OF TERMS AND CONDITIONS
 =========================================
-END OF typescript NOTICES AND INFORMATION
+END OF typescript-legacy NOTICES AND INFORMATION
 
 %% TypeScript-TmLanguage NOTICES AND INFORMATION BEGIN HERE
 =========================================
