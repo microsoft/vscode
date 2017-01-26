@@ -237,7 +237,7 @@ export default class PHPValidationProvider {
 	private showError(error: any, executable: string): void {
 		let message: string = null;
 		if (error.code === 'ENOENT') {
-			if (executable) {
+			if (this.executable) {
 				message = localize('wrongExecutable', 'Cannot validate since {0} is not a valid php executable. Click on the Path status bar item to configure the executable.', executable);
 			} else {
 				message = localize('noExecutable', 'Cannot validate since no PHP executable is set. Click on the Path status bar item to configure the executable.');

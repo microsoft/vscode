@@ -66,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): any {
 				updateStatusBarItem(context);
 			});
 		} else {
+			context.workspaceState.update(MigratedKey, true);
 			validator.activate(context.subscriptions);
 		}
 	} else {
