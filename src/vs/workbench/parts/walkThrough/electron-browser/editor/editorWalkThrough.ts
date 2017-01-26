@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
-import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
+import { Schemas } from 'vs/base/common/network';
 
 export class EditorWalkThroughAction extends Action {
 
@@ -30,7 +30,7 @@ export class EditorWalkThroughAction extends Action {
 
 	public run(): TPromise<void> {
 		const uri = URI.parse(require.toUrl('./editorWalkThrough.md'))
-			.with({ scheme: WALK_THROUGH_SCHEME });
+			.with({ scheme: Schemas.walkThrough });
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Interactive Playground"), '', uri, /* telemetryFrom */ null, /* onReady */ null);
 		return this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(() => void (0));
