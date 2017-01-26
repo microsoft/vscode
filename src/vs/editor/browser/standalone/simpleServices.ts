@@ -12,9 +12,9 @@ import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue,
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -327,15 +327,13 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: string): IDisposable {
+	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: ContextKeyExpr): IDisposable {
 		let toDispose: IDisposable[] = [];
-
-		let parsedContext = IOSupport.readKeybindingWhen(when);
 
 		this._dynamicKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			when: parsedContext,
+			when: when,
 			weight1: 1000,
 			weight2: 0
 		});

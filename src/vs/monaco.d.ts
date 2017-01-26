@@ -2803,9 +2803,17 @@ declare module monaco.editor {
          */
         label: string;
         /**
+         * Precondition rule.
+         */
+        precondition?: string;
+        /**
          * An array of keybindings for the action.
          */
         keybindings?: number[];
+        /**
+         * The keybinding rule (condition on top of precondition).
+         */
+        keybindingContext?: string;
         /**
          * Control if the action should show up in the context menu and where.
          * The context menu of the editor has these default:
@@ -2820,10 +2828,6 @@ declare module monaco.editor {
          * Control the order in the context menu group.
          */
         contextMenuOrder?: number;
-        /**
-         * The keybinding rule.
-         */
-        keybindingContext?: string;
         /**
          * Method that will be executed when the action is triggered.
          * @param editor The editor instance is passed in as a convinience
