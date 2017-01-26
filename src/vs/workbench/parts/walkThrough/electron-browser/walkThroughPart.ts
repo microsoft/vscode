@@ -31,6 +31,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
 const UNBOUND_COMMAND = localize('walkThrough.unboundCommand', "unbound");
 const WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'walkThroughEditorViewState';
@@ -58,6 +62,7 @@ export class WalkThroughPart extends BaseEditor {
 	private contentDisposables: IDisposable[] = [];
 	private content: HTMLDivElement;
 	private scrollbar: DomScrollableElement;
+	private editorFocus: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -68,9 +73,12 @@ export class WalkThroughPart extends BaseEditor {
 		@IModelService protected modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService
 	) {
 		super(WalkThroughPart.ID, telemetryService);
+		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -81,6 +89,12 @@ export class WalkThroughPart extends BaseEditor {
 		this.content.style.outlineStyle = 'none';
 		this.content.addEventListener('mousedown', e => {
 			this.focus();
+		});
+		this.content.addEventListener('focus', e => {
+			this.editorFocus.set(true);
+		});
+		this.content.addEventListener('blur', e => {
+			this.editorFocus.reset();
 		});
 
 		this.scrollbar = new DomScrollableElement(this.content, {
@@ -171,6 +185,31 @@ export class WalkThroughPart extends BaseEditor {
 		if (!active) {
 			this.content.focus();
 		}
+		this.editorFocus.set(true);
+	}
+
+	arrowUp() {
+		this.scrollbar.updateState({ scrollTop: this.scrollbar.getScrollTop() - this.getArrowScrollHeight() });
+	}
+
+	arrowDown() {
+		this.scrollbar.updateState({ scrollTop: this.scrollbar.getScrollTop() + this.getArrowScrollHeight() });
+	}
+
+	private getArrowScrollHeight() {
+		let fontSize = this.configurationService.lookup<number>('editor.fontSize').value;
+		if (typeof fontSize !== 'number' || fontSize < 1) {
+			fontSize = 12;
+		}
+		return 3 * fontSize;
+	}
+
+	pageUp() {
+		this.scrollbar.updateState({ scrollTop: this.scrollbar.getScrollTop() - this.scrollbar.getHeight() });
+	}
+
+	pageDown() {
+		this.scrollbar.updateState({ scrollTop: this.scrollbar.getScrollTop() + this.scrollbar.getHeight() });
 	}
 
 	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
@@ -246,9 +285,9 @@ export class WalkThroughPart extends BaseEditor {
 
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
 
-					if (i === 0) {
-						editor.focus();
-					}
+					// if (i === 0) {
+					// 	editor.focus();
+					// }
 				});
 				if (input.onReady) {
 					input.onReady(innerContent);
@@ -340,6 +379,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	dispose(): void {
+		this.editorFocus.reset();
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.disposables = dispose(this.disposables);
 		super.dispose();
