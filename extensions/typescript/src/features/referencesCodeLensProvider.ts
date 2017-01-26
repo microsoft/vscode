@@ -148,11 +148,11 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				case PConst.Kind.enum:
 					const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${item.text}\\b`, 'gm');
 					const match = identifierMatch.exec(text);
-					const start = match ? match.index + match[1].length : 0;
-					const startPosition = new Position(range.start.line, range.start.character + start);
+					const prefixLength = match ? match.index + match[1].length : 0;
+					const startOffset = document.offsetAt(new Position(range.start.line, range.start.character)) + prefixLength;
 					results.push(new Range(
-						startPosition,
-						document.positionAt(document.offsetAt(startPosition) + item.text.length)));
+						document.positionAt(startOffset),
+						document.positionAt(startOffset + item.text.length)));
 					break;
 			}
 		}
