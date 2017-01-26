@@ -1211,6 +1211,11 @@ declare module monaco.editor {
          */
         disableTranslate3d?: boolean;
         /**
+         * Disable the optimizations for monospace fonts.
+         * Defaults to false.
+         */
+        disableMonospaceOptimizations?: boolean;
+        /**
          * Should the cursor be hidden in the overview ruler.
          * Defaults to false.
          */
@@ -1474,6 +1479,7 @@ declare module monaco.editor {
         readonly _internalEditorViewOptionsBrand: void;
         readonly theme: string;
         readonly canUseTranslate3d: boolean;
+        readonly disableMonospaceOptimizations: boolean;
         readonly experimentalScreenReader: boolean;
         readonly rulers: number[];
         readonly ariaLabel: string;
@@ -1503,6 +1509,7 @@ declare module monaco.editor {
     export interface IViewConfigurationChangedEvent {
         readonly theme: boolean;
         readonly canUseTranslate3d: boolean;
+        readonly disableMonospaceOptimizations: boolean;
         readonly experimentalScreenReader: boolean;
         readonly rulers: boolean;
         readonly ariaLabel: boolean;

@@ -293,6 +293,11 @@ export interface IEditorOptions {
 	 */
 	disableTranslate3d?: boolean;
 	/**
+	 * Disable the optimizations for monospace fonts.
+	 * Defaults to false.
+	 */
+	disableMonospaceOptimizations?: boolean;
+	/**
 	 * Should the cursor be hidden in the overview ruler.
 	 * Defaults to false.
 	 */
@@ -663,6 +668,7 @@ export class InternalEditorViewOptions {
 
 	readonly theme: string;
 	readonly canUseTranslate3d: boolean;
+	readonly disableMonospaceOptimizations: boolean;
 	readonly experimentalScreenReader: boolean;
 	readonly rulers: number[];
 	readonly ariaLabel: string;
@@ -694,6 +700,7 @@ export class InternalEditorViewOptions {
 	constructor(source: {
 		theme: string;
 		canUseTranslate3d: boolean;
+		disableMonospaceOptimizations: boolean;
 		experimentalScreenReader: boolean;
 		rulers: number[];
 		ariaLabel: string;
@@ -721,6 +728,7 @@ export class InternalEditorViewOptions {
 	}) {
 		this.theme = String(source.theme);
 		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
+		this.disableMonospaceOptimizations = Boolean(source.disableMonospaceOptimizations);
 		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
@@ -782,6 +790,7 @@ export class InternalEditorViewOptions {
 		return (
 			this.theme === other.theme
 			&& this.canUseTranslate3d === other.canUseTranslate3d
+			&& this.disableMonospaceOptimizations === other.disableMonospaceOptimizations
 			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
@@ -816,6 +825,7 @@ export class InternalEditorViewOptions {
 		return {
 			theme: this.theme !== newOpts.theme,
 			canUseTranslate3d: this.canUseTranslate3d !== newOpts.canUseTranslate3d,
+			disableMonospaceOptimizations: this.disableMonospaceOptimizations !== newOpts.disableMonospaceOptimizations,
 			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
@@ -854,6 +864,7 @@ export class InternalEditorViewOptions {
 export interface IViewConfigurationChangedEvent {
 	readonly theme: boolean;
 	readonly canUseTranslate3d: boolean;
+	readonly disableMonospaceOptimizations: boolean;
 	readonly experimentalScreenReader: boolean;
 	readonly rulers: boolean;
 	readonly ariaLabel: boolean;
