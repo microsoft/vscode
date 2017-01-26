@@ -16,8 +16,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 
-export const WALK_THROUGH_SCHEME = 'walkThrough';
-
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
@@ -26,7 +24,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 	) {
-		this.textModelResolverService.registerTextModelContentProvider(WALK_THROUGH_SCHEME, this);
+		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {

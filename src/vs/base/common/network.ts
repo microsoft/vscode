@@ -25,6 +25,11 @@ export namespace Schemas {
 	export const internal: string = 'private';
 
 	/**
+	 * A walk-through document.
+	 */
+	export const walkThrough: string = 'walkThrough';
+
+	/**
 	 * An embedded code snippet.
 	 */
 	export const walkThroughSnippet: string = 'walkThroughSnippet';

@@ -235,7 +235,7 @@ export class MarkersModel {
 		for (let i = 0; i < entry.value.length; i++) {
 			const m = entry.value[i];
 			const uri = entry.key.toString();
-			if (entry.key.scheme !== Schemas.walkThroughSnippet && (!this._filterOptions.hasFilters() || this.filterMarker(m))) {
+			if (entry.key.scheme !== Schemas.walkThrough && entry.key.scheme !== Schemas.walkThroughSnippet && (!this._filterOptions.hasFilters() || this.filterMarker(m))) {
 				markers.push(this.toMarker(m, i, uri));
 			}
 		}

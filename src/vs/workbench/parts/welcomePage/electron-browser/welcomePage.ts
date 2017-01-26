@@ -25,8 +25,8 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Schemas } from 'vs/base/common/network';
 
 const enabledKey = 'workbench.welcome.enabled';
 
@@ -93,7 +93,7 @@ class WelcomePage {
 	private create() {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
 		const uri = URI.parse(require.toUrl('./welcomePage.html'))
-			.with({ scheme: WALK_THROUGH_SCHEME });
+			.with({ scheme: Schemas.walkThrough });
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, 'welcomePage', container => this.onReady(container, recentlyOpened));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(null, onUnexpectedError);
