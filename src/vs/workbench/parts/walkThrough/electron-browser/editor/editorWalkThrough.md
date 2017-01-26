@@ -48,7 +48,7 @@ app.listen(3000);
 
 
 ### Line Actions
-It's very common to want to work with the entire text in a line we provide a set of useful shortcuts to help with this.
+Since it's very common to want to work with the entire text in a line we provide a set of useful shortcuts to help with this.
 1. Copy a line and insert it above or below the current position with kb(editor.action.copyLinesDownAction) or kb(editor.action.copyLinesUpAction) respectively.
 2. Move an entire line or selection of lines up or down with kb(editor.action.moveLinesUpAction) and kb(editor.action.moveLinesDownAction) respectively.
 3. Delete the entire line with kb(editor.action.deleteLines).
