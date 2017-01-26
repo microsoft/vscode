@@ -250,6 +250,7 @@ export class SearchWidget extends Widget {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
+		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
@@ -265,6 +266,7 @@ export class SearchWidget extends Widget {
 
 	public showMessage(message: string, count: number): void {
 		this.countElement.textContent = message;
+		this.inputBox.inputElement.setAttribute('aria-label', message);
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
 		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
 	}
