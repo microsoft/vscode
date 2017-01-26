@@ -103,7 +103,7 @@ export class CommandCenter {
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					default:
-						message = (err.stderr || err.message).replace(/^error: /, '');
+						message = (err.stderr || err.message || String(err)).replace(/^error: /, '');
 						break;
 				}
 
