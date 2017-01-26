@@ -249,7 +249,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 			'default': HotExitConfiguration.ON_EXIT,
-			'description': nls.localize('hotExit', "Whether hot exit is enabled which allows changes to unsaved files to be remembered between sessions, skipping the prompt to save when exiting the editor. Selecting \"{0}\" means that hot exit will only be triggered when the application is closed (workbench.action.quit command via command pallete, keybinding of menu) and ALL windows with backups will be restored upon next launch. Selecting \"{1}\" will trigger hot exit when any FOLDER window is closed, only NON-FOLDER windows will be restored when the application is restarted (not FOLDER workspaces).", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+			'enumDescriptions': [
+				nls.localize('hotExit.off', 'Disable hot exit.'),
+				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command pallete, keybinding, menu). All windows with backups will be restored upon next launch.'),
+				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command pallete, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.reopenFolders" to "all".')
+			],
+			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 		}
 	}
 });
