@@ -111,16 +111,16 @@ class WelcomePage {
 		});
 
 		recentlyOpened.then(({folders}) => {
+			if (this.contextService.hasWorkspace()) {
+				const current = this.contextService.getWorkspace().resource.fsPath;
+				folders = folders.filter(folder => folder !== current);
+			}
 			if (!folders.length) {
 				const recent = container.querySelector('.recent') as HTMLElement;
 				recent.classList.add('empty');
 				return;
 			}
 			const ul = container.querySelector('.recent ul');
-			if (this.contextService.hasWorkspace()) {
-				const current = this.contextService.getWorkspace().resource.fsPath;
-				folders = folders.filter(folder => folder !== current);
-			}
 			folders.slice(0, 5).forEach(folder => {
 				const li = document.createElement('li');
 
