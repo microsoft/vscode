@@ -64,6 +64,7 @@ export class WalkThroughPart extends BaseEditor {
 	private content: HTMLDivElement;
 	private scrollbar: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
+	private size: Dimension;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -170,19 +171,24 @@ export class WalkThroughPart extends BaseEditor {
 		return uri.with({ query: JSON.stringify(query) });
 	}
 
-	layout({ width, height }: Dimension): void {
-		$(this.content).style({ height: `${height}px`, width: `${width}px` });
-		const innerContent = this.content.firstElementChild;
-		if (innerContent) {
-			const classList = innerContent.classList;
-			classList[height <= 690 ? 'add' : 'remove']('max-height-690px');
-		}
+	layout(size: Dimension): void {
+		this.size = size;
+		$(this.content).style({ height: `${size.height}px`, width: `${size.width}px` });
+		this.updateSizeClasses();
 		this.contentDisposables.forEach(disposable => {
 			if (disposable instanceof CodeEditor) {
 				disposable.layout();
 			}
 		});
 		this.scrollbar.scanDomNode();
+	}
+
+	private updateSizeClasses() {
+		const innerContent = this.content.firstElementChild;
+		if (this.size && innerContent) {
+			const classList = innerContent.classList;
+			classList[this.size.height <= 690 ? 'add' : 'remove']('max-height-690px');
+		}
 	}
 
 	focus(): void {
@@ -240,6 +246,7 @@ export class WalkThroughPart extends BaseEditor {
 				const content = model.main.textEditorModel.getLinesContent().join('\n');
 				if (strings.endsWith(input.getResource().path, '.html')) {
 					this.content.innerHTML = content;
+					this.updateSizeClasses();
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
@@ -316,6 +323,7 @@ export class WalkThroughPart extends BaseEditor {
 						});
 					}));
 				});
+				this.updateSizeClasses();
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
