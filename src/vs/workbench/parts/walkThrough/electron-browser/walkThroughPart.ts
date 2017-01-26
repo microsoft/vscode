@@ -97,6 +97,13 @@ export class WalkThroughPart extends BaseEditor {
 		this.content.addEventListener('blur', e => {
 			this.editorFocus.reset();
 		});
+		this.content.addEventListener('focusin', e => {
+			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
+			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
+				this.content.scrollTop = this.scrollbar.getScrollTop();
+				this.content.scrollLeft = this.scrollbar.getScrollLeft();
+			}
+		});
 
 		this.scrollbar = new DomScrollableElement(this.content, {
 			canUseTranslate3d: false,
