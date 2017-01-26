@@ -72,7 +72,7 @@ export function activate(context: ExtensionContext): void {
 			extensions: ['.js', '.jsx'],
 			configFile: 'jsconfig.json'
 		}
-	], context.storagePath, context.globalState);
+	], context.storagePath, context.globalState, context.workspaceState);
 
 	let client = clientHost.serviceClient;
 
@@ -82,6 +82,10 @@ export function activate(context: ExtensionContext): void {
 
 	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
 		clientHost.reloadProjects();
+	}));
+
+	context.subscriptions.push(commands.registerCommand('_typescript.onVersionStatusClicked', () => {
+		client.onVersionStatusClicked();
 	}));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
@@ -330,7 +334,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[];
 	private languagePerId: ObjectMap<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[], storagePath: string | undefined, globalState: Memento) {
+	constructor(descriptions: LanguageDescription[], storagePath: string | undefined, globalState: Memento, workspaceState: Memento) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -345,7 +349,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		watcher.onDidDelete(handleProjectCreateOrDelete);
 		watcher.onDidChange(handleProjectChange);
 
-		this.client = new TypeScriptServiceClient(this, storagePath, globalState);
+		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState);
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		descriptions.forEach(description => {

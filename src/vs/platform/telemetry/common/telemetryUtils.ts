@@ -224,7 +224,6 @@ const configurationValueWhitelist = [
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
 	'editor.mouseWheelZoom',
-	'typescript.check.workspaceVersion',
 	'editor.fontWeight',
 	'editor.scrollBeyondLastLine',
 	'editor.lineNumbers',
