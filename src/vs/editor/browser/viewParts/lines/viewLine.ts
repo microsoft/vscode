@@ -24,7 +24,7 @@ const canUseFastRenderedViewLine = (function () {
 		return true;
 	}
 
-	if (platform.isLinux || browser.isFirefox) {
+	if (platform.isLinux || browser.isFirefox || browser.isSafari) {
 		// On Linux, it appears that zooming affects char widths (in pixels), which is unexpected.
 		// --
 		// Even though we read character widths correctly, having read them at a specific zoom level
@@ -34,6 +34,8 @@ const canUseFastRenderedViewLine = (function () {
 		// but until then we have to stick with reading client rects.
 		// --
 		// The same has been observed with Firefox on Windows7
+		// --
+		// The same has been oversved with Safari
 		return false;
 	}
 
