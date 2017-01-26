@@ -284,10 +284,6 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(editor.onDidChangeModelContent(() => updateHeight(false)));
 
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
-
-					// if (i === 0) {
-					// 	editor.focus();
-					// }
 				});
 				if (input.onReady) {
 					input.onReady(innerContent);
