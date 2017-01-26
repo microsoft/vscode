@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Handler, ICommonCodeEditor, EditorContextKeys, ISelection } from 'vs/editor/common/editorCommon';
+import { Handler, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
 
@@ -68,39 +68,28 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		});
 	}
 
-	private getCursorsForSelection(selection: Selection, editor: ICommonCodeEditor): Array<ISelection> {
+	private getCursorsForSelection(selection: Selection, editor: ICommonCodeEditor): Selection[] {
 		if (selection.isEmpty()) {
 			return [];
 		}
 
 		let model = editor.getModel();
-		let newSelections = new Array<ISelection>();
-		let selectionStart = selection.getStartPosition();
-		let selectionEnd = selection.getEndPosition();
-		for (var i = selectionStart.lineNumber; i <= selectionEnd.lineNumber; i++) {
-			if (i !== selectionEnd.lineNumber) {
-				let currentLineMaxColumn = model.getLineMaxColumn(i);
-				newSelections.push({
-					selectionStartLineNumber: i,
-					selectionStartColumn: currentLineMaxColumn,
-					positionLineNumber: i,
-					positionColumn: currentLineMaxColumn
-				});
-			} else if (selectionEnd.column > 0) {
-				newSelections.push({
-					selectionStartLineNumber: selectionEnd.lineNumber,
-					selectionStartColumn: selectionEnd.column,
-					positionLineNumber: selectionEnd.lineNumber,
-					positionColumn: selectionEnd.column
-				});
-			}
+		let newSelections: Selection[] = [];
+		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
+			let currentLineMaxColumn = model.getLineMaxColumn(i);
+			newSelections.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
 		}
+		if (selection.endColumn > 1) {
+			newSelections.push(new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn));
+		}
+
 		return newSelections;
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let selections = editor.getSelections();
-		let newSelections = selections.map((selection) => this.getCursorsForSelection(selection, editor))
+		let newSelections = selections
+			.map((selection) => this.getCursorsForSelection(selection, editor))
 			.reduce((prev, curr) => { return prev.concat(curr); });
 
 		if (newSelections.length > 0) {
