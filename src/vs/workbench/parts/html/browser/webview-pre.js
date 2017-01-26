@@ -15,7 +15,7 @@ function styleBody(body) {
 };
 
 function getTarget() {
-	return document.getElementById('_target');;
+	return document.getElementById('_target');
 };
 
 const ipcRenderer = require('electron').ipcRenderer;
@@ -130,7 +130,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
-		setTimeout(() => {
+		setTimeout(function () {
 			if (scrollTop !== newFrame.contentDocument.body.scrollTop) {
 				newFrame.contentDocument.body.scrollTop = scrollTop;
 			}
