@@ -53,6 +53,8 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.primitiveType:
 			case PConst.Kind.keyword:
 				return CompletionItemKind.Keyword;
+			case PConst.Kind.const:
+			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 				return CompletionItemKind.Variable;
@@ -107,6 +109,8 @@ class MyCompletionItem extends CompletionItem {
 
 			case PConst.Kind.module:
 			case PConst.Kind.alias:
+			case PConst.Kind.const:
+			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 			case PConst.Kind.memberVariable:
