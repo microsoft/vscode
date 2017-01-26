@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench > .part.editor > .content .welcomePageContainer {
+	align-items: center;
+	display: flex;
+	justify-content: center;
+	min-width: 100%;
+	min-height: 100%;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
 	width: 90%;
 	max-width: 1200px;
 	font-size: 10px;
@@ -241,7 +245,7 @@
 	outline-offset: -5px;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage.max-height-690px .title {
+.monaco-workbench > .part.editor > .content .welcomePageContainer.max-height-690px .title {
 	display: none;
 }
 
