@@ -86,7 +86,7 @@ export function activate(context: vscode.ExtensionContext): any {
 }
 
 function updateStatusBarItem(context: vscode.ExtensionContext, editor: vscode.TextEditor = vscode.window.activeTextEditor): void {
-	statusBarItem.tooltip = context.workspaceState.get<string>(PathKey, undefined) || vscode.workspace.getConfiguration('php.validate').get('executablePath', undefined);
+	statusBarItem.tooltip = getExecutablePath(context);
 	if (editor && editor.document && editor.document.languageId === 'php') {
 		statusBarItem.show();
 	} else {
@@ -95,7 +95,7 @@ function updateStatusBarItem(context: vscode.ExtensionContext, editor: vscode.Te
 }
 
 function onPathClicked(context: vscode.ExtensionContext, validator: PHPValidationProvider) {
-	let value = context.workspaceState.get<string>(PathKey);
+	let value = getExecutablePath(context);
 	vscode.window.showInputBox({ prompt: localize('php.enterPath', 'The path to the PHP executable'), value: value || '' }).then(value => {
 		if (!value) {
 			// User pressed Escape
@@ -106,6 +106,18 @@ function onPathClicked(context: vscode.ExtensionContext, validator: PHPValidatio
 		updateStatusBarItem(context);
 	}, (error) => {
 	});
+}
+
+function getExecutablePath(context: vscode.ExtensionContext): string {
+	let result = context.workspaceState.get<string>(PathKey, undefined);
+	if (result) {
+		return result;
+	}
+	let section = vscode.workspace.getConfiguration('php.validate');
+	if (section) {
+		return section.get('executablePath', undefined);
+	}
+	return undefined;
 }
 
 function migrateExecutablePath(settingsExecutablePath: string): Thenable<string> {
