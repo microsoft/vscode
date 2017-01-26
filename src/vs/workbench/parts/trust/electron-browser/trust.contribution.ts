@@ -51,9 +51,10 @@ class TrustContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		this.isUntrusted = this.workspaceConfigurationService.getUntrustedConfigurations().length > 0;
+		const configurationKeys = this.workspaceConfigurationService.getUntrustedConfigurations();
+		this.isUntrusted = configurationKeys.length > 0;
 		if (this.isUntrusted && !this.hasShownWarning()) {
-			this.showWarning();
+			this.showWarning(configurationKeys);
 		}
 	}
 
@@ -65,8 +66,8 @@ class TrustContribution implements IWorkbenchContribution {
 		this.storageService.store(TrustContribution.storageKey, true, StorageScope.WORKSPACE);
 	}
 
-	private showWarning(): void {
-		const message = nls.localize('unsupportedWorkspaceSettings', 'This Workspace contains settings that can only be set in User level settings.');
+	private showWarning(unsupportedKeys: string[]): void {
+		const message = nls.localize('unsupportedWorkspaceSettings', 'This Workspace contains settings that can only be set in User Settings. ({0})', unsupportedKeys.join(', '));
 
 		const openWorkspaceSettings = new Action('unsupportedWorkspaceSettings.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), '', true, () => {
 			this.telemetryService.publicLog('workspace.settings.unsupported.review');
