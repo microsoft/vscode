@@ -7,6 +7,8 @@
 import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
+import * as platform from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
 import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -24,6 +26,7 @@ import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { WALK_THROUGH_SCHEME } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const enabledKey = 'workbench.welcome.enabled';
 
@@ -81,6 +84,7 @@ class WelcomePage {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.create();
@@ -134,7 +138,10 @@ class WelcomePage {
 
 				const span = document.createElement('span');
 				span.classList.add('path');
-				const parentFolder = path.dirname(folder);
+				let parentFolder = path.dirname(folder);
+				if ((platform.isMacintosh || platform.isLinux) && strings.startsWith(parentFolder, this.environmentService.userHome)) {
+					parentFolder = `~${parentFolder.substr(this.environmentService.userHome.length)}`;
+				}
 				span.innerText = parentFolder;
 				span.title = folder;
 				li.appendChild(span);
