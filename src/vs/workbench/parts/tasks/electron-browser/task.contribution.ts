@@ -683,7 +683,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this.configurationService.onDidUpdateConfiguration(() => {
 			// We don't have a task system yet. So nothing to do.
-			if (!this._taskSystem) {
+			if (!this._taskSystemPromise && !this._taskSystem) {
 				return;
 			}
 			if (this._inTerminal !== void 0) {
@@ -698,7 +698,12 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!config) {
 						return;
 					}
-					(this._taskSystem as TerminalTaskSystem).setConfiguration(config);
+					if (this._taskSystem) {
+						(this._taskSystem as TerminalTaskSystem).setConfiguration(config);
+					} else {
+						this._taskSystem = null;
+						this._taskSystemPromise = null;
+					}
 				});
 			} else {
 				if (this._taskSystem && this._taskSystem.isActiveSync()) {
