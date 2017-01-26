@@ -33,6 +33,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { once } from 'vs/base/common/event';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -213,6 +214,10 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
+		if (this.input instanceof WalkThroughInput && this.input.matches(input)) {
+			return TPromise.as(undefined);
+		}
+
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input.getResource());
 		}
@@ -284,6 +289,19 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(editor.onDidChangeModelContent(() => updateHeight(false)));
 
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
+
+					this.contentDisposables.push(once(editor.onMouseDown)(() => {
+						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+							type: 'mouseDown',
+							snippet: i
+						});
+					}));
+					this.contentDisposables.push(once(editor.onKeyDown)(() => {
+						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+							type: 'keyDown',
+							snippet: i
+						});
+					}));
 				});
 				if (input.onReady) {
 					input.onReady(innerContent);
