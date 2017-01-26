@@ -1,5 +1,0 @@
-{
-	"globalDependencies": {
-		"denodeify": "registry:dt/denodeify#1.2.1+20160316155526"
-	}
-}

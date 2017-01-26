@@ -9,14 +9,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
-import * as denodeify from 'denodeify';
-import { assign, uniqBy, groupBy, IDisposable, toDisposable, dispose } from './util';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose } from './util';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
-const readdir = denodeify(fs.readdir);
-const readfile = denodeify<string, string, string>(fs.readFile);
+const readdir = denodeify<string[]>(fs.readdir);
+const readfile = denodeify<string>(fs.readFile);
 
 export interface IGit {
 	path: string;

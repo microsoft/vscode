@@ -89,3 +89,7 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 		return result;
 	}, Object.create(null));
 }
+
+export function denodeify<R>(fn: Function): (...args) => Promise<R> {
+	return (...args) => new Promise((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+}

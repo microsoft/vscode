@@ -350,7 +350,6 @@
     }
   },
   "dependencies": {
-    "denodeify": "^1.2.1",
     "vscode-nls": "^2.0.1"
   }
 }
