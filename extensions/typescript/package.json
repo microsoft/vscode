@@ -96,11 +96,6 @@
 					"default": false,
 					"description": "%typescript.disableAutomaticTypeAcquisition%"
 				},
-				"typescript.check.workspaceVersion": {
-					"type": "boolean",
-					"default": true,
-					"description": "%typescript.check.workspaceVersion%"
-				},
 				"typescript.check.tscVersion": {
 					"type": "boolean",
 					"default": true,

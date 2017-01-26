@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, EventEmitter, Event } from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, EventEmitter, Event, commands } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -69,7 +69,7 @@ namespace Trace {
 enum MessageAction {
 	useLocal,
 	useBundled,
-	neverCheckLocalVersion,
+	learnMore,
 	close
 }
 
@@ -77,7 +77,10 @@ interface MyMessageItem extends MessageItem {
 	id: MessageAction;
 }
 
+
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
+
+	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
@@ -114,7 +117,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
-	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento) {
+	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento) {
 		this.host = host;
 		this.storagePath = storagePath;
 		this.globalState = globalState;
@@ -288,9 +291,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return Promise.reject<cp.ChildProcess>(new Error('Could not create TS service'));
 	}
 
-	private get defaultModulePath(): string {
-		let modulePath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
+	private get bundledTypeScriptPath(): string {
+		return path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
+	}
 
+	private get globalTypescriptPath(): string {
 		if (this.tsdk) {
 			this._checkGlobalTSCVersion = false;
 			if ((<any>path).isAbsolute(this.tsdk)) {
@@ -299,20 +304,27 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				return path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
 			}
 		}
-		return modulePath;
+
+		return this.bundledTypeScriptPath;
 	}
 
 	private startService(resendModels: boolean = false): void {
-		const modulePath = this.defaultModulePath;
+		let modulePath = this.globalTypescriptPath;
+
+		if (this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)) {
+			if (workspace.rootPath) {
+				const pathValue = './node_modules/typescript/lib';
+				modulePath = path.join(workspace.rootPath, pathValue, 'tsserver.js');
+			}
+		}
 
 		const tsConfig = workspace.getConfiguration('typescript');
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			this.info(`Using tsserver from location: ${modulePath}`);
 			if (!fs.existsSync(modulePath)) {
-				window.showErrorMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. TypeScript language features will be disabled.', path.dirname(modulePath)));
-				this.servicePromise = null;
-				reject(new Error('No TSServer found'));
-				return;
+				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', path.dirname(modulePath)));
+				modulePath = this.bundledTypeScriptPath;
+				// TODO check again?
 			}
 
 			let version = this.getTypeScriptVersion(modulePath);
@@ -402,85 +414,84 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return Promise.resolve(this.modulePath);
 		}
 
-		const tsConfig = workspace.getConfiguration('typescript');
+		let shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
 
-		if (this.tsdk) {
-			window.showInformationMessage(
-				localize(
-					'versionCheckUsingLocalTS',
-					'Using local TypeScript version {0} for IntelliSense. Use the \'typescript.tsdk\' to switch to a different TypeScript version.',
-					this.apiVersion.versionString));
-			return Promise.resolve(this.modulePath);
-		}
-
-		const checkWorkspaceVersionKey = 'check.workspaceVersion';
-		let shippedVersion = this.getTypeScriptVersion(this.defaultModulePath);
-
-		if (!this.tsdk && tsConfig.get(checkWorkspaceVersionKey, true)) {
-			let localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
-			if (fs.existsSync(localModulePath)) {
-				let localVersion = this.getTypeScriptVersion(localModulePath);
-				if (localVersion && localVersion !== shippedVersion) {
-					this._checkGlobalTSCVersion = false;
-					return window.showInformationMessage<MyMessageItem>(
-						localize(
-							'localTSFound',
-							'Using bundled TypeScript version {0} for IntelliSense. Use workspace version {1} instead?',
-							shippedVersion,
-							localVersion
+		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		if (fs.existsSync(localModulePath)) {
+			const usingWorkspaceVersion = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
+			const localVersion = this.getTypeScriptVersion(localModulePath);
+			if (localVersion) {
+				return window.showInformationMessage<MyMessageItem>(
+					usingWorkspaceVersion
+						? localize(
+							'usingWorkspaceTsVersion',
+							'Using TypeScript version {0} from workspace for IntelliSense.',
+							localVersion)
+						: localize(
+							'usingVSCodeTsVersion',
+							'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+							shippedVersion
 						), {
-							title: localize('use', 'Use Workspace ({0})', localVersion),
-							id: MessageAction.useLocal
-						}, {
-							title: localize({
-								key: 'useBundled',
-								comment: ["Bundled has the meaning of packaged with VS Code itself."]
-							}, 'Use Bundled ({0})', shippedVersion),
-							id: MessageAction.useBundled,
-						}, {
-							title: localize('neverCheckLocalVesion', 'Never Check for Workspace Version'),
-							id: MessageAction.neverCheckLocalVersion
-						}, {
-							title: localize('close', 'Close'),
-							id: MessageAction.close,
-							isCloseAffordance: true
-						}
-					).then((selected) => {
-						if (!selected || selected.id === MessageAction.close) {
+						title: localize('use', 'Use workspace version ({0})', localVersion),
+						id: MessageAction.useLocal
+					}, {
+						title: localize(
+							'useVSCodeVersionOption',
+							'Use VSCode\'s version ({0})',
+							shippedVersion),
+						id: MessageAction.useBundled,
+					}, {
+						title: localize('learnMore', 'Learn More'),
+						id: MessageAction.learnMore,
+						isCloseAffordance: true
+					}
+				).then((selected) => {
+					if (!selected) {
+						return modulePath;
+					}
+					switch (selected.id) {
+						case MessageAction.useLocal:
+							return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
+								.then(_ => localModulePath);
+						case MessageAction.useBundled:
+							return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
+								.then(_ => modulePath);
+						case MessageAction.learnMore:
+							commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/languages/typescript'));
 							return modulePath;
-						}
-						switch (selected.id) {
-							case MessageAction.useLocal:
-								let pathValue = './node_modules/typescript/lib';
-								tsConfig.update('tsdk', pathValue, false).then(
-									() => window.showInformationMessage(localize('updatedtsdk', 'Updated workspace setting \'typescript.tsdk\' to {0}', pathValue)),
-									() => window.showErrorMessage(localize('updateTsdkFailed', 'Could not update the \'typescript.tsdk\' workspace setting. Please check that the workspace settings file is valid')));
-								return localModulePath;
-							case MessageAction.useBundled:
-								tsConfig.update(checkWorkspaceVersionKey, false, false).then(
-									() => window.showInformationMessage(localize('updateLocalWorkspaceCheck', 'Updated workspace setting \'typescript.check.workspaceVersion\' to false')),
-									() => window.showErrorMessage(localize('updateLocalWorkspaceCheckFailed', 'Could not update the \'typescript.check.workspaceVersion\' workspace setting. Please check that the workspace settings file is valid')));
-								return modulePath;
-							case MessageAction.neverCheckLocalVersion:
-								tsConfig.update(checkWorkspaceVersionKey, false, true).then(
-									() => window.showInformationMessage(localize('updateGlobalWorkspaceCheck', 'Updated user setting \'typescript.check.workspaceVersion\' to false')),
-									() => window.showErrorMessage(localize('updateGlobalWorkspaceCheckFailed', 'Could not update  \'typescript.check.workspaceVersion\' user setting. Please check that your user settings file is valid')));
-								return modulePath;
-							default:
-								return modulePath;
-						}
-					});
-				}
-				return Promise.resolve(modulePath);
+						default:
+							return modulePath;
+					}
+				});
 			}
+			return Promise.resolve(modulePath);
 		}
-		window.showInformationMessage(
+		window.showInformationMessage<MyMessageItem>(
 			localize(
 				'versionCheckUsingBundledTS',
-				'Using bundled TypeScript version {0} for IntelliSense. Use the \'typescript.tsdk\' to switch to a different TypeScript version.',
-				shippedVersion));
+				'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+				shippedVersion),
+			{
+				title: localize('learnMore', 'Learn More'),
+				id: MessageAction.learnMore,
+				isCloseAffordance: true,
+			}, {
+				title: localize('close', 'Close'),
+				id: MessageAction.close,
+				isCloseAffordance: true,
+			}).then(selected => {
+				if (!selected) {
+					return;
+				}
+				switch (selected.id) {
+					case MessageAction.learnMore:
+						commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/languages/typescript'));
+						return;
+					default:
+						return;
+				}
+			});
 		return Promise.resolve(modulePath);
-
 	}
 
 	private serviceStarted(resendModels: boolean): void {
