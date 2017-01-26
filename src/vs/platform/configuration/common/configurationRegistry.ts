@@ -17,13 +17,6 @@ export const Extensions = {
 	Configuration: 'base.contributions.configuration'
 };
 
-// Locally extend IJSONSchema with the vscode-specific `isExecutable` property
-declare module 'vs/base/common/jsonSchema' {
-	export interface IJSONSchema {
-		isExecutable?: boolean;
-	}
-}
-
 export interface IConfigurationRegistry {
 
 	/**
@@ -57,6 +50,7 @@ export interface IConfigurationRegistry {
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
+	isExecutable?: boolean;
 }
 
 export interface IConfigurationNode {
