@@ -49,7 +49,7 @@
 	padding: 0 1ex;
 }
 
-.monaco-workbench.mac > .welcomeOverlay > .key > .shortcut {
+.monaco-workbench > .welcomeOverlay > .key > .shortcut {
 	letter-spacing: 0.15em;
 	font-size: 0.8125em;
 	color: #d7ba7d;
