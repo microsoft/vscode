@@ -275,11 +275,23 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
-		let codeSnippet = detail.name;
-		const suggestionArgumentNames: string[] = detail.displayParts
-			.filter(part => part.kind === 'parameterName')
-			.map((part, i) => `\${${i + 1}:${part.text}}`);
+		const suggestionArgumentNames: string[] = [];
+		let parenCount = 0;
+		for (let i = 0; i < detail.displayParts.length; ++i) {
+			const part = detail.displayParts[i];
+			// Only take top level paren names
+			if (part.kind === 'parameterName' && parenCount === 1) {
+				suggestionArgumentNames.push(`\${${i + 1}:${part.text}}`);
+			} else if (part.kind === 'punctuation') {
+				if (part.text === '(') {
+					++parenCount;
+				} else if (part.text === ')') {
+					--parenCount;
+				}
+			}
+		}
 
+		let codeSnippet = detail.name;
 		if (suggestionArgumentNames.length > 0) {
 			codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
 		} else {

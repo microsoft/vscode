@@ -36,7 +36,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
-			"port": 5870,
+			"port": 5873,
 			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
