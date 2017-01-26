@@ -36,7 +36,6 @@ class TrustContribution implements IWorkbenchContribution {
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.workspaceConfigurationService.onDidUpdateConfiguration(e => this.checkWorkspaceSettings()));
-		this.checkWorkspaceSettings();
 	}
 
 	getId(): string {
