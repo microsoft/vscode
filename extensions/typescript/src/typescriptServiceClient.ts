@@ -297,6 +297,18 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
 	}
 
+	private get localTypeScriptPath(): string | null {
+		if (!workspace.rootPath) {
+			return null;
+		}
+
+		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		if (fs.existsSync(localModulePath) && this.getTypeScriptVersion(localModulePath)) {
+			return localModulePath;
+		}
+		return null;
+	}
+
 	private get globalTypescriptPath(): string {
 		if (this.tsdk) {
 			this._checkGlobalTSCVersion = false;
@@ -367,7 +379,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		if (!this.workspaceState.get<boolean>(TypeScriptServiceClient.tsdkMigratedStorageKey, false)) {
 			this.workspaceState.update(TypeScriptServiceClient.tsdkMigratedStorageKey, true);
-			if (this.hasWorkspaceTsdkSetting()) {
+			if (this.hasWorkspaceTsdkSetting() || this.localTypeScriptPath) {
 				modulePath = this.onVersionStatusClicked();
 			}
 		}
@@ -480,10 +492,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
-		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		const localModulePath = this.localTypeScriptPath;
 
 		let messageShown: Thenable<MyMessageItem | undefined>;
-		if (fs.existsSync(localModulePath) && this.getTypeScriptVersion(localModulePath)) {
+		if (localModulePath) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
 			const usingWorkspaceVersion = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
 			messageShown = window.showInformationMessage<MyMessageItem>(
