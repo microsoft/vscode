@@ -156,6 +156,10 @@
 	white-space: nowrap;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .splash .showOnStartup input[type=checkbox] {
+	vertical-align: bottom;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .commands ul {
 	list-style: none;
 	padding: 0;
