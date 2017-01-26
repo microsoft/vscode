@@ -43,9 +43,11 @@ export function activate(context: vscode.ExtensionContext): any {
 	statusBarItem.text = localize('php.path', 'Path');
 	statusBarItem.color = 'white';
 	statusBarItem.command = '_php.onPathClicked';
-	updateStatusBarItem(context);
 	vscode.workspace.onDidChangeConfiguration(() => updateStatusBarItem(context));
-	statusBarItem.show();
+	vscode.window.onDidChangeActiveTextEditor((editor) => {
+		updateStatusBarItem(context, editor);
+	});
+	updateStatusBarItem(context, vscode.window.activeTextEditor);
 
 	if (workspaceExecutablePath === void 0 && !migrated) {
 		let settingsExecutablePath = readLocalExecutableSetting();
@@ -82,8 +84,13 @@ export function activate(context: vscode.ExtensionContext): any {
 	});
 }
 
-function updateStatusBarItem(context: vscode.ExtensionContext): void {
+function updateStatusBarItem(context: vscode.ExtensionContext, editor: vscode.TextEditor = vscode.window.activeTextEditor): void {
 	statusBarItem.tooltip = context.workspaceState.get<string>(PathKey, undefined) || vscode.workspace.getConfiguration('php.validate').get('executablePath', undefined);
+	if (editor && editor.document && editor.document.languageId === 'php') {
+		statusBarItem.show();
+	} else {
+		statusBarItem.hide();
+	}
 }
 
 function onPathClicked(context: vscode.ExtensionContext, validator: PHPValidationProvider) {
