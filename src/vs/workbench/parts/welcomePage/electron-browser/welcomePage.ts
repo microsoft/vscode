@@ -27,6 +27,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 const enabledKey = 'workbench.welcome.enabled';
 
@@ -37,13 +38,17 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IBackupFileService backupFileService: IBackupFileService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		const enabled = configurationService.lookup<boolean>(enabledKey).value;
 		if (enabled) {
-			partService.joinCreation().then(() => {
+			TPromise.join([
+				backupFileService.hasBackups(),
+				partService.joinCreation()
+			]).then(([hasBackups]) => {
 				const activeInput = editorService.getActiveEditorInput();
-				if (!activeInput || activeInput instanceof UntitledEditorInput) {
+				if ((!activeInput || (activeInput instanceof UntitledEditorInput && !activeInput.isDirty())) && !hasBackups) {
 					instantiationService.createInstance(WelcomePage);
 				}
 			}).then(null, onUnexpectedError);
