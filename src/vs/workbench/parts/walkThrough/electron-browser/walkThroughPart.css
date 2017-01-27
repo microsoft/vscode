@@ -139,6 +139,11 @@
 	white-space: pre;
 }
 
+.show-file-icons .vs_code_editor_walkthrough\.md-name-file-icon.md-ext-file-icon.markdown-lang-file-icon.file-icon::before {
+	content: ' ';
+	background-image: url('../../../../../../resources/code-icon.svg');
+}
+
 .monaco-workbench > .part.editor > .content .walkThroughContent .mac-only,
 .monaco-workbench > .part.editor > .content .walkThroughContent .windows-only,
 .monaco-workbench > .part.editor > .content .walkThroughContent .linux-only {
