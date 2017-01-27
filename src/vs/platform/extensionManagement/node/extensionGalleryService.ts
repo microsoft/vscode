@@ -433,6 +433,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private loadDependencies(extensionNames: string[]): TPromise<IGalleryExtension[]> {
+		if (!extensionNames || extensionNames.length === 0) {
+			return TPromise.as([]);
+		}
+
 		let query = new Query()
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, extensionNames.length)
