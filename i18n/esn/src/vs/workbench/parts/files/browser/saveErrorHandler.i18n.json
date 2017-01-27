@@ -6,15 +6,13 @@
 {
 	"acceptLocalChanges": "Usar cambios locales y sobrescribir contenido del disco",
 	"compareChanges": "Comparar",
-	"conflictingFileHasChanged": "El contenido del archivo en el disco ha cambiado y se ha actualizado la parte izquierda del editor de comparación. Revíselo y resuelva de nuevo.",
 	"discard": "Descartar",
 	"genericSaveError": "No se pudo guardar '{0}': {1}",
 	"overwrite": "Sobrescribir",
 	"readonlySaveError": "No se pudo guardar '{0}': El archivo está protegido contra escritura. Seleccione \"Sobrescribir\" para quitar la protección.",
-	"resolveSaveConflict": "Resolver conflicto al guardar",
 	"retry": "Reintentar",
 	"revertLocalChanges": "Descartar cambios locales y revertir al contenido del disco",
-	"saveConflictDiffLabel": "{0} (en el disco) ↔ {1} (en {2})",
+	"saveConflictDiffLabel": "{0} (en el disco) ↔ {1} (en {2}) - Resolver conflicto al guardar",
 	"staleSaveError": "No se pudo guardar '{0}': El contenido del disco es más reciente. Haga clic en **Comparar** para comparar su versión con la que hay en el disco.",
 	"userGuide": "Use las acciones de la barra de herramientas del editor para **deshacer** los cambios o **sobrescribir** el contenido del disco con sus cambios."
 }

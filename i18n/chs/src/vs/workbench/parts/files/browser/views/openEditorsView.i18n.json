@@ -7,5 +7,5 @@
 	"dirtyCounter": "{0} 个未保存",
 	"openEditors": "打开的编辑器",
 	"openEditosrSection": "打开的编辑器部分",
-	"treeAriaLabel": "打开的编辑器"
+	"treeAriaLabel": "打开的编辑器: 活动文件列表"
 }

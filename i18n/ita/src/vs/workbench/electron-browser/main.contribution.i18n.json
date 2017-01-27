@@ -10,13 +10,11 @@
 	"enablePreview": "Controlla se gli editor aperti vengono visualizzati come anteprima. Le anteprime editor vengono riutilizzate finché vengono mantenute, ad esempio tramite doppio clic o modifica.",
 	"enablePreviewFromQuickOpen": "Controlla se gli editor aperti da Quick Open vengono visualizzati come anteprima. Le anteprime editor vengono riutilizzate finché vengono mantenute, ad esempio tramite doppio clic o modifica.",
 	"file": "File",
-	"fullScreenZenMode": "Consente di controllare se attivando la modalità Zen anche l'area di lavoro passa alla modalità schermo intero.",
 	"help": "Guida",
 	"openDefaultSettings": "Controlla se all'apertura delle impostazioni viene aperto anche un editor che mostra tutte le impostazioni predefinite.",
 	"openFilesInNewWindow": "Se abilitata, apre i file in una nuova finestra invece di riutilizzare un'istanza esistente.",
 	"reopenFolders": "Controlla la modalità di riapertura delle cartelle dopo un riavvio. Selezionare 'none' per non riaprire mai una cartella, 'one' per riaprire l'ultima cartella usata oppure 'all' per riaprire tutte le cartelle dell'ultima sessione.",
 	"restoreFullscreen": "Controlla se una finestra deve essere ripristinata a schermo intero se è stata chiusa in questa modalità.",
-	"showEditorTabCloseButton": "Controlla se nelle schede dell'editor deve essere presente o meno un pulsante Chiudi visibile.",
 	"showEditorTabs": "Controlla se visualizzare o meno gli editor aperti in schede.",
 	"showFullPath": "Se è abilitato, visualizzerà il percorso completo dei file aperti nel titolo della finestra.",
 	"showIcons": "Controlla se visualizzare o meno un'icona per gli editor aperti. Richiede l'abilitazione anche di un tema dell'icona.",
@@ -26,5 +24,6 @@
 	"view": "Visualizza",
 	"windowConfigurationTitle": "Finestra",
 	"workbenchConfigurationTitle": "Workbench",
+	"zenMode.fullScreen": "Consente di controllare se attivando la modalità Zen anche l'area di lavoro passa alla modalità schermo intero.",
 	"zoomLevel": "Consente di modificare il livello di zoom della finestra. Il valore originale è 0 e ogni incremento superiore (ad esempio 1) o inferiore (ad esempio -1) rappresenta un aumento o una diminuzione del 20% della percentuale di zoom. È anche possibile immettere valori decimali per modificare il livello di zoom con maggiore granularità."
 }
