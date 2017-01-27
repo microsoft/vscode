@@ -521,11 +521,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					placeHolder: usingWorkspaceVersion
 						? localize(
 							'usingWorkspaceTsVersion',
-							'Using TypeScript version {0} from workspace for IntelliSense.',
+							'Using TypeScript version {0} from workspace for Typescript language features.',
 							localVersion)
 						: localize(
 							'usingVSCodeTsVersion',
-							'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+							'Using VSCode\'s TypeScript version {0} for Typescript language features.',
 							shippedVersion),
 				});
 		} else {
@@ -543,7 +543,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				{
 					placeHolder: localize(
 						'versionCheckUsingBundledTS',
-						'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+						'Using VSCode\'s TypeScript version {0} for Typescript language features.',
 						shippedVersion),
 				});
 		}
