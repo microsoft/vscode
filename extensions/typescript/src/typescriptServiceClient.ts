@@ -95,7 +95,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private storagePath: string | undefined;
 	private globalState: Memento;
 	private pathSeparator: string;
-	private modulePath: string;
+	private modulePath: string | undefined;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private tsdk: string | null;
@@ -383,7 +383,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		if (!this.workspaceState.get<boolean>(TypeScriptServiceClient.tsdkMigratedStorageKey, false)) {
 			this.workspaceState.update(TypeScriptServiceClient.tsdkMigratedStorageKey, true);
-			if (this.hasWorkspaceTsdkSetting() || this.localTypeScriptPath) {
+			if (workspace.rootPath && (this.hasWorkspaceTsdkSetting() || this.localTypeScriptPath)) {
 				modulePath = this.showVersionPicker(false);
 			}
 		}
@@ -492,16 +492,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this.showVersionPicker(true);
 	}
 
-	private showVersionPicker(promptForRestart: boolean = true) {
-		const modulePath = this.modulePath;
-
+	private showVersionPicker(promptForRestart: boolean) {
+		const modulePath = this.modulePath || this.globalTypescriptPath;
 		if (!workspace.rootPath) {
-			return Promise.resolve(this.modulePath);
+			return Promise.resolve(modulePath);
 		}
 
 		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
 		const localModulePath = this.localTypeScriptPath;
-
 		let messageShown: Thenable<MyQuickPickItem | undefined>;
 		if (localModulePath) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
@@ -540,7 +538,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		const tryShowRestart = (newModulePath: string) => {
-			if (newModulePath === this.modulePath) {
+			if (!promptForRestart || newModulePath === this.modulePath) {
 				return;
 			}
 
