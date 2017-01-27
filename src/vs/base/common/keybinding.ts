@@ -369,7 +369,7 @@ function _asString(keybinding: number, labelProvider: IKeyBindingLabelProvider, 
 	var actualResult = result.join(labelProvider.modifierSeparator);
 
 	if (BinaryKeybindings.hasChord(keybinding)) {
-		return actualResult + ' ' + _asString(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform);
+		return actualResult + ', ' + _asString(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform);
 	}
 
 	return actualResult;
@@ -433,7 +433,7 @@ function _asHTML(keybinding: number, labelProvider: IKeyBindingLabelProvider, Pl
 		chordTo = _asHTML(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform, true);
 		result.push({
 			tagName: 'span',
-			text: ' '
+			text: ', '
 		});
 		result = result.concat(chordTo);
 	}
