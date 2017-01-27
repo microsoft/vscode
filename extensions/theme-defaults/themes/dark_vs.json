@@ -39,7 +39,9 @@
 			}
 		},
 		{
-			"scope": "constant.numeric",
+			"scope": [
+				"constant.numeric"
+			],
 			"settings": {
 				"foreground": "#b5cea8"
 			}
@@ -48,16 +50,6 @@
 			"scope": "constant.regexp",
 			"settings": {
 				"foreground": "#646695"
-			}
-		},
-		{
-			"scope": [
-				"constant.other.color.rgb-value.css",
-				"constant.numeric.color.rgb-value.scss",
-				"constant.other.rgb-value.css"
-			],
-			"settings": {
-				"foreground": "#d4d4d4"
 			}
 		},
 		{

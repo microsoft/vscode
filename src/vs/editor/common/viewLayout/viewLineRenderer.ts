@@ -17,7 +17,7 @@ export const enum RenderWhitespace {
 
 export class RenderLineInput {
 
-	public readonly fontIsMonospace: boolean;
+	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineContent: string;
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
@@ -30,7 +30,7 @@ export class RenderLineInput {
 	public readonly renderControlCharacters: boolean;
 
 	constructor(
-		fontIsMonospace: boolean,
+		useMonospaceOptimizations: boolean,
 		lineContent: string,
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
@@ -42,7 +42,7 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
 	) {
-		this.fontIsMonospace = fontIsMonospace;
+		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
 		this.mightContainRTL = mightContainRTL;
 		this.fauxIndentLength = fauxIndentLength;
@@ -63,7 +63,7 @@ export class RenderLineInput {
 
 	public equals(other: RenderLineInput): boolean {
 		return (
-			this.fontIsMonospace === other.fontIsMonospace
+			this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineContent === other.lineContent
 			&& this.mightContainRTL === other.mightContainRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
@@ -249,7 +249,7 @@ class ResolvedRenderLineInput {
 }
 
 function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput {
-	const fontIsMonospace = input.fontIsMonospace;
+	const useMonospaceOptimizations = input.useMonospaceOptimizations;
 	const lineContent = input.lineContent;
 
 	let isOverflowing: boolean;
@@ -265,7 +265,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 	let tokens = removeOverflowing(input.lineTokens, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
-		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, fontIsMonospace, input.renderWhitespace === RenderWhitespace.Boundary);
+		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
 	let containsForeignElements = false;
 	if (input.lineDecorations.length > 0) {
@@ -287,7 +287,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	}
 
 	return new ResolvedRenderLineInput(
-		fontIsMonospace,
+		useMonospaceOptimizations,
 		lineContent,
 		len,
 		isOverflowing,
@@ -369,7 +369,7 @@ function splitLargeTokens(tokens: ViewLineToken[]): ViewLineToken[] {
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
-function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, fontIsMonospace: boolean, onlyBoundary: boolean): ViewLineToken[] {
+function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, useMonospaceOptimizations: boolean, onlyBoundary: boolean): ViewLineToken[] {
 
 	let result: ViewLineToken[] = [], resultLen = 0;
 	let tokenIndex = 0;
@@ -431,7 +431,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 
 		if (wasInWhitespace) {
 			// was in whitespace token
-			if (!isInWhitespace || (!fontIsMonospace && tmpIndent >= tabSize)) {
+			if (!isInWhitespace || (!useMonospaceOptimizations && tmpIndent >= tabSize)) {
 				// leaving whitespace token or entering a new indent
 				result[resultLen++] = new ViewLineToken(charIndex, 'vs-whitespace');
 				tmpIndent = tmpIndent % tabSize;
@@ -495,10 +495,14 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 			}
 
 			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
+				// This line decoration ends before this token ends
 				lastResultEndIndex = lineDecoration.endOffset + 1;
 				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				lineDecorationIndex++;
 			} else {
+				// This line decoration continues on to the next token
+				lastResultEndIndex = tokenEndIndex;
+				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				break;
 			}
 		}

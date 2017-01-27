@@ -110,8 +110,7 @@ export class CompletionModel {
 
 		for (const item of this._items) {
 
-			const {suggestion, support, container} = item;
-			const filter = support && support.filter || fuzzyContiguousFilter;
+			const {suggestion, container} = item;
 
 			// collect those supports that signaled having
 			// an incomplete result
@@ -128,17 +127,17 @@ export class CompletionModel {
 			let match = false;
 
 			// compute highlights based on 'label'
-			item.highlights = filter(word, suggestion.label);
+			item.highlights = fuzzyContiguousFilter(word, suggestion.label);
 			match = item.highlights !== null;
 
 			// no match on label nor codeSnippet -> check on filterText
 			if (!match && typeof suggestion.filterText === 'string') {
-				if (!isFalsyOrEmpty(filter(word, suggestion.filterText))) {
+				if (!isFalsyOrEmpty(fuzzyContiguousFilter(word, suggestion.filterText))) {
 					match = true;
 
 					// try to compute highlights by stripping none-word
 					// characters from the end of the string
-					item.highlights = filter(word.replace(/^\W+|\W+$/, ''), suggestion.label);
+					item.highlights = fuzzyContiguousFilter(word.replace(/^\W+|\W+$/, ''), suggestion.label);
 				}
 			}
 

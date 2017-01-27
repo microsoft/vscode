@@ -168,6 +168,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
+		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
+			this.wordToLineNumbersMap = null;
+		}));
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			const sf = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
@@ -294,7 +297,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private updateConfigurationWidgetVisibility(): void {
 		const model = this.editor.getModel();
 		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
-			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration"), null);
+			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration().done(undefined, errors.onUnexpectedError)));
 		} else if (this.configurationWidget) {

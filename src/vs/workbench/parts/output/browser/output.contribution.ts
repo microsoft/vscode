@@ -15,9 +15,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { OutputService } from 'vs/workbench/parts/output/browser/outputServices';
 import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService } from 'vs/workbench/parts/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
-import { EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -39,7 +38,7 @@ Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
 	'output',
-	10,
+	20,
 	ToggleOutputAction.ID
 ));
 
@@ -54,6 +53,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
 	'View: Clear Output', nls.localize('viewCategory', "View"));
+
 
 interface IActionDescriptor {
 	id: string;
@@ -125,7 +125,7 @@ registerAction({
 	title: nls.localize('clearOutput.label', "Clear Output"),
 	menu: {
 		menuId: MenuId.EditorContext,
-		when: EditorContextKeys.LanguageId.isEqualTo(OUTPUT_MODE_ID)
+		when: CONTEXT_IN_OUTPUT
 	},
 	handler(accessor) {
 		accessor.get(IOutputService).getActiveChannel().clear();

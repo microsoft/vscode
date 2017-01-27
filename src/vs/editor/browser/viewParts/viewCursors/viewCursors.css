@@ -38,6 +38,10 @@
 	border-color: #fff;
 	color: #000; /* opposite of #fff */
 }
+.monaco-editor.hc-black .cursors-layer.has-selection .cursor {
+	border-left: 1px solid #000;
+	border-right: 1px solid #000;
+}
 
 @keyframes monaco-cursor-blink {
 	50% {

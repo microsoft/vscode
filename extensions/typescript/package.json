@@ -34,6 +34,7 @@
 		"onCommand:javascript.reloadProjects"
 	],
 	"main": "./out/typescriptMain",
+	"enableProposedApi": true,
 	"contributes": {
 		"languages": [
 			{
@@ -87,17 +88,13 @@
 						"null"
 					],
 					"default": null,
-					"description": "%typescript.tsdk.desc%"
+					"description": "%typescript.tsdk.desc%",
+					"isExecutable": true
 				},
 				"typescript.disableAutomaticTypeAcquisition": {
 					"type": "boolean",
 					"default": false,
 					"description": "%typescript.disableAutomaticTypeAcquisition%"
-				},
-				"typescript.check.workspaceVersion": {
-					"type": "boolean",
-					"default": true,
-					"description": "%typescript.check.workspaceVersion%"
 				},
 				"typescript.check.tscVersion": {
 					"type": "boolean",

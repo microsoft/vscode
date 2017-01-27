@@ -5,14 +5,25 @@
 'use strict';
 
 import * as os from 'os';
+import * as path from 'path';
+import * as cp from 'child_process';
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
 
-const powerShellExePath =
-	!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')
-		? `${process.env.windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
-		: `${process.env.windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`;
+export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
+export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 
 const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;
+const is64BitWindows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+const powerShellPath = `${process.env.windir}\\${is64BitWindows ? 'Sysnative' : 'System32'}\\WindowsPowerShell\\v1.0\\powershell.exe`;
 
-export const TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellExePath : processes.getWindowsShell();
+export const TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell();
+
+// Terminal flow control is disabled if the shell is zsh since the popular oh-my-zsh configuration
+// overrides the ^S and ^Q keybindings which are used for flow control.
+// TODO: This should check if ~/.oh-my-zsh exists as well
+export const TERMINAL_DEFAULT_FLOW_CONTROL = !(typeof process.env.SHELL === 'string' && path.basename(process.env.SHELL) === 'zsh');
+
+export interface ITerminalProcessFactory {
+	create(env: { [key: string]: string }): cp.ChildProcess;
+}

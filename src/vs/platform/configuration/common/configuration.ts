@@ -10,7 +10,7 @@ import Event from 'vs/base/common/event';
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
 export interface IConfigurationOptions {
-	language?: string;
+	overrideIdentifier?: string;
 	section?: string;
 }
 
@@ -28,7 +28,7 @@ export interface IConfigurationService {
 	 * Resolves a configuration key to its values in the different scopes
 	 * the setting is defined.
 	 */
-	lookup<T>(key: string): IConfigurationValue<T>;
+	lookup<T>(key: string, overrideIdentifier?: string): IConfigurationValue<T>;
 
 	/**
 	 * Returns the defined keys of configurations in the different scopes
@@ -106,14 +106,16 @@ export interface IConfigModel<T> {
 	overrides: IOverrides<T>[];
 	keys: string[];
 	raw: any;
+	unfilteredRaw: any;
 	errors: any[];
 
 	merge(other: IConfigModel<T>, overwrite?: boolean): IConfigModel<T>;
 	config<V>(section: string): IConfigModel<V>;
-	languageConfig<V>(language: string, section?: string): IConfigModel<V>;
+	configWithOverrides<V>(identifier: string, section?: string): IConfigModel<V>;
+	refilter(): void;
 }
 
 export interface IOverrides<T> {
 	contents: T;
-	languages: string[];
+	identifiers: string[];
 }

@@ -20,6 +20,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -28,9 +29,19 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
 
+class StandardTerminalProcessFactory implements ITerminalProcessFactory {
+	public create(env: { [key: string]: string }): cp.ChildProcess {
+		return cp.fork('./terminalProcess', [], {
+			env,
+			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
+		});
+	}
+}
+
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
+	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _idCounter = 1;
 
 	private _id: number;
@@ -38,7 +49,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isLaunching: boolean;
 	private _isVisible: boolean;
-	private _onDisposed: Emitter<TerminalInstance>;
+	private _onDisposed: Emitter<ITerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
@@ -54,7 +65,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
-	public get onClosed(): Event<TerminalInstance> { return this._onDisposed.event; }
+	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
@@ -268,6 +279,13 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._wrapperElement) {
 			DOM.toggleClass(this._wrapperElement, 'active', visible);
 		}
+		if (visible && this._xterm) {
+			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
+			// necessary if the number of rows in the terminal has decreased while it was in the
+			// background since scrollTop changes take no effect but the terminal's position does
+			// change since the number of visible rows decreases.
+			this._xterm.emit('scroll', this._xterm.ydisp);
+		}
 	}
 
 	public scrollDownLine(): void {
@@ -336,7 +354,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig) {
+	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
@@ -400,8 +418,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
-			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', () => {
+			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
 				this.dispose();
+				event.preventDefault();
 			}));
 		} else {
 			this.dispose();
@@ -471,16 +490,31 @@ export class TerminalInstance implements ITerminalInstance {
 		return env;
 	}
 
-	public onData(listener: (data: string) => void): void {
-		this._process.on('message', (message) => {
+	public onData(listener: (data: string) => void): lifecycle.IDisposable {
+		let callback = (message) => {
 			if (message.type === 'data') {
 				listener(message.content);
 			}
-		});
+		};
+		this._process.on('message', callback);
+		return {
+			dispose: () => {
+				if (this._process) {
+					this._process.removeListener('message', callback);
+				}
+			}
+		};
 	}
 
-	public onExit(listener: (exitCode: number) => void): void {
+	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
 		this._process.on('exit', listener);
+		return {
+			dispose: () => {
+				if (this._process) {
+					this._process.removeListener('exit', listener);
+				}
+			}
+		};
 	}
 
 	private static _sanitizeCwd(cwd: string) {
@@ -509,15 +543,31 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateConfig(): void {
+		this._setFlowControl(this._configHelper.getFlowControl());
 		this._setCursorBlink(this._configHelper.getCursorBlink());
+		this._setCursorStyle(this._configHelper.getCursorStyle());
 		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
 		this._setScrollback(this._configHelper.getScrollback());
+	}
+
+	private _setFlowControl(flowControl: boolean): void {
+		if (this._xterm && this._xterm.getOption('useFlowControl') !== flowControl) {
+			this._xterm.setOption('useFlowControl', flowControl);
+		}
 	}
 
 	private _setCursorBlink(blink: boolean): void {
 		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
+		}
+	}
+
+	private _setCursorStyle(style: string): void {
+		if (this._xterm && this._xterm.getOption('cursorStyle') !== style) {
+			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
+			const xtermOption = style === 'line' ? 'bar' : style;
+			this._xterm.setOption('cursorStyle', xtermOption);
 		}
 	}
 
@@ -563,5 +613,9 @@ export class TerminalInstance implements ITerminalInstance {
 				rows: rows
 			});
 		}
+	}
+
+	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
+		this._terminalProcessFactory = factory;
 	}
 }

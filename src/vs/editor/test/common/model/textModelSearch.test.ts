@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
-import { FindMatch } from 'vs/editor/common/editorCommon';
+import { FindMatch, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
@@ -18,13 +18,7 @@ suite('TextModelSearch', () => {
 		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 
-	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, _expected: [number, number, number, number][]): void {
-		let expectedRanges = _expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3]));
-		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
-		let model = new TextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS));
-
-		let searchParams = new SearchParams(searchString, isRegex, matchCase, wholeWord);
-
+	function _assertFindMatches(model: TextModel, searchParams: SearchParams, expectedMatches: FindMatch[]): void {
 		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), false, 1000);
 		assert.deepEqual(actual, expectedMatches, 'findMatches OK');
 
@@ -47,8 +41,22 @@ suite('TextModelSearch', () => {
 			match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
 			assert.deepEqual(match, expectedMatches[i], `findPrevMatch ${startPos}`);
 		}
+	}
 
+	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, _expected: [number, number, number, number][]): void {
+		let expectedRanges = _expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3]));
+		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
+		let searchParams = new SearchParams(searchString, isRegex, matchCase, wholeWord);
+
+		let model = new TextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS));
+		_assertFindMatches(model, searchParams, expectedMatches);
 		model.dispose();
+
+
+		let model2 = new TextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS));
+		model2.setEOL(EndOfLineSequence.CRLF);
+		_assertFindMatches(model2, searchParams, expectedMatches);
+		model2.dispose();
 	}
 
 	let regularText = [
@@ -494,6 +502,42 @@ suite('TextModelSearch', () => {
 
 		let actual = TextModelSearch.findPreviousMatch(model, searchParams, new Position(1, 1), true);
 		assertFindMatch(actual, new Range(2, 5, 3, 1), ['line\n', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('\\n matches \\r\\n', () => {
+		let model = new TextModel([], TextModel.toRawText('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.equal(model.getEOL(), '\r\n');
+
+		let searchParams = new SearchParams('h\\n', true, false, false);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
+		assertFindMatch(actual, new Range(8, 1, 9, 1), ['h\n']);
+
+		searchParams = new SearchParams('g\\nh\\n', true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
+		assertFindMatch(actual, new Range(7, 1, 9, 1), ['g\nh\n']);
+
+		searchParams = new SearchParams('\\ni', true, false, false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
+		assertFindMatch(actual, new Range(8, 2, 9, 2), ['\ni']);
+
+		model.dispose();
+	});
+
+	test('\\r can never be found', () => {
+		let model = new TextModel([], TextModel.toRawText('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.equal(model.getEOL(), '\r\n');
+
+		let searchParams = new SearchParams('\\r\\n', true, false, false);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		assert.equal(actual, null);
+		assert.deepEqual(TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000), []);
 
 		model.dispose();
 	});

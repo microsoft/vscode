@@ -342,12 +342,12 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
-	public openConfigFile(sideBySide: boolean): TPromise<IEditor> {
+	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.guessAdapter().then(adapter => adapter ? adapter.getInitialConfigurationContent() : undefined)
+			this.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent() : undefined)
 				.then(content => {
 					if (!content) {
 						return false;
@@ -375,10 +375,13 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			});
 	}
 
-	public getStartSessionCommand(type?: string): TPromise<string> {
+	public getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }> {
 		return this.guessAdapter(type).then(adapter => {
 			if (adapter) {
-				return adapter.startSessionCommand;
+				return {
+					command: adapter.startSessionCommand,
+					type: adapter.type
+				};
 			}
 		});
 	}
@@ -393,7 +396,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
-			const model = (<ICommonCodeEditor>editor.getControl()).getModel();
+			const codeEditor = <ICommonCodeEditor>editor.getControl();
+			const model = codeEditor ? codeEditor.getModel() : undefined;
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			const adapter = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0).pop();
 			if (adapter) {

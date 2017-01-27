@@ -1,6 +1,7 @@
 ﻿{
-	"configuration.validate.enable": "Whether php validation is enabled or not.",
-	"configuration.validate.executablePath": "Points to the php executable.",
+	"configuration.suggest.basic": "Configures if the built-in PHP language suggestions are enabled. The support suggests PHP globals and variables.",
+	"configuration.validate.enable": "Enable/disable built-in PHP validation.",
+	"configuration.validate.executablePath": "Points to the PHP executable.",
 	"configuration.validate.run": "Whether the linter is run on save or on type.",
 	"configuration.title": "PHP"
 }

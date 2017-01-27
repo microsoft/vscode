@@ -33,6 +33,7 @@ interface ThemeGlobalSettings {
 
 	referenceHighlight?: string;
 
+	linkForeground?: string;
 	activeLinkForeground?: string;
 
 	ansiBlack?: string;
@@ -62,9 +63,9 @@ class Theme {
 	constructor(private themeId: string, themeSettings: IThemeSetting[]) {
 		this.selector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
 		this.settings = themeSettings;
-		let settings = this.settings[0];
-		if (!settings.scope) {
-			this.globalSettings = settings.settings;
+		let globalSettings = this.settings.filter(s => !s.scope);
+		if (globalSettings.length > 0) {
+			this.globalSettings = globalSettings[0].settings;
 		}
 	}
 
@@ -214,6 +215,9 @@ class EditorLinkStyleRules extends EditorStyleRules {
 		if (theme.getGlobalSettings().activeLinkForeground) {
 			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link-active { color: ${new Color(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
 			cssRules.push(`.monaco-editor.${theme.getSelector()} .goto-definition-link { color: ${new Color(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
+		}
+		if (theme.getGlobalSettings().linkForeground) {
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link { color: ${new Color(theme.getGlobalSettings().linkForeground)} !important; }`);
 		}
 	}
 }

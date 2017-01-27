@@ -63,7 +63,10 @@ export class ReferenceAction extends EditorAction {
 			id: 'editor.action.referenceSearch.trigger',
 			label: nls.localize('references.action.label', "Find All References"),
 			alias: 'Find All References',
-			precondition: ContextKeyExpr.and(ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor),
+			precondition: ContextKeyExpr.and(
+				ModeContextKeys.hasReferenceProvider,
+				PeekContext.notInPeekEditor,
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Shift | KeyCode.F12

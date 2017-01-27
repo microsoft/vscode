@@ -173,6 +173,27 @@ const noFileIconTheme: IFileIconTheme = {
 	isLoaded: true
 };
 
+let defaultThemeColors: { [baseTheme: string]: IThemeSetting[] } = {
+	'vs': [
+		{ scope: 'token.info-token', settings: { foreground: '#316bcd' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
+		{ scope: 'token.error-token', settings: { foreground: '#cd3131' } },
+		{ scope: 'token.debug-token', settings: { foreground: 'purple' } }
+	],
+	'vs-dark': [
+		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
+		{ scope: 'token.error-token', settings: { foreground: '#f44747' } },
+		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
+	],
+	'hc-black': [
+		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#008000' } },
+		{ scope: 'token.error-token', settings: { foreground: '#FF0000' } },
+		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
+	],
+};
+
 export class ThemeService implements IThemeService {
 	_serviceBrand: any;
 
@@ -700,7 +721,7 @@ function applyTheme(theme: IInternalColorThemeData, onApply: (theme: IInternalCo
 		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
 		return TPromise.as(onApply(theme));
 	}
-	return _loadThemeDocument(theme.path).then(themeSettings => {
+	return _loadThemeDocument(getBaseThemeId(theme.id), theme.path).then(themeSettings => {
 		theme.settings = themeSettings;
 		let styleSheetContent = _processThemeObject(theme.id, themeSettings);
 		theme.styleSheetContent = styleSheetContent;
@@ -712,20 +733,21 @@ function applyTheme(theme: IInternalColorThemeData, onApply: (theme: IInternalCo
 	});
 }
 
-function _loadThemeDocument(themePath: string): TPromise<IThemeSetting[]> {
+function _loadThemeDocument(baseTheme: string, themePath: string): TPromise<IThemeSetting[]> {
 	return pfs.readFile(themePath).then(content => {
+		let allSettings = defaultThemeColors[baseTheme] || [];
 		if (Paths.extname(themePath) === '.json') {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
 				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
-			let allSettings: IThemeSetting[] = contentValue.settings;
-			if (!Array.isArray(allSettings)) {
+			if (!Array.isArray(contentValue.settings)) {
 				return TPromise.wrapError(new Error(nls.localize('error.invalidformat', "Problem parsing JSON theme file: {0}. 'settings' is not array.")));
 			}
+			allSettings = allSettings.concat(contentValue.settings); // will clone
 			if (contentValue.include) {
-				return _loadThemeDocument(Paths.join(Paths.dirname(themePath), contentValue.include)).then(settings => {
+				return _loadThemeDocument(baseTheme, Paths.join(Paths.dirname(themePath), contentValue.include)).then(settings => {
 					allSettings = settings.concat(allSettings);
 					return TPromise.as(allSettings);
 				});
@@ -738,7 +760,8 @@ function _loadThemeDocument(themePath: string): TPromise<IThemeSetting[]> {
 			if (!Array.isArray(settings)) {
 				return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing theme file: {0}. 'settings' is not array.")));
 			}
-			return TPromise.as(settings);
+			allSettings = allSettings.concat(settings); // will clone
+			return TPromise.as(allSettings);
 		} catch (e) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing theme file: {0}", e.message)));
 		}

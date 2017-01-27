@@ -146,6 +146,8 @@ export class DefaultController implements _.IController {
 		this.downKeyBindingDispatcher.set(KeyCode.LeftArrow, (t, e) => this.onLeft(t, e));
 		this.downKeyBindingDispatcher.set(KeyCode.RightArrow, (t, e) => this.onRight(t, e));
 		this.downKeyBindingDispatcher.set(KeyCode.Escape, (t, e) => this.onEscape(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.Home, (t, e) => this.onHome(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.End, (t, e) => this.onEnd(t, e));
 
 		this.upKeyBindingDispatcher = new KeybindingDispatcher();
 		this.upKeyBindingDispatcher.set(KeyCode.Enter, this.onEnter.bind(this));
@@ -306,6 +308,30 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNextPage(payload);
+			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+		}
+		return true;
+	}
+
+	protected onHome(tree: _.ITree, event: IKeyboardEvent): boolean {
+		var payload = { origin: 'keyboard', originalEvent: event };
+
+		if (tree.getHighlight()) {
+			tree.clearHighlight(payload);
+		} else {
+			tree.focusFirst(payload);
+			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+		}
+		return true;
+	}
+
+	protected onEnd(tree: _.ITree, event: IKeyboardEvent): boolean {
+		var payload = { origin: 'keyboard', originalEvent: event };
+
+		if (tree.getHighlight()) {
+			tree.clearHighlight(payload);
+		} else {
+			tree.focusLast(payload);
 			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
 		}
 		return true;

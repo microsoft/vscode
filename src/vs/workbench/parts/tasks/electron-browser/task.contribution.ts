@@ -61,7 +61,7 @@ import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutpu
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -317,7 +317,22 @@ class CloseMessageAction extends Action {
 		if (this.closeFunction) {
 			this.closeFunction();
 		}
-		return TPromise.as(null);
+		return TPromise.as(undefined);
+	}
+}
+
+class ViewTerminalAction extends Action {
+
+	public static ID = 'workbench.action.build.viewTerminal';
+	public static TEXT = nls.localize('ShowTerminalAction.label', 'View Terminal');
+
+	constructor( @ITerminalService private terminalService: ITerminalService) {
+		super(ViewTerminalAction.ID, ViewTerminalAction.TEXT);
+	}
+
+	public run(): TPromise<void> {
+		this.terminalService.showPanel();
+		return TPromise.as(undefined);
 	}
 }
 
@@ -326,7 +341,9 @@ class TerminateAction extends AbstractTaskAction {
 	public static TEXT = nls.localize('TerminateAction.label', "Terminate Running Task");
 
 	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 	}
 
@@ -334,19 +351,26 @@ class TerminateAction extends AbstractTaskAction {
 		if (!this.canRun()) {
 			return TPromise.as(undefined);
 		}
-		return this.taskService.isActive().then((active) => {
-			if (active) {
-				return this.taskService.terminate().then((response) => {
-					if (response.success) {
-						return;
-					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-						this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-					} else {
-						return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
-					}
-				});
-			}
-		});
+		if (this.taskService.inTerminal()) {
+			this.messageService.show(Severity.Info, {
+				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
+				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
+			});
+		} else {
+			return this.taskService.isActive().then((active) => {
+				if (active) {
+					return this.taskService.terminate().then((response) => {
+						if (response.success) {
+							return;
+						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+						} else {
+							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+						}
+					});
+				}
+			});
+		}
 	}
 }
 
@@ -618,6 +642,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
+	private _inTerminal: boolean;
 	private taskSystemListeners: IDisposable[];
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
@@ -652,21 +677,54 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.extensionService = extensionService;
 		this.quickOpenService = quickOpenService;
 
+		this._inTerminal = undefined;
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
 		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this.configurationService.onDidUpdateConfiguration(() => {
-			this.emit(TaskServiceEvents.ConfigChanged);
-			if (this._taskSystem && this._taskSystem.isActiveSync()) {
-				this.clearTaskSystemPromise = true;
-			} else {
-				this._taskSystem = null;
-				this._taskSystemPromise = null;
+			// We don't have a task system yet. So nothing to do.
+			if (!this._taskSystemPromise && !this._taskSystem) {
+				return;
 			}
-			this.disposeTaskSystemListeners();
+			if (this._inTerminal !== void 0) {
+				let config = this.configurationService.getConfiguration<TaskConfiguration>('tasks');
+				if (this._inTerminal && this.isRunnerConfig(config) || !this._inTerminal && this.isTerminalConfig(config)) {
+					this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires to restart VS Code. The change is ignored.'));
+				}
+			}
+			this.emit(TaskServiceEvents.ConfigChanged);
+			if (this._inTerminal) {
+				this.readConfiguration().then((config) => {
+					if (!config) {
+						return;
+					}
+					if (this._taskSystem) {
+						(this._taskSystem as TerminalTaskSystem).setConfiguration(config);
+					} else {
+						this._taskSystem = null;
+						this._taskSystemPromise = null;
+					}
+				});
+			} else {
+				if (this._taskSystem && this._taskSystem.isActiveSync()) {
+					this.clearTaskSystemPromise = true;
+				} else {
+					this._taskSystem = null;
+					this._taskSystemPromise = null;
+				}
+				this.disposeTaskSystemListeners();
+			}
 		});
 
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+	}
+
+	public log(value: string): void {
+		this.outputChannel.append(value + '\n');
+	}
+
+	private showOutput(): void {
+		this.outputChannel.show(true);
 	}
 
 	private disposeTaskSystemListeners(): void {
@@ -744,11 +802,20 @@ class TaskService extends EventEmitter implements ITaskService {
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
 						let result: ITaskSystem = null;
+						let parseResult = FileConfig.parse(<FileConfig.ExternalTaskRunnerConfiguration>config, this);
+						if (!parseResult.validationStatus.isOK()) {
+							this.outputChannel.show(true);
+						}
+						if (parseResult.validationStatus.isFatal()) {
+							throw new TaskError(Severity.Error, nls.localize('TaskSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
+						}
 						if (this.isRunnerConfig(config)) {
-							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
+							this._inTerminal = false;
+							result = new ProcessRunnerSystem(parseResult.configuration, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
 						} else if (this.isTerminalConfig(config)) {
+							this._inTerminal = true;
 							result = new TerminalTaskSystem(
-								<FileConfig.ExternalTaskRunnerConfiguration>config,
+								parseResult.configuration,
 								this.terminalService, this.outputService, this.markerService,
 								this.modelService, this.configurationResolverService, this.telemetryService,
 								TaskService.OutputChannelId
@@ -772,6 +839,74 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this._taskSystemPromise;
 	}
 
+	private readConfiguration(): TPromise<TaskRunnerConfiguration> {
+		let config = this.configurationService.getConfiguration<TaskConfiguration>('tasks');
+		let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
+		if (parseErrors) {
+			let isAffected = false;
+			for (let i = 0; i < parseErrors.length; i++) {
+				if (/tasks\.json$/.test(parseErrors[i])) {
+					isAffected = true;
+					break;
+				}
+			}
+			if (isAffected) {
+				this.log(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+				this.showOutput();
+				return TPromise.wrapError(undefined);
+			}
+		}
+		let configPromise: TPromise<TaskConfiguration>;
+		if (config) {
+			if (this.isRunnerConfig(config) && this.hasDetectorSupport(<FileConfig.ExternalTaskRunnerConfiguration>config)) {
+				let fileConfig = <FileConfig.ExternalTaskRunnerConfiguration>config;
+				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, fileConfig).detect(true).then((value) => {
+					this.printStderr(value.stderr);
+					let detectedConfig = value.config;
+					if (!detectedConfig) {
+						return config;
+					}
+					let result: FileConfig.ExternalTaskRunnerConfiguration = Objects.clone(fileConfig);
+					let configuredTasks: IStringDictionary<FileConfig.TaskDescription> = Object.create(null);
+					if (!result.tasks) {
+						if (detectedConfig.tasks) {
+							result.tasks = detectedConfig.tasks;
+						}
+					} else {
+						result.tasks.forEach(task => configuredTasks[task.taskName] = task);
+						detectedConfig.tasks.forEach((task) => {
+							if (!configuredTasks[task.taskName]) {
+								result.tasks.push(task);
+							}
+						});
+					}
+					return result;
+				});
+			} else {
+				configPromise = TPromise.as<TaskConfiguration>(config);
+			}
+		} else {
+			configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+				this.printStderr(value.stderr);
+				return value.config;
+			});
+		}
+		return configPromise.then((config) => {
+			if (!config) {
+				return undefined;
+			}
+			let parseResult = FileConfig.parse(<FileConfig.ExternalTaskRunnerConfiguration>config, this);
+			if (!parseResult.validationStatus.isOK()) {
+				this.showOutput();
+			}
+			if (parseResult.validationStatus.isFatal()) {
+				this.log(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
+				return undefined;
+			}
+			return parseResult.configuration;
+		});
+	}
+
 	private printStderr(stderr: string[]): boolean {
 		let result = true;
 		if (stderr && stderr.length > 0) {
@@ -790,6 +925,10 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private isTerminalConfig(config: TaskConfiguration): boolean {
 		return config._runner === 'terminal';
+	}
+
+	public inTerminal(): boolean {
+		return this._inTerminal !== void 0 && this._inTerminal;
 	}
 
 	private hasDetectorSupport(config: FileConfig.ExternalTaskRunnerConfiguration): boolean {
@@ -960,7 +1099,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				let closeAction = new CloseMessageAction();
 				let action = needsConfig
 					? this.getConfigureAction(buildError.code)
-					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService);
+					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService, this.terminalService);
 
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
 			} else {
@@ -1040,6 +1179,26 @@ let schema: IJSONSchema =
 			'showOutputType': {
 				'type': 'string',
 				'enum': ['always', 'silent', 'never']
+			},
+			'options': {
+				'type': 'object',
+				'description': nls.localize('JsonSchema.options', 'Additional command options'),
+				'properties': {
+					'cwd': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
+					},
+					'env': {
+						'type': 'object',
+						'additionalProperties': {
+							'type': 'string'
+						},
+						'description': nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
+					}
+				},
+				'additionalProperties': {
+					'type': ['string', 'array', 'object']
+				}
 			},
 			'patternType': {
 				'anyOf': [
@@ -1244,9 +1403,16 @@ let schema: IJSONSchema =
 						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
 					},
 					'isShellCommand': {
-						'type': 'boolean',
-						'default': true,
-						'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+						'anyOf': [
+							{
+								'type': 'boolean',
+								'default': true,
+								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+							},
+							{
+								'$ref': '#definitions/shellConfiguration'
+							}
+						]
 					},
 					'args': {
 						'type': 'array',
@@ -1256,24 +1422,7 @@ let schema: IJSONSchema =
 						}
 					},
 					'options': {
-						'type': 'object',
-						'description': nls.localize('JsonSchema.options', 'Additional command options'),
-						'properties': {
-							'cwd': {
-								'type': 'string',
-								'description': nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
-							},
-							'env': {
-								'type': 'object',
-								'additionalProperties': {
-									'type': 'string'
-								},
-								'description': nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
-							}
-						},
-						'additionalProperties': {
-							'type': ['string', 'array', 'object']
-						}
+						'$ref': '#/definitions/options'
 					},
 					'showOutput': {
 						'$ref': '#/definitions/showOutputType',
@@ -1281,7 +1430,13 @@ let schema: IJSONSchema =
 					},
 					'isWatching': {
 						'type': 'boolean',
+						'deprecationMessage': nls.localize('JsonSchema.watching.deprecation', 'Deprecated. Use isBackground instead.'),
 						'description': nls.localize('JsonSchema.watching', 'Whether the executed task is kept alive and is watching the file system.'),
+						'default': true
+					},
+					'isBackground': {
+						'type': 'boolean',
+						'description': nls.localize('JsonSchema.background', 'Whether the executed task is kept alive and is running in the background.'),
 						'default': true
 					},
 					'promptOnClose': {
@@ -1317,6 +1472,55 @@ let schema: IJSONSchema =
 					}
 				}
 			},
+			'shellConfiguration': {
+				'type': 'object',
+				'additionalProperties': false,
+				'properties': {
+					'executable': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.shell.executable', 'The shell to be used.')
+					},
+					'args': {
+						'type': 'array',
+						'description': nls.localize('JsonSchema.shell.args', 'The shell arguments.'),
+						'items': {
+							'type': 'string'
+						}
+					}
+				}
+			},
+			'commandConfiguration': {
+				'type': 'object',
+				'additionalProperties': false,
+				'properties': {
+					'command': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+					},
+					'isShellCommand': {
+						'anyOf': [
+							{
+								'type': 'boolean',
+								'default': true,
+								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+							},
+							{
+								'$ref': '#definitions/shellConfiguration'
+							}
+						]
+					},
+					'args': {
+						'type': 'array',
+						'description': nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
+						'items': {
+							'type': 'string'
+						}
+					},
+					'options': {
+						'$ref': '#/definitions/options'
+					}
+				}
+			},
 			'taskDescription': {
 				'type': 'object',
 				'required': ['taskName'],
@@ -1326,12 +1530,43 @@ let schema: IJSONSchema =
 						'type': 'string',
 						'description': nls.localize('JsonSchema.tasks.taskName', "The task's name")
 					},
+					'command': {
+						'type': 'string',
+						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+					},
+					'isShellCommand': {
+						'anyOf': [
+							{
+								'type': 'boolean',
+								'default': true,
+								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+							},
+							{
+								'$ref': '#definitions/shellConfiguration'
+							}
+						]
+					},
 					'args': {
 						'type': 'array',
-						'description': nls.localize('JsonSchema.tasks.args', 'Additional arguments passed to the command when this task is invoked.'),
+						'description': nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
 						'items': {
 							'type': 'string'
 						}
+					},
+					'options': {
+						'$ref': '#/definitions/options'
+					},
+					'windows': {
+						'$ref': '#/definitions/commandConfiguration',
+						'description': nls.localize('JsonSchema.tasks.windows', 'Windows specific command configuration')
+					},
+					'osx': {
+						'$ref': '#/definitions/commandConfiguration',
+						'description': nls.localize('JsonSchema.tasks.mac', 'Mac specific command configuration')
+					},
+					'linux': {
+						'$ref': '#/definitions/commandConfiguration',
+						'description': nls.localize('JsonSchema.tasks.linux', 'Linux specific command configuration')
 					},
 					'suppressTaskName': {
 						'type': 'boolean',
@@ -1349,8 +1584,19 @@ let schema: IJSONSchema =
 					},
 					'isWatching': {
 						'type': 'boolean',
+						'deprecationMessage': nls.localize('JsonSchema.tasks.watching.deprecation', 'Deprecated. Use isBackground instead.'),
 						'description': nls.localize('JsonSchema.tasks.watching', 'Whether the executed task is kept alive and is watching the file system.'),
 						'default': true
+					},
+					'isBackground': {
+						'type': 'boolean',
+						'description': nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
+						'default': true
+					},
+					'promptOnClose': {
+						'type': 'boolean',
+						'description': nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
+						'default': false
 					},
 					'isBuildCommand': {
 						'type': 'boolean',
@@ -1389,15 +1635,15 @@ let schema: IJSONSchema =
 					},
 					'windows': {
 						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.windows', 'Windows specific build configuration')
+						'description': nls.localize('JsonSchema.windows', 'Windows specific command configuration')
 					},
 					'osx': {
 						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.mac', 'Mac specific build configuration')
+						'description': nls.localize('JsonSchema.mac', 'Mac specific command configuration')
 					},
 					'linux': {
 						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.linux', 'Linux specific build configuration')
+						'description': nls.localize('JsonSchema.linux', 'Linux specific command configuration')
 					}
 				}
 			},

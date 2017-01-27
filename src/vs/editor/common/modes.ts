@@ -7,7 +7,6 @@
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -237,8 +236,6 @@ export interface ISuggestSupport {
 
 	triggerCharacters: string[];
 
-	filter?: IFilter;
-
 	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
 	resolveCompletionItem?(model: editorCommon.IReadOnlyModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
@@ -435,11 +432,11 @@ export interface DefinitionProvider {
  * The type definition provider interface defines the contract between extensions and
  * the go to implementation feature.
  */
-export interface TypeDefinitionProvider {
+export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideImplementation(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
 /**
@@ -752,7 +749,7 @@ export const DefinitionProviderRegistry = new LanguageFeatureRegistry<Definition
 /**
  * @internal
  */
-export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
+export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
 
 /**
  * @internal

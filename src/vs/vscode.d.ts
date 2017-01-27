@@ -651,7 +651,11 @@ declare module 'vscode' {
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
-		InCenterIfOutsideViewport = 2
+		InCenterIfOutsideViewport = 2,
+		/**
+		 * The range will always be revealed at the top of the viewport.
+		 */
+		AtTop = 3
 	}
 
 	/**
@@ -935,6 +939,19 @@ declare module 'vscode' {
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
 		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+
+		/**
+		 * Insert a [snippet](#SnippetString) and put the editor into snippet mode. "Snippet mode"
+		 * means the editor adds placeholders and additionals cursors so that the user can complete
+		 * or accept the snippet.
+		 *
+		 * @param snippet The snippet to insert in this edit.
+		 * @param location Position or range at which to insert the snippet, defaults to the current editor selection or selections.
+		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
+		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
+		 * that the snippet is completely filled-in or accepted.
+		 */
+		insertSnippet(snippet: SnippetString, location?: Position | Range | Position[] | Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -1581,7 +1598,7 @@ declare module 'vscode' {
 		/**
 		 * An optional event to signal that the code lenses from this provider have changed.
 		 */
-		onDidChangeCodeLenses?: Event<this>;
+		onDidChangeCodeLenses?: Event<void>;
 
 		/**
 		 * Compute a list of [lenses](#CodeLens). This call should return as fast as possible and if
@@ -1633,10 +1650,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The type definition provider interface defines the contract between extensions and
+	 * The type implemenetation provider interface defines the contract between extensions and
 	 * the go to implementation feature.
 	 */
-	export interface TypeDefinitionProvider {
+	export interface ImplementationProvider {
 
 		/**
 		 * Provide the implementations of the symbol at the given position and document.
@@ -1647,7 +1664,7 @@ declare module 'vscode' {
 		 * @return A definition or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideTypeDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition>;
+		provideImplementation(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition>;
 	}
 
 	/**
@@ -2839,7 +2856,7 @@ declare module 'vscode' {
 		/**
 		 * Readable dictionary that backs this configuration.
 		 */
-		readonly[key: string]: any;
+		readonly [key: string]: any;
 	}
 
 	/**
@@ -3726,11 +3743,6 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
-
-		/**
-		 * Whether the terminal should wait on exit for a keypress before closing the instance.
-		 */
-		waitOnExit?: boolean;
 	}
 
 	/**
@@ -3950,6 +3962,16 @@ declare module 'vscode' {
 		export function openTextDocument(fileName: string): Thenable<TextDocument>;
 
 		/**
+		 * Opens an untitled text document. The editor will prompt the user for a file
+		 * path when the document is to be saved. The `options` parameter allows to
+		 * specify the *language* of the document.
+		 *
+		 * @param options Options to control how the document will be created.
+		 * @return A promise that resolves to a [document](#TextDocument).
+		 */
+		export function openTextDocument(options?: { language: string; }): Thenable<TextDocument>;
+
+		/**
 		 * Register a text document content provider.
 		 *
 		 * Only one provider can be registered per scheme.
@@ -4139,16 +4161,17 @@ declare module 'vscode' {
 		export function registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable;
 
 		/**
-		 * Register an type definition provider.
+		 * Register an implementation provider.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An implementation provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerTypeDefinitionProvider(selector: DocumentSelector, provider: TypeDefinitionProvider): Disposable;
+		export function registerImplementationProvider(selector: DocumentSelector, provider: ImplementationProvider): Disposable;
 
 		/**
 		 * Register a hover provider.

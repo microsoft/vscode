@@ -21,7 +21,7 @@ export default class TypeScriptDefinitionProviderBase {
 	}
 
 	protected getSymbolLocations(definitionType: 'definition' | 'implementation', document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Location[] | null> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve(null);
 		}

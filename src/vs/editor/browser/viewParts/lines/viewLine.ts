@@ -5,6 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
@@ -16,6 +17,30 @@ import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+
+const canUseFastRenderedViewLine = (function () {
+	if (platform.isNative) {
+		// In VSCode we know very well when the zoom level changes
+		return true;
+	}
+
+	if (platform.isLinux || browser.isFirefox || browser.isSafari) {
+		// On Linux, it appears that zooming affects char widths (in pixels), which is unexpected.
+		// --
+		// Even though we read character widths correctly, having read them at a specific zoom level
+		// does not mean they are the same at the current zoom level.
+		// --
+		// This could be improved if we ever figure out how to get an event when browsers zoom,
+		// but until then we have to stick with reading client rects.
+		// --
+		// The same has been observed with Firefox on Windows7
+		// --
+		// The same has been oversved with Safari
+		return false;
+	}
+
+	return true;
+})();
 
 export class DomReadingContext {
 
@@ -47,7 +72,7 @@ export class ViewLine implements IVisibleLineData {
 	private _renderWhitespace: 'none' | 'boundary' | 'all';
 	private _renderControlCharacters: boolean;
 	private _spaceWidth: number;
-	private _fontIsMonospace: boolean;
+	private _useMonospaceOptimizations: boolean;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
 
@@ -60,7 +85,10 @@ export class ViewLine implements IVisibleLineData {
 		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
+		this._useMonospaceOptimizations = (
+			this._context.configuration.editor.fontInfo.isMonospace
+			&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
+		);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 
@@ -103,10 +131,20 @@ export class ViewLine implements IVisibleLineData {
 			this._isMaybeInvalid = true;
 			this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		}
+		if (e.viewInfo.disableMonospaceOptimizations) {
+			this._isMaybeInvalid = true;
+			this._useMonospaceOptimizations = (
+				this._context.configuration.editor.fontInfo.isMonospace
+				&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
+			);
+		}
 		if (e.fontInfo) {
 			this._isMaybeInvalid = true;
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-			this._fontIsMonospace = this._context.configuration.editor.fontInfo.isMonospace;
+			this._useMonospaceOptimizations = (
+				this._context.configuration.editor.fontInfo.isMonospace
+				&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
+			);
 		}
 		if (e.lineHeight) {
 			this._isMaybeInvalid = true;
@@ -130,7 +168,7 @@ export class ViewLine implements IVisibleLineData {
 		const lineContent = model.getLineContent(lineNumber);
 
 		let renderLineInput = new RenderLineInput(
-			this._fontIsMonospace,
+			this._useMonospaceOptimizations,
 			lineContent,
 			model.mightContainRTL(),
 			model.getLineMinColumn(lineNumber) - 1,
@@ -151,7 +189,7 @@ export class ViewLine implements IVisibleLineData {
 		const output = renderViewLine(renderLineInput);
 
 		let renderedViewLine: IRenderedViewLine = null;
-		if (this._fontIsMonospace && !output.containsForeignElements) {
+		if (canUseFastRenderedViewLine && this._useMonospaceOptimizations && !output.containsForeignElements) {
 			let isRegularASCII = true;
 			if (model.mightContainNonBasicASCII()) {
 				isRegularASCII = strings.isBasicASCII(lineContent);
@@ -273,11 +311,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	public getWidth(): number {
-		if (this._charOffset.length === 0) {
-			return 0;
-		}
-		const lastCharOffset = this._charOffset[this._charOffset.length - 1];
-		return lastCharOffset * this._charWidth;
+		return this._getCharPosition(this._charOffset.length);
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
@@ -298,13 +332,17 @@ class FastRenderedViewLine implements IRenderedViewLine {
 			endColumn = stopRenderingLineAfter;
 		}
 
-		if (this._charOffset.length === 0) {
-			return [new HorizontalRange(0, 0)];
-		}
+		const startPosition = this._getCharPosition(startColumn);
+		const endPosition = this._getCharPosition(endColumn);
+		return [new HorizontalRange(startPosition, endPosition - startPosition)];
+	}
 
-		const startCharOffset = this._charOffset[startColumn - 1];
-		const endCharOffset = this._charOffset[endColumn - 1];
-		return [new HorizontalRange(this._charWidth * startCharOffset, this._charWidth * (endCharOffset - startCharOffset))];
+	private _getCharPosition(column: number): number {
+		if (this._charOffset.length === 0) {
+			// No characters on this line
+			return 0;
+		}
+		return Math.round(this._charWidth * this._charOffset[column - 1]);
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {

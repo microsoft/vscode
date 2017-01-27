@@ -30,6 +30,7 @@ import { hash } from 'vs/base/common/hash';
 import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -58,6 +59,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
 	public readonly onWillType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.WillType);
 	public readonly onDidType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.DidType);
+	public readonly onDidPaste: Event<Range> = fromEventEmitter<Range>(this, editorCommon.EventType.DidPaste);
 
 	protected domElement: IContextKeyServiceTarget;
 
@@ -459,6 +461,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		);
 	}
 
+	public revealRangeAtTop(range: editorCommon.IRange): void {
+		this._revealRange(
+			range,
+			editorCommon.VerticalRevealType.Top,
+			true
+		);
+	}
+
 	private _revealRange(range: editorCommon.IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Range.isIRange(range)) {
 			throw new Error('Invalid arguments');
@@ -528,7 +538,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		// Generate a unique id to allow the same descriptor.id across multiple editor instances
 		let uniqueId = this.getId() + ':' + descriptor.id;
 
-		let action = new DynamicEditorAction(descriptor, this);
+		let action = new DynamicEditorAction(descriptor.id, descriptor.label, descriptor.run, this);
 
 		// Register the command
 		toDispose.push(CommandsRegistry.registerCommand(uniqueId, () => action.run()));
@@ -539,7 +549,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 					id: uniqueId,
 					title: descriptor.label
 				},
-				when: ContextKeyExpr.equals('editorId', this.getId()),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('editorId', this.getId()),
+					IOSupport.readKeybindingWhen(descriptor.precondition)
+				),
 				group: descriptor.contextMenuGroupId,
 				order: descriptor.contextMenuOrder || 0
 			};
@@ -600,6 +613,20 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.cursor.trigger(source, handlerId, payload);
 			if (source === 'keyboard') {
 				this.emit(editorCommon.EventType.DidType, payload.text);
+			}
+			return;
+		}
+
+		if (handlerId === editorCommon.Handler.Paste) {
+			if (!this.cursor || typeof payload.text !== 'string' || payload.text.length === 0) {
+				// nothing to do
+				return;
+			}
+			const startPosition = this.cursor.getSelection().getStartPosition();
+			this.cursor.trigger(source, handlerId, payload);
+			const endPosition = this.cursor.getSelection().getStartPosition();
+			if (source === 'keyboard') {
+				this.emit(editorCommon.EventType.DidPaste, new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column));
 			}
 			return;
 		}

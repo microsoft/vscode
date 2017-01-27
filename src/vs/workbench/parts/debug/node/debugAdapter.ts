@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs = require('fs');
+import path = require('path');
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
@@ -54,7 +55,7 @@ export class Adapter {
 
 		if (details.command) {
 			if (verifyAgainstFS) {
-				if (paths.isAbsolute(details.command)) {
+				if (path.isAbsolute(details.command)) {
 					return new TPromise<IAdapterExecutable>((c, e) => {
 						fs.exists(details.command, exists => {
 							if (exists) {

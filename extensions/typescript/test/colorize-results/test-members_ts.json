@@ -69,8 +69,8 @@
 		"c": "B1",
 		"t": "source.ts meta.class.ts entity.other.inherited-class.ts",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "count",
-		"t": "source.ts meta.class.ts meta.field.declaration.ts variable.object.property.ts",
+		"t": "source.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "source.ts meta.class.ts meta.method.declaration.ts entity.name.function.ts",
+		"t": "source.ts meta.class.ts meta.method.declaration.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",

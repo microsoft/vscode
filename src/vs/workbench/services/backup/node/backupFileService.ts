@@ -93,6 +93,7 @@ export class BackupFileService implements IBackupFileService {
 
 	private static readonly META_MARKER = '\n';
 
+	private isShuttingDown: boolean;
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
 
@@ -102,6 +103,7 @@ export class BackupFileService implements IBackupFileService {
 		@IWindowService windowService: IWindowService,
 		@IBackupService private backupService: IBackupService
 	) {
+		this.isShuttingDown = false;
 		this.ready = this.init(windowService.getCurrentWindowId());
 	}
 
@@ -153,6 +155,10 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public backupResource(resource: Uri, content: string, versionId?: number): TPromise<void> {
+		if (this.isShuttingDown) {
+			return TPromise.as(void 0);
+		}
+
 		return this.ready.then(model => {
 			const backupResource = this.getBackupResource(resource);
 			if (!backupResource) {
@@ -182,6 +188,8 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
+		this.isShuttingDown = true;
+
 		return this.ready.then(model => {
 			if (!this.backupEnabled) {
 				return void 0;

@@ -127,13 +127,17 @@ export class StartAction extends AbstractDebugAction {
 		}
 
 		const configuration = manager.getConfiguration(configName);
-		return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(command => {
-			if (command) {
-				return this.commandService.executeCommand(command, configuration || this.getDefaultConfiguration());
+		return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(commandAndType => {
+			if (commandAndType && commandAndType.command) {
+				return this.commandService.executeCommand(commandAndType.command, configuration || this.getDefaultConfiguration());
 			}
 
 			if (configName) {
 				return this.commandService.executeCommand('_workbench.startDebug', configName);
+			}
+
+			if (this.contextService.getWorkspace()) {
+				return manager.openConfigFile(false, commandAndType ? commandAndType.type : undefined);
 			}
 		});
 	}
@@ -144,8 +148,9 @@ export class StartAction extends AbstractDebugAction {
 
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
-		const process = this.debugService.getModel().getProcesses();
-		return super.isEnabled(state) && process.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName);
+		const processes = this.debugService.getModel().getProcesses();
+		return super.isEnabled(state) && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
+			(!this.contextService || !!this.contextService.getWorkspace() || processes.length === 0);
 	}
 }
 

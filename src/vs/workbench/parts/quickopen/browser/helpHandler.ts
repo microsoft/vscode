@@ -68,39 +68,42 @@ class HelpEntry extends QuickOpenEntryItem {
 
 	public render(tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		let builder = $(container);
-		builder.addClass('quick-open-entry');
 
-		// Support border
-		if (this.showBorder()) {
-			$(container).addClass('results-group-separator');
-		} else {
-			$(container).removeClass('results-group-separator');
-		}
+		builder.div({ class: 'quick-open-entry' }, builder => {
+			// Support border
+			if (this.showBorder()) {
+				$(container).addClass('results-group-separator');
+			} else {
+				$(container).removeClass('results-group-separator');
+			}
 
-		// Add a container for the group
-		if (this.getGroupLabel()) {
-			$(container).div((div: Builder) => {
-				div.addClass('results-group');
-				div.attr({
-					text: this.getGroupLabel()
+			// Add a container for the group
+			if (this.getGroupLabel()) {
+				$(container).div((div: Builder) => {
+					div.addClass('results-group');
+					div.attr({
+						text: this.getGroupLabel()
+					});
+				});
+			}
+
+			builder.div({ class: 'row' }, builder => {
+				// Prefix
+				let label = builder.clone().div({
+					text: this.prefix,
+					'class': 'quick-open-help-entry-label'
+				});
+
+				if (!this.prefix) {
+					label.text('\u2026');
+				}
+
+				// Description
+				builder.span({
+					text: this.description,
+					'class': 'quick-open-entry-description'
 				});
 			});
-		}
-
-		// Prefix
-		let label = builder.clone().div({
-			text: this.prefix,
-			'class': 'quick-open-help-entry-label'
-		});
-
-		if (!this.prefix) {
-			label.text('\u2026');
-		}
-
-		// Description
-		builder.span({
-			text: this.description,
-			'class': 'quick-open-entry-description'
 		});
 
 		return null;

@@ -19,7 +19,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { CloseEditorAction, KeybindingsReferenceAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext, NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -41,6 +41,12 @@ if (!!product.reportIssueUrl) {
 }
 if (KeybindingsReferenceAction.AVAILABLE) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(KeybindingsReferenceAction, KeybindingsReferenceAction.ID, KeybindingsReferenceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_R) }), 'Help: Keyboard Shortcuts Reference', helpCategory);
+}
+if (OpenDocumentationUrlAction.AVAILABLE) {
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenDocumentationUrlAction, OpenDocumentationUrlAction.ID, OpenDocumentationUrlAction.LABEL), 'Help: Documentation', helpCategory);
+}
+if (OpenIntroductoryVideosUrlAction.AVAILABLE) {
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenIntroductoryVideosUrlAction, OpenIntroductoryVideosUrlAction.ID, OpenIntroductoryVideosUrlAction.LABEL), 'Help: Introductory Videos', helpCategory);
 }
 workbenchActionsRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, {
@@ -176,31 +182,24 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'default': 'default',
-		'description': platform.isMacintosh ?
-			nls.localize('openFilesInNewWindowMac',
-				`Controls if files should open in a new window or the last active window.
-- default: files will open in the last active window unless opened via the dock or from finder
+		'description':
+		nls.localize('openFilesInNewWindow',
+			`Controls if files should open in a new window or the last active window.
+- default: files will open in the last active window unless opened via the dock or from finder (macOS only)
 - on: files will open in a new window
 - off: files will open in the last active window
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
-			) :
-			nls.localize('openFilesInNewWindow',
-				`Controls if files should open in a new window or the last active window.
-- default: files will open in the last active window
-- on: files will open in a new window
-- off: files will open in the last active window
-Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
-			)
+		)
 	},
 	'window.openFoldersInNewWindow': {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'default': 'default',
 		'description': nls.localize('openFoldersInNewWindow',
-			`Controls if folders should open in a new window or the last active window.
+			`Controls if folders should open in a new window or replace the last active window.
 - default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)
 - on: folders will open in a new window
-- off: folders will open in the last active window
+- off: folders will replace the last active window
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
 		)
 	},
@@ -236,9 +235,9 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 if (platform.isWindows || platform.isLinux) {
 	properties['window.menuBarVisibility'] = {
 		'type': 'string',
-		'enum': ['visible', 'toggle', 'hidden'],
-		'default': 'visible',
-		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that a single press of the alt key will show and hide the menu bar.")
+		'enum': ['default', 'visible', 'toggle', 'hidden'],
+		'default': 'default',
+		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
 	};
 }
 

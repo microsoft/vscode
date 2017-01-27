@@ -84,6 +84,8 @@ export interface IWindowService {
 	unmaximizeWindow(): TPromise<void>;
 }
 
+export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
+
 export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
@@ -92,6 +94,6 @@ export interface IWindowSettings {
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
 	autoDetectHighContrast: boolean;
-	menuBarVisibility: 'visible' | 'toggle' | 'hidden';
+	menuBarVisibility: MenuBarVisibility;
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 }

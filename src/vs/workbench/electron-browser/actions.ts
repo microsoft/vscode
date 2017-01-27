@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
@@ -183,16 +183,16 @@ export class ToggleMenuBarAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let currentVisibilityValue = this.configurationService.lookup<'visible' | 'toggle' | 'hidden'>(ToggleMenuBarAction.menuBarVisibilityKey).value;
-		if (typeof (currentVisibilityValue) !== 'string') {
-			currentVisibilityValue = 'visible';
+		let currentVisibilityValue = this.configurationService.lookup<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey).value;
+		if (typeof currentVisibilityValue !== 'string') {
+			currentVisibilityValue = 'default';
 		}
 
 		let newVisibilityValue: string;
-		if (currentVisibilityValue === 'visible') {
+		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
 			newVisibilityValue = 'toggle';
 		} else {
-			newVisibilityValue = 'visible';
+			newVisibilityValue = 'default';
 		}
 
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue }).then(null, error => {
@@ -852,6 +852,48 @@ export class KeybindingsReferenceAction extends Action {
 
 	public run(): TPromise<void> {
 		window.open(KeybindingsReferenceAction.URL);
+		return null;
+	}
+}
+
+export class OpenDocumentationUrlAction extends Action {
+
+	public static ID = 'workbench.action.openDocumentationUrl';
+	public static LABEL = nls.localize('openDocumentationUrl', "Documentation");
+
+	private static URL = product.documentationUrl;
+	public static AVAILABLE = !!OpenDocumentationUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(OpenDocumentationUrlAction.URL);
+		return null;
+	}
+}
+
+export class OpenIntroductoryVideosUrlAction extends Action {
+
+	public static ID = 'workbench.action.openIntroductoryVideosUrl';
+	public static LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
+
+	private static URL = product.introductoryVideosUrl;
+	public static AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(OpenIntroductoryVideosUrlAction.URL);
 		return null;
 	}
 }

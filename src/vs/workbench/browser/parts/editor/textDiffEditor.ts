@@ -205,7 +205,7 @@ export class TextDiffEditor extends BaseTextEditor {
 
 		const language = this.getLanguage();
 		if (language) {
-			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ language, section: 'diffEditor' }));
+			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ overrideIdentifier: language, section: 'diffEditor' }));
 		}
 
 		return editorConfiguration;
@@ -214,25 +214,32 @@ export class TextDiffEditor extends BaseTextEditor {
 	protected getConfigurationOverrides(): IEditorOptions {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
+		options.readOnly = this.isReadOnly();
+
+		return options;
+	}
+
+	protected getAriaLabel(): string {
+		let ariaLabel: string;
+		const inputName = this.input && this.input.getName();
+		if (this.isReadOnly()) {
+			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
+		} else {
+			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
+		}
+
+		return ariaLabel;
+	}
+
+	private isReadOnly(): boolean {
 		const input = this.input;
 		if (input instanceof DiffEditorInput) {
 			const modifiedInput = input.modifiedInput;
-			const readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
 
-			options.readOnly = readOnly;
-
-			let ariaLabel: string;
-			const inputName = input && input.getName();
-			if (readOnly) {
-				ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
-			} else {
-				ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
-			}
-
-			options.ariaLabel = ariaLabel;
+			return modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
 		}
 
-		return options;
+		return false;
 	}
 
 	private isFileBinaryError(error: Error[]): boolean;

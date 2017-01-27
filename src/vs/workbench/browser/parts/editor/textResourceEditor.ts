@@ -126,11 +126,14 @@ export class TextResourceEditor extends BaseTextEditor {
 	protected getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 
-		const input = this.input;
-		const isUntitled = input instanceof UntitledEditorInput;
-		const isReadonly = !isUntitled; // all string editors are readonly except for the untitled one
+		options.readOnly = !(this.input instanceof UntitledEditorInput); // all resource editors are readonly except for the untitled one;
 
-		options.readOnly = isReadonly;
+		return options;
+	}
+
+	protected getAriaLabel(): string {
+		const input = this.input;
+		const isReadonly = !(this.input instanceof UntitledEditorInput);
 
 		let ariaLabel: string;
 		const inputName = input && input.getName();
@@ -140,9 +143,7 @@ export class TextResourceEditor extends BaseTextEditor {
 			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
 		}
 
-		options.ariaLabel = ariaLabel;
-
-		return options;
+		return ariaLabel;
 	}
 
 	/**

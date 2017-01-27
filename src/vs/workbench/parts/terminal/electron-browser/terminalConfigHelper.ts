@@ -32,7 +32,7 @@ const DEFAULT_ANSI_COLORS = {
 	'vs': [
 		'#000000', // black
 		'#cd3131', // red
-		'#008000', // green
+		'#00BC00', // green
 		'#949800', // yellow
 		'#0451a5', // blue
 		'#bc05bc', // magenta
@@ -40,7 +40,7 @@ const DEFAULT_ANSI_COLORS = {
 		'#555555', // white
 		'#666666', // bright black
 		'#cd3131', // bright red
-		'#00aa00', // bright green
+		'#14CE14', // bright green
 		'#b5ba00', // bright yellow
 		'#0451a5', // bright blue
 		'#bc05bc', // bright magenta
@@ -50,7 +50,7 @@ const DEFAULT_ANSI_COLORS = {
 	'vs-dark': [
 		'#000000', // black
 		'#cd3131', // red
-		'#09885a', // green
+		'#0DBC79', // green
 		'#e5e510', // yellow
 		'#2472c8', // blue
 		'#bc3fbc', // magenta
@@ -58,7 +58,7 @@ const DEFAULT_ANSI_COLORS = {
 		'#e5e5e5', // white
 		'#666666', // bright black
 		'#f14c4c', // bright red
-		'#17a773', // bright green
+		'#23d18b', // bright green
 		'#f5f543', // bright yellow
 		'#3b8eea', // bright blue
 		'#d670d6', // bright magenta
@@ -137,9 +137,19 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return terminalConfig.terminal.integrated.fontLigatures;
 	}
 
+	public getFlowControl(): boolean {
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.flowControl;
+	}
+
 	public getCursorBlink(): boolean {
 		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return terminalConfig.terminal.integrated.cursorBlinking;
+	}
+
+	public getCursorStyle(): string {
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.cursorStyle;
 	}
 
 	public getRightClickCopyPaste(): boolean {

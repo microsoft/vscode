@@ -14,7 +14,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
+import { MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, IUndoStopOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as arrayEquals } from 'vs/base/common/arrays';
 import { equals as objectEquals } from 'vs/base/common/objects';
@@ -291,6 +291,13 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 			return TPromise.wrapError('TextEditor disposed');
 		}
 		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits, opts));
+	}
+
+	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
+		if (!this._textEditorsMap[id]) {
+			return TPromise.wrapError('TextEditor disposed');
+		}
+		return TPromise.as(this._textEditorsMap[id].insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {

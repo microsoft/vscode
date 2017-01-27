@@ -103,7 +103,7 @@ export class CommandCenter {
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					default:
-						message = (err.stderr || err.message).replace(/^error: /, '');
+						message = (err.stderr || err.message || String(err)).replace(/^error: /, '');
 						break;
 				}
 
@@ -302,6 +302,12 @@ export class CommandCenter {
 		}
 
 		return await this.model.clean(...this.model.workingTreeGroup.resources);
+	}
+
+	@CommandCenter.CatchErrors
+	async commit(message: string): Promise<void> {
+		const all = this.model.indexGroup.resources.length === 0;
+		return this.model.commit(message, { all });
 	}
 
 	@CommandCenter.Command('git.commitStaged')

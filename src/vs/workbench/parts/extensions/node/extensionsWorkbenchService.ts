@@ -590,7 +590,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			if (!enable && (workspace ? i.disabledForWorkspace : i.disabledGlobally)) {
 				return false;
 			}
-			return extension.dependencies.indexOf(i.identifier) !== -1;
+			return i.type === LocalExtensionType.User && extension.dependencies.indexOf(i.identifier) !== -1;
 		});
 		const depsOfDeps = [];
 		for (const dep of dependenciesToDisable) {

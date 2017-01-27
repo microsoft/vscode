@@ -100,6 +100,47 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		assert.deepEqual(actual.output, expected);
 	});
 
+	test('issue #19207: Link in Monokai is not rendered correctly', () => {
+
+		let lineContent = '\'let url = `http://***/_api/web/lists/GetByTitle(\\\'Teambuildingaanvragen\\\')/items`;\'';
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			lineContent,
+			false,
+			0,
+			[
+				new ViewLineToken(49, 'mtk6'),
+				new ViewLineToken(51, 'mtk4'),
+				new ViewLineToken(72, 'mtk6'),
+				new ViewLineToken(74, 'mtk4'),
+				new ViewLineToken(84, 'mtk6'),
+			],
+			[
+				new Decoration(13, 51, 'detected-link', false)
+			],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk6">\'let&nbsp;url&nbsp;=&nbsp;`</span>',
+			'<span class="mtk6 detected-link">http://***/_api/web/lists/GetByTitle(</span>',
+			'<span class="mtk4 detected-link">\\</span>',
+			'<span class="mtk4">\'</span>',
+			'<span class="mtk6">Teambuildingaanvragen</span>',
+			'<span class="mtk4">\\\'</span>',
+			'<span class="mtk6">)/items`;\'</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.output, expected);
+	});
+
 	test('createLineParts simple', () => {
 		testCreateLineParts(
 			false,

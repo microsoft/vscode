@@ -767,7 +767,7 @@ export class WindowsManager implements IWindowsMainService {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen) || (windowConfig && windowConfig.newWindowDimensions && windowConfig.newWindowDimensions === 'fullscreen'),
+				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen) || (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0),
 				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			},
 				this.logService,
@@ -891,7 +891,13 @@ export class WindowsManager implements IWindowsMainService {
 				state.mode = WindowMode.Fullscreen;
 				ensureNoOverlap = false;
 			} else if (windowConfig.newWindowDimensions === 'inherit' && lastActive) {
-				state = lastActive.serializeWindowState();
+				const lastActiveState = lastActive.serializeWindowState();
+				if (lastActiveState.mode === WindowMode.Fullscreen) {
+					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/Microsoft/vscode/issues/19331)
+				} else {
+					state = lastActiveState;
+				}
+
 				ensureNoOverlap = false;
 			}
 		}

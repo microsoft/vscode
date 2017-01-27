@@ -517,16 +517,17 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		});
 
 		// Entry
-		const entry = document.createElement('div');
-		DOM.addClass(entry, 'quick-open-entry');
+		const row1 = DOM.$('.row');
+		const row2 = DOM.$('.row');
+		const entry = DOM.$('.quick-open-entry', null, row1, row2);
 		entryContainer.appendChild(entry);
 
 		// Icon
 		const icon = document.createElement('span');
-		entry.appendChild(icon);
+		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(entry, { supportHighlights: true });
+		const label = new IconLabel(row1, { supportHighlights: true });
 
 		// Description
 		const descriptionContainer = document.createElement('div');
@@ -536,7 +537,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		// Detail
 		const detailContainer = document.createElement('div');
-		entry.appendChild(detailContainer);
+		row2.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
 		const detail = new HighlightedLabel(detailContainer);
 

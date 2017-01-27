@@ -347,48 +347,9 @@
           "group": "inline"
         }
       ]
-    },
-    "languages": [
-      {
-        "id": "git-commit",
-        "aliases": [
-          "%language-alias.git-commit%",
-          "git-commit"
-        ],
-        "filenames": [
-          "COMMIT_EDITMSG",
-          "MERGE_MSG"
-        ],
-        "configuration": "./git-commit.language-configuration.json"
-      },
-      {
-        "id": "git-rebase",
-        "aliases": [
-          "%language-alias.git-rebase%",
-          "git-rebase"
-        ],
-        "filenames": [
-          "git-rebase-todo"
-        ],
-        "configuration": "./git-rebase.language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "git-commit",
-        "scopeName": "text.git-commit",
-        "path": "./syntaxes/git-commit.tmLanguage"
-      },
-      {
-        "language": "git-rebase",
-        "scopeName": "text.git-rebase",
-        "path": "./syntaxes/git-rebase.tmLanguage"
-      }
-    ]
+    }
   },
   "dependencies": {
-    "denodeify": "^1.2.1",
-    "lodash": "^4.17.2",
     "vscode-nls": "^2.0.1"
   }
 }

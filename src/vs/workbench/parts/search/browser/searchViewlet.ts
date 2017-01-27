@@ -31,9 +31,9 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
-import { getExcludes, QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
 import { MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { getExcludes, ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -498,9 +498,11 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Reveal the newly selected element
-		this.tree.setFocus(prev, eventPayload);
-		this.tree.setSelection([prev], eventPayload);
-		this.tree.reveal(prev);
+		if (prev) {
+			this.tree.setFocus(prev, eventPayload);
+			this.tree.setSelection([prev], eventPayload);
+			this.tree.reveal(prev);
+		}
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {

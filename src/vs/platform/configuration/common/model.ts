@@ -8,7 +8,8 @@ import { Registry } from 'vs/platform/platform';
 import * as types from 'vs/base/common/types';
 import * as json from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
-import { IConfigurationRegistry, Extensions, SETTINGS_OVERRIDE } from 'vs/platform/configuration/common/configurationRegistry';
+import * as arrays from 'vs/base/common/arrays';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigModel, IOverrides } from 'vs/platform/configuration/common/configuration';
 
 export function getDefaultValues(): any {
@@ -88,9 +89,10 @@ interface Overrides<T> extends IOverrides<T> {
 export class ConfigModel<T> implements IConfigModel<T> {
 
 	protected _contents: T;
-	protected _overrides: IOverrides<T>[] = null;
+	protected _overrides: IOverrides<T>[] = [];
 
 	private _raw: any = {};
+	private _unfilteredRaw: any = {};
 	private _parseErrors: any[] = [];
 
 	constructor(content: string, private name: string = '') {
@@ -103,7 +105,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		return this._contents || <T>{};
 	}
 
-	public get overrides(): any {
+	public get overrides(): IOverrides<T>[] {
 		return this._overrides;
 	}
 
@@ -115,16 +117,34 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		return this._raw;
 	}
 
+	public get unfilteredRaw(): T {
+		return this._unfilteredRaw;
+	}
+
 	public get errors(): any[] {
 		return this._parseErrors;
 	}
 
 	public merge(other: IConfigModel<T>, overwrite: boolean = true): ConfigModel<T> {
 		const mergedModel = new ConfigModel<T>(null);
-		mergedModel._contents = objects.clone(this.contents);
-		merge(mergedModel.contents, other.contents, overwrite);
-		mergedModel._overrides = other.overrides ? other.overrides : this.overrides;
+		this.doMerge(mergedModel, this, overwrite);
+		this.doMerge(mergedModel, other, overwrite);
 		return mergedModel;
+	}
+
+	protected doMerge(source: ConfigModel<T>, target: IConfigModel<T>, overwrite: boolean = true) {
+		source._contents = objects.clone(this.contents);
+		merge(source.contents, target.contents, overwrite);
+		const overrides = objects.clone(source.overrides);
+		for (const override of target.overrides) {
+			const [sourceOverride] = overrides.filter(o => arrays.equals(o.identifiers, override.identifiers));
+			if (sourceOverride) {
+				merge(sourceOverride.contents, override.contents, overwrite);
+			} else {
+				overrides.push(override);
+			}
+		}
+		source._overrides = overrides;
 	}
 
 	public config<V>(section: string): ConfigModel<V> {
@@ -133,22 +153,22 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		return result;
 	}
 
-	public languageConfig<V>(language: string): ConfigModel<V> {
+	public configWithOverrides<V>(identifier: string): ConfigModel<V> {
 		const result = new ConfigModel<V>(null);
 		const contents = objects.clone<any>(this.contents);
 		if (this.overrides) {
 			for (const override of this.overrides) {
-				if (override.languages.indexOf(language) !== -1) {
+				if (override.identifiers.indexOf(identifier) !== -1) {
 					merge(contents, override.contents, true);
 				}
 			}
-			result._contents = contents;
 		}
+		result._contents = contents;
 		return result;
 	}
 
 	public update(content: string): void {
-		let overrides: Overrides<T>[] = null;
+		let overrides: Overrides<T>[] = [];
 		let currentProperty: string = null;
 		let currentParent: any = [];
 		let previousParents: any[] = [];
@@ -159,15 +179,15 @@ export class ConfigModel<T> implements IConfigModel<T> {
 				(<any[]>currentParent).push(value);
 			} else if (currentProperty) {
 				currentParent[currentProperty] = value;
-				if (currentParent['overrideSettings']) {
-					onOverrideSettingsValue(currentProperty, value);
-				}
+			}
+			if (OVERRIDE_PROPERTY_PATTERN.test(currentProperty)) {
+				onOverrideSettingsValue(currentProperty, value);
 			}
 		}
 
 		function onOverrideSettingsValue(property: string, value: any): void {
 			overrides.push({
-				languages: property.split(',').map(p => p.trim()),
+				identifiers: [overrideIdentifierFromKey(property).trim()],
 				raw: value,
 				contents: null
 			});
@@ -176,10 +196,6 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		let visitor: json.JSONVisitor = {
 			onObjectBegin: () => {
 				let object = {};
-				if (currentProperty === SETTINGS_OVERRIDE) {
-					overrides = [];
-					object['overrideSettings'] = true;
-				}
 				onValue(object);
 				previousParents.push(currentParent);
 				currentParent = object;
@@ -190,9 +206,6 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			},
 			onObjectEnd: () => {
 				currentParent = previousParents.pop();
-				if (currentParent['overrideSettings']) {
-					delete currentParent['overrideSettings'];
-				}
 			},
 			onArrayBegin: () => {
 				let array = [];
@@ -217,30 +230,66 @@ export class ConfigModel<T> implements IConfigModel<T> {
 			this._raw = <T>{};
 			this._parseErrors = [e];
 		}
+		this._unfilteredRaw = this._raw;
+		this._raw = this.filterRaw(this._unfilteredRaw);
 		this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
-		this._overrides = overrides ? overrides.map<IOverrides<T>>(override => {
+
+		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		this._overrides = overrides.map<IOverrides<T>>(override => {
+			// Filter unknown and non-overridable properties
+			const raw = {};
+			for (const key in override.raw) {
+				if (configurationProperties[key] && configurationProperties[key].overridable) {
+					raw[key] = override.raw[key];
+				}
+			}
 			return {
-				languages: override.languages,
-				contents: <T>toValuesTree(override.raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
+				identifiers: override.identifiers,
+				contents: <T>toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
 			};
-		}) : null;
+		});
+	}
+
+	/*
+	 * If filterRaw is not a no-op, the returned object needs to be a copy.
+	 * The input may not be modified in place. The default implementation
+	 * is a no op.
+	 */
+	protected filterRaw(raw: any): any {
+		return raw;
+	}
+
+	public refilter(): void {
+		if (this._unfilteredRaw) {
+			this._raw = this.filterRaw(this._unfilteredRaw);
+			this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
+		}
 	}
 }
 
 export class DefaultConfigModel<T> extends ConfigModel<T> {
+
+	private _keys: string[];
+
 	constructor() {
 		super(null);
-	}
-
-	protected get _contents(): T {
-		return getDefaultValues(); // defaults coming from contributions to registries
-	}
-
-	protected set _contents(arg: T) {
-		//no op
+		this.update();
 	}
 
 	public get keys(): string[] {
-		return getConfigurationKeys();
+		return this._keys;
 	}
+
+	public update(): void {
+		this._contents = getDefaultValues(); // defaults coming from contributions to registries
+		this._keys = getConfigurationKeys();
+	}
+}
+
+export function overrideIdentifierFromKey(key: string): string {
+	return key.substring(1, key.length - 1);
+}
+
+export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
+	return `[${overrideIdentifier}]`;
 }

@@ -39,6 +39,11 @@
 			"type": "object",
 			"order": 20,
 			"properties": {
+				"php.suggest.basic": {
+					"type": "boolean",
+					"default": true,
+					"description": "%configuration.suggest.basic%"
+				},
 				"php.validate.enable": {
 					"type": "boolean",
 					"default": true,
@@ -47,7 +52,8 @@
 				"php.validate.executablePath": {
 					"type": ["string", "null"],
 					"default": null,
-					"description": "%configuration.validate.executablePath%"
+					"description": "%configuration.validate.executablePath%",
+					"isExecutable": true
 				},
 				"php.validate.run": {
 					"type": "string",

@@ -20,7 +20,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 	}
 
 	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp | undefined | null> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve(null);
 		}

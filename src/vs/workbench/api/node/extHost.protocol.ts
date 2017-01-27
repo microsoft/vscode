@@ -34,7 +34,7 @@ import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configurati
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
-import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
+import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
 
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
@@ -119,9 +119,10 @@ export abstract class MainThreadDiagnosticsShape {
 }
 
 export abstract class MainThreadDocumentsShape {
+	$tryCreateDocument(options?: { language: string; }): TPromise<any> { throw ni(); }
 	$tryOpenDocument(uri: URI): TPromise<any> { throw ni(); }
 	$registerTextContentProvider(handle: number, scheme: string): void { throw ni(); }
-	$onVirtualDocumentChange(uri: URI, value: string): void { throw ni(); }
+	$onVirtualDocumentChange(uri: URI, value: editorCommon.IRawText): void { throw ni(); }
 	$unregisterTextContentProvider(handle: number): void { throw ni(); }
 	$trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
 }
@@ -137,6 +138,7 @@ export abstract class MainThreadEditorsShape {
 	$tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
+	$tryInsertSnippet(id: string, template: string, selections: editorCommon.IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
 }
 
 export abstract class MainThreadTreeExplorersShape {
@@ -185,7 +187,9 @@ export abstract class MainThreadOutputServiceShape {
 }
 
 export abstract class MainThreadProgressShape {
-	$progressStart(handle: number, extensionId: string, location: string): void { throw ni(); }
+
+	$startWindow(handle: number, title: string): void { throw ni(); };
+	$startScm(handle: number): void { throw ni(); };
 	$progressReport(handle: number, message: string): void { throw ni(); }
 	$progressEnd(handle: number): void { throw ni(); }
 }
@@ -357,7 +361,7 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> { throw ni(); }
 	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> { throw ni(); }
 	$provideDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
-	$provideTypeDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideImplementation(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
 	$provideHover(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Hover> { throw ni(); }
 	$provideDocumentHighlights(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
 	$provideReferences(handle: number, resource: URI, position: editorCommon.IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }

@@ -6,6 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -13,9 +14,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
 export const TERMINAL_SERVICE_ID = 'terminalService';
-
-export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
-export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 
 export const TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE = platform.isWindows;
 
@@ -30,6 +28,12 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boole
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
+
+export const TerminalCursorStyle = {
+	BLOCK: 'block',
+	LINE: 'line',
+	UNDERLINE: 'underline'
+};
 
 export interface ITerminalConfiguration {
 	terminal: {
@@ -46,6 +50,7 @@ export interface ITerminalConfiguration {
 			},
 			rightClickCopyPaste: boolean,
 			cursorBlinking: boolean,
+			cursorStyle: string,
 			fontFamily: string,
 			fontLigatures: boolean,
 			fontSize: number,
@@ -53,7 +58,8 @@ export interface ITerminalConfiguration {
 			setLocaleVariables: boolean,
 			scrollback: number,
 			commandsToSkipShell: string[],
-			cwd: string
+			cwd: string,
+			flowControl: boolean
 		}
 	};
 }
@@ -62,6 +68,7 @@ export interface ITerminalConfigHelper {
 	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
 	getFontLigaturesEnabled(): boolean;
+	getFlowControl(): boolean;
 	getCursorBlink(): boolean;
 	getRightClickCopyPaste(): boolean;
 	getCommandsToSkipShell(): string[];
@@ -78,7 +85,7 @@ export interface ITerminalFont {
 }
 
 export interface IShellLaunchConfig {
-	/** The name of the terminal, this this is not set the name of the process will be used. */
+	/** The name of the terminal, if this is not set the name of the process will be used. */
 	name?: string;
 	/** The shell executable (bash, cmd, etc.). */
 	executable?: string;
@@ -146,6 +153,11 @@ export interface ITerminalInstance {
 	 * An event that fires when the terminal instance's title changes.
 	 */
 	onTitleChanged: Event<string>;
+
+	/**
+	 * An event that fires when the terminal instance is disposed.
+	 */
+	onDisposed: Event<ITerminalInstance>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
@@ -256,7 +268,7 @@ export interface ITerminalInstance {
 	 * @param listener The listener function which takes the processes' data stream (including
 	 * ANSI escape sequences).
 	 */
-	onData(listener: (data: string) => void): void;
+	onData(listener: (data: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits.
@@ -264,7 +276,7 @@ export interface ITerminalInstance {
 	 * @param listener The listener function which takes the processes' exit code, an exit code of
 	 * null means the process was killed as a result of the ITerminalInstance being disposed.
 	 */
-	onExit(listener: (exitCode: number) => void): void;
+	onExit(listener: (exitCode: number) => void): IDisposable;
 
 	/**
 	 * Immediately kills the terminal's current pty process and launches a new one to replace it.

@@ -74,7 +74,12 @@ declare module monaco {
         public done(success?: (value: V) => void, error?: (err: any) => any, progress?: ProgressCallback): void;
         public cancel(): void;
 
+        public static as(value: null): Promise<null>;
+        public static as(value: undefined): Promise<undefined>;
+        public static as<ValueType>(value: Promise<ValueType>): Promise<ValueType>;
+        public static as<ValueType>(value: Thenable<ValueType>): Thenable<ValueType>;
         public static as<ValueType>(value: ValueType): Promise<ValueType>;
+
         public static is(value: any): value is Thenable<any>;
         public static timeout(delay: number): Promise<void>;
         public static join<ValueType>(promises: Promise<ValueType>[]): Promise<ValueType[]>;
@@ -1211,6 +1216,11 @@ declare module monaco.editor {
          */
         disableTranslate3d?: boolean;
         /**
+         * Disable the optimizations for monospace fonts.
+         * Defaults to false.
+         */
+        disableMonospaceOptimizations?: boolean;
+        /**
          * Should the cursor be hidden in the overview ruler.
          * Defaults to false.
          */
@@ -1310,6 +1320,11 @@ declare module monaco.editor {
          * Defaults to false.
          */
         formatOnType?: boolean;
+        /**
+         * Enable format on paste.
+         * Defaults to false.
+         */
+        formatOnPaste?: boolean;
         /**
          * Enable the suggestion box to pop-up on trigger characters.
          * Defaults to true.
@@ -1469,6 +1484,7 @@ declare module monaco.editor {
         readonly _internalEditorViewOptionsBrand: void;
         readonly theme: string;
         readonly canUseTranslate3d: boolean;
+        readonly disableMonospaceOptimizations: boolean;
         readonly experimentalScreenReader: boolean;
         readonly rulers: number[];
         readonly ariaLabel: string;
@@ -1498,6 +1514,7 @@ declare module monaco.editor {
     export interface IViewConfigurationChangedEvent {
         readonly theme: boolean;
         readonly canUseTranslate3d: boolean;
+        readonly disableMonospaceOptimizations: boolean;
         readonly experimentalScreenReader: boolean;
         readonly rulers: boolean;
         readonly ariaLabel: boolean;
@@ -1533,6 +1550,7 @@ declare module monaco.editor {
         readonly parameterHints: boolean;
         readonly iconsInSuggestions: boolean;
         readonly formatOnType: boolean;
+        readonly formatOnPaste: boolean;
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
         readonly acceptSuggestionOnCommitCharacter: boolean;
@@ -2790,9 +2808,17 @@ declare module monaco.editor {
          */
         label: string;
         /**
+         * Precondition rule.
+         */
+        precondition?: string;
+        /**
          * An array of keybindings for the action.
          */
         keybindings?: number[];
+        /**
+         * The keybinding rule (condition on top of precondition).
+         */
+        keybindingContext?: string;
         /**
          * Control if the action should show up in the context menu and where.
          * The context menu of the editor has these default:
@@ -2807,10 +2833,6 @@ declare module monaco.editor {
          * Control the order in the context menu group.
          */
         contextMenuOrder?: number;
-        /**
-         * The keybinding rule.
-         */
-        keybindingContext?: string;
         /**
          * Method that will be executed when the action is triggered.
          * @param editor The editor instance is passed in as a convinience
@@ -3001,6 +3023,10 @@ declare module monaco.editor {
          * Scroll vertically or horizontally as necessary and reveal a range centered vertically.
          */
         revealRangeInCenter(range: IRange): void;
+        /**
+         * Scroll vertically or horizontally as necessary and reveal a range at the top of the viewport.
+         */
+        revealRangeAtTop(range: IRange): void;
         /**
          * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
          */
@@ -3927,9 +3953,9 @@ declare module monaco.languages {
     export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
 
     /**
-     * Register a type definition provider (used by e.g. go to implementation).
+     * Register a type implementation provider (used by e.g. go to implementation).
      */
-    export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
+    export function registerImplementationProvider(languageId: string, provider: ImplementationProvider): IDisposable;
 
     /**
      * Register a code lens provider (used by e.g. inline code lenses).
@@ -4016,6 +4042,23 @@ declare module monaco.languages {
     }
 
     /**
+     * A snippet string is a template which allows to insert text
+     * and to control the editor cursor when insertion happens.
+     *
+     * A snippet can define tab stops and placeholders with `$1`, `$2`
+     * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
+     * the end of the snippet. Variables are defined with `$name` and
+     * `${name:default value}`. The full snippet syntax is documented
+     * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
+     */
+    export interface SnippetString {
+        /**
+         * The snippet string.
+         */
+        value: string;
+    }
+
+    /**
      * A completion item represents a text snippet that is
      * proposed to complete text that is being typed.
      */
@@ -4053,18 +4096,30 @@ declare module monaco.languages {
          */
         filterText?: string;
         /**
-         * A string that should be inserted in a document when selecting
+         * A string or snippet that should be inserted in a document when selecting
          * this completion. When `falsy` the [label](#CompletionItem.label)
          * is used.
          */
-        insertText?: string;
+        insertText?: string | SnippetString;
         /**
-         * An [edit](#TextEdit) which is applied to a document when selecting
-         * this completion. When an edit is provided the value of
-         * [insertText](#CompletionItem.insertText) is ignored.
+         * A range of text that should be replaced by this completion item.
          *
-         * The [range](#Range) of the edit must be single-line and one the same
-         * line completions where [requested](#CompletionItemProvider.provideCompletionItems) at.
+         * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+         * current position.
+         *
+         * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+         * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+         */
+        range?: Range;
+        /**
+         * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+         *
+         * ~~An [edit](#TextEdit) which is applied to a document when selecting
+         * this completion. When an edit is provided the value of
+         * [insertText](#CompletionItem.insertText) is ignored.~~
+         *
+         * ~~The [range](#Range) of the edit must be single-line and on the same
+         * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
          */
         textEdit?: editor.ISingleEditOperation;
     }
@@ -4279,6 +4334,10 @@ declare module monaco.languages {
          * Describe what to do with the indentation.
          */
         indentAction: IndentAction;
+        /**
+         * Describe whether to outdent current line.
+         */
+        outdentCurrentLine?: boolean;
         /**
          * Describes text to be appended after the new line and after the indentation.
          */
@@ -4514,11 +4573,11 @@ declare module monaco.languages {
      * The type definition provider interface defines the contract between extensions and
      * the go to implementation feature.
      */
-    export interface TypeDefinitionProvider {
+    export interface ImplementationProvider {
         /**
          * Provide the implementation of the symbol at the given position and document.
          */
-        provideTypeDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+        provideImplementation(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
     }
 
     /**

@@ -293,6 +293,11 @@ export interface IEditorOptions {
 	 */
 	disableTranslate3d?: boolean;
 	/**
+	 * Disable the optimizations for monospace fonts.
+	 * Defaults to false.
+	 */
+	disableMonospaceOptimizations?: boolean;
+	/**
 	 * Should the cursor be hidden in the overview ruler.
 	 * Defaults to false.
 	 */
@@ -393,6 +398,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	formatOnType?: boolean;
+	/**
+	 * Enable format on paste.
+	 * Defaults to false.
+	 */
+	formatOnPaste?: boolean;
 	/**
 	 * Enable the suggestion box to pop-up on trigger characters.
 	 * Defaults to true.
@@ -658,6 +668,7 @@ export class InternalEditorViewOptions {
 
 	readonly theme: string;
 	readonly canUseTranslate3d: boolean;
+	readonly disableMonospaceOptimizations: boolean;
 	readonly experimentalScreenReader: boolean;
 	readonly rulers: number[];
 	readonly ariaLabel: string;
@@ -689,6 +700,7 @@ export class InternalEditorViewOptions {
 	constructor(source: {
 		theme: string;
 		canUseTranslate3d: boolean;
+		disableMonospaceOptimizations: boolean;
 		experimentalScreenReader: boolean;
 		rulers: number[];
 		ariaLabel: string;
@@ -716,6 +728,7 @@ export class InternalEditorViewOptions {
 	}) {
 		this.theme = String(source.theme);
 		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
+		this.disableMonospaceOptimizations = Boolean(source.disableMonospaceOptimizations);
 		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
@@ -777,6 +790,7 @@ export class InternalEditorViewOptions {
 		return (
 			this.theme === other.theme
 			&& this.canUseTranslate3d === other.canUseTranslate3d
+			&& this.disableMonospaceOptimizations === other.disableMonospaceOptimizations
 			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
@@ -811,6 +825,7 @@ export class InternalEditorViewOptions {
 		return {
 			theme: this.theme !== newOpts.theme,
 			canUseTranslate3d: this.canUseTranslate3d !== newOpts.canUseTranslate3d,
+			disableMonospaceOptimizations: this.disableMonospaceOptimizations !== newOpts.disableMonospaceOptimizations,
 			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
@@ -849,6 +864,7 @@ export class InternalEditorViewOptions {
 export interface IViewConfigurationChangedEvent {
 	readonly theme: boolean;
 	readonly canUseTranslate3d: boolean;
+	readonly disableMonospaceOptimizations: boolean;
 	readonly experimentalScreenReader: boolean;
 	readonly rulers: boolean;
 	readonly ariaLabel: boolean;
@@ -884,6 +900,7 @@ export class EditorContribOptions {
 	readonly parameterHints: boolean;
 	readonly iconsInSuggestions: boolean;
 	readonly formatOnType: boolean;
+	readonly formatOnPaste: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
 	readonly acceptSuggestionOnCommitCharacter: boolean;
@@ -909,6 +926,7 @@ export class EditorContribOptions {
 		parameterHints: boolean;
 		iconsInSuggestions: boolean;
 		formatOnType: boolean;
+		formatOnPaste: boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		acceptSuggestionOnCommitCharacter: boolean;
@@ -930,6 +948,7 @@ export class EditorContribOptions {
 		this.parameterHints = Boolean(source.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
 		this.formatOnType = Boolean(source.formatOnType);
+		this.formatOnPaste = Boolean(source.formatOnPaste);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
@@ -957,6 +976,7 @@ export class EditorContribOptions {
 			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
 			&& this.formatOnType === other.formatOnType
+			&& this.formatOnPaste === other.formatOnPaste
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
@@ -3087,7 +3107,7 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
+	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
 	/**
 	 * @internal
 	 */
@@ -3120,6 +3140,10 @@ export namespace ModeContextKeys {
 	 * @internal
 	 */
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
 }
 
 
@@ -3335,9 +3359,17 @@ export interface IActionDescriptor {
 	 */
 	label: string;
 	/**
+	 * Precondition rule.
+	 */
+	precondition?: string;
+	/**
 	 * An array of keybindings for the action.
 	 */
 	keybindings?: number[];
+	/**
+	 * The keybinding rule (condition on top of precondition).
+	 */
+	keybindingContext?: string;
 	/**
 	 * Control if the action should show up in the context menu and where.
 	 * The context menu of the editor has these default:
@@ -3352,10 +3384,6 @@ export interface IActionDescriptor {
 	 * Control the order in the context menu group.
 	 */
 	contextMenuOrder?: number;
-	/**
-	 * The keybinding rule.
-	 */
-	keybindingContext?: string;
 	/**
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convinience
@@ -3607,6 +3635,11 @@ export interface IEditor {
 	revealRangeInCenter(range: IRange): void;
 
 	/**
+	 * Scroll vertically or horizontally as necessary and reveal a range at the top of the viewport.
+	 */
+	revealRangeAtTop(range: IRange): void;
+
+	/**
 	 * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
 	revealRangeInCenterIfOutsideViewport(range: IRange): void;
@@ -3815,6 +3848,13 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @internal
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
+
+	/**
+	 * An event emitted when users paste text in the editor.
+	 * @event
+	 * @internal
+	 */
+	onDidPaste(listener: (range: Range) => void): IDisposable;
 
 	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
@@ -4113,6 +4153,8 @@ export var EventType = {
 
 	WillType: 'willType',
 	DidType: 'didType',
+
+	DidPaste: 'didPaste',
 
 	EditorLayout: 'editorLayout',
 

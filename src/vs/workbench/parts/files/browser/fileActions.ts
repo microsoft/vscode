@@ -40,7 +40,7 @@ import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/com
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -1662,6 +1662,27 @@ export class FocusFilesExplorer extends Action {
 	}
 }
 
+export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: URI) => {
+	const viewletService = accessor.get(IViewletService);
+	const contextService = accessor.get(IWorkspaceContextService);
+
+	viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
+		const isInsideWorkspace = contextService.isInsideWorkspace(resource);
+		if (isInsideWorkspace) {
+			const explorerView = viewlet.getExplorerView();
+			if (explorerView) {
+				explorerView.expand();
+				explorerView.select(resource, true);
+			}
+		} else {
+			const openEditorsView = viewlet.getOpenEditorsView();
+			if (openEditorsView) {
+				openEditorsView.expand();
+			}
+		}
+	});
+};
+
 export class ShowActiveFileInExplorer extends Action {
 
 	public static ID = 'workbench.files.action.showActiveFileInExplorer';
@@ -1671,8 +1692,7 @@ export class ShowActiveFileInExplorer extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
@@ -1681,21 +1701,7 @@ export class ShowActiveFileInExplorer extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		if (fileResource) {
-			return this.viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
-				const isInsideWorkspace = this.contextService.isInsideWorkspace(fileResource);
-				if (isInsideWorkspace) {
-					const explorerView = viewlet.getExplorerView();
-					if (explorerView) {
-						explorerView.expand();
-						explorerView.select(fileResource, true);
-					}
-				} else {
-					const openEditorsView = viewlet.getOpenEditorsView();
-					if (openEditorsView) {
-						openEditorsView.expand();
-					}
-				}
-			});
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInExplorerCommand, fileResource]);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}

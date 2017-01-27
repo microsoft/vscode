@@ -16,7 +16,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { Range } from 'vs/editor/common/core/range';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
@@ -38,6 +39,7 @@ export class RichEditSupport {
 	public readonly wordDefinition: RegExp;
 	public readonly onEnter: OnEnterSupport;
 	public readonly brackets: RichEditBrackets;
+	public readonly indentationRules: IndentationRule;
 
 	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
@@ -60,6 +62,8 @@ export class RichEditSupport {
 		this.electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
+
+		this.indentationRules = this._conf.indentationRules;
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
@@ -149,6 +153,16 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
 		return this._entries[languageId] || null;
+	}
+
+	public getIndentationRules(languageId: LanguageId) {
+		let value = this._entries[languageId];
+
+		if (!value) {
+			return null;
+		}
+
+		return value.indentationRules || null;
 	}
 
 	// begin electricCharacter
@@ -247,71 +261,193 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getRawEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
-		let lineTokens = model.getLineTokens(lineNumber, false);
-		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
+		let r = this.getEnterAction(model, new Range(lineNumber, column, lineNumber, column));
+
+		return r ? r.enterAction : null;
+	}
+
+	public getEnterAction(model: ITokenizedModel, range: Range): { enterAction: EnterAction; indentation: string; ignoreCurrentLine: boolean } {
+		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
+		let ignoreCurrentLine = false;
+
+		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber);
 		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
 		if (!onEnterSupport) {
-			return null;
+			return {
+				enterAction: { indentAction: IndentAction.None, appendText: '' },
+				indentation: indentation,
+				ignoreCurrentLine: false
+			};
 		}
 
 		let scopedLineText = scopedLineTokens.getLineContent();
-		let beforeEnterText = scopedLineText.substr(0, column - 1 - scopedLineTokens.firstCharOffset);
-		let afterEnterText = scopedLineText.substr(column - 1 - scopedLineTokens.firstCharOffset);
+		let beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		let afterEnterText;
+
+		// selection support
+		if (range.isEmpty()) {
+			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		} else {
+			let endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber);
+			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - endScopedLineTokens.firstCharOffset);
+		}
+
+		let lineNumber = range.startLineNumber;
+
+		// if the text before the cursor/range start position is empty or matches `unIndentedLinePattern`
+		// this line is actually ignored after the enter action
+		if (onEnterSupport.shouldIgnore(beforeEnterText)) {
+			ignoreCurrentLine = true;
+			let lastLineNumber = this.getLastValidLine(model, lineNumber, onEnterSupport);
+
+			if (lastLineNumber <= 0) {
+				return {
+					enterAction: { indentAction: IndentAction.None, appendText: '' },
+					indentation: '',
+					ignoreCurrentLine: ignoreCurrentLine
+				};
+			}
+
+			scopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
+			beforeEnterText = this.getLineContent(model, lastLineNumber);
+			lineNumber = lastLineNumber;
+			indentation = this.getIndentationAtPosition(model, lineNumber, model.getLineMaxColumn(lineNumber));
+		}
 
 		let oneLineAboveText = '';
+
 		if (lineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
-			let oneLineAboveLineTokens = model.getLineTokens(lineNumber - 1, false);
-			let oneLineAboveMaxColumn = model.getLineMaxColumn(lineNumber - 1);
-			let oneLineAboveScopedLineTokens = createScopedLineTokens(oneLineAboveLineTokens, oneLineAboveMaxColumn - 1);
-			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
-				// The line above ends with text belonging to the same mode
-				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
+			let lastLineNumber = this.getLastValidLine(model, lineNumber, onEnterSupport);
+
+			if (lastLineNumber >= 1) {
+				// No previous line with content found
+				let oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
+				if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
+					// The line above ends with text belonging to the same mode
+					oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
+				}
 			}
 		}
 
-		let result: EnterAction = null;
+		let enterResult: EnterAction = null;
+
 		try {
-			result = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
+			enterResult = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
 		} catch (e) {
 			onUnexpectedError(e);
 		}
-		return result;
+
+		if (!enterResult) {
+			enterResult = { indentAction: IndentAction.None, appendText: '' };
+		} else {
+			// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
+			if (!enterResult.appendText) {
+				if (
+					(enterResult.indentAction === IndentAction.Indent) ||
+					(enterResult.indentAction === IndentAction.IndentOutdent)
+				) {
+					enterResult.appendText = '\t';
+				} else {
+					enterResult.appendText = '';
+				}
+			}
+		}
+
+		return {
+			enterAction: enterResult,
+			indentation: indentation,
+			ignoreCurrentLine: ignoreCurrentLine
+		};
 	}
 
-	public getEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): { enterAction: EnterAction; indentation: string; } {
+	private getIndentationAtPosition(model: ITokenizedModel, lineNumber: number, column: number): string {
 		let lineText = model.getLineContent(lineNumber);
 		let indentation = strings.getLeadingWhitespace(lineText);
 		if (indentation.length > column - 1) {
 			indentation = indentation.substring(0, column - 1);
 		}
 
-		let enterAction = this.getRawEnterActionAtPosition(model, lineNumber, column);
-		if (!enterAction) {
-			enterAction = {
-				indentAction: IndentAction.None,
-				appendText: '',
-			};
-		} else {
-			if (!enterAction.appendText) {
-				if (
-					(enterAction.indentAction === IndentAction.Indent) ||
-					(enterAction.indentAction === IndentAction.IndentOutdent)
-				) {
-					enterAction.appendText = '\t';
-				} else {
-					enterAction.appendText = '';
+		return indentation;
+	}
+
+	private getLastValidLine(model: ITokenizedModel, lineNumber: number, onEnterSupport: OnEnterSupport): number {
+		if (lineNumber > 1) {
+			let lastLineNumber = lineNumber - 1;
+
+			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
+				let lineText = model.getLineContent(lastLineNumber);
+				if (!onEnterSupport.shouldIgnore(lineText) && onEnterSupport.containNonWhitespace(lineText)) {
+					break;
 				}
+			}
+
+			if (lastLineNumber >= 1) {
+				return lastLineNumber;
 			}
 		}
 
-		if (enterAction.removeText) {
-			indentation = indentation.substring(0, indentation.length - 1);
+		return -1;
+	}
+
+	private getLineContent(model: ITokenizedModel, lineNumber: number): string {
+		let scopedLineTokens = this.getScopedLineTokens(model, lineNumber);
+		let column = model.getLineMaxColumn(lineNumber);
+		let scopedLineText = scopedLineTokens.getLineContent();
+		let lineText = scopedLineText.substr(0, column - 1 - scopedLineTokens.firstCharOffset);
+		return lineText;
+	}
+
+	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number) {
+		let lineTokens = model.getLineTokens(lineNumber, false);
+		let column = model.getLineMaxColumn(lineNumber);
+		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
+		return scopedLineTokens;
+	}
+
+	public getGoodIndentActionForLine(model: ITokenizedModel, lineNumber: number) {
+		let onEnterSupport = this._getOnEnterSupport(model.getLanguageIdentifier().id);
+		if (!onEnterSupport) {
+			return null;
 		}
 
+		/**
+		 * In order to get correct indentation for current line
+		 * we need to loop backwards the content from current line until
+		 * 1. a line contains non whitespace characters,
+		 * 2. and the line doesn't match `unIndentedLinePattern` pattern
+		 */
+		let lastLineNumber = this.getLastValidLine(model, lineNumber, onEnterSupport);
+
+		if (lastLineNumber < 1) {
+			// No previous line with content found
+			return null;
+		}
+
+		// it's Okay that lineNumber > model.getLineCount(), a good example is guessing the indentation of next potential line
+		// when the cursor is at the end of file.
+		if (lineNumber <= model.getLineCount()) {
+			let currentLineScopedLineTokens = this.getScopedLineTokens(model, lineNumber);
+			let lastLineScopedLineTokens = this.getScopedLineTokens(model, lastLineNumber);
+
+			if (currentLineScopedLineTokens.languageId !== lastLineScopedLineTokens.languageId) {
+				// The language mode of last valid line is not the same as current line.
+				return null;
+			}
+		}
+
+		let lineText = model.getLineContent(lastLineNumber);
+		let oneLineAboveText: string;
+		if (lastLineNumber > 1) {
+			oneLineAboveText = model.getLineContent(lastLineNumber - 1);
+		}
+
+		let indentation = strings.getLeadingWhitespace(lineText);
+		let onEnterAction = onEnterSupport.onEnter(oneLineAboveText, lineText, '');
+
 		return {
-			enterAction: enterAction,
-			indentation: indentation
+			indentation: indentation,
+			action: onEnterAction ? onEnterAction.indentAction : null
 		};
 	}
 

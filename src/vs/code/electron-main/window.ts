@@ -18,7 +18,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IWindowState {
 	width?: number;
@@ -120,7 +121,7 @@ export enum ReadyState {
 
 interface IConfiguration {
 	window: {
-		menuBarVisibility: 'visible' | 'toggle' | 'hidden';
+		menuBarVisibility: MenuBarVisibility;
 	};
 }
 
@@ -149,8 +150,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private _extensionDevelopmentPath: string;
 	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
-	private currentMenuBarVisibility: 'visible' | 'toggle' | 'hidden';
+	private currentMenuBarVisibility: MenuBarVisibility;
 	private currentWindowMode: WindowMode;
+	private toDispose: IDisposable[];
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
 
@@ -170,6 +172,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
 		this._isExtensionTestHost = config.isExtensionTestHost;
 		this.whenReadyCallbacks = [];
+		this.toDispose = [];
 
 		// Load window state
 		this.restoreWindowState(config.state);
@@ -415,7 +418,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		}
 
 		// Handle configuration changes
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
 	private onConfigurationUpdated(config: IConfiguration): void {
@@ -677,30 +680,37 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.win.setFullScreen(willBeFullScreen);
 
 		// respect configured menu bar visibility or default to toggle if not set
-		this.setMenuBarVisibility(this.getMenuBarVisibility(this.configurationService.getConfiguration<IConfiguration>(), willBeFullScreen ? 'toggle' : 'visible'), false);
+		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
 
-	private getMenuBarVisibility(configuration: IConfiguration, fallback: 'visible' | 'toggle' | 'hidden' = 'visible'): 'visible' | 'toggle' | 'hidden' {
+	private getMenuBarVisibility(configuration: IConfiguration): MenuBarVisibility {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
-			return fallback;
+			return 'default';
 		}
 
 		let menuBarVisibility = windowConfig.menuBarVisibility;
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
-			menuBarVisibility = fallback;
+			menuBarVisibility = 'default';
 		}
 
 		return menuBarVisibility;
 	}
 
-	public setMenuBarVisibility(visibility: 'visible' | 'toggle' | 'hidden', notify: boolean = true): void {
+	public setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
 		if (platform.isMacintosh) {
 			return; // ignore for macOS platform
 		}
 
+		const isFullscreen = this.win.isFullScreen();
+
 		switch (visibility) {
+			case ('default'):
+				this.win.setMenuBarVisibility(!isFullscreen);
+				this.win.setAutoHideMenuBar(isFullscreen);
+				break;
+
 			case ('visible'):
 				this.win.setMenuBarVisibility(true);
 				this.win.setAutoHideMenuBar(false);
@@ -736,6 +746,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 		if (this.showTimeoutHandle) {
 			clearTimeout(this.showTimeoutHandle);
 		}
+
+		this.toDispose = dispose(this.toDispose);
 
 		this._win = null; // Important to dereference the window object to allow for GC
 	}

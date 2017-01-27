@@ -145,7 +145,7 @@ class ExtensionStoragePath {
 				return storagePath;
 			}
 
-			mkdirp(storagePath).then(success => {
+			return mkdirp(storagePath).then(success => {
 				return storagePath;
 			}, err => {
 				return undefined;

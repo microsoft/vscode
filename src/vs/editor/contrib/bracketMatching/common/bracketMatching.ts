@@ -101,14 +101,16 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			return;
 		}
 
+		let resultingPosition: Position = null;
 		if (brackets[0].containsPosition(position)) {
-			this._editor.setPosition(brackets[1].getStartPosition());
-			return;
+			resultingPosition = brackets[1].getStartPosition();
+		} else if (brackets[1].containsPosition(position)) {
+			resultingPosition = brackets[0].getStartPosition();
 		}
 
-		if (brackets[1].containsPosition(position)) {
-			this._editor.setPosition(brackets[0].getStartPosition());
-			return;
+		if (resultingPosition) {
+			this._editor.setPosition(resultingPosition);
+			this._editor.revealPosition(resultingPosition);
 		}
 	}
 

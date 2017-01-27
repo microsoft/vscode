@@ -8,6 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
 import { ICommonCodeEditor, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { Schemas } from 'vs/base/common/network';
 
 export class EditorModeContext {
 
@@ -19,7 +20,7 @@ export class EditorModeContext {
 	private _hasCodeActionsProvider: IContextKey<boolean>;
 	private _hasCodeLensProvider: IContextKey<boolean>;
 	private _hasDefinitionProvider: IContextKey<boolean>;
-	private _hasTypeDefinitionProvider: IContextKey<boolean>;
+	private _hasImplementationProvider: IContextKey<boolean>;
 	private _hasHoverProvider: IContextKey<boolean>;
 	private _hasDocumentHighlightProvider: IContextKey<boolean>;
 	private _hasDocumentSymbolProvider: IContextKey<boolean>;
@@ -28,6 +29,7 @@ export class EditorModeContext {
 	private _hasDocumentFormattingProvider: IContextKey<boolean>;
 	private _hasDocumentSelectionFormattingProvider: IContextKey<boolean>;
 	private _hasSignatureHelpProvider: IContextKey<boolean>;
+	private _isInWalkThrough: IContextKey<boolean>;
 
 	constructor(
 		editor: ICommonCodeEditor,
@@ -40,7 +42,7 @@ export class EditorModeContext {
 		this._hasCodeActionsProvider = ModeContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
 		this._hasCodeLensProvider = ModeContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
 		this._hasDefinitionProvider = ModeContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
-		this._hasTypeDefinitionProvider = ModeContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService);
+		this._hasImplementationProvider = ModeContextKeys.hasImplementationProvider.bindTo(contextKeyService);
 		this._hasHoverProvider = ModeContextKeys.hasHoverProvider.bindTo(contextKeyService);
 		this._hasDocumentHighlightProvider = ModeContextKeys.hasDocumentHighlightProvider.bindTo(contextKeyService);
 		this._hasDocumentSymbolProvider = ModeContextKeys.hasDocumentSymbolProvider.bindTo(contextKeyService);
@@ -49,6 +51,7 @@ export class EditorModeContext {
 		this._hasDocumentFormattingProvider = ModeContextKeys.hasDocumentFormattingProvider.bindTo(contextKeyService);
 		this._hasDocumentSelectionFormattingProvider = ModeContextKeys.hasDocumentSelectionFormattingProvider.bindTo(contextKeyService);
 		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
+		this._isInWalkThrough = ModeContextKeys.isInEmbeddedEditor.bindTo(contextKeyService);
 
 		// update when model/mode changes
 		this._disposables.push(editor.onDidChangeModel(() => this._update()));
@@ -59,7 +62,7 @@ export class EditorModeContext {
 		modes.CodeActionProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.CodeLensProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.DefinitionProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.TypeDefinitionProviderRegistry.onDidChange(this._update, this, this._disposables);
+		modes.ImplementationProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.HoverProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.DocumentHighlightProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.DocumentSymbolProviderRegistry.onDidChange(this._update, this, this._disposables);
@@ -82,7 +85,7 @@ export class EditorModeContext {
 		this._hasCodeActionsProvider.reset();
 		this._hasCodeLensProvider.reset();
 		this._hasDefinitionProvider.reset();
-		this._hasTypeDefinitionProvider.reset();
+		this._hasImplementationProvider.reset();
 		this._hasHoverProvider.reset();
 		this._hasDocumentHighlightProvider.reset();
 		this._hasDocumentSymbolProvider.reset();
@@ -91,6 +94,7 @@ export class EditorModeContext {
 		this._hasDocumentFormattingProvider.reset();
 		this._hasDocumentSelectionFormattingProvider.reset();
 		this._hasSignatureHelpProvider.reset();
+		this._isInWalkThrough.reset();
 	}
 
 	private _update() {
@@ -104,7 +108,7 @@ export class EditorModeContext {
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
 		this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
-		this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
+		this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));
 		this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
 		this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
 		this._hasDocumentSymbolProvider.set(modes.DocumentSymbolProviderRegistry.has(model));
@@ -113,5 +117,6 @@ export class EditorModeContext {
 		this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 		this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 		this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
+		this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
 	}
 }

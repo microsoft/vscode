@@ -28,8 +28,8 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "jsonc-parser": {
-      "version": "0.3.0",
-      "from": "jsonc-parser@latest"
+      "version": "0.3.1",
+      "from": "jsonc-parser@>=0.3.0 <0.4.0"
     },
     "ms": {
       "version": "0.7.2",
@@ -38,7 +38,8 @@
     },
     "request-light": {
       "version": "0.2.0",
-      "from": "request-light@>=0.2.0 <0.3.0"
+      "from": "request-light@0.2.0",
+      "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.2.0.tgz"
     },
     "vscode-json-languageservice": {
       "version": "2.0.0-next.12",

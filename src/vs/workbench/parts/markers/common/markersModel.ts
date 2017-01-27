@@ -14,6 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
+import { Schemas } from 'vs/base/common/network';
 
 export interface BulkUpdater {
 	add(resource: URI, markers: IMarker[]);
@@ -234,7 +235,7 @@ export class MarkersModel {
 		for (let i = 0; i < entry.value.length; i++) {
 			const m = entry.value[i];
 			const uri = entry.key.toString();
-			if (!this._filterOptions.hasFilters() || this.filterMarker(m)) {
+			if (entry.key.scheme !== Schemas.walkThrough && entry.key.scheme !== Schemas.walkThroughSnippet && (!this._filterOptions.hasFilters() || this.filterMarker(m))) {
 				markers.push(this.toMarker(m, i, uri));
 			}
 		}

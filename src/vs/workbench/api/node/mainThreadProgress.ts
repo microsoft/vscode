@@ -21,23 +21,22 @@ export class MainThreadProgress extends MainThreadProgressShape {
 	}
 
 
-	$progressStart(handle: number, extensionId: string, where: string): void {
+	$startWindow(handle: number, title: string): void {
+		const task = this._createTask(handle);
+		this._progressService.withWindowProgress(title, task);
+	}
 
-		const task = (progress: IProgress<any>) => {
+	$startScm(handle: number): void {
+		const task = this._createTask(handle);
+		this._progressService.withViewletProgress('workbench.view.scm', task);
+	}
+
+	private _createTask(handle: number) {
+		return (progress: IProgress<any>) => {
 			return new TPromise<any>(resolve => {
 				this.progress.set(handle, { resolve, progress });
 			});
 		};
-
-		switch (where) {
-			case 'window':
-				this._progressService.withWindowProgress(task);
-				break;
-			case 'scm':
-				this._progressService.withViewletProgress('workbench.view.scm', task);
-				break;
-		}
-
 	}
 
 	$progressReport(handle: number, message: any): void {

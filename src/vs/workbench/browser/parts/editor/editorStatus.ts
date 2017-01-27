@@ -46,6 +46,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -713,7 +714,10 @@ export class ChangeModeAction extends Action {
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ICommandService private commandService: ICommandService,
+		@IConfigurationEditingService private configurationEditService: IConfigurationEditingService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -730,8 +734,9 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentModeId: string;
+		let modeId;
 		if (textModel) {
-			const modeId = textModel.getLanguageIdentifier().language;
+			modeId = textModel.getLanguageIdentifier().language;
 			currentModeId = this.modeService.getLanguageName(modeId);
 		}
 
@@ -770,6 +775,7 @@ export class ChangeModeAction extends Action {
 
 		// Offer action to configure via settings
 		let configureModeAssociations: IPickOpenEntry;
+		let configureModeSettings: IPickOpenEntry;
 		let galleryAction: Action;
 		if (fileResource) {
 			const ext = paths.extname(fileResource.fsPath) || paths.basename(fileResource.fsPath);
@@ -779,6 +785,8 @@ export class ChangeModeAction extends Action {
 				picks.unshift(galleryAction);
 			}
 
+			configureModeSettings = { label: nls.localize('configureModeSettings', "Configure '{0}' language based settings...", currentModeId) };
+			picks.unshift(configureModeSettings);
 			configureModeAssociations = { label: nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext) };
 			picks.unshift(configureModeAssociations);
 		}
@@ -804,6 +812,12 @@ export class ChangeModeAction extends Action {
 			// User decided to permanently configure associations, return right after
 			if (pick === configureModeAssociations) {
 				this.configureFileAssociation(fileResource);
+				return;
+			}
+
+			// User decided to configure settings for current language
+			if (pick === configureModeSettings) {
+				this.preferencesService.configureSettingsForLanguage(modeId);
 				return;
 			}
 

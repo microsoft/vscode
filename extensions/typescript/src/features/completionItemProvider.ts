@@ -53,6 +53,8 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.primitiveType:
 			case PConst.Kind.keyword:
 				return CompletionItemKind.Keyword;
+			case PConst.Kind.const:
+			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 				return CompletionItemKind.Variable;
@@ -107,6 +109,8 @@ class MyCompletionItem extends CompletionItem {
 
 			case PConst.Kind.module:
 			case PConst.Kind.alias:
+			case PConst.Kind.const:
+			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 			case PConst.Kind.memberVariable:
@@ -155,18 +159,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			});
 		}
 
-		let filepath = this.client.asAbsolutePath(document.uri);
-		if (!filepath) {
+		const file = this.client.normalizePath(document.uri);
+		if (!file) {
 			return Promise.resolve<CompletionItem[]>([]);
 		}
-		let args: CompletionsRequestArgs = {
-			file: filepath,
+		const args: CompletionsRequestArgs = {
+			file: file,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve<CompletionItem[]>([]);
-		}
 
 		return this.client.execute('completions', args, token).then((msg) => {
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
@@ -185,8 +186,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			// 	isMemberCompletion = value === '.';
 			// }
 
-			let completionItems: CompletionItem[] = [];
-			let body = msg.body;
+			const completionItems: CompletionItem[] = [];
+			const body = msg.body;
 			if (body) {
 				// Only enable dot completions in TS files for now
 				let enableDotCompletions = document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact');
@@ -217,7 +218,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem> {
 		if (item instanceof MyCompletionItem) {
-			const filepath = this.client.asAbsolutePath(item.document.uri);
+			const filepath = this.client.normalizePath(item.document.uri);
 			if (!filepath) {
 				return null;
 			}
@@ -278,11 +279,23 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
-		let codeSnippet = detail.name;
-		const suggestionArgumentNames: string[] = detail.displayParts
-			.filter(part => part.kind === 'parameterName')
-			.map((part, i) => `\${${i + 1}:${part.text}}`);
+		const suggestionArgumentNames: string[] = [];
+		let parenCount = 0;
+		for (let i = 0; i < detail.displayParts.length; ++i) {
+			const part = detail.displayParts[i];
+			// Only take top level paren names
+			if (part.kind === 'parameterName' && parenCount === 1) {
+				suggestionArgumentNames.push(`\${${i + 1}:${part.text}}`);
+			} else if (part.kind === 'punctuation') {
+				if (part.text === '(') {
+					++parenCount;
+				} else if (part.text === ')') {
+					--parenCount;
+				}
+			}
+		}
 
+		let codeSnippet = detail.name;
 		if (suggestionArgumentNames.length > 0) {
 			codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
 		} else {

@@ -612,6 +612,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this.modifiedEditor.revealRangeInCenterIfOutsideViewport(range);
 	}
 
+	public revealRangeAtTop(range: editorCommon.IRange): void {
+		this.modifiedEditor.revealRangeAtTop(range);
+	}
+
 	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
 		return this.modifiedEditor._addAction(descriptor);
 	}
@@ -1890,7 +1894,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
 		let r = renderViewLine(new RenderLineInput(
-			config.fontInfo.isMonospace,
+			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,

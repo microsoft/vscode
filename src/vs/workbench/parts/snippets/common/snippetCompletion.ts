@@ -14,6 +14,7 @@ import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/
 import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
@@ -121,3 +122,8 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 }
+
+// compatibility command to make sure old keybinding are still working
+CommandsRegistry.registerCommand('editor.action.showSnippets', accessor => {
+	return accessor.get(ICommandService).executeCommand('editor.action.insertSnippet');
+});

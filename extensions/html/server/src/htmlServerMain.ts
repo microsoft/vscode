@@ -53,12 +53,12 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	connection.onShutdown(() => {
 		languageModes.dispose();
 	});
-
+	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			completionProvider: snippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : null,
 			hoverProvider: true,
 			documentHighlightProvider: true,
 			documentRangeFormattingProvider: initializationOptions && initializationOptions['format.enable'],
@@ -125,11 +125,13 @@ function triggerValidation(textDocument: TextDocument): void {
 
 function validateTextDocument(textDocument: TextDocument): void {
 	let diagnostics: Diagnostic[] = [];
-	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
-		if (mode.doValidation && validation[mode.getId()]) {
-			pushAll(diagnostics, mode.doValidation(textDocument));
-		}
-	});
+	if (textDocument.languageId === 'html') {
+		languageModes.getAllModesInDocument(textDocument).forEach(mode => {
+			if (mode.doValidation && validation[mode.getId()]) {
+				pushAll(diagnostics, mode.doValidation(textDocument));
+			}
+		});
+	}
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 

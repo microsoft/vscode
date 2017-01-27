@@ -20,7 +20,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 	}
 
 	public provideDocumentHighlights(resource: TextDocument, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
-		const filepath = this.client.asAbsolutePath(resource.uri);
+		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
 			return Promise.resolve<DocumentHighlight[]>([]);
 		}
