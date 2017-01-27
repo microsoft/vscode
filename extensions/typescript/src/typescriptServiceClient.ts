@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, EventEmitter, Event, commands } from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -72,6 +72,10 @@ enum MessageAction {
 	learnMore,
 	close,
 	reportIssue
+}
+
+interface MyQuickPickItem extends QuickPickItem {
+	id: MessageAction;
 }
 
 interface MyMessageItem extends MessageItem {
@@ -494,51 +498,72 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
 		const localModulePath = this.localTypeScriptPath;
 
-		let messageShown: Thenable<MyMessageItem | undefined>;
+		let messageShown: Thenable<MyQuickPickItem | undefined>;
 		if (localModulePath) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
 			const usingWorkspaceVersion = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
-			messageShown = window.showInformationMessage<MyMessageItem>(
-				usingWorkspaceVersion
-					? localize(
-						'usingWorkspaceTsVersion',
-						'Using TypeScript version {0} from workspace for IntelliSense.',
-						localVersion)
-					: localize(
-						'usingVSCodeTsVersion',
-						'Using VSCode\'s TypeScript version {0} for IntelliSense.',
-						shippedVersion
-					),
+			messageShown = window.showQuickPick<MyQuickPickItem>([
 				{
-					title: localize('use', 'Use workspace version ({0})', localVersion),
+					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
+					description: localVersion || '',
+					detail: modulePath === localModulePath ? localize('activeVersion', 'active') : '',
 					id: MessageAction.useLocal
 				}, {
-					title: localize(
-						'useVSCodeVersionOption',
-						'Use VSCode\'s version ({0})',
-						shippedVersion),
+					label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
+					description: shippedVersion || '',
+					detail: modulePath === this.globalTypescriptPath ? localize('activeVersion', 'active') : '',
 					id: MessageAction.useBundled,
 				}, {
-					title: localize('learnMore', 'Learn More'),
-					id: MessageAction.learnMore,
-					isCloseAffordance: true
+					label: localize('learnMore', 'Learn More'),
+					description: '',
+					id: MessageAction.learnMore
+				}], {
+					placeHolder: usingWorkspaceVersion
+						? localize(
+							'usingWorkspaceTsVersion',
+							'Using TypeScript version {0} from workspace for IntelliSense.',
+							localVersion)
+						: localize(
+							'usingVSCodeTsVersion',
+							'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+							shippedVersion),
 				});
 		} else {
-			messageShown = window.showInformationMessage<MyMessageItem>(
-				localize(
-					'versionCheckUsingBundledTS',
-					'Using VSCode\'s TypeScript version {0} for IntelliSense.',
-					shippedVersion),
+			messageShown = window.showQuickPick<MyQuickPickItem>([
 				{
-					title: localize('learnMore', 'Learn More'),
-					id: MessageAction.learnMore,
-					isCloseAffordance: true,
+					label: localize('learnMore', 'Learn More'),
+					description: '',
+
+					id: MessageAction.learnMore
 				}, {
-					title: localize('close', 'Close'),
-					id: MessageAction.close,
-					isCloseAffordance: true,
+					label: localize('close', 'Close'),
+					description: '',
+					id: MessageAction.close
+				}],
+				{
+					placeHolder: localize(
+						'versionCheckUsingBundledTS',
+						'Using VSCode\'s TypeScript version {0} for IntelliSense.',
+						shippedVersion),
 				});
 		}
+
+		const tryShowRestart = (newModulePath: string) => {
+			if (newModulePath === this.modulePath) {
+				return;
+			}
+
+			window.showInformationMessage<MessageItem>(
+				localize('restartBlurb', 'Restart VSCode to apply change'),
+				{
+					title: localize('restartOptionTitle', 'Restart')
+				})
+				.then(selected => {
+					if (selected) {
+						commands.executeCommand('workbench.action.reloadWindow');
+					}
+				});
+		};
 
 		return messageShown.then(selected => {
 			if (!selected) {
@@ -547,10 +572,18 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			switch (selected.id) {
 				case MessageAction.useLocal:
 					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
-						.then(_ => localModulePath);
+						.then(_ => {
+							if (localModulePath) {
+								tryShowRestart(localModulePath);
+							}
+							return localModulePath;
+						});
 				case MessageAction.useBundled:
 					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
-						.then(_ => modulePath);
+						.then(_ => {
+							tryShowRestart(this.globalTypescriptPath);
+							return this.globalTypescriptPath;
+						});
 				case MessageAction.learnMore:
 					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
 					return modulePath;
