@@ -114,10 +114,10 @@ export class KeybindingLabels {
 
 		let chord: number = 0;
 
-		let firstSpaceIdx = input.indexOf(' ');
-		if (firstSpaceIdx > 0) {
-			key = input.substring(0, firstSpaceIdx);
-			chord = KeybindingLabels.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
+		let firstSeparatorIdx = input.indexOf(', ');
+		if (firstSeparatorIdx > 0) {
+			key = input.substring(0, firstSeparatorIdx);
+			chord = KeybindingLabels.fromUserSettingsLabel(input.substring(firstSeparatorIdx + 1), Platform);
 		} else {
 			key = input;
 		}
