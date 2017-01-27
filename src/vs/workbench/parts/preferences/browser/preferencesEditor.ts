@@ -107,6 +107,8 @@ export class PreferencesEditor extends BaseEditor {
 	private delayedFilterLogging: Delayer<void>;
 	private disposablesByInput: IDisposable[] = [];
 
+	private latestEmptyFilters: string[] = [];
+
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -194,12 +196,16 @@ export class PreferencesEditor extends BaseEditor {
 		const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
 		const editablePreferencesRender = this.getEditablePreferencesRenderer();
 		if (filter) {
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
 			const filterResult = defaultPreferencesRenderer.preferencesModel.filterSettings(filter);
 			defaultPreferencesRenderer.filterPreferences(filterResult);
 			editablePreferencesRender.filterPreferences(filterResult);
 			const count = this.getCount(filterResult.filteredGroups);
 			this.searchWidget.showMessage(this.showSearchResultsMessage(count), count);
+
+			if (count === 0) {
+				this.latestEmptyFilters.push(filter);
+			}
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
 		} else {
 			defaultPreferencesRenderer.filterPreferences(null);
 			editablePreferencesRender.filterPreferences(null);
@@ -247,9 +253,21 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private reportFilteringUsed(filter: string): void {
-		let data = {};
-		data['filter'] = filter;
+		let data = {
+			filter,
+			emptyFilters: this.getLatestEmptyFiltersForTelemetry()
+		};
+		this.latestEmptyFilters = [];
 		this.telemetryService.publicLog('defaultSettings.filter', data);
+	}
+
+	/**
+	 * Put a rough limit on the size of the telemetry data, since otherwise it could be an unbounded large amount
+	 * of data. 8192 is the max size of a property value. This is rough since that probably includes ""s, etc.
+	 */
+	private getLatestEmptyFiltersForTelemetry(): string[] {
+		let cumulativeSize = 0;
+		return this.latestEmptyFilters.filter(filterText => (cumulativeSize += filterText.length) <= 8192);
 	}
 
 	private getCount(settingsGroups: ISettingsGroup[]): number {
