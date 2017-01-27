@@ -22,7 +22,7 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPat
 // Terminal flow control is disabled if the shell is zsh since the popular oh-my-zsh configuration
 // overrides the ^S and ^Q keybindings which are used for flow control.
 // TODO: This should check if ~/.oh-my-zsh exists as well
-export const TERMINAL_DEFAULT_FLOW_CONTROL = typeof process.env.SHELL === 'string' && path.basename(process.env.SHELL) !== 'zsh';
+export const TERMINAL_DEFAULT_FLOW_CONTROL = !(typeof process.env.SHELL === 'string' && path.basename(process.env.SHELL) === 'zsh');
 
 export interface ITerminalProcessFactory {
 	create(env: { [key: string]: string }): cp.ChildProcess;
