@@ -6,15 +6,13 @@
 {
 	"acceptLocalChanges": "使用本地更改并覆盖磁盘内容",
 	"compareChanges": "比较",
-	"conflictingFileHasChanged": "磁盘上的文件内容已更改，比较编辑器的左侧已刷新。请再次审查和解析。",
 	"discard": "放弃",
 	"genericSaveError": "未能保存“{0}”: {1}",
 	"overwrite": "覆盖",
 	"readonlySaveError": "无法保存“{0}”: 文件写保护。选择“覆盖”以删除保护。 ",
-	"resolveSaveConflict": "解析保存冲突",
 	"retry": "重试",
 	"revertLocalChanges": "放弃本地更改，还原为磁盘上的内容",
-	"saveConflictDiffLabel": "{0}(磁盘上) ↔ {1}(位于 {2} 中)",
+	"saveConflictDiffLabel": "{0} (磁盘上) ↔ {1} (位于 {2} 中) - 解析保存冲突",
 	"staleSaveError": "无法保存“{0}”: 磁盘上的内容较新。单击 **比较** 以比较你的版本和磁盘上的版本。",
 	"userGuide": "使用编辑器工具栏中的操作 **撤消** 更改或用更改 **覆盖** 磁盘上的内容"
 }

@@ -71,6 +71,7 @@
 	"TaskSystem.active": "現在アクティブな実行中のタスクがあります。まずこのタスクを終了してから、別のタスクを実行してください。",
 	"TaskSystem.activeSame": "タスクは既にアクティブおよびウォッチ モードになっています。タスクを終了するには、`F1 > タスクの終了` を使用します",
 	"TaskSystem.exitAnyways": "常に終了(&&E)",
+	"TaskSystem.fatalError": "提供されたタスク構成に検証エラーがあります。詳細については、タスク出力ログを参照してください。",
 	"TaskSystem.invalidTaskJson": "エラー: tasks.json ファイルの内容に構文エラーがあります。訂正してからタスクを実行してください。\n",
 	"TaskSystem.noBuildType": "構成されている有効なタスク ランナーがありません。サポートされているタスク ランナーは 'service' と 'program' です。",
 	"TaskSystem.noConfiguration": "タスク ランナーが構成されていません。",

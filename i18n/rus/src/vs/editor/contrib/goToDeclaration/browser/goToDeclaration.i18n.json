@@ -6,6 +6,8 @@
 {
 	"actions.goToDecl.label": "Перейти к определению",
 	"actions.goToDeclToSide.label": "Открыть определение сбоку",
+	"actions.goToImplementation.label": "Перейти к реализации",
+	"actions.peekImplementation.label": "Реализация просмотра",
 	"actions.previewDecl.label": "Показать определение",
 	"meta.title": " — определения {0}",
 	"multipleResults": "Щелкните, чтобы отобразить определения ({0})."

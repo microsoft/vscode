@@ -6,6 +6,8 @@
 {
 	"ClearSearchResultsAction.label": "清除搜索结果",
 	"ConfigureGlobalExclusionsAction.label": "打开设置",
+	"FocusNextSearchResult.label": "聚焦下一搜索结果",
+	"FocusPreviousSearchResult.label": "聚焦上一搜索结果",
 	"RefreshAction.label": "刷新",
 	"RemoveAction.label": "删除",
 	"file.replaceAll.label": "全部替换",

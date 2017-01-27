@@ -71,6 +71,7 @@
 	"TaskSystem.active": "지금 실행 중인 활성 작업이 있습니다. 다른 작업을 실행하려면 먼저 활성 작업을 종료하세요.",
 	"TaskSystem.activeSame": "작업이 이미 활성 상태이며 감시 모드입니다. 작업을 종료하려면 `F1 > 작업 종료`를 사용하세요.",
 	"TaskSystem.exitAnyways": "끝내기(&&E)",
+	"TaskSystem.fatalError": "제공된 작업 구성에 유효성 검사 오류가 있습니다. 자세한 내용은 작업 출력 로그를 참조하세요.",
 	"TaskSystem.invalidTaskJson": "오류: tasks.json 파일의 내용에 구문 오류가 있습니다. 작업을 실행하기 전에 오류를 정정하세요.\n",
 	"TaskSystem.noBuildType": "유효한 Task Runner가 구성되어 있지 않습니다. 지원되는 Task Runner는 '서비스' 및 '프로그램'입니다.",
 	"TaskSystem.noConfiguration": "구성된 Task Runner가 없습니다.",

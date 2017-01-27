@@ -15,10 +15,11 @@
 	"debugConsoleAction": "调试控制台",
 	"debugFocusConsole": "焦点调试控制台",
 	"disableAllBreakpoints": "禁用所有断点",
+	"disableBreakpoint": "禁用断点",
 	"disconnectDebug": "断开连接",
 	"editConditionalBreakpoint": "编辑断点...",
-	"editWatchExpression": "编辑表达式",
 	"enableAllBreakpoints": "启用所有断点",
+	"enableBreakpoint": "启用断点",
 	"focusProcess": "焦点过程",
 	"launchJsonNeedsConfigurtion": "配置或修复 \"launch.json\"",
 	"openLaunchJson": "打开 {0}",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "单步跳出",
 	"stepOverDebug": "单步跳过",
 	"stopDebug": "停止",
-	"toggleEnablement": "启用/禁用断点",
 	"unreadOutput": "调试控制台中的新输出"
 }

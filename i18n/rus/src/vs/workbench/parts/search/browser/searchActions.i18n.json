@@ -6,6 +6,8 @@
 {
 	"ClearSearchResultsAction.label": "Очистить результаты поиска",
 	"ConfigureGlobalExclusionsAction.label": "Открыть параметры",
+	"FocusNextSearchResult.label": "Перейти к следующему результату поиска",
+	"FocusPreviousSearchResult.label": "Перейти к предыдущему результату поиска",
 	"RefreshAction.label": "Обновить",
 	"RemoveAction.label": "Удалить",
 	"file.replaceAll.label": "Заменить все",

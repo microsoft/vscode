@@ -10,6 +10,7 @@
 	"changeIndentation": "變更縮排",
 	"changeMode": "變更語言模式",
 	"configureAssociationsExt": "為 '{0}' 設定檔案關聯...",
+	"configureModeSettings": "進行以 '{0}' 語言為基礎的設定...",
 	"currentAssociation": "目前的關聯",
 	"disableTabMode": "停用協助工具模式",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
