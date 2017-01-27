@@ -250,6 +250,11 @@
 	display: none;
 }
 
+.show-file-icons .vs_code_welcome_page\.html-name-file-icon.html-ext-file-icon.html-lang-file-icon.file-icon::before {
+	content: ' ';
+	background-image: url('../../../../../../resources/code-icon.svg');
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .mac-only,
 .monaco-workbench > .part.editor > .content .welcomePage .windows-only,
 .monaco-workbench > .part.editor > .content .welcomePage .linux-only {
