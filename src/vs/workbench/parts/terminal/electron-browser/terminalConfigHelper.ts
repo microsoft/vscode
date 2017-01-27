@@ -137,6 +137,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return terminalConfig.terminal.integrated.fontLigatures;
 	}
 
+	public getFlowControl(): boolean {
+		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return terminalConfig.terminal.integrated.flowControl;
+	}
+
 	public getCursorBlink(): boolean {
 		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		return terminalConfig.terminal.integrated.cursorBlinking;
