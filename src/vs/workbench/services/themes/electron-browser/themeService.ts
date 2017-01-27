@@ -41,6 +41,8 @@ let defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
+const fileIconsEnabledClass = 'file-icons-enabled';
+
 function validateThemeId(theme: string): string {
 	// migrations
 	switch (theme) {
@@ -495,6 +497,13 @@ export class ThemeService implements IThemeService {
 				this.currentIconTheme = newIconTheme;
 			} else {
 				this.currentIconTheme = noFileIconTheme;
+			}
+			if (this.container) {
+				if (newIconTheme) {
+					$(this.container).addClass(fileIconsEnabledClass);
+				} else {
+					$(this.container).removeClass(fileIconsEnabledClass);
+				}
 			}
 
 			this.storageService.store(ICON_THEME_PREF, this.currentIconTheme.id, StorageScope.GLOBAL);
