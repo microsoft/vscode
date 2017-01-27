@@ -21,7 +21,7 @@ import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusUpdater } from './scmActivity';
-import SCMPreview, { DisableSCMPreviewAction, EnableSCMPreviewAction } from 'vs/workbench/parts/scm/browser/scmPreview';
+import SCMPreview, { DisableSCMPreviewAction, EnableSCMPreviewAction } from '../browser/scmPreview';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -64,7 +64,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 if (SCMPreview.enabled) {
 	const viewletDescriptor = new ViewletDescriptor(
-		'vs/workbench/parts/scm/browser/scmViewlet',
+		'vs/workbench/parts/scm/electron-browser/scmViewlet',
 		'SCMViewlet',
 		VIEWLET_ID,
 		localize('scm', "SCM"),

@@ -8,6 +8,7 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { Throttler } from 'vs/base/common/async';
@@ -38,6 +39,10 @@ import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { isDarkTheme } from 'vs/platform/theme/common/themes';
+import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { SCMCommitEditor } from './scmEditor';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -193,11 +198,13 @@ class CommitAction extends Action {
 
 export class SCMViewlet extends Viewlet {
 
-	private static ACCEPT_KEYBINDING = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
+	private static readonly ACCEPT_KEYBINDING = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
+	private static readonly EditorLineHeight = 22;
 
 	private cachedDimension: Dimension;
 	private inputBoxContainer: HTMLElement;
-	private inputBox: InputBox;
+	private inputEditor: SCMCommitEditor;
+	private inputModel: IModel;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
@@ -214,7 +221,8 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IModelService private modelService: IModelService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -242,20 +250,45 @@ export class SCMViewlet extends Viewlet {
 		const root = parent.getHTMLElement();
 		this.inputBoxContainer = append(root, $('.scm-commit-box'));
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
-			ariaLabel: localize('acceptAria', "Changes: Type message and press {0} to accept the changes", SCMViewlet.ACCEPT_KEYBINDING),
-			flexibleHeight: true
-		});
+		const opts: IEditorOptions = {
+			wrappingColumn: 0,
+			overviewRulerLanes: 0,
+			glyphMargin: false,
+			lineNumbers: 'off',
+			folding: false,
+			selectOnLineNumbers: false,
+			selectionHighlight: false,
+			scrollbar: {
+				horizontal: 'hidden'
+			},
+			lineDecorationsWidth: 0,
+			scrollBeyondLastLine: false,
+			theme: this.themeService.getColorTheme().id,
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: false,
+			lineHeight: SCMViewlet.EditorLineHeight,
+			wordWrap: true
+		};
 
-		chain(domEvent(this.inputBox.inputElement, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.accept, this, this.disposables);
+		this.inputEditor = this.instantiationService.createInstance(SCMCommitEditor, this.inputBoxContainer, opts);
 
-		chain(this.inputBox.onDidHeightChange)
-			.map(() => this.cachedDimension)
-			.on(this.layout, this, this.disposables);
+
+		this.inputModel = this.modelService.createModel('', null, URI.parse(`scm:input`));
+		this.inputEditor.setModel(this.inputModel);
+
+		this.disposables.push(this.inputModel.onDidChangeContent(() => this.layout()));
+
+		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+		// 	placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
+		// 	ariaLabel: localize('acceptAria', "Changes: Type message and press {0} to accept the changes", SCMViewlet.ACCEPT_KEYBINDING),
+		// 	flexibleHeight: true
+		// });
+
+		// chain(domEvent(this.inputBox.inputElement, 'keydown'))
+		// 	.map(e => new StandardKeyboardEvent(e))
+		// 	.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
+		// 	.on(this.accept, this, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
@@ -273,7 +306,7 @@ export class SCMViewlet extends Viewlet {
 			.on(this.open, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-		this.disposables.push(this.inputBox, this.list);
+		this.disposables.push(this.inputEditor, this.list);
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
@@ -303,13 +336,20 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		this.cachedDimension = dimension;
-		this.inputBox.layout();
 
-		const listHeight = dimension.height - (this.inputBox.height + 12 /* margin */);
+		// TODO@joao TODO@alex isn't there a better way to get the total view height?
+		const modelLength = this.inputModel.getValueLength();
+		const lastPosition = this.inputModel.getPositionAt(modelLength);
+		const lastLineTop = this.inputEditor.getTopForPosition(lastPosition.lineNumber, lastPosition.column);
+		const viewHeight = lastLineTop + SCMViewlet.EditorLineHeight;
+
+		const lineCount = viewHeight / SCMViewlet.EditorLineHeight;
+		const inputEditorHeight = Math.min(lineCount, 8) * SCMViewlet.EditorLineHeight;
+		this.inputEditor.layout({ width: dimension.width - 25, height: inputEditorHeight });
+
+		const listHeight = dimension.height - (inputEditorHeight + 12 /* margin */);
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
-
-		toggleClass(this.inputBoxContainer, 'scroll', this.inputBox.height >= 134);
 	}
 
 	getOptimalWidth(): number {
@@ -318,14 +358,14 @@ export class SCMViewlet extends Viewlet {
 
 	focus(): void {
 		super.focus();
-		this.inputBox.focus();
+		this.inputEditor.focus();
 	}
 
 	private acceptThrottler = new Throttler();
 	private accept(): void {
-		this.acceptThrottler
-			.queue(() => this.scmService.activeProvider.commit(this.inputBox.value))
-			.done(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err));
+		// this.acceptThrottler
+		// 	.queue(() => this.scmService.activeProvider.commit(this.inputBox.value))
+		// 	.done(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err));
 	}
 
 	private open(e: ISCMResource): void {
@@ -334,7 +374,7 @@ export class SCMViewlet extends Viewlet {
 
 	getActions(): IAction[] {
 		return [
-			this.instantiationService.createInstance(CommitAction, this.inputBox),
+			// this.instantiationService.createInstance(CommitAction, this.inputBox),
 			...this.menus.getTitleActions()
 		];
 	}
