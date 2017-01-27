@@ -85,6 +85,7 @@
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .title {
+	margin-top: 1em;
 	margin-bottom: 1em;
 	flex: 1 100%;
 }
@@ -127,7 +128,7 @@
 	padding: 0;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage .splash .recent.empty {
+.monaco-workbench > .part.editor > .content .welcomePage.emptyRecent .splash .recent {
 	display: none;
 }
 
@@ -245,7 +246,7 @@
 	outline-offset: -5px;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePageContainer.max-height-690px .title {
+.monaco-workbench > .part.editor > .content .welcomePageContainer.max-height-685px .title {
 	display: none;
 }
 

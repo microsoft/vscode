@@ -187,7 +187,7 @@ export class WalkThroughPart extends BaseEditor {
 		const innerContent = this.content.firstElementChild;
 		if (this.size && innerContent) {
 			const classList = innerContent.classList;
-			classList[this.size.height <= 690 ? 'add' : 'remove']('max-height-690px');
+			classList[this.size.height <= 685 ? 'add' : 'remove']('max-height-685px');
 		}
 	}
 

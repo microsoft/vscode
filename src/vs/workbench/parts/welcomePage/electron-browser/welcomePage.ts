@@ -116,8 +116,8 @@ class WelcomePage {
 				folders = folders.filter(folder => folder !== current);
 			}
 			if (!folders.length) {
-				const recent = container.querySelector('.recent') as HTMLElement;
-				recent.classList.add('empty');
+				const recent = container.querySelector('.welcomePage') as HTMLElement;
+				recent.classList.add('emptyRecent');
 				return;
 			}
 			const ul = container.querySelector('.recent ul');
