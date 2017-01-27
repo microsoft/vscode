@@ -383,8 +383,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		if (!this.workspaceState.get<boolean>(TypeScriptServiceClient.tsdkMigratedStorageKey, false)) {
 			this.workspaceState.update(TypeScriptServiceClient.tsdkMigratedStorageKey, true);
-			if (workspace.rootPath && (this.hasWorkspaceTsdkSetting() || this.localTypeScriptPath)) {
-				modulePath = this.showVersionPicker(false);
+			if (workspace.rootPath && this.hasWorkspaceTsdkSetting()) {
+				modulePath = this.showVersionPicker(true);
 			}
 		}
 
@@ -489,10 +489,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public onVersionStatusClicked(): Thenable<string> {
-		return this.showVersionPicker(true);
+		return this.showVersionPicker(false);
 	}
 
-	private showVersionPicker(promptForRestart: boolean) {
+	private showVersionPicker(firstRun: boolean) {
 		const modulePath = this.modulePath || this.globalTypescriptPath;
 		if (!workspace.rootPath) {
 			return Promise.resolve(modulePath);
@@ -521,7 +521,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}], {
 					placeHolder: localize(
 						'selectTsVersion',
-						'Select the TypeScript version used for language features')
+						'Select the TypeScript version used for JavaScript and TypeScript language features'),
+					ignoreFocusOut: firstRun
 				});
 		} else {
 			messageShown = window.showQuickPick<MyQuickPickItem>([
@@ -532,13 +533,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}], {
 					placeHolder: localize(
 						'versionCheckUsingBundledTS',
-						'Using VSCode\'s TypeScript version {0} for Typescript language features',
+						'Using VSCode\'s TypeScript version {0} for JavaScript and TypeScript language features',
 						shippedVersion),
 				});
 		}
 
 		const tryShowRestart = (newModulePath: string) => {
-			if (!promptForRestart || newModulePath === this.modulePath) {
+			if (firstRun || newModulePath === this.modulePath) {
 				return;
 			}
 
