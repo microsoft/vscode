@@ -32,6 +32,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -915,9 +916,26 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 
 CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
 	const editorService = accessor.get(IWorkbenchEditorService);
-	const [resource, column] = args;
+	let [resource, column] = args;
+	let options: ITextEditorOptions;
 
-	return editorService.openEditor({ resource }, column).then(() => {
+	if (resource) {
+		const match = /^L?(\d+)(?:,(\d+))?/.exec(resource.fragment);
+		if (match) {
+			// support file:///some/file.js#73,84
+			// support file:///some/file.js#L73
+			options = {
+				selection: {
+					startLineNumber: parseInt(match[1]),
+					startColumn: match[2] ? parseInt(match[2]) : 1
+				}
+			};
+			// remove fragment
+			resource = resource.with({ fragment: '' });
+		}
+	}
+
+	return editorService.openEditor({ resource, options }, column).then(() => {
 		return void 0;
 	});
 });
