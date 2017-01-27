@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, EventEmitter, Event, commands } from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -74,6 +74,10 @@ enum MessageAction {
 	reportIssue
 }
 
+interface MyQuickPickItem extends QuickPickItem {
+	id: MessageAction;
+}
+
 interface MyMessageItem extends MessageItem {
 	id: MessageAction;
 }
@@ -82,6 +86,7 @@ interface MyMessageItem extends MessageItem {
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
+	private static tsdkMigratedStorageKey = 'typescript.tsdkMigrated';
 
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
@@ -296,6 +301,18 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
 	}
 
+	private get localTypeScriptPath(): string | null {
+		if (!workspace.rootPath) {
+			return null;
+		}
+
+		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		if (fs.existsSync(localModulePath) && this.getTypeScriptVersion(localModulePath)) {
+			return localModulePath;
+		}
+		return null;
+	}
+
 	private get globalTypescriptPath(): string {
 		if (this.tsdk) {
 			this._checkGlobalTSCVersion = false;
@@ -309,102 +326,165 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this.bundledTypeScriptPath;
 	}
 
-	private startService(resendModels: boolean = false): void {
-		let modulePath = this.globalTypescriptPath;
+	private hasWorkspaceTsdkSetting(): boolean {
+		function stripComments(content: string): string {
+			/**
+			* First capturing group matches double quoted string
+			* Second matches single quotes string
+			* Third matches block comments
+			* Fourth matches line comments
+			*/
+			var regexp: RegExp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+			let result = content.replace(regexp, (match, m1, m2, m3, m4) => {
+				// Only one of m1, m2, m3, m4 matches
+				if (m3) {
+					// A block comment. Replace with nothing
+					return '';
+				} else if (m4) {
+					// A line comment. If it ends in \r?\n then keep it.
+					let length = m4.length;
+					if (length > 2 && m4[length - 1] === '\n') {
+						return m4[length - 2] === '\r' ? '\r\n' : '\n';
+					} else {
+						return '';
+					}
+				} else {
+					// We match a string
+					return match;
+				}
+			});
+			return result;
+		};
 
-		if (this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)) {
-			if (workspace.rootPath) {
-				const pathValue = './node_modules/typescript/lib';
-				modulePath = path.join(workspace.rootPath, pathValue, 'tsserver.js');
+		try {
+			let rootPath = workspace.rootPath;
+			if (!rootPath) {
+				return false;
+			}
+			let settingsFile = path.join(rootPath, '.vscode', 'settings.json');
+			if (!fs.existsSync(settingsFile)) {
+				return false;
+			}
+			let content = fs.readFileSync(settingsFile, 'utf8');
+			if (!content || content.length === 0) {
+				return false;
+			}
+			content = stripComments(content);
+			let json = JSON.parse(content);
+			let value = json['typescript.tsdk'];
+			return is.string(value);
+		} catch (error) {
+		}
+		return false;
+	}
+
+	private startService(resendModels: boolean = false): void {
+		let modulePath: Thenable<string> = Promise.resolve(this.globalTypescriptPath);
+
+		if (!this.workspaceState.get<boolean>(TypeScriptServiceClient.tsdkMigratedStorageKey, false)) {
+			this.workspaceState.update(TypeScriptServiceClient.tsdkMigratedStorageKey, true);
+			if (this.hasWorkspaceTsdkSetting() || this.localTypeScriptPath) {
+				modulePath = this.onVersionStatusClicked();
 			}
 		}
 
-		const tsConfig = workspace.getConfiguration('typescript');
-		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
-			this.info(`Using tsserver from location: ${modulePath}`);
-			if (!fs.existsSync(modulePath)) {
-				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', path.dirname(modulePath)));
-				modulePath = this.bundledTypeScriptPath;
-				// TODO check again?
-			}
-
-			let version = this.getTypeScriptVersion(modulePath);
-			if (!version) {
-				version = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
-			}
-			if (version) {
-				this._apiVersion = new API(version);
-			}
-
-			const label = version || localize('versionNumber.custom', 'custom');
-			const tooltip = modulePath;
-			this.modulePath = modulePath;
-			VersionStatus.showHideStatus();
-			VersionStatus.setInfo(label, tooltip);
-
-			// This is backwards compatibility code to move the setting from the local
-			// store into the workspace setting file.
-			const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
-			const globalStateValue = this.globalState.get(doGlobalVersionCheckKey, true);
-			const checkTscVersion = 'check.tscVersion';
-			if (!globalStateValue) {
-				tsConfig.update(checkTscVersion, false, true);
-				this.globalState.update(doGlobalVersionCheckKey, true);
-			}
-
-			try {
-				let options: electron.IForkOptions = {
-					execArgv: [] // [`--debug-brk=5859`]
-				};
+		modulePath.then(modulePath => {
+			if (this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)) {
 				if (workspace.rootPath) {
-					options.cwd = workspace.rootPath;
+					const pathValue = './node_modules/typescript/lib';
+					return path.join(workspace.rootPath, pathValue, 'tsserver.js');
 				}
-				let value = process.env.TSS_DEBUG;
-				if (value) {
-					let port = parseInt(value);
-					if (!isNaN(port)) {
-						this.info(`TSServer started in debug mode using port ${port}`);
-						options.execArgv = [`--debug=${port}`];
-					}
-				}
-				let args: string[] = [];
-				if (this.apiVersion.has206Features()) {
-					args.push('--useSingleInferredProject');
-					if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
-						args.push('--disableAutomaticTypingAcquisition');
-					}
-				}
-				if (this.apiVersion.has208Features()) {
-					args.push('--enableTelemetry');
-				}
-				electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
-					if (err) {
-						this.lastError = err;
-						this.error('Starting TSServer failed with error.', err);
-						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
-						this.logTelemetry('error', { message: err.message });
-						return;
-					}
-					this.lastStart = Date.now();
-					childProcess.on('error', (err: Error) => {
-						this.lastError = err;
-						this.error('TSServer errored with error.', err);
-						this.serviceExited(false);
-					});
-					childProcess.on('exit', (code: any) => {
-						this.error(`TSServer exited with code: ${code ? code : 'unknown'}`);
-						this.serviceExited(true);
-					});
-					this.reader = new Reader<Proto.Response>(childProcess.stdout, (msg) => {
-						this.dispatchMessage(msg);
-					});
-					this._onReady.resolve();
-					resolve(childProcess);
-					this.serviceStarted(resendModels);
-				});
-			} catch (error) {
-				reject(error);
 			}
+			return modulePath;
+		}).then(modulePath => {
+			this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
+				const tsConfig = workspace.getConfiguration('typescript');
+
+				this.info(`Using tsserver from location: ${modulePath}`);
+				if (!fs.existsSync(modulePath)) {
+					window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', path.dirname(modulePath)));
+					modulePath = this.bundledTypeScriptPath;
+					// TODO check again?
+				}
+
+				let version = this.getTypeScriptVersion(modulePath);
+				if (!version) {
+					version = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
+				}
+				if (version) {
+					this._apiVersion = new API(version);
+				}
+
+				const label = version || localize('versionNumber.custom', 'custom');
+				const tooltip = modulePath;
+				this.modulePath = modulePath;
+				VersionStatus.showHideStatus();
+				VersionStatus.setInfo(label, tooltip);
+
+				// This is backwards compatibility code to move the setting from the local
+				// store into the workspace setting file.
+				const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
+				const globalStateValue = this.globalState.get(doGlobalVersionCheckKey, true);
+				const checkTscVersion = 'check.tscVersion';
+				if (!globalStateValue) {
+					tsConfig.update(checkTscVersion, false, true);
+					this.globalState.update(doGlobalVersionCheckKey, true);
+				}
+
+				try {
+					let options: electron.IForkOptions = {
+						execArgv: [] // [`--debug-brk=5859`]
+					};
+					if (workspace.rootPath) {
+						options.cwd = workspace.rootPath;
+					}
+					let value = process.env.TSS_DEBUG;
+					if (value) {
+						let port = parseInt(value);
+						if (!isNaN(port)) {
+							this.info(`TSServer started in debug mode using port ${port}`);
+							options.execArgv = [`--debug=${port}`];
+						}
+					}
+					let args: string[] = [];
+					if (this.apiVersion.has206Features()) {
+						args.push('--useSingleInferredProject');
+						if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
+							args.push('--disableAutomaticTypingAcquisition');
+						}
+					}
+					if (this.apiVersion.has208Features()) {
+						args.push('--enableTelemetry');
+					}
+					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
+						if (err) {
+							this.lastError = err;
+							this.error('Starting TSServer failed with error.', err);
+							window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
+							this.logTelemetry('error', { message: err.message });
+							return;
+						}
+						this.lastStart = Date.now();
+						childProcess.on('error', (err: Error) => {
+							this.lastError = err;
+							this.error('TSServer errored with error.', err);
+							this.serviceExited(false);
+						});
+						childProcess.on('exit', (code: any) => {
+							this.error(`TSServer exited with code: ${code ? code : 'unknown'}`);
+							this.serviceExited(true);
+						});
+						this.reader = new Reader<Proto.Response>(childProcess.stdout, (msg) => {
+							this.dispatchMessage(msg);
+						});
+						this._onReady.resolve();
+						resolve(childProcess);
+						this.serviceStarted(resendModels);
+					});
+				} catch (error) {
+					reject(error);
+				}
+			});
 		});
 	}
 
@@ -416,53 +496,74 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
-		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		const localModulePath = this.localTypeScriptPath;
 
-		let messageShown: Thenable<MyMessageItem | undefined>;
-		if (fs.existsSync(localModulePath) && this.getTypeScriptVersion(localModulePath)) {
+		let messageShown: Thenable<MyQuickPickItem | undefined>;
+		if (localModulePath) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
 			const usingWorkspaceVersion = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
-			messageShown = window.showInformationMessage<MyMessageItem>(
-				usingWorkspaceVersion
-					? localize(
-						'usingWorkspaceTsVersion',
-						'Using TypeScript version {0} from workspace for IntelliSense.',
-						localVersion)
-					: localize(
-						'usingVSCodeTsVersion',
-						'Using VSCode\'s TypeScript version {0} for IntelliSense.',
-						shippedVersion
-					),
+			messageShown = window.showQuickPick<MyQuickPickItem>([
 				{
-					title: localize('use', 'Use workspace version ({0})', localVersion),
+					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
+					description: localVersion || '',
+					detail: modulePath === localModulePath ? localize('activeVersion', 'active') : '',
 					id: MessageAction.useLocal
 				}, {
-					title: localize(
-						'useVSCodeVersionOption',
-						'Use VSCode\'s version ({0})',
-						shippedVersion),
+					label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
+					description: shippedVersion || '',
+					detail: modulePath === this.globalTypescriptPath ? localize('activeVersion', 'active') : '',
 					id: MessageAction.useBundled,
 				}, {
-					title: localize('learnMore', 'Learn More'),
-					id: MessageAction.learnMore,
-					isCloseAffordance: true
+					label: localize('learnMore', 'Learn More'),
+					description: '',
+					id: MessageAction.learnMore
+				}], {
+					placeHolder: usingWorkspaceVersion
+						? localize(
+							'usingWorkspaceTsVersion',
+							'Using TypeScript version {0} from workspace for Typescript language features.',
+							localVersion)
+						: localize(
+							'usingVSCodeTsVersion',
+							'Using VSCode\'s TypeScript version {0} for Typescript language features.',
+							shippedVersion),
 				});
 		} else {
-			messageShown = window.showInformationMessage<MyMessageItem>(
-				localize(
-					'versionCheckUsingBundledTS',
-					'Using VSCode\'s TypeScript version {0} for IntelliSense.',
-					shippedVersion),
+			messageShown = window.showQuickPick<MyQuickPickItem>([
 				{
-					title: localize('learnMore', 'Learn More'),
-					id: MessageAction.learnMore,
-					isCloseAffordance: true,
+					label: localize('learnMore', 'Learn More'),
+					description: '',
+
+					id: MessageAction.learnMore
 				}, {
-					title: localize('close', 'Close'),
-					id: MessageAction.close,
-					isCloseAffordance: true,
+					label: localize('close', 'Close'),
+					description: '',
+					id: MessageAction.close
+				}],
+				{
+					placeHolder: localize(
+						'versionCheckUsingBundledTS',
+						'Using VSCode\'s TypeScript version {0} for Typescript language features.',
+						shippedVersion),
 				});
 		}
+
+		const tryShowRestart = (newModulePath: string) => {
+			if (newModulePath === this.modulePath) {
+				return;
+			}
+
+			window.showInformationMessage<MessageItem>(
+				localize('restartBlurb', 'Restart VSCode to apply change'),
+				{
+					title: localize('restartOptionTitle', 'Restart')
+				})
+				.then(selected => {
+					if (selected) {
+						commands.executeCommand('workbench.action.reloadWindow');
+					}
+				});
+		};
 
 		return messageShown.then(selected => {
 			if (!selected) {
@@ -471,10 +572,18 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			switch (selected.id) {
 				case MessageAction.useLocal:
 					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
-						.then(_ => localModulePath);
+						.then(_ => {
+							if (localModulePath) {
+								tryShowRestart(localModulePath);
+							}
+							return localModulePath;
+						});
 				case MessageAction.useBundled:
 					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
-						.then(_ => modulePath);
+						.then(_ => {
+							tryShowRestart(this.globalTypescriptPath);
+							return this.globalTypescriptPath;
+						});
 				case MessageAction.learnMore:
 					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
 					return modulePath;
