@@ -128,8 +128,14 @@
 	padding: 0;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage.emptyRecent .splash .recent {
+.monaco-workbench > .part.editor > .content .welcomePage.emptyRecent .splash .recent .list {
 	display: none;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .splash .recent .none {
+	display: none;
+}
+.monaco-workbench > .part.editor > .content .welcomePage.emptyRecent .splash .recent .none {
+	display: initial;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .splash .recent li {
@@ -143,15 +149,17 @@
 	color: rgba(255,255,255,.46);
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .splash .recent .none,
 .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
-	padding-left: 1em;
 	color: rgba(0,0,0,.53);
 }
 
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .none,
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
 	color: rgba(255,255,255,.46);
 }
 
+.hc-black .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .none,
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
 	color: white;
 }
