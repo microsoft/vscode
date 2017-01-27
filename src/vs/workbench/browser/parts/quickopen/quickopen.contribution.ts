@@ -158,28 +158,28 @@ function navigateKeybinding(shift: boolean): IKeybindings {
 	if (!shift) {
 		return {
 			primary: KeyMod.CtrlCmd | KeyCode.Tab,
-			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyCode.KEY_E],
+			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.KEY_P],
 			mac: {
 				primary: KeyMod.WinCtrl | KeyCode.Tab,
-				secondary: [KeyMod.WinCtrl | KeyCode.KEY_Q]
+				secondary: [KeyMod.WinCtrl | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyCode.KEY_P]
 			},
 			linux: {
 				primary: KeyMod.CtrlCmd | KeyCode.Tab,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E]
+				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.KEY_P]
 			}
 		};
 	}
 
 	return {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E],
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P],
 		mac: {
 			primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab,
-			secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_Q]
+			secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P]
 		},
 		linux: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E]
+			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P]
 		}
 	};
 }
