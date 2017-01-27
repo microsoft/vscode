@@ -114,7 +114,7 @@ export class SuggestModel implements IDisposable {
 		this.requestPromise = null;
 		this.completionModel = null;
 		this.context = null;
-		this.currentPosition = editor.getPosition();
+		this.currentPosition = editor.getPosition() || new Position(1, 1);
 
 		// wire up various listeners
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
