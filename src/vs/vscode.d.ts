@@ -1598,7 +1598,7 @@ declare module 'vscode' {
 		/**
 		 * An optional event to signal that the code lenses from this provider have changed.
 		 */
-		onDidChangeCodeLenses?: Event<this>;
+		onDidChangeCodeLenses?: Event<void>;
 
 		/**
 		 * Compute a list of [lenses](#CodeLens). This call should return as fast as possible and if

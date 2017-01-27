@@ -28,11 +28,11 @@ class ReferencesCodeLens extends CodeLens {
 export default class TypeScriptReferencesCodeLensProvider implements CodeLensProvider {
 	private enabled = false;
 
-	private onDidChangeCodeLensesEmitter = new EventEmitter<CodeLensProvider>();
+	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(private client: ITypescriptServiceClient) { }
 
-	public get onDidChangeCodeLenses(): Event<CodeLensProvider> {
+	public get onDidChangeCodeLenses(): Event<void> {
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
@@ -41,7 +41,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 		const wasEnabled = this.enabled;
 		this.enabled = typeScriptConfig.get('referencesCodeLens.enabled', false);
 		if (wasEnabled !== this.enabled) {
-			this.onDidChangeCodeLensesEmitter.fire(this);
+			this.onDidChangeCodeLensesEmitter.fire();
 		}
 	}
 
