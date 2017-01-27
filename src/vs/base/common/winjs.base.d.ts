@@ -28,17 +28,17 @@ export declare class Promise {
 
 	static join(promises: { [name: string]: Promise; }): Promise;
 	static join(promises: Promise[]): Promise;
-	static any(promises: Promise[]): Promise;
+	// static any(promises: Promise[]): Promise;
 
 	// commented out to speed up adoption of TPromise
 	// static timeout(delay:number):Promise;
 
 	static wrapError(error: any): Promise;
-	static is(value: any): value is Thenable<any>;
-	static addEventListener(type: string, fn: EventCallback): void;
+	// static is(value: any): value is Thenable<any>;
+	// static addEventListener(type: string, fn: EventCallback): void;
 
 	public then(success?: ValueCallback, error?: ErrorCallback, progress?: ProgressCallback): Promise;
-	public then<U>(success?: ValueCallback, error?: ErrorCallback, progress?: ProgressCallback): TPromise<U>;
+	// public then<U>(success?: ValueCallback, error?: ErrorCallback, progress?: ProgressCallback): TPromise<U>;
 	public done(success?: ValueCallback, error?: ErrorCallback, progress?: ProgressCallback): void;
 	public cancel(): void;
 }
@@ -78,7 +78,12 @@ export declare class TPromise<V> {
 	public done(success?: (value: V) => void, error?: (err: any) => any, progress?: ProgressCallback): void;
 	public cancel(): void;
 
+	public static as(value: null): TPromise<null>;
+	public static as(value: undefined): TPromise<undefined>;
+	public static as<ValueType>(value: TPromise<ValueType>): TPromise<ValueType>;
+	public static as<ValueType>(value: Thenable<ValueType>): Thenable<ValueType>;
 	public static as<ValueType>(value: ValueType): TPromise<ValueType>;
+
 	public static is(value: any): value is Thenable<any>;
 	public static timeout(delay: number): TPromise<void>;
 	public static join<ValueType>(promises: TPromise<ValueType>[]): TPromise<ValueType[]>;
