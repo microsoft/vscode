@@ -384,7 +384,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (!this.workspaceState.get<boolean>(TypeScriptServiceClient.tsdkMigratedStorageKey, false)) {
 			this.workspaceState.update(TypeScriptServiceClient.tsdkMigratedStorageKey, true);
 			if (this.hasWorkspaceTsdkSetting() || this.localTypeScriptPath) {
-				modulePath = this.onVersionStatusClicked();
+				modulePath = this.showVersionPicker(false);
 			}
 		}
 
@@ -489,6 +489,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public onVersionStatusClicked(): Thenable<string> {
+		return this.showVersionPicker(true);
+	}
+
+	private showVersionPicker(promptForRestart: boolean = true) {
 		const modulePath = this.modulePath;
 
 		if (!workspace.rootPath) {
@@ -501,49 +505,36 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let messageShown: Thenable<MyQuickPickItem | undefined>;
 		if (localModulePath) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
-			const usingWorkspaceVersion = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
 			messageShown = window.showQuickPick<MyQuickPickItem>([
 				{
 					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
 					description: localVersion || '',
-					detail: modulePath === localModulePath ? localize('activeVersion', 'active') : '',
+					detail: modulePath === localModulePath ? localize('activeVersion', 'Currently active') : '',
 					id: MessageAction.useLocal
 				}, {
 					label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
 					description: shippedVersion || '',
-					detail: modulePath === this.globalTypescriptPath ? localize('activeVersion', 'active') : '',
+					detail: modulePath === this.globalTypescriptPath ? localize('activeVersion', 'Currently active') : '',
 					id: MessageAction.useBundled,
 				}, {
 					label: localize('learnMore', 'Learn More'),
 					description: '',
 					id: MessageAction.learnMore
 				}], {
-					placeHolder: usingWorkspaceVersion
-						? localize(
-							'usingWorkspaceTsVersion',
-							'Using TypeScript version {0} from workspace for Typescript language features.',
-							localVersion)
-						: localize(
-							'usingVSCodeTsVersion',
-							'Using VSCode\'s TypeScript version {0} for Typescript language features.',
-							shippedVersion),
+					placeHolder: localize(
+						'selectTsVersion',
+						'Select the TypeScript version used for language features')
 				});
 		} else {
 			messageShown = window.showQuickPick<MyQuickPickItem>([
 				{
 					label: localize('learnMore', 'Learn More'),
 					description: '',
-
 					id: MessageAction.learnMore
-				}, {
-					label: localize('close', 'Close'),
-					description: '',
-					id: MessageAction.close
-				}],
-				{
+				}], {
 					placeHolder: localize(
 						'versionCheckUsingBundledTS',
-						'Using VSCode\'s TypeScript version {0} for Typescript language features.',
+						'Using VSCode\'s TypeScript version {0} for Typescript language features',
 						shippedVersion),
 				});
 		}
@@ -554,9 +545,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 
 			window.showInformationMessage<MessageItem>(
-				localize('restartBlurb', 'Restart VSCode to apply change'),
+				localize('reloadBlurb', 'Reload window to apply changes'),
 				{
-					title: localize('restartOptionTitle', 'Restart')
+					title: localize('reloadTitle', 'Reload')
 				})
 				.then(selected => {
 					if (selected) {
