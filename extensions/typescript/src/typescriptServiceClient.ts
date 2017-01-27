@@ -543,13 +543,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				return;
 			}
 
+			const reloadMessage = { title: localize('reloadTitle', 'Reload') };
 			window.showInformationMessage<MessageItem>(
 				localize('reloadBlurb', 'Reload window to apply changes'),
+				reloadMessage,
 				{
-					title: localize('reloadTitle', 'Reload')
+					title: localize('later', 'Later'),
+					isCloseAffordance: true
 				})
 				.then(selected => {
-					if (selected) {
+					if (selected === reloadMessage) {
 						commands.executeCommand('workbench.action.reloadWindow');
 					}
 				});
