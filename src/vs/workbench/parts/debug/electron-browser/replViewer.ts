@@ -107,7 +107,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	}
 
 	public getHeight(tree: ITree, element: any): number {
-		if (element instanceof Variable) {
+		if (element instanceof Variable && (element.hasChildren || (element.name !== null))) {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 		if (element instanceof Expression && element.hasChildren) {
