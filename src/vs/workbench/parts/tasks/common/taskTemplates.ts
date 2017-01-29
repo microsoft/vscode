@@ -206,8 +206,9 @@ const java: TaskEntry = {
 		'\t"version": "0.1.0",',
 		'\t"command": , //Shell command',
 		'\t"isShellCommand": true,',
-		'\t"args": [], //Type /C if using cmd',
+		'\t"args": [], //Enter /C if using cmd',
 		'\t"showOutput": "always"',
+		'\t"tasks": [',
 		'\t\t{',
 		'\t\t\t"taskName": "javac",',
 		'\t\t\t"args": [],',
@@ -216,6 +217,7 @@ const java: TaskEntry = {
 		'\t\t\t"taskName": "java",',
 		'\t\t\t"args": [],',
 		'\t\t}',
+		'\t]',
 		'}'
 	].join('\n')
 };
