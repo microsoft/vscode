@@ -341,13 +341,11 @@ export class SearchViewlet extends Viewlet {
 		let occurrences = this.viewModel.searchResult.count();
 		let fileCount = this.viewModel.searchResult.fileCount();
 		let replaceValue = this.searchWidget.getReplaceValue() || '';
-		let afterReplaceAllMessage = replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
-			: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
+		let afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
 
 		let confirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
-			message: replaceValue ? nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue)
-				: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
+			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
 			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
 		};
 
@@ -363,6 +361,70 @@ export class SearchViewlet extends Viewlet {
 				this.messageService.show(Severity.Error, error);
 			});
 		}
+	}
+
+	private buildAfterReplaceAllMessage(occurrences: number, fileCount: number, replaceValue?: string) {
+		if (occurrences === 1) {
+			if (fileCount === 1) {
+				if (replaceValue) {
+					return nls.localize('replaceAll.occurrence.file.message', "Replaced {0} occurrence across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
+				}
+
+				return nls.localize('removeAll.occurrence.file.message', "Replaced {0} occurrence across {1} file'.", occurrences, fileCount);
+			}
+
+			if (replaceValue) {
+				return nls.localize('replaceAll.occurrence.files.message', "Replaced {0} occurrence across {1} files with '{2}'.", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('removeAll.occurrence.files.message', "Replaced {0} occurrence across {1} files.", occurrences, fileCount);
+		}
+
+		if (fileCount === 1) {
+			if (replaceValue) {
+				return nls.localize('replaceAll.occurrences.file.message', "Replaced {0} occurrences across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('removeAll.occurrences.file.message', "Replaced {0} occurrences across {1} file'.", occurrences, fileCount);
+		}
+
+		if (replaceValue) {
+			return nls.localize('replaceAll.occurrences.files.message', "Replaced {0} occurrences across {1} files with '{2}'.", occurrences, fileCount, replaceValue);
+		}
+
+		return nls.localize('removeAll.occurrences.files.message', "Replaced {0} occurrences across {1} files.", occurrences, fileCount);
+	}
+
+	private buildReplaceAllConfirmationMessage(occurrences: number, fileCount: number, replaceValue?: string) {
+		if (occurrences === 1) {
+			if (fileCount === 1) {
+				if (replaceValue) {
+					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+				}
+
+				return nls.localize('replaceAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file'?", occurrences, fileCount);
+			}
+
+			if (replaceValue) {
+				return nls.localize('removeAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('replaceAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files?", occurrences, fileCount);
+		}
+
+		if (fileCount === 1) {
+			if (replaceValue) {
+				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('replaceAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file'?", occurrences, fileCount);
+		}
+
+		if (replaceValue) {
+			return nls.localize('removeAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+		}
+
+		return nls.localize('replaceAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files?", occurrences, fileCount);
 	}
 
 	private clearMessage(): Builder {
