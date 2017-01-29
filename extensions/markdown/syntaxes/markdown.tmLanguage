@@ -515,7 +515,7 @@
 								<dict>
 									<key>include</key>
 									<string>#list_paragraph</string>
-							</dict>
+								</dict>
 								<dict>
 									<key>include</key>
 									<string>#block</string>
