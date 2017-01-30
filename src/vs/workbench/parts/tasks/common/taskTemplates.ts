@@ -206,7 +206,7 @@ const java: TaskEntry = {
 		'\t"version": "0.1.0",',
 		'\t"command": , //Shell command',
 		'\t"isShellCommand": true,',
-		'\t"args": [], //Enter /C if using cmd',
+		'\t"args": [],',
 		'\t"showOutput": "always"',
 		'\t"tasks": [',
 		'\t\t{',
