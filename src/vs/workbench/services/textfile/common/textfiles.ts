@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import { IRawText } from 'vs/editor/common/editorCommon';
+import { IRawTextProvider } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
 import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
@@ -112,7 +112,7 @@ export interface IRawTextContent extends IBaseStat {
 	/**
 	 * The line grouped content of a text file.
 	 */
-	value: IRawText;
+	value: IRawTextProvider;
 
 	/**
 	 * The line grouped logical hash of a text file.

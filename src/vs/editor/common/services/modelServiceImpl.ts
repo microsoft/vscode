@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService, IRawTextProvider } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
@@ -351,6 +351,11 @@ export class ModelServiceImpl implements IModelService {
 		this._models[modelId] = modelData;
 
 		return modelData;
+	}
+
+	public createRawText(provider: IRawTextProvider): editorCommon.IRawText {
+		let creationOptions = this.getCreationOptions();
+		return provider.toRawText(creationOptions);
 	}
 
 	public createModel(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
