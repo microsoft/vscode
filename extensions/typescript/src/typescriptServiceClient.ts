@@ -498,6 +498,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return Promise.resolve(modulePath);
 		}
 
+		const useWorkspaceVersionSetting = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
 		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
 		const localModulePath = this.localTypeScriptPath;
 		let messageShown: Thenable<MyQuickPickItem | undefined>;
@@ -507,12 +508,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				{
 					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
 					description: localVersion || '',
-					detail: modulePath === localModulePath ? localize('activeVersion', 'Currently active') : '',
+					detail: modulePath === localModulePath && (modulePath !== this.globalTypescriptPath || useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
 					id: MessageAction.useLocal
 				}, {
 					label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
 					description: shippedVersion || '',
-					detail: modulePath === this.globalTypescriptPath ? localize('activeVersion', 'Currently active') : '',
+					detail: modulePath === this.globalTypescriptPath && (modulePath !== localModulePath || !useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
 					id: MessageAction.useBundled,
 				}, {
 					label: localize('learnMore', 'Learn More'),
