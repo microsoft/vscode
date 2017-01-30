@@ -12,7 +12,6 @@ import nls = require('vs/nls');
 import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import { isWindows } from 'vs/base/common/platform';
-import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
 import { IRange } from 'vs/editor/common/editorCommon';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -165,7 +164,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			resultPromises.push(this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
-			if (this.includeSymbols && !searchWithRange && !paths.isAbsolute(searchValue)) {
+			if (this.includeSymbols && !searchWithRange) {
 				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
 			} else {
 				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
