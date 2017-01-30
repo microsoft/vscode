@@ -8,11 +8,9 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { Throttler } from 'vs/base/common/async';
-import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
@@ -30,8 +28,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { Action, IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -39,9 +35,7 @@ import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { isDarkTheme } from 'vs/platform/theme/common/themes';
-import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { SCMCommitEditor } from './scmEditor';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { SCMEditor } from './scmEditor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 interface SearchInputEvent extends Event {
@@ -199,12 +193,9 @@ class CommitAction extends Action {
 export class SCMViewlet extends Viewlet {
 
 	private static readonly ACCEPT_KEYBINDING = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
-	private static readonly EditorLineHeight = 22;
 
 	private cachedDimension: Dimension;
-	private inputBoxContainer: HTMLElement;
-	private inputEditor: SCMCommitEditor;
-	private inputModel: IModel;
+	private editor: SCMEditor;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
@@ -248,36 +239,11 @@ export class SCMViewlet extends Viewlet {
 		parent.addClass('scm-viewlet');
 
 		const root = parent.getHTMLElement();
-		this.inputBoxContainer = append(root, $('.scm-commit-box'));
+		const editorContainer = append(root, $('.scm-editor'));
 
-		const opts: IEditorOptions = {
-			wrappingColumn: 0,
-			overviewRulerLanes: 0,
-			glyphMargin: false,
-			lineNumbers: 'off',
-			folding: false,
-			selectOnLineNumbers: false,
-			selectionHighlight: false,
-			scrollbar: {
-				horizontal: 'hidden'
-			},
-			lineDecorationsWidth: 0,
-			scrollBeyondLastLine: false,
-			theme: this.themeService.getColorTheme().id,
-			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: false,
-			lineHeight: SCMViewlet.EditorLineHeight,
-			wordWrap: true
-		};
-
-		this.inputEditor = this.instantiationService.createInstance(SCMCommitEditor, this.inputBoxContainer, opts);
-
-
-		this.inputModel = this.modelService.createModel('', null, URI.parse(`scm:input`));
-		this.inputEditor.setModel(this.inputModel);
-
-		this.disposables.push(this.inputModel.onDidChangeContent(() => this.layout()));
+		this.editor = this.instantiationService.createInstance(SCMEditor, editorContainer);
+		this.editor.onDidChangeContent(() => this.layout(), null, this.disposables);
+		this.disposables.push(this.editor);
 
 		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
 		// 	placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
@@ -306,7 +272,7 @@ export class SCMViewlet extends Viewlet {
 			.on(this.open, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-		this.disposables.push(this.inputEditor, this.list);
+		this.disposables.push(this.list);
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
@@ -323,7 +289,6 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
-
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
 
@@ -337,17 +302,10 @@ export class SCMViewlet extends Viewlet {
 
 		this.cachedDimension = dimension;
 
-		// TODO@joao TODO@alex isn't there a better way to get the total view height?
-		const modelLength = this.inputModel.getValueLength();
-		const lastPosition = this.inputModel.getPositionAt(modelLength);
-		const lastLineTop = this.inputEditor.getTopForPosition(lastPosition.lineNumber, lastPosition.column);
-		const viewHeight = lastLineTop + SCMViewlet.EditorLineHeight;
+		const editorHeight = Math.min(this.editor.lineCount, 8) * this.editor.lineHeight;
+		this.editor.layout({ width: dimension.width - 25, height: editorHeight });
 
-		const lineCount = viewHeight / SCMViewlet.EditorLineHeight;
-		const inputEditorHeight = Math.min(lineCount, 8) * SCMViewlet.EditorLineHeight;
-		this.inputEditor.layout({ width: dimension.width - 25, height: inputEditorHeight });
-
-		const listHeight = dimension.height - (inputEditorHeight + 12 /* margin */);
+		const listHeight = dimension.height - (editorHeight + 12 /* margin */);
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
 	}
@@ -358,7 +316,7 @@ export class SCMViewlet extends Viewlet {
 
 	focus(): void {
 		super.focus();
-		this.inputEditor.focus();
+		this.editor.focus();
 	}
 
 	private acceptThrottler = new Throttler();
