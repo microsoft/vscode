@@ -34,6 +34,17 @@
 			]
 		},
 		{
+			"begin": "<!--",
+			"end": "--\\s*>",
+			"name": "comment.unbuffered.block.jade",
+			"patterns": [
+				{
+					"match": "--",
+					"name": "invalid.illegal.comment.comment.block.jade"
+				}
+			]
+		},
+		{
 			"begin": "^(\\s*)-$",
 			"comment": "Unbuffered code block.",
 			"end": "^(?!(\\1\\s)|\\s*$)",
@@ -45,10 +56,10 @@
 			]
 		},
 		{
-			"begin": "^(\\s*)(script)(?=[.#(\\s])((?![^\\n]*type=)|(?=[^\\n]*(text|application)/javascript))",
+			"begin": "^(\\s*)(script)((\\.$)|(?=[^\\n]*(text|application)/javascript.*\\.$))",
 			"beginCaptures": {
 				"2": {
-					"name": "entity.name.tag.script.jade"
+					"name": "entity.name.tag.jade"
 				}
 			},
 			"comment": "Script tag with JavaScript code.",
@@ -58,7 +69,6 @@
 				{
 					"begin": "\\G(?=\\()",
 					"end": "$",
-					"name": "stuff.tag.script.jade",
 					"patterns": [
 						{
 							"include": "#tag_attributes"
@@ -68,7 +78,6 @@
 				{
 					"begin": "\\G(?=[.#])",
 					"end": "$",
-					"name": "stuff.tag.script.jade",
 					"patterns": [
 						{
 							"include": "#complete_tag"
@@ -84,7 +93,7 @@
 			"begin": "^(\\s*)(style)((\\.$)|(?=[.#(].*\\.$))",
 			"beginCaptures": {
 				"2": {
-					"name": "entity.name.tag.script.jade"
+					"name": "entity.name.tag.jade"
 				}
 			},
 			"comment": "Style tag with CSS code.",
@@ -94,7 +103,6 @@
 				{
 					"begin": "\\G(?=\\()",
 					"end": "$",
-					"name": "stuff.tag.style.jade",
 					"patterns": [
 						{
 							"include": "#tag_attributes"
@@ -104,7 +112,6 @@
 				{
 					"begin": "\\G(?=[.#])",
 					"end": "$",
-					"name": "stuff.tag.style.jade",
 					"patterns": [
 						{
 							"include": "#complete_tag"
@@ -225,10 +232,10 @@
 			"begin": "^(\\s*)(?=[\\w.#].*?\\.$)(?=(?:(?:(?:(?:(?:#[\\w-]+)|(?:\\.[\\w-]+))|(?:(?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))(?:(?:#[\\w-]+)|(?:\\.[\\w-]+)|(?:\\((?:[^()\\'\\\"]*(?:(?:\\'(?:[^\\']|(?:(?<!\\\\)\\\\\\'))*\\')|(?:\\\"(?:[^\\\"]|(?:(?<!\\\\)\\\\\\\"))*\\\")))*[^()]*\\))*)*)(?:(?:(?::\\s+)|(?<=\\)))(?:(?:(?:(?:#[\\w-]+)|(?:\\.[\\w-]+))|(?:(?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))(?:(?:#[\\w-]+)|(?:\\.[\\w-]+)|(?:\\((?:[^()\\'\\\"]*(?:(?:\\'(?:[^\\']|(?:(?<!\\\\)\\\\\\'))*\\')|(?:\\\"(?:[^\\\"]|(?:(?<!\\\\)\\\\\\\"))*\\\")))*[^()]*\\))*)*))*)\\.$)(?:(?:(#[\\w-]+)|(\\.[\\w-]+))|((?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))",
 			"beginCaptures": {
 				"2": {
-					"name": "constant.id.tag.jade"
+					"name": "entity.other.attribute-name.id.jade"
 				},
 				"3": {
-					"name": "constant.language.js"
+					"name": "entity.other.attribute-name.class.jade"
 				},
 				"4": {
 					"name": "meta.tag.other entity.name.tag.jade"
@@ -363,6 +370,18 @@
 		}
 	],
 	"repository": {
+		"babel_parens": {
+			"begin": "\\(",
+			"end": "\\)|(({\\s*)?$)",
+			"patterns": [
+				{
+					"include": "#babel_parens"
+				},
+				{
+					"include": "source.js"
+				}
+			]
+		},
 		"blocks_and_includes": {
 			"captures": {
 				"1": {
@@ -871,11 +890,11 @@
 				}
 			},
 			"match": "\\.([^\\w-])?[\\w-]*",
-			"name": "constant.language.js"
+			"name": "entity.other.attribute-name.class.jade"
 		},
 		"tag_id": {
 			"match": "#[\\w-]+",
-			"name": "constant.id.tag.jade"
+			"name": "entity.other.attribute-name.id.jade"
 		},
 		"tag_mixin_attributes": {
 			"begin": "(&attributes\\()",
@@ -946,11 +965,14 @@
 				}
 			},
 			"comment": "name = function() {}",
-			"end": "(?=\\])|$",
+			"end": "(?=\\])|(({\\s*)?$)",
 			"name": "source.js",
 			"patterns": [
 				{
 					"include": "#js_brackets"
+				},
+				{
+					"include": "#babel_parens"
 				},
 				{
 					"include": "source.js"
@@ -960,5 +982,5 @@
 	},
 	"scopeName": "text.jade",
 	"uuid": "eee6ba25-6ac2-4f7e-9c70-cddf2bd3448b",
-	"version": "https://github.com/davidrios/jade-tmbundle/commit/7c1304aa5a0d916a93fd296d3dd994219ecdc90f"
+	"version": "https://github.com/davidrios/jade-tmbundle/commit/f311a516bb29296fcebfdc7da8149b1c79dfb0a1"
 }
