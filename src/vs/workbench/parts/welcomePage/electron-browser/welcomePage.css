@@ -277,3 +277,13 @@
 .monaco-workbench.linux > .part.editor > .content .welcomePage .linux-only {
 	display: initial;
 }
+
+.monaco-workbench > .part.editor > .content .welcomePageContainer .scm-only {
+	display: none;
+}
+.monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled .scm-only {
+	display: initial;
+}
+.monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled .git-only {
+	display: none;
+}
