@@ -210,7 +210,7 @@ export class MainThreadTextEditor {
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
 
-			let creationOpts = this._modelService.getCreationOptions();
+			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 

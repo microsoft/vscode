@@ -30,11 +30,10 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 	public provideTextContent(resource: URI): TPromise<IModel> {
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
-			let rawText = this.modelService.createRawText(content.value);
 			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(rawText, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
+				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
 			} else {
-				codeEditorModel.setValueFromRawText(rawText);
+				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;
@@ -60,7 +59,6 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 	public provideTextContent(resource: URI): TPromise<IModel> {
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
-			let rawText = this.modelService.createRawText(content.value);
 			if (!codeEditorModel) {
 				const j = parseInt(resource.fragment);
 
@@ -76,14 +74,14 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 					return '';
 				};
 
-				const markdown = rawText.lines.join('\n');
+				const markdown = content.value.getEntireContent().replace(/\r\n/g, '\n'); // TODO: Can marked digest \r\n ?
 				marked(markdown, { renderer });
 
 				const modeId = this.modeService.getModeIdForLanguageName(languageName);
 				const mode = this.modeService.getOrCreateMode(modeId);
 				codeEditorModel = this.modelService.createModel(codeSnippet, mode, resource);
 			} else {
-				codeEditorModel.setValueFromRawText(rawText);
+				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;

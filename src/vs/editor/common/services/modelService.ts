@@ -15,15 +15,16 @@ export var IModelService = createDecorator<IModelService>('modelService');
 
 export interface IRawTextProvider {
 	getFirstLine(): string;
+	getEntireContent(): string;
 	toRawText(opts: ITextModelCreationOptions): IRawText;
 }
 
 export interface IModelService {
 	_serviceBrand: any;
 
-	createModel(value: string | IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): IModel;
+	createModel(value: string | IRawTextProvider, modeOrPromise: TPromise<IMode> | IMode, resource: URI): IModel;
 
-	createRawText(provider: IRawTextProvider): IRawText;
+	updateModel(model: IModel, value: string | IRawTextProvider): void;
 
 	setMode(model: IModel, modeOrPromise: TPromise<IMode> | IMode): void;
 
@@ -31,7 +32,7 @@ export interface IModelService {
 
 	getModels(): IModel[];
 
-	getCreationOptions(): ITextModelCreationOptions;
+	getCreationOptions(language: string): ITextModelCreationOptions;
 
 	getModel(resource: URI): IModel;
 

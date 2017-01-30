@@ -77,8 +77,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		instantiationService.stub(IModelService, <IModelService>{
 			_serviceBrand: IModelService,
 			getModel(): any { return model; },
-			createRawText(): any { throw new Error(); },
 			createModel(): any { throw new Error(); },
+			updateModel(): any { throw new Error(); },
 			setMode(): any { throw new Error(); },
 			destroyModel(): any { throw new Error(); },
 			getModels(): any { throw new Error(); },
