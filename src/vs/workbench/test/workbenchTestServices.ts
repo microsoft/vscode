@@ -152,6 +152,9 @@ export class TestTextFileService extends TextFileService {
 		return this.fileService.resolveContent(resource, options).then((content) => {
 			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
 			const rawTextProvider: IRawTextProvider = {
+				getEntireContent: (): string => {
+					return raw.lines.join(raw.EOL);
+				},
 				getFirstLine: (): string => {
 					return raw.lines[0];
 				},
@@ -723,8 +726,8 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as([]);
 	}
 
-	public parseBackupContent(rawText: IRawText): string {
-		return rawText.lines.join('\n');
+	public parseBackupContent(rawText: IRawTextProvider): string {
+		return rawText.getEntireContent();
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {

@@ -413,8 +413,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		return this.textFileService.resolveTextContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => {
-			let rawText = this.modelService.createRawText(backup.value);
-			return this.backupFileService.parseBackupContent(rawText);
+			return this.backupFileService.parseBackupContent(backup.value);
 		}, error => null /* ignore errors */);
 	}
 

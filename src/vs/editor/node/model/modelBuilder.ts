@@ -87,6 +87,24 @@ export class ModelBuilderResult implements IRawTextProvider {
 		this.hash = hash;
 	}
 
+	public getEntireContent(): string {
+		let lineFeedCnt = this.lines.length - 1;
+		if (lineFeedCnt === 0) {
+			// Just one line, EOL does not matter
+			return this.lines[0];
+		}
+
+		let EOL = '';
+		if (this.carriageReturnCnt > lineFeedCnt / 2) {
+			// More than half of the file contains \r\n ending lines
+			EOL = '\r\n';
+		} else {
+			// At least one line more ends in \n
+			EOL = '\n';
+		}
+		return this.lines.join(EOL);
+	}
+
 	public getFirstLine(): string {
 		return this.lines[0];
 	}
