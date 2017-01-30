@@ -20,9 +20,9 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { TabCompletionController } from 'vs/editor/contrib/suggest/browser/tabCompletion';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { append, $ } from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -48,6 +48,7 @@ class SCMCodeEditorWidget extends CodeEditorWidget {
 			SuggestController,
 			SnippetController,
 			TabCompletionController,
+			ModesHoverController
 		];
 	}
 

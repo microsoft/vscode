@@ -24,7 +24,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 @editorContribution
-class ModesHoverController implements editorCommon.IEditorContribution {
+export class ModesHoverController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.hover';
 

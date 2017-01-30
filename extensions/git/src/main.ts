@@ -15,6 +15,7 @@ import { filterEvent, anyEvent } from './util';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
+import { CommitHandler } from './commit';
 import * as nls from 'vscode-nls';
 
 const localize = nls.config()();
@@ -48,6 +49,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const syncStatusBar = new SyncStatusBar(model);
 	const autoFetcher = new AutoFetcher(model);
 	const mergeDecorator = new MergeDecorator(model);
+	const commitHandler = new CommitHandler(model);
 
 	disposables.push(
 		commandCenter,
@@ -58,7 +60,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 		checkoutStatusBar,
 		syncStatusBar,
 		autoFetcher,
-		mergeDecorator
+		mergeDecorator,
+		commitHandler
 	);
 }
 
