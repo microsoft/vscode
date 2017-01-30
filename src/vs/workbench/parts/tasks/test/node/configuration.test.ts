@@ -1306,9 +1306,13 @@ suite('Bugs / regression tests', () => {
 				suppressTaskName(true).showOutput(TaskSystem.ShowOutput.Always).
 				args(['-ExecutionPolicy', 'RemoteSigned', '.\\dockerTask.ps1', '-ComposeForDebug', '-Environment', 'debug']).
 				command().echo(true).options({ cwd: '${workspaceRoot}' });
+			testConfiguration(external, builder);
 		} else if (Platform.isMacintosh) {
-
+			builder.task('composeForDebug', '/bin/bash').
+				suppressTaskName(true).showOutput(TaskSystem.ShowOutput.Always).
+				args(['-c', './dockerTask.sh composeForDebug debug']).
+				command().options({ cwd: '${workspaceRoot}' });
+			testConfiguration(external, builder);
 		}
-		testConfiguration(external, builder);
 	});
 });
