@@ -133,13 +133,13 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ReplaceI
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.CloseReplaceAction, Constants.CloseReplaceWidgetActionId, '', { primary: KeyCode.Escape }, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceInputBoxFocussedKey)), '');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowNextSearchTermAction, searchActions.ShowNextSearchTermAction.ID, searchActions.ShowNextSearchTermAction.LABEL, ShowNextFindTermKeybinding,
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), 'Show next search term');
+	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), 'Show Next Search Term');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowPreviousSearchTermAction, searchActions.ShowPreviousSearchTermAction.ID, searchActions.ShowPreviousSearchTermAction.LABEL, ShowPreviousFindTermKeybinding,
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), 'Show previous search term');
+	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), 'Show Previous Search Term');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusNextInputAction, searchActions.FocusNextInputAction.ID, searchActions.FocusNextInputAction.LABEL, { primary: KeyCode.DownArrow },
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey)), 'Focus next input box');
+	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey)), 'Focus Next Input Box');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusPreviousInputAction, searchActions.FocusPreviousInputAction.ID, searchActions.FocusPreviousInputAction.LABEL, { primary: KeyCode.UpArrow },
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey, Constants.SearchInputBoxFocussedKey.toNegated())), 'Focus previous input box');
+	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey, Constants.SearchInputBoxFocussedKey.toNegated())), 'Focus Previous Input Box');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleCaseSensitiveAction, Constants.ToggleCaseSensitiveActionId, '', ToggleCaseSensitiveKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleWholeWordAction, Constants.ToggleWholeWordActionId, '', ToggleWholeWordKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');

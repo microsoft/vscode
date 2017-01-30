@@ -1686,7 +1686,7 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 export class ShowActiveFileInExplorer extends Action {
 
 	public static ID = 'workbench.files.action.showActiveFileInExplorer';
-	public static LABEL = nls.localize('showInExplorer', "Show Active File in Explorer");
+	public static LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
 
 	constructor(
 		id: string,
