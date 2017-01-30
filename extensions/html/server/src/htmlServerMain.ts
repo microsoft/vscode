@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
 import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
@@ -39,6 +39,9 @@ let workspacePath: string;
 var languageModes: LanguageModes;
 var settings: any = {};
 
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
+
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -53,20 +56,30 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	connection.onShutdown(() => {
 		languageModes.dispose();
 	});
-	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
+
+	function hasClientCapability(...keys: string[]) {
+		let c = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			c = c[keys[i]];
+		}
+		return !!c;
+	}
+
+	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
+	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: snippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : null,
+			completionProvider: clientDynamicRegisterSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : null,
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: initializationOptions && initializationOptions['format.enable'],
+			documentRangeFormattingProvider: false,
 			documentLinkProvider: { resolveProvider: false },
 			documentSymbolProvider: true,
 			definitionProvider: true,
 			signatureHelpProvider: { triggerCharacters: ['('] },
-			referencesProvider: true
+			referencesProvider: true,
 		}
 	};
 });
@@ -76,6 +89,8 @@ let validation = {
 	css: true,
 	javascript: true
 };
+
+let formatterRegistration: Thenable<Disposable> = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -90,6 +105,21 @@ connection.onDidChangeConfiguration((change) => {
 		}
 	});
 	documents.all().forEach(triggerValidation);
+
+	// dynamically enable & disable the formatter
+	if (clientDynamicRegisterSupport) {
+		let enableFormatter = settings && settings.html && settings.html.format && settings.html.format.enable;
+		if (enableFormatter) {
+			if (!formatterRegistration) {
+				let documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
+				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
+			}
+		} else if (formatterRegistration) {
+			formatterRegistration.then(r => r.dispose());
+			formatterRegistration = null;
+		}
+	}
+
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};

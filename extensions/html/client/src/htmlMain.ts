@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
+import { languages, ExtensionContext, IndentAction } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateColorDecorations } from './colorDecorators';
@@ -52,8 +52,7 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
 		},
 		initializationOptions: {
-			embeddedLanguages,
-			['format.enable']: workspace.getConfiguration('html').get('format.enable')
+			embeddedLanguages
 		}
 	};
 
