@@ -870,7 +870,7 @@
 					"name": "invalid.illegal.tag.jade"
 				}
 			},
-			"match": "\\.([^\\w-])?[\\w-]*",
+			"match": "\\.[a-zA-Z0-9_-]+",
 			"name": "constant.language.js"
 		},
 		"tag_id": {
