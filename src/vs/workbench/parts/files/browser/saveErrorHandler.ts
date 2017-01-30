@@ -62,10 +62,11 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		// Make sure our file from disk is resolved up to date
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
+			let rawText = this.modelService.createRawText(content.value);
 			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
+				codeEditorModel = this.modelService.createModel(rawText, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
 			} else {
-				codeEditorModel.setValueFromRawText(content.value);
+				codeEditorModel.setValueFromRawText(rawText);
 			}
 
 			return codeEditorModel;

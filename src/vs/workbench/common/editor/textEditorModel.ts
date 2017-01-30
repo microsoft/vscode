@@ -11,7 +11,7 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IRawTextProvider, IModelService } from 'vs/editor/common/services/modelService';
 import { RawText } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -67,7 +67,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string | IRawText, resource?: URI, modeId?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: string | IRawTextProvider, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
@@ -77,10 +77,15 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	private doCreateTextEditorModel(value: string | IRawText, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: string | IRawTextProvider, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
-			model = this.modelService.createModel(value, mode, resource);
+			if (typeof value === 'string') {
+				model = this.modelService.createModel(value, mode, resource);
+			} else {
+				let rawText = this.modelService.createRawText(value);
+				model = this.modelService.createModel(rawText, mode, resource);
+			}
 			this.createdEditorModel = true;
 
 			// Make sure we clean up when this model gets disposed
@@ -89,7 +94,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			if (typeof value === 'string') {
 				model.setValue(value);
 			} else {
-				model.setValueFromRawText(value);
+				let rawText = this.modelService.createRawText(value);
+				model.setValueFromRawText(rawText);
 			}
 
 			this.modelService.setMode(model, mode);
@@ -100,7 +106,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	protected getFirstLineText(value: string | IRawText): string {
+	protected getFirstLineText(value: string | IRawTextProvider): string {
 		if (typeof value === 'string') {
 			const firstLineText = value.substr(0, 100);
 
@@ -116,7 +122,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
 		} else {
-			return value.lines[0].substr(0, 100);
+			return value.getFirstLine().substr(0, 100);
 		}
 	}
 
@@ -132,7 +138,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string | IRawText): void {
+	protected updateTextEditorModel(newValue: string | IRawTextProvider): void {
 		if (!this.textEditorModel) {
 			return;
 		}
@@ -141,7 +147,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		if (typeof newValue === 'string') {
 			rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
 		} else {
-			rawText = newValue;
+			rawText = this.modelService.createRawText(newValue);
 		}
 
 		// Return early if the text is already set in that form
