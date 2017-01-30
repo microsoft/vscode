@@ -710,10 +710,10 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
-				this.setStateAndEmit(session.getId(), debug.State.Running);
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
 				}
+				this.setStateAndEmit(session.getId(), debug.State.Running);
 
 				this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
