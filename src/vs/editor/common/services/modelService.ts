@@ -13,10 +13,17 @@ import { IMode } from 'vs/editor/common/modes';
 
 export var IModelService = createDecorator<IModelService>('modelService');
 
+export interface IRawTextProvider {
+	getFirstLine(): string;
+	toRawText(opts: ITextModelCreationOptions): IRawText;
+}
+
 export interface IModelService {
 	_serviceBrand: any;
 
 	createModel(value: string | IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): IModel;
+
+	createRawText(provider: IRawTextProvider): IRawText;
 
 	setMode(model: IModel, modeOrPromise: TPromise<IMode> | IMode): void;
 
