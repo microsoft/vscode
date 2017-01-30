@@ -216,6 +216,12 @@
       "patterns": [
         {
           "include": "#string_literal"
+        },
+        {
+          "include": "#block_comment"
+        },
+        {
+          "include": "#line_comment"
         }
       ]
     },
