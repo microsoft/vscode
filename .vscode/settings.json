@@ -5,7 +5,8 @@
 	"files.exclude": {
 		".git": true,
 		".build": true,
-		"**/.DS_Store": true
+		"**/.DS_Store": true,
+		"build/**/*.js": { "when": "$(basename).ts" }
 	},
 	"search.exclude": {
 		"**/node_modules": true,
@@ -29,6 +30,5 @@
 				"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
 			}
 		}
-	],
-	"typescript.tsdk": "./node_modules/typescript/lib"
+	]
 }
