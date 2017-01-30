@@ -88,8 +88,7 @@
 						"null"
 					],
 					"default": null,
-					"description": "%typescript.tsdk.desc%",
-					"isExecutable": true
+					"description": "%typescript.tsdk.desc%"
 				},
 				"typescript.disableAutomaticTypeAcquisition": {
 					"type": "boolean",
