@@ -339,7 +339,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this.setValueFromRawText(rawText);
 	}
 
-	public setValueFromRawText(newValue: editorCommon.IRawText): void {
+	public setValueFromRawText(newValue: editorCommon.ITextSource): void {
 		this._assertNotDisposed();
 		if (newValue === null) {
 			// There's nothing to do

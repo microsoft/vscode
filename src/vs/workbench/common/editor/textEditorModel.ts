@@ -5,14 +5,13 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EndOfLinePreference, IModel, IRawText } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IModel } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IRawTextProvider, IModelService } from 'vs/editor/common/services/modelService';
-import { RawText } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
@@ -80,24 +79,13 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	private doCreateTextEditorModel(value: string | IRawTextProvider, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
-			if (typeof value === 'string') {
-				model = this.modelService.createModel(value, mode, resource);
-			} else {
-				let rawText = this.modelService.createRawText(value);
-				model = this.modelService.createModel(rawText, mode, resource);
-			}
+			model = this.modelService.createModel(value, mode, resource);
 			this.createdEditorModel = true;
 
 			// Make sure we clean up when this model gets disposed
 			this.registerModelDisposeListener(model);
 		} else {
-			if (typeof value === 'string') {
-				model.setValue(value);
-			} else {
-				let rawText = this.modelService.createRawText(value);
-				model.setValueFromRawText(rawText);
-			}
-
+			this.modelService.updateModel(model, value);
 			this.modelService.setMode(model, mode);
 		}
 
@@ -143,20 +131,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			return;
 		}
 
-		let rawText: IRawText;
-		if (typeof newValue === 'string') {
-			rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
-		} else {
-			rawText = this.modelService.createRawText(newValue);
-		}
-
-		// Return early if the text is already set in that form
-		if (this.textEditorModel.equals(rawText)) {
-			return;
-		}
-
-		// Otherwise update model
-		this.textEditorModel.setValueFromRawText(rawText);
+		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
 	/**

@@ -161,8 +161,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 			if (backupResource) {
 				return this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => {
-					let rawText = this.modelService.createRawText(rawTextContent.value);
-					return this.backupFileService.parseBackupContent(rawText);
+					return this.backupFileService.parseBackupContent(rawTextContent.value);
 				});
 			}
 
