@@ -29,7 +29,7 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 		while ((match = this._linkPattern.exec(text))) {
 			const pre = match[1];
 			const link = match[2];
-			const offset = match.index + pre.length;
+			const offset = (match.index || 0) + pre.length;
 			const linkStart = document.positionAt(offset);
 			const linkEnd = document.positionAt(offset + link.length);
 			try {
