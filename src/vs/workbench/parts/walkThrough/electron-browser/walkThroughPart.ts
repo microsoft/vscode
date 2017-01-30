@@ -34,6 +34,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -247,6 +248,7 @@ export class WalkThroughPart extends BaseEditor {
 				if (strings.endsWith(input.getResource().path, '.html')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
+					this.updateMarkerClasses();
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
@@ -324,12 +326,20 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
+				this.updateMarkerClasses();
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input.getResource());
 			});
+	}
+
+	private updateMarkerClasses() {
+		const innerContent = this.content.firstElementChild;
+		if (SCMPreview.enabled && innerContent) {
+			innerContent.classList.add('scmEnabled');
+		}
 	}
 
 	private style(div: HTMLElement) {
