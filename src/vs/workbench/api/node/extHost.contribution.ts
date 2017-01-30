@@ -24,6 +24,7 @@ import { MainThreadLanguageFeatures } from './mainThreadLanguageFeatures';
 import { MainThreadLanguages } from './mainThreadLanguages';
 import { MainThreadMessageService } from './mainThreadMessageService';
 import { MainThreadOutputService } from './mainThreadOutputService';
+import { MainThreadProgress } from './mainThreadProgress';
 import { MainThreadQuickOpen } from './mainThreadQuickOpen';
 import { MainThreadStatusBar } from './mainThreadStatusBar';
 import { MainThreadStorage } from './mainThreadStorage';
@@ -32,9 +33,9 @@ import { MainThreadTerminalService } from './mainThreadTerminalService';
 import { MainThreadWorkspace } from './mainThreadWorkspace';
 import { MainProcessExtensionService } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
+import { MainThreadSCM } from './mainThreadSCM';
 
 // --- other interested parties
-import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
 import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
@@ -75,22 +76,23 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadLanguages).set(create(MainThreadLanguages));
 		col.define(MainContext.MainThreadMessageService).set(create(MainThreadMessageService));
 		col.define(MainContext.MainThreadOutputService).set(create(MainThreadOutputService));
+		col.define(MainContext.MainThreadProgress).set(create(MainThreadProgress));
 		col.define(MainContext.MainThreadQuickOpen).set(create(MainThreadQuickOpen));
 		col.define(MainContext.MainThreadStatusBar).set(create(MainThreadStatusBar));
 		col.define(MainContext.MainThreadStorage).set(create(MainThreadStorage));
 		col.define(MainContext.MainThreadTelemetry).set(create(MainThreadTelemetry));
 		col.define(MainContext.MainThreadTerminalService).set(create(MainThreadTerminalService));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
+		col.define(MainContext.MainThreadSCM).set(create(MainThreadSCM));
 		if (this.extensionService instanceof MainProcessExtensionService) {
 			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
 		}
 		col.finish(true, this.threadService);
 
 		// Other interested parties
-		let tmSyntax = create(MainProcessTextMateSyntax);
 		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
-		this.instantiationService.createInstance(LanguageConfigurationFileHandler, tmSyntax);
+		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 		create(MainThreadFileSystemEventService);
 		create(SaveParticipant);
 	}

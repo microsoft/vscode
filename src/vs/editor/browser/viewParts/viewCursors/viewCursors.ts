@@ -14,10 +14,7 @@ import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
-import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
-import * as browsers from 'vs/base/browser/browser';
-
-const ANIMATIONS_SUPPORTED = !browsers.isIE9;
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export class ViewCursors extends ViewPart {
 
@@ -26,13 +23,13 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: editorCommon.TextEditorCursorBlinkingStyle;
 	private _cursorStyle: editorCommon.TextEditorCursorStyle;
+	private _selectionIsEmpty: boolean;
 
 	private _isVisible: boolean;
 
 	private _domNode: FastDomNode;
 
 	private _startCursorBlinkAnimation: TimeoutTimer;
-	private _compatBlink: IntervalTimer;
 	private _blinkingEnabled: boolean;
 
 	private _editorHasFocus: boolean;
@@ -47,6 +44,7 @@ export class ViewCursors extends ViewPart {
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		this._selectionIsEmpty = true;
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
@@ -58,7 +56,6 @@ export class ViewCursors extends ViewPart {
 		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._startCursorBlinkAnimation = new TimeoutTimer();
-		this._compatBlink = new IntervalTimer();
 		this._blinkingEnabled = false;
 
 		this._editorHasFocus = false;
@@ -68,7 +65,6 @@ export class ViewCursors extends ViewPart {
 	public dispose(): void {
 		super.dispose();
 		this._startCursorBlinkAnimation.dispose();
-		this._compatBlink.dispose();
 	}
 
 	public getDomNode(): HTMLElement {
@@ -146,6 +142,11 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+		let selectionIsEmpty = e.selection.isEmpty();
+		if (this._selectionIsEmpty !== selectionIsEmpty) {
+			this._selectionIsEmpty = selectionIsEmpty;
+			this._updateDomClassName();
+		}
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
@@ -204,7 +205,6 @@ export class ViewCursors extends ViewPart {
 
 	private _updateBlinking(): void {
 		this._startCursorBlinkAnimation.cancel();
-		this._compatBlink.cancel();
 
 		let blinkingStyle = this._getCursorBlinking();
 
@@ -222,14 +222,10 @@ export class ViewCursors extends ViewPart {
 		this._updateDomClassName();
 
 		if (!isHidden && !isSolid) {
-			if (ANIMATIONS_SUPPORTED) {
-				this._startCursorBlinkAnimation.setIfNotSet(() => {
-					this._blinkingEnabled = true;
-					this._updateDomClassName();
-				}, ViewCursors.BLINK_INTERVAL);
-			} else {
-				this._compatBlink.cancelAndSet(() => this._compatBlinkUpdate(), ViewCursors.BLINK_INTERVAL);
-			}
+			this._startCursorBlinkAnimation.setIfNotSet(() => {
+				this._blinkingEnabled = true;
+				this._updateDomClassName();
+			}, ViewCursors.BLINK_INTERVAL);
 		}
 	}
 	// --- end blinking logic
@@ -240,6 +236,9 @@ export class ViewCursors extends ViewPart {
 
 	private _getClassName(): string {
 		let result = ClassNames.VIEW_CURSORS_LAYER;
+		if (!this._selectionIsEmpty) {
+			result += ' has-selection';
+		}
 		switch (this._cursorStyle) {
 			case editorCommon.TextEditorCursorStyle.Line:
 				result += ' cursor-line-style';
@@ -277,14 +276,6 @@ export class ViewCursors extends ViewPart {
 			result += ' cursor-solid';
 		}
 		return result;
-	}
-
-	private _compatBlinkUpdate(): void {
-		if (this._isVisible) {
-			this._hide();
-		} else {
-			this._show();
-		}
 	}
 
 	private _show(): void {

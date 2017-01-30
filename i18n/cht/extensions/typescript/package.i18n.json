@@ -23,6 +23,7 @@
 	"typescript.check.workspaceVersion": "請檢查 TypeScript 版本是否可在工作區中使用。",
 	"typescript.disableAutomaticTypeAcquisition": "停用自動類型取得。需要 TypeScript >= 2.0.6，並需要在變更後重新啟動。",
 	"typescript.format.enable": "啟用/停用預設 TypeScript 格式器。",
+	"typescript.referencesCodeLens.enabled": "啟用/停用參考 code lens",
 	"typescript.reloadProjects.title": "重新載入 TypeScript 專案",
 	"typescript.tsdk.desc": "指定資料夾路徑，其中包含要使用的 tsserver 和 lib*.d.ts 檔案。",
 	"typescript.tsdk_version.desc": "指定 tsserver 版本。只有在未使用 npm 安裝 tsserver 時才需要。",

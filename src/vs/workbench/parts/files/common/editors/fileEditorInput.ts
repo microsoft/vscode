@@ -8,20 +8,21 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
-import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput } from 'vs/workbench/parts/files/common/files';
+import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
-export class FileEditorInput extends CommonFileEditorInput {
+export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private resource: URI;
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
@@ -70,10 +71,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public setResource(resource: URI): void {
-		if (resource.scheme !== 'file') {
-			throw new Error('FileEditorInput can only handle file:// resources.');
-		}
-
 		this.resource = resource;
 
 		// Reset resource dependent properties
@@ -96,6 +93,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 			return textModel.getEncoding();
 		}
 
+		return this.preferredEncoding;
+	}
+
+	public getPreferredEncoding(): string {
 		return this.preferredEncoding;
 	}
 
@@ -185,6 +186,13 @@ export class FileEditorInput extends CommonFileEditorInput {
 			// Bubble any other error up
 			return TPromise.wrapError(error);
 		});
+	}
+
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+
+		return descriptor;
 	}
 
 	public dispose(): void {

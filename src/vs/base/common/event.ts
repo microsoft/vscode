@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { once as onceFn } from 'vs/base/common/functional';
 
 /**
  * To an event a function with one or zero parameters
@@ -127,6 +128,67 @@ export class Emitter<T> {
 	}
 }
 
+export class EventMultiplexer<T> implements IDisposable {
+
+	private emitter: Emitter<T>;
+	private hasListeners = false;
+	private events: { event: Event<T>; listener: IDisposable; }[] = [];
+
+	constructor() {
+		this.emitter = new Emitter<T>({
+			onFirstListenerAdd: () => this.onFirstListenerAdd(),
+			onLastListenerRemove: () => this.onLastListenerRemove()
+		});
+	}
+
+	get event(): Event<T> {
+		return this.emitter.event;
+	}
+
+	add(event: Event<T>): IDisposable {
+		const e = { event: event, listener: null };
+		this.events.push(e);
+
+		if (this.hasListeners) {
+			this.hook(e);
+		}
+
+		const dispose = () => {
+			if (this.hasListeners) {
+				this.unhook(e);
+			}
+
+			const idx = this.events.indexOf(e);
+			this.events.splice(idx, 1);
+		};
+
+		return toDisposable(onceFn(dispose));
+	}
+
+	private onFirstListenerAdd(): void {
+		this.hasListeners = true;
+		this.events.forEach(e => this.hook(e));
+	}
+
+	private onLastListenerRemove(): void {
+		this.hasListeners = false;
+		this.events.forEach(e => this.unhook(e));
+	}
+
+	private hook(e: { event: Event<T>; listener: IDisposable; }): void {
+		e.listener = e.event(r => this.emitter.fire(r));
+	}
+
+	private unhook(e: { event: Event<T>; listener: IDisposable; }): void {
+		e.listener.dispose();
+		e.listener = null;
+	}
+
+	dispose(): void {
+		this.emitter.dispose();
+	}
+}
+
 /**
  * Creates an Event which is backed-up by the event emitter. This allows
  * to use the existing eventing pattern and is likely using less memory.
@@ -159,6 +221,17 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 		}
 		return result;
 	};
+}
+
+export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): Event<T> {
+	let listener: IDisposable;
+
+	const emitter = new Emitter<T>({
+		onFirstListenerAdd: () => listener = fn(e => emitter.fire(e)),
+		onLastListenerRemove: () => listener.dispose()
+	});
+
+	return emitter.event;
 }
 
 export function fromPromise(promise: TPromise<any>): Event<void> {
@@ -218,7 +291,7 @@ export function once<T>(event: Event<T>): Event<T> {
 }
 
 export function any<T>(...events: Event<T>[]): Event<T> {
-	let listeners = [];
+	let listeners: IDisposable[] = [];
 
 	const emitter = new Emitter<T>({
 		onFirstListenerAdd() {
@@ -232,6 +305,8 @@ export function any<T>(...events: Event<T>[]): Event<T> {
 	return emitter.event;
 }
 
+export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number): Event<T>;
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay?: number): Event<O>;
 export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100): Event<O> {
 
 	let subscription: IDisposable;
@@ -297,7 +372,7 @@ export class EventBufferer {
 	}
 
 	bufferEvents(fn: () => void): void {
-		const buffer = [];
+		const buffer: Function[] = [];
 		this.buffers.push(buffer);
 		fn();
 		this.buffers.pop();
@@ -334,7 +409,7 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 
-	on(listener, thisArgs, disposables) {
+	on(listener, thisArgs, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
 	}
 }

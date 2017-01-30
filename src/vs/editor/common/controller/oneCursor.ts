@@ -107,7 +107,6 @@ export class MoveOperationResult {
 export class OneCursor implements IOneCursor {
 
 	// --- contextual state
-	private readonly editorId: number;
 	public readonly model: editorCommon.IModel;
 	public readonly viewModel: ICursorSimpleModel;
 	private readonly configuration: editorCommon.IConfiguration;
@@ -122,21 +121,16 @@ export class OneCursor implements IOneCursor {
 	public modelState: SingleCursorState;
 	public viewState: SingleCursorState;
 
-	// --- bracket match decorations
-	private bracketDecorations: string[];
-
 	// --- computed properties
 	private _selStartMarker: string;
 	private _selEndMarker: string;
 
 	constructor(
-		editorId: number,
 		model: editorCommon.IModel,
 		configuration: editorCommon.IConfiguration,
 		modeConfiguration: IModeConfiguration,
 		viewModelHelper: IViewModelHelper
 	) {
-		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
 		this.modeConfiguration = modeConfiguration;
@@ -152,8 +146,6 @@ export class OneCursor implements IOneCursor {
 				this._recreateCursorConfig();
 			}
 		});
-
-		this.bracketDecorations = [];
 
 		this._setState(
 			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
@@ -270,7 +262,7 @@ export class OneCursor implements IOneCursor {
 	}
 
 	public duplicate(): OneCursor {
-		let result = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
+		let result = new OneCursor(this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
 		result._setState(
 			this.modelState,
 			this.viewState,
@@ -284,30 +276,7 @@ export class OneCursor implements IOneCursor {
 		this._configChangeListener.dispose();
 		this.model._removeMarker(this._selStartMarker);
 		this.model._removeMarker(this._selEndMarker);
-		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, [], this.editorId);
 	}
-
-	public adjustBracketDecorations(): void {
-		let bracketMatch: [Range, Range] = null;
-		let selection = this.modelState.selection;
-		if (selection.isEmpty()) {
-			bracketMatch = this.model.matchBracket(this.modelState.position);
-		}
-
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-		if (bracketMatch) {
-			let options: editorCommon.IModelDecorationOptions = {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				className: 'bracket-match'
-			};
-			newDecorations.push({ range: bracketMatch[0], options: options });
-			newDecorations.push({ range: bracketMatch[1], options: options });
-		}
-
-		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, newDecorations, this.editorId);
-	}
-
-
 
 	public setSelection(selection: editorCommon.ISelection, viewSelection: editorCommon.ISelection = null): void {
 		let position = this.model.validatePosition({
@@ -414,9 +383,6 @@ export class OneCursor implements IOneCursor {
 
 	// -------------------- START reading API
 
-	public getBracketsDecorations(): string[] {
-		return this.bracketDecorations;
-	}
 	public setSelectionStartLeftoverVisibleColumns(value: number): void {
 		this._setState(
 			this.modelState.withSelectionStartLeftoverVisibleColumns(value),
@@ -531,30 +497,6 @@ export class OneCursor implements IOneCursor {
 export class OneCursorOp {
 
 	// -------------------- START handlers that simply change cursor state
-	public static jumpToBracket(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let bracketDecorations = cursor.getBracketsDecorations();
-
-		if (bracketDecorations.length !== 2) {
-			return false;
-		}
-
-		let firstBracket = cursor.model.getDecorationRange(bracketDecorations[0]);
-		let secondBracket = cursor.model.getDecorationRange(bracketDecorations[1]);
-
-		let position = cursor.modelState.position;
-
-		if (Utils.isPositionAtRangeEdges(position, firstBracket) || Utils.isPositionInsideRange(position, firstBracket)) {
-			cursor.moveModelPosition(false, secondBracket.endLineNumber, secondBracket.endColumn, 0, false);
-			return true;
-		}
-
-		if (Utils.isPositionAtRangeEdges(position, secondBracket) || Utils.isPositionInsideRange(position, secondBracket)) {
-			cursor.moveModelPosition(false, firstBracket.endLineNumber, firstBracket.endColumn, 0, false);
-			return true;
-		}
-
-		return false;
-	}
 
 	public static moveTo(cursor: OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, viewPosition: editorCommon.IPosition, eventSource: string, ctx: IOneCursorOperationContext): boolean {
 		let validatedPosition = cursor.model.validatePosition(position);
@@ -924,37 +866,4 @@ export class OneCursorOp {
 	}
 
 	// -------------------- STOP handlers that simply change cursor state
-}
-
-class Utils {
-
-	/**
-	 * Tests if position is contained inside range.
-	 * If position is either the starting or ending of a range, false is returned.
-	 */
-	static isPositionInsideRange(position: Position, range: Range): boolean {
-		if (position.lineNumber < range.startLineNumber) {
-			return false;
-		}
-		if (position.lineNumber > range.endLineNumber) {
-			return false;
-		}
-		if (position.lineNumber === range.startLineNumber && position.column < range.startColumn) {
-			return false;
-		}
-		if (position.lineNumber === range.endLineNumber && position.column > range.endColumn) {
-			return false;
-		}
-		return true;
-	}
-
-	static isPositionAtRangeEdges(position: Position, range: Range): boolean {
-		if (position.lineNumber === range.startLineNumber && position.column === range.startColumn) {
-			return true;
-		}
-		if (position.lineNumber === range.endLineNumber && position.column === range.endColumn) {
-			return true;
-		}
-		return false;
-	}
 }

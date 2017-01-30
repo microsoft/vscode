@@ -12,9 +12,9 @@ import { IOptions } from 'vs/workbench/common/options';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
+import comparer = require('vs/base/common/comparers');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
-import timer = require('vs/base/common/timer');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -47,10 +47,14 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
+
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
 	browser.setZoomLevel(webFrame.getZoomLevel());
 	browser.setFullscreen(!!configuration.fullscreen);
+
+	// Setup Intl
+	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
@@ -61,10 +65,6 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 		filesToCreate,
 		filesToDiff
 	};
-
-	if (configuration.performance) {
-		timer.ENABLE_TIMER = true;
-	}
 
 	// Resolve workspace
 	return getWorkspace(configuration.workspacePath).then(workspace => {
@@ -133,7 +133,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
-	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.getWorkspace());
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
@@ -145,7 +145,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 
 			// Open Shell
 			timerService.beforeWorkbenchOpen = new Date();
-			const shell = new WorkbenchShell(document.body, workspace, {
+			const shell = new WorkbenchShell(document.body, {
 				configurationService,
 				contextService,
 				environmentService,

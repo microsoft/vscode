@@ -10,10 +10,11 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
+import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
-import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -31,6 +32,8 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { ParsedExpression, parse, IExpression } from 'vs/base/common/glob';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -70,8 +73,9 @@ export class EditorState {
 	}
 }
 
-interface ISerializedFileEditorInput {
-	resource: string;
+interface ISerializedFileHistoryEntry {
+	resource?: string;
+	resourceJSON: any;
 }
 
 export abstract class BaseHistoryService {
@@ -80,6 +84,9 @@ export abstract class BaseHistoryService {
 	private activeEditorListeners: IDisposable[];
 	private isPure: boolean;
 	private showFullPath: boolean;
+
+	protected excludes: ParsedExpression;
+	private lastKnownExcludesConfig: IExpression;
 
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 
@@ -121,6 +128,18 @@ export abstract class BaseHistoryService {
 
 		if (update && currentShowPath !== this.showFullPath) {
 			this.updateWindowTitle(this.editorService.getActiveEditorInput());
+		}
+
+		const excludesConfig = getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>());
+		if (!objects.equals(excludesConfig, this.lastKnownExcludesConfig)) {
+			const configChanged = !!this.lastKnownExcludesConfig;
+
+			this.lastKnownExcludesConfig = excludesConfig;
+			this.excludes = parse(excludesConfig, { trimForExclusions: true });
+
+			if (configChanged) {
+				this.handleExcludesChange();
+			}
 		}
 	}
 
@@ -177,6 +196,8 @@ export abstract class BaseHistoryService {
 		this.titleService.updateTitle(windowTitle);
 	}
 
+	protected abstract handleExcludesChange(): void;
+
 	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor): void;
 
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
@@ -199,9 +220,9 @@ export abstract class BaseHistoryService {
 		const appName = this.environmentService.appNameLong;
 
 		let prefix: string;
-		const fileInput = asFileEditorInput(input);
-		if (fileInput && this.showFullPath) {
-			prefix = labels.getPathLabel(fileInput.getResource());
+		const file = toResource(input, { filter: 'file' });
+		if (file && this.showFullPath) {
+			prefix = labels.getPathLabel(file);
 			if ((platform.isMacintosh || platform.isLinux) && prefix.indexOf(this.environmentService.userHome) === 0) {
 				prefix = `~${prefix.substr(this.environmentService.userHome.length)}`;
 			}
@@ -324,12 +345,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
-			const fileEditor = asFileEditorInput(event.editor); // we only support files to reopen
-			if (fileEditor) {
+			const file = toResource(event.editor, { filter: 'file' }); // we only support files to reopen
+			if (file) {
 
 				// Remove all inputs matching and add as last recently closed
 				this.removeFromRecentlyClosedFiles(event.editor);
-				this.recentlyClosedFiles.push({ resource: fileEditor.getResource(), index: event.index });
+				this.recentlyClosedFiles.push({ resource: file, index: event.index });
 
 				// Bounding
 				if (this.recentlyClosedFiles.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
@@ -416,8 +437,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
 		const input = editor ? editor.input : void 0;
 
-		// Ensure we have at least a name to show
-		if (!input || !input.getName()) {
+		// Ensure we have at least a name to show and not configured to exclude input
+		if (!input || !input.getName() || !this.include(input)) {
 			return;
 		}
 
@@ -444,6 +465,21 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
+	private include(input: IEditorInput | IResourceInput): boolean {
+		if (input instanceof EditorInput) {
+			return true; // include any non files
+		}
+
+		const resourceInput = input as IResourceInput;
+		const relativePath = this.contextService.toWorkspaceRelativePath(resourceInput.resource);
+
+		return !this.excludes(relativePath || resourceInput.resource.fsPath);
+	}
+
+	protected handleExcludesChange(): void {
+		this.removeExcludedFromHistory();
+	}
+
 	public remove(input: IEditorInput | IResourceInput): void;
 	public remove(input: FileChangesEvent): void;
 	public remove(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
@@ -451,6 +487,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
 		this.removeFromRecentlyOpen(arg1);
+	}
+
+	private removeExcludedFromHistory(): void {
+		this.ensureHistoryLoaded();
+
+		this.history = this.history.filter(e => this.include(e));
 	}
 
 	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
@@ -577,9 +619,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		const fileInput = asFileEditorInput(input);
-		if (fileInput) {
-			return { resource: fileInput.getResource() };
+		const file = toResource(input, { filter: 'file' });
+		if (file) {
+			return { resource: file };
 		}
 
 		return input;
@@ -674,9 +716,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (arg2 instanceof EditorInput) {
-			const fileInput = asFileEditorInput(arg2);
+			const file = toResource(arg2, { filter: 'file' });
 
-			return fileInput && fileInput.getResource().toString() === resource.toString();
+			return file && file.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;
@@ -703,19 +745,19 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // nothing to save because history was not used
 		}
 
-		const entries: ISerializedFileEditorInput[] = this.history.map(input => {
+		const entries: ISerializedFileHistoryEntry[] = this.history.map(input => {
 			if (input instanceof EditorInput) {
 				return void 0; // only file resource inputs are serializable currently
 			}
 
-			return { resource: (input as IResourceInput).resource.toString() };
+			return { resourceJSON: (input as IResourceInput).resource.toJSON() };
 		}).filter(serialized => !!serialized);
 
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
 	private loadHistory(): void {
-		let entries: ISerializedFileEditorInput[] = [];
+		let entries: ISerializedFileHistoryEntry[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
@@ -723,9 +765,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		this.history = entries.map(entry => {
-			const serializedFileInput = entry as ISerializedFileEditorInput;
-			if (serializedFileInput.resource) {
-				return { resource: URI.parse(serializedFileInput.resource) } as IResourceInput;
+			const serializedFileInput = entry as ISerializedFileHistoryEntry;
+			if (serializedFileInput.resource || serializedFileInput.resourceJSON) {
+				return { resource: !!serializedFileInput.resourceJSON ? URI.revive(serializedFileInput.resourceJSON) : URI.parse(serializedFileInput.resource) } as IResourceInput;
 			}
 
 			return void 0;

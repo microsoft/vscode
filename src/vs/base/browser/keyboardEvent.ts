@@ -128,7 +128,7 @@ let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
 
 	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
-	if (browser.isIE11orEarlier) {
+	if (browser.isIE) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
 	} else if (browser.isFirefox) {
 		KEY_CODE_MAP[59] = KeyCode.US_SEMICOLON;

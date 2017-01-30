@@ -15,6 +15,7 @@
 	"noResultsFound": "找不到結果。請檢閱所設定排除的設定 - ",
 	"noResultsIncludes": "在 '{0}' 中找不到結果 - ",
 	"noResultsIncludesExcludes": "在 '{0}' 中找不到排除 '{1}' 的結果 - ",
+	"openFolder": "開啟資料夾",
 	"openSettings.message": "開啟設定",
 	"removeAll.confirmation.message": "要跨 {1} 個檔案移除 {0} 個發生次數嗎?",
 	"removeAll.message": "已跨 {1} 個檔案移除 {0} 個發生次數。",
@@ -28,5 +29,6 @@
 	"searchMaxResultsWarning": "結果集只包含所有符合項的子集。請提供更具體的搜尋條件以縮小結果範圍。",
 	"searchScope.excludes": "要排除的檔案",
 	"searchScope.includes": "要包含的檔案",
+	"searchWithoutFolder": "您尚未開啟資料夾。只會開啟目前搜尋的檔案 - ",
 	"treeAriaLabel": "搜尋結果"
 }

@@ -110,6 +110,14 @@ declare var Buffer: {
      */
 	new (array: Uint8Array): Buffer;
     /**
+     * Produces a Buffer backed by the same allocated memory as
+     * the given {ArrayBuffer}.
+     *
+     *
+     * @param arrayBuffer The ArrayBuffer with which to share memory.
+     */
+	new (arrayBuffer: ArrayBuffer): Buffer;
+    /**
      * Allocates a new buffer containing the given {array} of octets.
      *
      * @param array The octets to store.
@@ -122,6 +130,37 @@ declare var Buffer: {
      */
 	new (buffer: Buffer): Buffer;
 	prototype: Buffer;
+    /**
+     * Allocates a new Buffer using an {array} of octets.
+     *
+     * @param array
+     */
+	from(array: any[]): Buffer;
+    /**
+     * When passed a reference to the .buffer property of a TypedArray instance,
+     * the newly created Buffer will share the same allocated memory as the TypedArray.
+     * The optional {byteOffset} and {length} arguments specify a memory range
+     * within the {arrayBuffer} that will be shared by the Buffer.
+     *
+     * @param arrayBuffer The .buffer property of a TypedArray or a new ArrayBuffer()
+     * @param byteOffset
+     * @param length
+     */
+	from(arrayBuffer: ArrayBuffer, byteOffset?: number, length?: number): Buffer;
+    /**
+     * Copies the passed {buffer} data onto a new Buffer instance.
+     *
+     * @param buffer
+     */
+	from(buffer: Buffer): Buffer;
+    /**
+     * Creates a new Buffer containing the given JavaScript string {str}.
+     * If provided, the {encoding} parameter identifies the character encoding.
+     * If not provided, {encoding} defaults to 'utf8'.
+     *
+     * @param str
+     */
+	from(str: string, encoding?: string): Buffer;
     /**
      * Returns true if {obj} is a Buffer
      *
@@ -159,6 +198,29 @@ declare var Buffer: {
      * The same as buf1.compare(buf2).
      */
 	compare(buf1: Buffer, buf2: Buffer): number;
+    /**
+     * Allocates a new buffer of {size} octets.
+     *
+     * @param size count of octets to allocate.
+     * @param fill if specified, buffer will be initialized by calling buf.fill(fill).
+     *    If parameter is omitted, buffer will be filled with zeros.
+     * @param encoding encoding used for call to buf.fill while initalizing
+     */
+	alloc(size: number, fill?: string | Buffer | number, encoding?: string): Buffer;
+    /**
+     * Allocates a new buffer of {size} octets, leaving memory not initialized, so the contents
+     * of the newly created Buffer are unknown and may contain sensitive data.
+     *
+     * @param size count of octets to allocate
+     */
+	allocUnsafe(size: number): Buffer;
+    /**
+     * Allocates a new non-pooled buffer of {size} octets, leaving memory not initialized, so the contents
+     * of the newly created Buffer are unknown and may contain sensitive data.
+     *
+     * @param size count of octets to allocate
+     */
+	allocUnsafeSlow(size: number): Buffer;
 };
 
 /************************************************
@@ -1176,6 +1238,9 @@ declare module "net" {
 		address(): { port: number; family: string; address: string; };
 		unref(): void;
 		ref(): void;
+
+		/** A Boolean value that indicates if the connection is destroyed or not. Once a connection is destroyed no further data can be transferred using it.*/
+		destroyed: boolean;
 
 		remoteAddress: string;
 		remoteFamily: string;

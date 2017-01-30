@@ -9,13 +9,13 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, hasResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -195,7 +195,7 @@ export class FocusFirstGroupAction extends Action {
 
 			// For now only support to open files from history to the side
 			if (input instanceof EditorInput) {
-				if (!!getUntitledOrFileResource(input)) {
+				if (hasResource(input, { filter: ['file', 'untitled'] })) {
 					return this.editorService.openEditor(input, null, Position.ONE);
 				}
 			} else {
@@ -268,7 +268,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 				// For now only support to open files from history to the side
 				if (input instanceof EditorInput) {
-					if (!!getUntitledOrFileResource(input)) {
+					if (hasResource(input, { filter: ['file', 'untitled'] })) {
 						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
 					}
 				} else {
@@ -356,6 +356,10 @@ export class FocusPreviousGroup extends Action {
 		let nextPosition: Position = Position.ONE;
 		if (activeEditor.position === Position.THREE) {
 			nextPosition = Position.TWO;
+		} else if (activeEditor.position === Position.ONE) {
+			// Get the last active position
+			const lastPosition = this.editorGroupService.getStacksModel().groups.length - 1;
+			nextPosition = lastPosition;
 		}
 
 		// Focus next position if provided
@@ -391,7 +395,9 @@ export class FocusNextGroup extends Action {
 		// Find the next position to the right/bottom to use
 		let nextPosition: Position;
 		const activeEditor = this.editorService.getActiveEditor();
-		if (!activeEditor) {
+
+		const lastPosition = POSITIONS[POSITIONS.length - 1];
+		if (!activeEditor || activeEditor.position === lastPosition) {
 			nextPosition = Position.ONE;
 		} else if (activeEditor.position === Position.ONE) {
 			nextPosition = Position.TWO;
@@ -818,7 +824,7 @@ export class MaximizeGroupAction extends Action {
 	public run(): TPromise<any> {
 		if (this.editorService.getActiveEditor()) {
 			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
-			this.partService.setSideBarHidden(true);
+			return this.partService.setSideBarHidden(true);
 		}
 
 		return TPromise.as(false);

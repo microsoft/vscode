@@ -7,6 +7,8 @@
 	"invalid.properties": "configuration.properties debe ser un objeto",
 	"invalid.title": "configuration.title debe ser una cadena",
 	"invalid.type": "si se establece, \"configuration.type\" debe establecerse en \"object\"",
+	"overrideSettings.description": "Establecer los valores de configuración que se reemplazarán para un conjunto de identificadores de lenguaje.",
+	"overrideSettings.title": "Reemplazar configuración",
 	"vscode.extension.contributes.configuration": "Aporta opciones de configuración.",
 	"vscode.extension.contributes.configuration.properties": "Descripción de las propiedades de configuración.",
 	"vscode.extension.contributes.configuration.title": "Resumen de la configuración. Esta etiqueta se usará en el archivo de configuración como comentario divisor."

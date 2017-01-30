@@ -20,7 +20,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			settings = options && options.html;
 		},
 		doComplete(document: TextDocument, position: Position) {
-			let options = settings && settings.html && settings.html.suggest;
+			let options = settings && settings.suggest;
 			return htmlLanguageService.doComplete(document, position, htmlDocuments.get(document), options);
 		},
 		doHover(document: TextDocument, position: Position) {

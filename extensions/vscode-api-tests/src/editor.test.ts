@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp } from './utils';
 
 suite('editor tests', () => {
@@ -32,6 +32,58 @@ suite('editor tests', () => {
 			});
 		});
 	}
+
+	test('insert snippet', () => {
+		const snippetString = new SnippetString()
+			.appendText('This is a ')
+			.appendTabstop()
+			.appendPlaceholder('placeholder')
+			.appendText(' snippet');
+
+		return withRandomFileEditor('', (editor, doc) => {
+			return editor.insertSnippet(snippetString).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This is a placeholder snippet');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
+	test('insert snippet with replacement, editor selection', () => {
+		const snippetString = new SnippetString()
+			.appendText('has been');
+
+		return withRandomFileEditor('This will be replaced', (editor, doc) => {
+			editor.selection = new Selection(
+				new Position(0, 5),
+				new Position(0, 12)
+			);
+
+			return editor.insertSnippet(snippetString).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This has been replaced');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
+	test('insert snippet with replacement, selection as argument', () => {
+		const snippetString = new SnippetString()
+			.appendText('has been');
+
+		return withRandomFileEditor('This will be replaced', (editor, doc) => {
+			const selection = new Selection(
+				new Position(0, 5),
+				new Position(0, 12)
+			);
+
+			return editor.insertSnippet(snippetString, selection).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This has been replaced');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
 
 	test('make edit', () => {
 		return withRandomFileEditor('', (editor, doc) => {

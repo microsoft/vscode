@@ -30,6 +30,7 @@
 	margin-left: 17px;
 }
 
+.search-viewlet .search-widget .input-box,
 .search-viewlet .search-widget .input-box .monaco-inputbox {
 	height: 25px;
 }
@@ -42,18 +43,14 @@
 .search-viewlet .search-widget .replace-container {
 	margin-top: 6px;
 	position: relative;
+	display: inline-flex;
 }
 
 .search-viewlet .search-widget .replace-container.disabled {
 	display: none;
 }
 
-.search-viewlet .search-widget .replace-container > * {
-	display: inline-block;
-}
-
 .search-viewlet .search-widget .replace-container .monaco-action-bar {
-	position: absolute;
 	margin-left: 3px;
 }
 
@@ -150,6 +147,10 @@
 	padding-left: 22px;
 	padding-right: 22px;
 	padding-top: 2px;
+}
+
+.search-viewlet .message p:first-child {
+	margin-top: 0;
 }
 
 .search-viewlet .filematch {

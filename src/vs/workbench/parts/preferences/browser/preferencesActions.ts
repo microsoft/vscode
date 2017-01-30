@@ -6,11 +6,11 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
+import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { DefaultPreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 
 export class OpenGlobalSettingsAction extends Action {
 
@@ -25,7 +25,7 @@ export class OpenGlobalSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<void> {
+	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openGlobalSettings();
 	}
 }
@@ -61,44 +61,55 @@ export class OpenWorkspaceSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<void> {
+	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openWorkspaceSettings();
 	}
 }
 
-export class StartSearchDefaultSettingsAction extends Action {
+export class ConfigureLanguageBasedSettingsAction extends Action {
 
-	public static ID = 'defaultSettings.action.focusSearch';
-	public static LABEL = nls.localize('startSearchDefaultSettings', "Focus Default Settings Search");
+	public static ID = 'workbench.action.configureLanguageBasedSettings';
+	public static LABEL = nls.localize('configureLanguageBasedSettings', "Configure language specific settings...");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
+		@IModeService private modeService: IModeService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	get enabled(): boolean {
-		return this.getDefaultPreferencesEditor() !== null;
-	}
-
-	public run(event?: any): TPromise<void> {
-		const defaultPreferencesEditor = this.getDefaultPreferencesEditor();
-		if (defaultPreferencesEditor) {
-			defaultPreferencesEditor.focus();
-		}
-		return TPromise.as(null);
-	}
-
-	private getDefaultPreferencesEditor(): DefaultPreferencesEditor {
-		const activeEditor = this.workbenchEditorService.getActiveEditor();
-		if (activeEditor instanceof SideBySideEditor) {
-			const detailsEditor = activeEditor.getDetailsEditor();
-			if (detailsEditor instanceof DefaultPreferencesEditor) {
-				return detailsEditor;
+	public run(): TPromise<any> {
+		const languages = this.modeService.getRegisteredLanguageNames();
+		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
+			let description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
+			// construct a fake resource to be able to show nice icons if any
+			let fakeResource: URI;
+			const extensions = this.modeService.getExtensions(lang);
+			if (extensions && extensions.length) {
+				fakeResource = URI.file(extensions[0]);
+			} else {
+				const filenames = this.modeService.getFilenames(lang);
+				if (filenames && filenames.length) {
+					fakeResource = URI.file(filenames[0]);
+				}
 			}
-		}
-		return null;
+			return <IFilePickOpenEntry>{
+				label: lang,
+				resource: fakeResource,
+				description
+			};
+		});
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
+			.then(pick => {
+				if (pick) {
+					return this.modeService.getOrCreateModeByLanguageName(pick.label)
+						.then(mode => this.preferencesService.configureSettingsForLanguage(mode.getLanguageIdentifier().language));
+				}
+			});
+
 	}
 }

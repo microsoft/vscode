@@ -6,7 +6,6 @@
 
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
-import * as collections from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -46,13 +45,13 @@ class DecorationsManager implements IDisposable {
 		className: 'reference-decoration'
 	};
 
-	private _decorationSet = collections.createStringDictionary<OneReference>();
-	private _decorationIgnoreSet = collections.createStringDictionary<OneReference>();
+	private _decorations = new Map<string, OneReference>();
+	private _decorationIgnoreSet = new Set<string>();
 	private _callOnDispose: IDisposable[] = [];
 	private _callOnModelChange: IDisposable[] = [];
 
-	constructor(private editor: ICodeEditor, private model: ReferencesModel) {
-		this._callOnDispose.push(this.editor.onDidChangeModel(() => this._onModelChanged()));
+	constructor(private _editor: ICodeEditor, private _model: ReferencesModel) {
+		this._callOnDispose.push(this._editor.onDidChangeModel(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 
@@ -63,33 +62,29 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onModelChanged(): void {
-
-		this.removeDecorations();
 		this._callOnModelChange = dispose(this._callOnModelChange);
-
-		var model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		for (var i = 0, len = this.model.groups.length; i < len; i++) {
-			if (this.model.groups[i].uri.toString() === model.uri.toString()) {
-				this._addDecorations(this.model.groups[i]);
-				return;
+		const model = this._editor.getModel();
+		if (model) {
+			for (const ref of this._model.groups) {
+				if (ref.uri.toString() === model.uri.toString()) {
+					this._addDecorations(ref);
+					return;
+				}
 			}
 		}
 	}
 
 	private _addDecorations(reference: FileReferences): void {
-		this._callOnModelChange.push(this.editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
+		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
 
-		this.editor.getModel().changeDecorations((accessor) => {
-			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-			var newDecorationsActualIndex: number[] = [];
+		this._editor.changeDecorations(accessor => {
+
+			const newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			const newDecorationsActualIndex: number[] = [];
 
 			for (let i = 0, len = reference.children.length; i < len; i++) {
 				let oneReference = reference.children[i];
-				if (this._decorationIgnoreSet[oneReference.id]) {
+				if (this._decorationIgnoreSet.has(oneReference.id)) {
 					continue;
 				}
 				newDecorations.push({
@@ -99,26 +94,25 @@ class DecorationsManager implements IDisposable {
 				newDecorationsActualIndex.push(i);
 			}
 
-			var decorations = accessor.deltaDecorations([], newDecorations);
-
-			for (var i = 0; i < decorations.length; i++) {
-				this._decorationSet[decorations[i]] = reference.children[newDecorationsActualIndex[i]];
+			const decorations = accessor.deltaDecorations([], newDecorations);
+			for (let i = 0; i < decorations.length; i++) {
+				this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
 			}
 		});
 	}
 
 	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
-		var changedDecorations = event.changedDecorations,
+		const changedDecorations = event.changedDecorations,
 			toRemove: string[] = [];
 
-		for (var i = 0, len = changedDecorations.length; i < len; i++) {
-			var reference = collections.lookup(this._decorationSet, changedDecorations[i]);
+		for (let i = 0, len = changedDecorations.length; i < len; i++) {
+			let reference = this._decorations.get(changedDecorations[i]);
 			if (!reference) {
 				continue;
 			}
 
-			var newRange = this.editor.getModel().getDecorationRange(changedDecorations[i]),
-				ignore = false;
+			const newRange = this._editor.getModel().getDecorationRange(changedDecorations[i]);
+			let ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
 				continue;
@@ -127,8 +121,8 @@ class DecorationsManager implements IDisposable {
 				ignore = true;
 
 			} else {
-				var lineLength = reference.range.endColumn - reference.range.startColumn,
-					newLineLength = newRange.endColumn - newRange.startColumn;
+				const lineLength = reference.range.endColumn - reference.range.startColumn;
+				const newLineLength = newRange.endColumn - newRange.startColumn;
 
 				if (lineLength !== newLineLength) {
 					ignore = true;
@@ -136,29 +130,28 @@ class DecorationsManager implements IDisposable {
 			}
 
 			if (ignore) {
-				this._decorationIgnoreSet[reference.id] = reference;
+				this._decorationIgnoreSet.add(reference.id);
 				toRemove.push(changedDecorations[i]);
 			} else {
 				reference.range = newRange;
 			}
 		}
 
-		this.editor.changeDecorations((accessor) => {
+		this._editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
-				delete this._decorationSet[toRemove[i]];
+				delete this._decorations[toRemove[i]];
 			}
 			accessor.deltaDecorations(toRemove, []);
 		});
 	}
 
 	public removeDecorations(): void {
-		var keys = Object.keys(this._decorationSet);
-		if (keys.length > 0) {
-			this.editor.changeDecorations((accessor) => {
-				accessor.deltaDecorations(keys, []);
+		this._editor.changeDecorations(accessor => {
+			this._decorations.forEach((value, key) => {
+				accessor.removeDecoration(key);
 			});
-		}
-		this._decorationSet = {};
+			this._decorations.clear();
+		});
 	}
 }
 
@@ -379,7 +372,7 @@ class Renderer extends LegacyRenderer {
 					badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
 				}
 
-				return badge;
+				return null;
 			});
 			/* tslint:enable:no-unused-expression */
 
@@ -388,6 +381,10 @@ class Renderer extends LegacyRenderer {
 		} else if (element instanceof OneReference) {
 
 			const preview = element.parent.preview.preview(element.range);
+
+			if (!preview) {
+				return;
+			}
 
 			$('.reference').innerHtml(
 				strings.format(

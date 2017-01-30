@@ -9,10 +9,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
+import * as arrays from 'vs/base/common/arrays';
 
 export class SelectBox extends Widget {
 
-	private select: HTMLSelectElement;
+	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
 	private container: HTMLElement;
@@ -22,16 +23,15 @@ export class SelectBox extends Widget {
 	constructor(options: string[], selected: number) {
 		super();
 
-		this.select = document.createElement('select');
-		this.select.className = 'select-box';
+		this.selectElement = document.createElement('select');
+		this.selectElement.className = 'select-box';
 
-		this.options = options;
-		this.selected = selected;
+		this.setOptions(options, selected);
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<string>();
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.select, 'change', (e) => {
-			this.select.title = e.target.value;
+		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
+			this.selectElement.title = e.target.value;
 			this._onDidSelect.fire(e.target.value);
 		}));
 	}
@@ -40,66 +40,54 @@ export class SelectBox extends Widget {
 		return this._onDidSelect.event;
 	}
 
-	public setOptions(options: string[], selected: number): void {
-		this.options = options;
-		if (selected >= 0) {
-			this.selected = selected;
-		} else if (this.selected < 0 || this.selected > this.options.length) {
+	public setOptions(options: string[], selected?: number, disabled?: number): void {
+		if (!this.options || !arrays.equals(this.options, options)) {
+			this.options = options;
+
+			this.selectElement.options.length = 0;
+			let i = 0;
+			this.options.forEach((option) => {
+				this.selectElement.add(this.createOption(option, disabled === i++));
+			});
+		}
+		this.select(selected);
+	}
+
+	public select(index: number): void {
+		if (index >= 0 && index < this.options.length) {
+			this.selected = index;
+		} else if (this.selected < 0) {
 			this.selected = 0;
 		}
 
-		this.doSetOptions();
+		this.selectElement.selectedIndex = this.selected;
+		this.selectElement.title = this.options[this.selected];
 	}
 
 	public focus(): void {
-		if (this.select) {
-			this.select.focus();
+		if (this.selectElement) {
+			this.selectElement.focus();
 		}
 	}
 
-	public set enabled(value: boolean) {
-		dom.toggleClass(this.container, 'disabled', !value);
-		this.select.disabled = !value;
-	}
-
-	public get enabled(): boolean {
-		return !this.select.disabled;
-	}
-
 	public blur(): void {
-		if (this.select) {
-			this.select.blur();
+		if (this.selectElement) {
+			this.selectElement.blur();
 		}
 	}
 
 	public render(container: HTMLElement): void {
 		this.container = container;
 		dom.addClass(container, 'select-container');
-		container.appendChild(this.select);
-		this.doSetOptions();
+		container.appendChild(this.selectElement);
+		this.setOptions(this.options, this.selected);
 	}
 
-	public getSelected(): string {
-		return this.options && this.selected >= 0 && this.selected < this.options.length ? this.options[this.selected] : null;
-	}
-
-	private doSetOptions(): void {
-		this.select.options.length = 0;
-
-		this.options.forEach((option) => {
-			this.select.add(this.createOption(option));
-		});
-
-		if (this.selected >= 0) {
-			this.select.selectedIndex = this.selected;
-			this.select.title = this.options[this.selected];
-		}
-	}
-
-	private createOption(value: string): HTMLOptionElement {
+	private createOption(value: string, disabled?: boolean): HTMLOptionElement {
 		let option = document.createElement('option');
 		option.value = value;
 		option.text = value;
+		option.disabled = disabled;
 
 		return option;
 	}

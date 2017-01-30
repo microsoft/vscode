@@ -149,7 +149,8 @@ export class SearchRenderer extends ActionsRenderer {
 			rightRenderer = (right: HTMLElement) => {
 				let len = fileMatch.count();
 
-				return new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				return null;
 			};
 
 			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
@@ -217,6 +218,9 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 export class SearchController extends DefaultController {
 
+	private _gotArrowUpKeyUp = true;
+	private _gotArrowDownKeyUp = true;
+
 	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
@@ -227,6 +231,9 @@ export class SearchController extends DefaultController {
 			this.downKeyBindingDispatcher.set(KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
 			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 		}
+
+		this.upKeyBindingDispatcher.set(KeyCode.UpArrow, this.upKeyArrowUp.bind(this));
+		this.upKeyBindingDispatcher.set(KeyCode.DownArrow, this.upKeyArrowDown.bind(this));
 
 		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
 		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
@@ -282,7 +289,40 @@ export class SearchController extends DefaultController {
 			this.viewlet.moveFocusFromResults();
 			return true;
 		}
-		return super.onUp(tree, event);
+
+		const result = super.onUp(tree, event);
+
+		// Ignore keydown events while the key is held
+		if (this._gotArrowUpKeyUp) {
+			this.doSelectOnScroll(tree, tree.getFocus(), event);
+			this._gotArrowUpKeyUp = false;
+		}
+
+		return result;
+	}
+
+	private upKeyArrowUp(tree: ITree, event): boolean {
+		this.doSelectOnScroll(tree, tree.getFocus(), event);
+		this._gotArrowUpKeyUp = true;
+		return true;
+	}
+
+	private upKeyArrowDown(tree: ITree, event): boolean {
+		this.doSelectOnScroll(tree, tree.getFocus(), event);
+		this._gotArrowDownKeyUp = true;
+		return true;
+	}
+
+	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
+		const result = super.onDown(tree, event);
+
+		// Ignore keydown events while the key is held
+		if (this._gotArrowDownKeyUp) {
+			this.doSelectOnScroll(tree, tree.getFocus(), event);
+			this._gotArrowDownKeyUp = false;
+		}
+
+		return result;
 	}
 
 	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
@@ -291,6 +331,14 @@ export class SearchController extends DefaultController {
 			return this.onEnter(tree, event);
 		}
 		super.onSpace(tree, event);
+	}
+
+	private doSelectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
+		if (focus instanceof Match) {
+			this.onEnter(tree, event);
+		} else {
+			tree.setSelection([focus]);
+		}
 	}
 }
 

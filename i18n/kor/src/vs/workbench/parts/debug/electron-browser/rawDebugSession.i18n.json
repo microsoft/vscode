@@ -6,7 +6,6 @@
 {
 	"debugAdapterBinNotFound": "디버그 어댑터 실행 파일 '{0}'이(가) 발견되지 않았습니다.",
 	"debugAdapterCrash": "디버그 어댑터 프로세스가 예기치 않게 종료되었습니다.",
-	"debuggee": "디버기",
 	"moreInfo": "추가 정보",
 	"noDebugAdapterExtensionInstalled": "{0}' 디버깅을 위해 설치된 확장이 없습니다.",
 	"stoppingDebugAdapter": "{0}. 디버그 어댑터를 중지합니다.",

@@ -195,7 +195,7 @@ function format(text:string): string {
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
 
-	function getRuleProvider(options: ts.FormatCodeOptions) {
+	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
 		let ruleProvider = new (<any>ts).formatting.RulesProvider();
@@ -215,24 +215,24 @@ function format(text:string): string {
 		return result;
 	}
 
-	function getDefaultOptions(): ts.FormatCodeOptions {
+	function getDefaultOptions(): ts.FormatCodeSettings {
 		return {
-			IndentSize: 4,
-			TabSize: 4,
-			NewLineCharacter: '\r\n',
-			ConvertTabsToSpaces: true,
-			IndentStyle: ts.IndentStyle.Block,
+			indentSize: 4,
+			tabSize: 4,
+			newLineCharacter: '\r\n',
+			convertTabsToSpaces: true,
+			indentStyle: ts.IndentStyle.Block,
 
-			InsertSpaceAfterCommaDelimiter: true,
-			InsertSpaceAfterSemicolonInForStatements: true,
-			InsertSpaceBeforeAndAfterBinaryOperators: true,
-			InsertSpaceAfterKeywordsInControlFlowStatements: true,
-			InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
-			InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
-			InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
-			InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
-			PlaceOpenBraceOnNewLineForFunctions: false,
-			PlaceOpenBraceOnNewLineForControlBlocks: false,
+			insertSpaceAfterCommaDelimiter: true,
+			insertSpaceAfterSemicolonInForStatements: true,
+			insertSpaceBeforeAndAfterBinaryOperators: true,
+			insertSpaceAfterKeywordsInControlFlowStatements: true,
+			insertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
+			placeOpenBraceOnNewLineForFunctions: false,
+			placeOpenBraceOnNewLineForControlBlocks: false,
 		};
 	}
 }

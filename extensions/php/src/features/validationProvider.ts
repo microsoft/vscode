@@ -94,7 +94,7 @@ export default class PHPValidationProvider {
 	private diagnosticCollection: vscode.DiagnosticCollection;
 	private delayers: { [key: string]: ThrottledDelayer<void> };
 
-	constructor() {
+	constructor(private workspaceExecutablePath: string) {
 		this.executable = null;
 		this.validationEnabled = true;
 		this.trigger = RunTrigger.onSave;
@@ -114,6 +114,17 @@ export default class PHPValidationProvider {
 		}, null, subscriptions);
 	}
 
+	public updateWorkspaceExecutablePath(workspaceExecutablePath: string, loadConfig: boolean = false): void {
+		if (workspaceExecutablePath && workspaceExecutablePath.length === 0) {
+			this.workspaceExecutablePath = undefined;
+		} else {
+			this.workspaceExecutablePath = workspaceExecutablePath;
+		}
+		if (loadConfig) {
+			this.loadConfiguration();
+		}
+	}
+
 	public dispose(): void {
 		this.diagnosticCollection.clear();
 		this.diagnosticCollection.dispose();
@@ -124,7 +135,7 @@ export default class PHPValidationProvider {
 		let oldExecutable = this.executable;
 		if (section) {
 			this.validationEnabled = section.get<boolean>('validate.enable', true);
-			this.executable = section.get<string>('validate.executablePath', null);
+			this.executable = this.workspaceExecutablePath || section.get<string>('validate.executablePath', null);
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
 		this.delayers = Object.create(null);
@@ -226,7 +237,11 @@ export default class PHPValidationProvider {
 	private showError(error: any, executable: string): void {
 		let message: string = null;
 		if (error.code === 'ENOENT') {
-			message = localize('noPHP', 'Cannot validate the php file. The php program was not found. Use the \'php.validate.executablePath\' setting to configure the location of \'php\'');
+			if (this.executable) {
+				message = localize('wrongExecutable', 'Cannot validate since {0} is not a valid php executable. Click on the Path status bar item to configure the executable.', executable);
+			} else {
+				message = localize('noExecutable', 'Cannot validate since no PHP executable is set. Click on the Path status bar item to configure the executable.');
+			}
 		} else {
 			message = error.message ? error.message : localize('unknownReason', 'Failed to run php using path: {0}. Reason is unknown.', executable);
 		}

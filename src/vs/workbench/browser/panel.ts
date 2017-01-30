@@ -18,8 +18,13 @@ export abstract class Panel extends Composite implements IPanel { }
  * A panel descriptor is a leightweight descriptor of a panel in the workbench.
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
+
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, private _commandId?: string) {
 		super(moduleId, ctorName, id, name, cssClass, order);
+	}
+
+	public get commandId(): string {
+		return this._commandId;
 	}
 }
 
@@ -37,14 +42,14 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 * Returns the panel descriptor for the given id or null if none.
 	 */
 	public getPanel(id: string): PanelDescriptor {
-		return this.getComposite(id);
+		return this.getComposite(id) as PanelDescriptor;
 	}
 
 	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	public getPanels(): PanelDescriptor[] {
-		return this.getComposits();
+		return this.getComposites() as PanelDescriptor[];
 	}
 
 	/**
@@ -84,21 +89,21 @@ export abstract class TogglePanelAction extends Action {
 	public run(): TPromise<any> {
 
 		if (this.isPanelShowing()) {
-			this.partService.setPanelHidden(true);
-			return TPromise.as(true);
+			return this.partService.setPanelHidden(true);
 		}
 
 		return this.panelService.openPanel(this.panelId, true);
 	}
 
 	private isPanelShowing(): boolean {
-		let panel = this.panelService.getActivePanel();
+		const panel = this.panelService.getActivePanel();
+
 		return panel && panel.getId() === this.panelId;
 	}
 
 	protected isPanelFocussed(): boolean {
-		let activePanel = this.panelService.getActivePanel();
-		let activeElement = document.activeElement;
+		const activePanel = this.panelService.getActivePanel();
+		const activeElement = document.activeElement;
 
 		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer().getHTMLElement());
 	}

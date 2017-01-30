@@ -3,35 +3,100 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.nopanel > .panel {
+.monaco-workbench.nopanel > .part.panel {
 	display: none !important;
 	visibility: hidden !important;
-}
-
-.monaco-workbench > .part.panel .title {
-	padding-right: 0px;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
-	height: 36px;
-}
-
-.monaco-workbench > .part.panel > .title > .title-label > span {
-	vertical-align: top;
 }
 
 .monaco-workbench > .part.panel {
 	z-index: initial;
 }
 
+.monaco-workbench > .part.panel .title {
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
+	padding-right: 0px;
+	height: 35px;
+}
+
+.hc-black .monaco-workbench > .part.panel .title {
+	border-top-color: #6FC3DF;
+}
+
+/** Panel Switcher */
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
+	padding-left: 12px;
+	line-height: 35px;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	text-transform: uppercase;
+	margin-right: 33px;
+	font-size: 11px;
+	padding-bottom: 4px; /* puts the bottom border down */
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #424242;
+	opacity: 0.75;
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #e7e7e7;
+	opacity: 0.5;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #fff;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	opacity: 1;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 1px solid;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #ccceda;
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #404047;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked,
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+	outline: 1px solid #f38518;
+	border-bottom: none;
+	padding-bottom: 0;
+	outline-offset: 3px;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover:not(.checked) {
+	outline-style: dashed;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid #007ACC;
+	outline: none !important;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid #f38518;
+	outline: none !important;
+}
+
+/** Actions */
+
 .monaco-workbench .hide-panel-action {
-	background: url('hide.svg') center center no-repeat;
+	background: url('close.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .hide-panel-action,
 .hc-black .monaco-workbench .hide-panel-action {
-	background: url('hide-inverse.svg') center center no-repeat;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .part.panel > .title {
-	border-top-color: #6FC3DF;
+	background: url('close-inverse.svg') center center no-repeat;
 }

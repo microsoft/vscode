@@ -21,14 +21,16 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ValidationStatus } from 'vs/base/common/parsers';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, CommandOptions, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
-import * as FileConfig from './processRunnerConfiguration';
+import {
+	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration,
+	TaskDescription, CommandOptions, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType,
+	CommandConfiguration
+} from 'vs/workbench/parts/tasks/common/taskSystem';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -36,16 +38,12 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
-	private fileConfig: FileConfig.ExternalTaskRunnerConfiguration;
 	private markerService: IMarkerService;
 	private modelService: IModelService;
 	private outputService: IOutputService;
 	private telemetryService: ITelemetryService;
 	private configurationResolverService: IConfigurationResolverService;
 
-	private validationStatus: ValidationStatus;
-	private defaultBuildTaskIdentifier: string;
-	private defaultTestTaskIdentifier: string;
 	private configuration: TaskRunnerConfiguration;
 	private outputChannel: IOutputChannel;
 
@@ -54,18 +52,16 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private activeTaskIdentifier: string;
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
-	constructor(fileConfig: FileConfig.ExternalTaskRunnerConfiguration, markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
+	constructor(configuration: TaskRunnerConfiguration, markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
 		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string, clearOutput: boolean = true) {
 		super();
-		this.fileConfig = fileConfig;
+		this.configuration = configuration;
 		this.markerService = markerService;
 		this.modelService = modelService;
 		this.outputService = outputService;
 		this.telemetryService = telemetryService;
 		this.configurationResolverService = configurationResolverService;
 
-		this.defaultBuildTaskIdentifier = null;
-		this.defaultTestTaskIdentifier = null;
 		this.childProcess = null;
 		this.activeTaskIdentifier = null;
 		this.activeTaskPromise = null;
@@ -75,27 +71,19 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			this.clearOutput();
 		}
 		this.errorsShown = false;
-		let parseResult = FileConfig.parse(fileConfig, this);
-		this.validationStatus = parseResult.validationStatus;
-		this.configuration = parseResult.configuration;
-		this.defaultBuildTaskIdentifier = parseResult.defaultBuildTaskIdentifier;
-		this.defaultTestTaskIdentifier = parseResult.defaultTestTaskIdentifier;
-
-		if (!this.validationStatus.isOK()) {
-			this.showOutput();
-		}
 	}
 
 
 	public build(): ITaskExecuteResult {
+		let buildTaskIdentifier = this.configuration.buildTasks.length > 0 ? this.configuration.buildTasks[0] : undefined;
 		if (this.activeTaskIdentifier) {
 			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === this.defaultBuildTaskIdentifier, watching: task.isWatching }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === buildTaskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
 		}
-		if (!this.defaultBuildTaskIdentifier) {
+		if (!buildTaskIdentifier) {
 			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noBuildTask', 'No task is marked as a build task in the tasks.json. Mark a task with \'isBuildCommand\'.'), TaskErrors.NoBuildTask);
 		}
-		return this.executeTask(this.defaultBuildTaskIdentifier, Triggers.shortcut);
+		return this.executeTask(buildTaskIdentifier, Triggers.shortcut);
 	}
 
 	public rebuild(): ITaskExecuteResult {
@@ -107,20 +95,21 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public runTest(): ITaskExecuteResult {
+		let testTaskIdentifier = this.configuration.testTasks.length > 0 ? this.configuration.testTasks[0] : undefined;
 		if (this.activeTaskIdentifier) {
 			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === this.defaultTestTaskIdentifier, watching: task.isWatching }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === testTaskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
 		}
-		if (!this.defaultTestTaskIdentifier) {
+		if (!testTaskIdentifier) {
 			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noTestTask', 'No test task configured.'), TaskErrors.NoTestTask);
 		}
-		return this.executeTask(this.defaultTestTaskIdentifier, Triggers.shortcut);
+		return this.executeTask(testTaskIdentifier, Triggers.shortcut);
 	}
 
 	public run(taskIdentifier: string): ITaskExecuteResult {
 		if (this.activeTaskIdentifier) {
 			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === taskIdentifier, watching: task.isWatching }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === taskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
 		}
 		return this.executeTask(taskIdentifier);
 	}
@@ -164,9 +153,6 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private executeTask(taskIdentifier: string, trigger: string = Triggers.command): ITaskExecuteResult {
-		if (this.validationStatus.isFatal()) {
-			throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
-		}
 		let task = this.configuration.tasks[taskIdentifier];
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.norebuild', 'No task to execute found.'), TaskErrors.TaskNotFound);
@@ -205,19 +191,19 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	private doExecuteTask(task: TaskDescription, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
 		let taskSummary: ITaskSummary = {};
-		let configuration = this.configuration;
-		if (!this.validationStatus.isOK() && !this.errorsShown) {
+		let commandConfig: CommandConfiguration = task.command;
+		if (!this.errorsShown) {
 			this.showOutput();
 			this.errorsShown = true;
 		} else {
 			this.clearOutput();
 		}
 
-		let args: string[] = this.configuration.args ? this.configuration.args.slice() : [];
+		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
 		// We need to first pass the task name
 		if (!task.suppressTaskName) {
-			if (this.fileConfig.taskSelector) {
-				args.push(this.fileConfig.taskSelector + task.name);
+			if (commandConfig.taskSelector) {
+				args.push(commandConfig.taskSelector + task.name);
 			} else {
 				args.push(task.name);
 			}
@@ -227,19 +213,19 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			args = args.concat(task.args);
 		}
 		args = this.resolveVariables(args);
-		let command: string = this.resolveVariable(configuration.command);
-		this.childProcess = new LineProcess(command, args, configuration.isShellCommand, this.resolveOptions(configuration.options));
+		let command: string = this.resolveVariable(commandConfig.name);
+		this.childProcess = new LineProcess(command, args, !!commandConfig.isShellCommand, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
 		if (task.showOutput === ShowOutput.Always || (task.showOutput === ShowOutput.Silent && task.problemMatchers.length === 0)) {
 			this.showOutput();
 		}
 
-		if (task.echoCommand) {
+		if (commandConfig.echo) {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
-		if (task.isWatching) {
+		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
 			let event: TaskEvent = { taskId: task.id, taskName: task.name, type: TaskType.Watching };
@@ -339,8 +325,8 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private handleError(task: TaskDescription, error: ErrorData): Promise {
 		let makeVisible = false;
 		if (error.error && !error.terminated) {
-			let args: string = this.configuration.args ? this.configuration.args.join(' ') : '';
-			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', this.configuration.command, args));
+			let args: string = task.command.args ? task.command.args.join(' ') : '';
+			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', task.command.name, args));
 			this.outputChannel.append(error.error.message);
 			makeVisible = true;
 		}

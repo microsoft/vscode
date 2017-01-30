@@ -6,11 +6,7 @@
 {
 	"foldAction.label": "Plegar",
 	"foldAllAction.label": "Plegar todo",
-	"foldLevel1Action.label": "Nivel de plegamiento 1",
-	"foldLevel2Action.label": "Nivel de plegamiento 2",
-	"foldLevel3Action.label": "Nivel de plegamiento 3",
-	"foldLevel4Action.label": "Nivel de plegamiento 4",
-	"foldLevel5Action.label": "Nivel de plegamiento 5",
+	"foldLevelAction.label": "Nivel de plegamiento {0}",
 	"foldRecursivelyAction.label": "Plegar de forma recursiva",
 	"unFoldRecursivelyAction.label": "Desplegar de forma recursiva",
 	"unfoldAction.label": "Desplegar",

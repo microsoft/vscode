@@ -11,7 +11,7 @@ import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { getResource } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { getPathLabel } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -110,7 +110,7 @@ export class ResourceLabel extends IconLabel {
 		const resource = this.label.resource;
 
 		let title = '';
-		if (this.options && this.options.title) {
+		if (this.options && typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (resource) {
 			title = getPathLabel(resource.fsPath);
@@ -146,7 +146,7 @@ export class EditorLabel extends ResourceLabel {
 
 	public setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setLabel({
-			resource: getResource(editor),
+			resource: toResource(editor, { supportSideBySide: true }),
 			name: editor.getName(),
 			description: editor.getDescription()
 		}, options);
@@ -180,31 +180,23 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	}
 
 	if (path) {
-		const basename = paths.basename(path);
-		const dotSegments = basename.split('.');
+		const basename = cssEscape(paths.basename(path).toLowerCase());
 
 		// Folders
 		if (isFolder) {
-			if (basename) {
-				classes.push(`${basename.toLowerCase()}-name-folder-icon`);
-			}
+			classes.push(`${basename}-name-folder-icon`);
 		}
 
 		// Files
 		else {
 
 			// Name
-			const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
-			if (name) {
-				classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
-			}
+			classes.push(`${basename}-name-file-icon`);
 
 			// Extension(s)
-			const extensions = dotSegments.splice(1);
-			if (extensions.length > 0) {
-				for (let i = 0; i < extensions.length; i++) {
-					classes.push(`${cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
-				}
+			const dotSegments = basename.split('.');
+			for (let i = 1; i < dotSegments.length; i++) {
+				classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 			}
 
 			// Configured Language
@@ -215,7 +207,6 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			}
 		}
 	}
-
 	return classes;
 }
 
@@ -224,7 +215,7 @@ function getConfiguredLangId(modelService: IModelService, resource: uri): string
 	if (resource) {
 		const model = modelService.getModel(resource);
 		if (model) {
-			const modeId = model.getModeId();
+			const modeId = model.getLanguageIdentifier().language;
 			if (modeId && modeId !== PLAINTEXT_MODE_ID) {
 				configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
 			}

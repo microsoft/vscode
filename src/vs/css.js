@@ -14,11 +14,6 @@
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-};
 var _cssPluginGlobal = this;
 var CSSLoaderPlugin;
 (function (CSSLoaderPlugin) {
@@ -99,120 +94,6 @@ var CSSLoaderPlugin;
         };
         return BrowserCSSLoader;
     }());
-    /**
-     * Prior to IE10, IE could not go above 31 stylesheets in a page
-     * http://blogs.msdn.com/b/ieinternals/archive/2011/05/14/internet-explorer-stylesheet-rule-selector-import-sheet-limit-maximum.aspx
-     *
-     * The general strategy here is to not write more than 31 link nodes to the page at the same time
-     * When stylesheets get loaded, they will get merged one into another to free up
-     * some positions for new link nodes.
-     */
-    var IE9CSSLoader = (function (_super) {
-        __extends(IE9CSSLoader, _super);
-        function IE9CSSLoader() {
-            _super.call(this);
-            this._blockedLoads = [];
-            this._mergeStyleSheetsTimeout = -1;
-        }
-        IE9CSSLoader.prototype.load = function (name, cssUrl, externalCallback, externalErrorback) {
-            if (this._linkTagExists(name, cssUrl)) {
-                externalCallback();
-                return;
-            }
-            var linkNode = this.createLinkTag(name, cssUrl, externalCallback, externalErrorback);
-            if (this._styleSheetCount() < 31) {
-                this._insertLinkNode(linkNode);
-            }
-            else {
-                this._blockedLoads.push(linkNode);
-                this._handleBlocked();
-            }
-        };
-        IE9CSSLoader.prototype._styleSheetCount = function () {
-            var linkCount = document.getElementsByTagName('link').length;
-            var styleCount = document.getElementsByTagName('style').length;
-            return linkCount + styleCount;
-        };
-        IE9CSSLoader.prototype._onLoad = function (name, callback) {
-            _super.prototype._onLoad.call(this, name, callback);
-            this._handleBlocked();
-        };
-        IE9CSSLoader.prototype._onLoadError = function (name, errorback, err) {
-            _super.prototype._onLoadError.call(this, name, errorback, err);
-            this._handleBlocked();
-        };
-        IE9CSSLoader.prototype._handleBlocked = function () {
-            var _this = this;
-            var blockedLoadsCount = this._blockedLoads.length;
-            if (blockedLoadsCount > 0 && this._mergeStyleSheetsTimeout === -1) {
-                this._mergeStyleSheetsTimeout = window.setTimeout(function () { return _this._mergeStyleSheets(); }, 0);
-            }
-        };
-        IE9CSSLoader.prototype._mergeStyleSheet = function (dstPath, dst, srcPath, src) {
-            for (var i = src.rules.length - 1; i >= 0; i--) {
-                dst.insertRule(Utilities.rewriteUrls(srcPath, dstPath, src.rules[i].cssText), 0);
-            }
-        };
-        IE9CSSLoader.prototype._asIE9HTMLLinkElement = function (linkElement) {
-            return linkElement;
-        };
-        IE9CSSLoader.prototype._mergeStyleSheets = function () {
-            this._mergeStyleSheetsTimeout = -1;
-            var blockedLoadsCount = this._blockedLoads.length;
-            var i, linkDomNodes = document.getElementsByTagName('link');
-            var linkDomNodesCount = linkDomNodes.length;
-            var mergeCandidates = [];
-            for (i = 0; i < linkDomNodesCount; i++) {
-                if (linkDomNodes[i].readyState === 'loaded' || linkDomNodes[i].readyState === 'complete') {
-                    mergeCandidates.push({
-                        linkNode: linkDomNodes[i],
-                        rulesLength: this._asIE9HTMLLinkElement(linkDomNodes[i]).styleSheet.rules.length
-                    });
-                }
-            }
-            var mergeCandidatesCount = mergeCandidates.length;
-            // Just a little legend here :)
-            // - linkDomNodesCount: total number of link nodes in the DOM (this should be kept <= 31)
-            // - mergeCandidatesCount: loaded (finished) link nodes in the DOM (only these can be merged)
-            // - blockedLoadsCount: remaining number of load requests that did not fit in before (because of the <= 31 constraint)
-            // Now comes the heuristic part, we don't want to do too much work with the merging of styles,
-            // but we do need to merge stylesheets to free up loading slots.
-            var mergeCount = Math.min(Math.floor(mergeCandidatesCount / 2), blockedLoadsCount);
-            // Sort the merge candidates descending (least rules last)
-            mergeCandidates.sort(function (a, b) {
-                return b.rulesLength - a.rulesLength;
-            });
-            var srcIndex, dstIndex;
-            for (i = 0; i < mergeCount; i++) {
-                srcIndex = mergeCandidates.length - 1 - i;
-                dstIndex = i % (mergeCandidates.length - mergeCount);
-                // Merge rules of src into dst
-                this._mergeStyleSheet(mergeCandidates[dstIndex].linkNode.href, this._asIE9HTMLLinkElement(mergeCandidates[dstIndex].linkNode).styleSheet, mergeCandidates[srcIndex].linkNode.href, this._asIE9HTMLLinkElement(mergeCandidates[srcIndex].linkNode).styleSheet);
-                // Remove dom node of src
-                mergeCandidates[srcIndex].linkNode.parentNode.removeChild(mergeCandidates[srcIndex].linkNode);
-                linkDomNodesCount--;
-            }
-            var styleSheetCount = this._styleSheetCount();
-            while (styleSheetCount < 31 && this._blockedLoads.length > 0) {
-                this._insertLinkNode(this._blockedLoads.shift());
-                styleSheetCount++;
-            }
-        };
-        return IE9CSSLoader;
-    }(BrowserCSSLoader));
-    var IE8CSSLoader = (function (_super) {
-        __extends(IE8CSSLoader, _super);
-        function IE8CSSLoader() {
-            _super.call(this);
-        }
-        IE8CSSLoader.prototype.attachListeners = function (name, linkNode, callback, errorback) {
-            linkNode.onload = function () {
-                linkNode.onload = null;
-                callback();
-            };
-        };
-        return IE8CSSLoader;
-    }(IE9CSSLoader));
     var NodeCSSLoader = (function () {
         function NodeCSSLoader() {
             this.fs = require.nodeRequire('fs');
@@ -225,9 +106,9 @@ var CSSLoaderPlugin;
             }
             externalCallback(contents);
         };
-        NodeCSSLoader.BOM_CHAR_CODE = 65279;
         return NodeCSSLoader;
     }());
+    NodeCSSLoader.BOM_CHAR_CODE = 65279;
     // ------------------------------ Finally, the plugin
     var CSSPlugin = (function () {
         function CSSPlugin(cssLoader) {
@@ -237,6 +118,7 @@ var CSSLoaderPlugin;
             config = config || {};
             var myConfig = config['vs/css'] || {};
             global.inlineResources = myConfig.inlineResources;
+            global.inlineResourcesLimit = myConfig.inlineResourcesLimit || 5000;
             var cssUrl = req.toUrl(name + '.css');
             this.cssLoader.load(name, cssUrl, function (contents) {
                 // Contents has the CSS file contents if we are in a build
@@ -275,7 +157,7 @@ var CSSLoaderPlugin;
                 ], entries = global.cssPluginEntryPoints[moduleName];
                 for (var i = 0; i < entries.length; i++) {
                     if (global.inlineResources) {
-                        contents.push(Utilities.rewriteOrInlineUrls(entries[i].fsPath, entries[i].moduleName, moduleName, entries[i].contents, global.inlineResources === 'base64'));
+                        contents.push(Utilities.rewriteOrInlineUrls(entries[i].fsPath, entries[i].moduleName, moduleName, entries[i].contents, global.inlineResources === 'base64', global.inlineResourcesLimit));
                     }
                     else {
                         contents.push(Utilities.rewriteUrls(entries[i].moduleName, moduleName, entries[i].contents));
@@ -287,10 +169,10 @@ var CSSLoaderPlugin;
         CSSPlugin.prototype.getInlinedResources = function () {
             return global.cssInlinedResources || [];
         };
-        CSSPlugin.BUILD_MAP = {};
-        CSSPlugin.BUILD_PATH_MAP = {};
         return CSSPlugin;
     }());
+    CSSPlugin.BUILD_MAP = {};
+    CSSPlugin.BUILD_PATH_MAP = {};
     CSSLoaderPlugin.CSSPlugin = CSSPlugin;
     var Utilities = (function () {
         function Utilities() {
@@ -426,14 +308,14 @@ var CSSLoaderPlugin;
                 return Utilities.relativePath(newFile, absoluteUrl);
             });
         };
-        Utilities.rewriteOrInlineUrls = function (originalFileFSPath, originalFile, newFile, contents, forceBase64) {
+        Utilities.rewriteOrInlineUrls = function (originalFileFSPath, originalFile, newFile, contents, forceBase64, inlineByteLimit) {
             var fs = require.nodeRequire('fs');
             var path = require.nodeRequire('path');
             return this._replaceURL(contents, function (url) {
                 if (/\.(svg|png)$/.test(url)) {
                     var fsPath = path.join(path.dirname(originalFileFSPath), url);
                     var fileContents = fs.readFileSync(fsPath);
-                    if (fileContents.length < 3000) {
+                    if (fileContents.length < inlineByteLimit) {
                         global.cssInlinedResources = global.cssInlinedResources || [];
                         var normalizedFSPath = fsPath.replace(/\\/g, '/');
                         if (global.cssInlinedResources.indexOf(normalizedFSPath) >= 0) {
@@ -471,12 +353,6 @@ var CSSLoaderPlugin;
         var isElectron = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions['electron'] !== 'undefined');
         if (typeof process !== 'undefined' && process.versions && !!process.versions.node && !isElectron) {
             cssLoader = new NodeCSSLoader();
-        }
-        else if (typeof navigator !== 'undefined' && navigator.userAgent.indexOf('MSIE 9') >= 0) {
-            cssLoader = new IE9CSSLoader();
-        }
-        else if (typeof navigator !== 'undefined' && navigator.userAgent.indexOf('MSIE 8') >= 0) {
-            cssLoader = new IE8CSSLoader();
         }
         else {
             cssLoader = new BrowserCSSLoader();

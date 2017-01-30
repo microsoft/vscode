@@ -345,6 +345,8 @@ class MockCommandService implements ICommandService {
 	public _serviceBrand: any;
 	public callCount = 0;
 
+	onWillExecuteCommand = () => ({ dispose: () => { } });
+
 	public executeCommand<T>(commandId: string, ...args: any[]): TPromise<any> {
 		this.callCount++;
 		return TPromise.as(commandId);

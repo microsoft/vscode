@@ -19,6 +19,7 @@ export interface IStartupMetrics {
 	version: number;
 	ellapsed: number;
 	timers: {
+		ellapsedAppReady?: number;
 		ellapsedWindowLoad?: number;
 		ellapsedWindowLoadToRequire: number;
 		ellapsedExtensions: number;
@@ -37,12 +38,15 @@ export interface IStartupMetrics {
 	cpus: { count: number; speed: number; model: string; };
 	initialStartup: boolean;
 	hasAccessibilitySupport: boolean;
+	isVMLikelyhood: number;
 	emptyWorkbench: boolean;
 	loadavg: number[];
 }
 
 export interface IInitData {
 	start: Date;
+
+	appReady: Date;
 
 	windowLoad: Date;
 

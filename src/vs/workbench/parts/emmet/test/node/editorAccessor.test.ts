@@ -5,9 +5,10 @@
 
 'use strict';
 
-import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
+import { EditorAccessor, ILanguageIdentifierResolver, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import assert = require('assert');
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 //
 // To run the emmet tests only change .vscode/launch.json
@@ -49,13 +50,22 @@ suite('Emmet', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
 			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
-				editor.getModel().setMode(mode);
-				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
+				const languageIdentifier = new LanguageIdentifier(mode, 73);
+				const languageIdentifierResolver: ILanguageIdentifierResolver = {
+					getLanguageIdentifier: (languageId: LanguageId) => {
+						if (languageId === 73) {
+							return languageIdentifier;
+						}
+						throw new Error('Unexpected');
+					}
+				};
+				editor.getModel().setMode(languageIdentifier);
+				let editorAccessor = new EditorAccessor(languageIdentifierResolver, editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}
 
 			// emmet supported languages, null is used as the scopeName since it should not be consulted, they map to to mode to the same syntax name
-			let emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
+			let emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 			emmetSupportedModes.forEach(each => {
 				testIsEnabled(each, null);
 			});
@@ -63,6 +73,7 @@ suite('Emmet', () => {
 			// mapped syntaxes
 			testIsEnabled('typescriptreact', null);
 			testIsEnabled('javascriptreact', null);
+			testIsEnabled('jsx-tags', null);
 			testIsEnabled('sass-indented', null);
 
 			// syntaxes mapped using the scope name of the grammar
@@ -90,9 +101,18 @@ suite('Emmet', () => {
 		], {}, (editor) => {
 
 			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
-				editor.getModel().setMode(mode);
+				const languageIdentifier = new LanguageIdentifier(mode, 73);
+				const languageIdentifierResolver: ILanguageIdentifierResolver = {
+					getLanguageIdentifier: (languageId: LanguageId) => {
+						if (languageId === 73) {
+							return languageIdentifier;
+						}
+						throw new Error('Unexpected');
+					}
+				};
+				editor.getModel().setMode(languageIdentifier);
 				editor.setPosition({ lineNumber: 1, column: 3 });
-				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
+				let editorAccessor = new EditorAccessor(languageIdentifierResolver, editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}
 
@@ -105,13 +125,22 @@ suite('Emmet', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
 			function testSyntax(mode: string, scopeName: string, expectedSyntax: string, profile = {}, excluded = []) {
-				editor.getModel().setMode(mode);
-				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
+				const languageIdentifier = new LanguageIdentifier(mode, 73);
+				const languageIdentifierResolver: ILanguageIdentifierResolver = {
+					getLanguageIdentifier: (languageId: LanguageId) => {
+						if (languageId === 73) {
+							return languageIdentifier;
+						}
+						throw new Error('Unexpected');
+					}
+				};
+				editor.getModel().setMode(languageIdentifier);
+				let editorAccessor = new EditorAccessor(languageIdentifierResolver, editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.getSyntax(), expectedSyntax);
 			}
 
 			// emmet supported languages, null is used as the scopeName since it should not be consulted, they map to to mode to the same syntax name
-			let emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
+			let emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 			emmetSupportedModes.forEach(each => {
 				testSyntax(each, null, each);
 			});
@@ -119,6 +148,7 @@ suite('Emmet', () => {
 			// mapped syntaxes
 			testSyntax('typescriptreact', null, 'jsx');
 			testSyntax('javascriptreact', null, 'jsx');
+			testSyntax('jsx-tags', null, 'jsx');
 			testSyntax('sass-indented', null, 'sass');
 
 			// syntaxes mapped using the scope name of the grammar

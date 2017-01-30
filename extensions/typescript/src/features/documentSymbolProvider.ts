@@ -40,7 +40,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 	}
 
 	public provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<SymbolInformation[]> {
-		const filepath = this.client.asAbsolutePath(resource.uri);
+		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
 			return Promise.resolve<SymbolInformation[]>([]);
 		}

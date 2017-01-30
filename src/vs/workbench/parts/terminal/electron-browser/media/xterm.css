@@ -22,10 +22,16 @@
 	outline: none;
 }
 
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
-	outline: 2px solid #f38518;
-	outline-offset: -2px;
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
+	display: block;
+	content: "";
+	border: 2px solid #f38518;
+	position: absolute;
+	left: -5px;
+	top: 0;
+	right: 5px;
+	bottom: 0;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
@@ -52,19 +58,19 @@
 	opacity: 0 !important;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
-.monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #CCC; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #1e1e1e; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #000; }
+.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
+.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .reverse-video { color: #CCC; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .reverse-video { color: #1e1e1e; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .reverse-video { color: #000; }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
-.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #333; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #FFF; }
+.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: #333; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: #CCC; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
 	background-color: transparent;
@@ -82,14 +88,14 @@
 	outline-offset: -1px;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink 1.2s infinite step-end; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink-dark 1.2s infinite step-end; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink-hc-black 1.2s infinite step-end; }
 
-@keyframes blink-cursor {
+@keyframes cursor-blink {
 	0% {
 		background-color: #333;
 		color: #CCC;
@@ -100,7 +106,7 @@
 	}
 }
 
-@keyframes blink-cursor-dark {
+@keyframes cursor-blink-dark {
 	0% {
 		background-color: #CCC;
 		color: #1e1e1e;
@@ -111,7 +117,7 @@
 	}
 }
 
-@keyframes blink-cursor-hc-black {
+@keyframes cursor-blink-hc-black {
 	0% {
 		background-color: #fff;
 		color: #000;
@@ -122,8 +128,68 @@
 	}
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor {
+	position: relative;
+}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
+	content: "";
+	display: block;
+	position: absolute;
+	background-color: #333;
+}
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
+	background-color: #CCC;
+}
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
+	background-color: #fff;
+}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before {
+	top: 0;
+	bottom: 0;
+	left: 0;
+	width: 1px;
+}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 1px;
+}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before {
+	animation: xterm-cursor-non-bar-blink 1.2s infinite step-end;
+}
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before {
+	animation: xterm-cursor-non-bar-blink-dark 1.2s infinite step-end;
+}
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before {
+	animation: xterm-cursor-non-bar-blink-hc-black 1.2s infinite step-end;
+}
+@keyframes xterm-cursor-non-bar-blink {
+	0% { background-color: #333; }
+	50% { background-color: transparent; }
+}
+@keyframes xterm-cursor-non-bar-blink-dark {
+	0% { background-color: #ccc; }
+	50% { background-color: transparent; }
+}
+@keyframes xterm-cursor-non-bar-blink-hc-black {
+	0% { background-color: #fff; }
+	50% { background-color: transparent; }
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport {
 	overflow-y: scroll;
+}
+
+.terminal .xterm-wide-char {
+	display: inline-block;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-rows {
@@ -181,17 +247,17 @@
 
 /* Base selection colors */
 
-.monaco-workbench .panel.integrated-terminal .xterm *::selection {
+.monaco-workbench .panel.integrated-terminal .xterm ::selection {
 	color: #FFF;
 	background-color: rgba(51, 51, 51, 0.996);
 }
 
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm *::selection {
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm ::selection {
 	color: #1e1e1e;
 	background-color: rgba(204, 204, 204, 0.996);
 }
 
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm *::selection {
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm ::selection {
 	color: #000;
 	background-color: rgba(255, 255, 255, 0.996);
 }

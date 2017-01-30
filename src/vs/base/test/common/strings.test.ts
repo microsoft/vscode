@@ -21,6 +21,25 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
 	});
 
+	test('compareIgnoreCase', function () {
+
+		function assertCompareIgnoreCase(a: string, b: string): void {
+			let actual = strings.compareIgnoreCase(a, b);
+			let expected = strings.compare(a.toLowerCase(), b.toLowerCase());
+			assert.equal(actual, expected, `${a} <> ${b}`);
+		}
+
+		assertCompareIgnoreCase('', '');
+		assertCompareIgnoreCase('abc', 'ABC');
+		assertCompareIgnoreCase('abc', 'ABc');
+		assertCompareIgnoreCase('abc', 'ABcd');
+		assertCompareIgnoreCase('abc', 'abcd');
+		assertCompareIgnoreCase('foo', 'föo');
+		assertCompareIgnoreCase('Code', 'code');
+		assertCompareIgnoreCase('Code', 'cöde');
+
+	});
+
 	test('format', function () {
 		assert.strictEqual(strings.format('Foo Bar'), 'Foo Bar');
 		assert.strictEqual(strings.format('Foo {0} Bar'), 'Foo {0} Bar');
@@ -193,4 +212,29 @@ suite('Strings', () => {
 	// 	}
 	// 	console.log('TOOK: ' + (allTime)/10 + 'ms for size of ' + SIZE/1000000 + 'Mb');
 	// });
+
+	test('isBasicASCII', () => {
+		function assertIsBasicASCII(str: string, expected: boolean): void {
+			assert.equal(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);
+		}
+		assertIsBasicASCII('abcdefghijklmnopqrstuvwxyz', true);
+		assertIsBasicASCII('ABCDEFGHIJKLMNOPQRSTUVWXYZ', true);
+		assertIsBasicASCII('1234567890', true);
+		assertIsBasicASCII('`~!@#$%^&*()-_=+[{]}\\|;:\'",<.>/?', true);
+		assertIsBasicASCII(' ', true);
+		assertIsBasicASCII('\t', true);
+		assertIsBasicASCII('\n', true);
+		assertIsBasicASCII('\r', true);
+
+		let ALL = '\r\t\n';
+		for (let i = 32; i < 127; i++) {
+			ALL += String.fromCharCode(i);
+		}
+		assertIsBasicASCII(ALL, true);
+
+		assertIsBasicASCII(String.fromCharCode(31), false);
+		assertIsBasicASCII(String.fromCharCode(127), false);
+		assertIsBasicASCII('ü', false);
+		assertIsBasicASCII('a📚📚b', false);
+	});
 });

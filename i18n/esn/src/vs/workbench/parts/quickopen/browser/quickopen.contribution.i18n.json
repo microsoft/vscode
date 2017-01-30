@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "Ir a la línea",
 	"gotoSymbolDescription": "Ir al símbolo en el archivo",
 	"gotoSymbolDescriptionScoped": "Ir al símbolo en el archivo por categoría",
-	"helpDescription": "Mostrar Ayuda"
+	"helpDescription": "Mostrar Ayuda",
+	"viewPickerDescription": "Abrir vista"
 }

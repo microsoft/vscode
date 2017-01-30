@@ -20,9 +20,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, ITabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -31,7 +30,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
@@ -106,9 +105,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 	private layoutVertically: boolean;
 
-	private showTabs: boolean;
-	private showTabCloseButton: boolean;
-	private showIcons: boolean;
+	private tabOptions: ITabOptions;
 
 	private silos: Builder[];
 	private silosSize: number[];
@@ -141,7 +138,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -166,7 +162,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.toDispose.push(this.onStacksChangeScheduler);
 		this.stacksChangedBuffer = [];
 
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.updateTabOptions(this.editorGroupService.getTabOptions());
 
 		const editorGroupOrientation = groupOrientation || 'vertical';
 		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
@@ -210,22 +206,13 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 	private registerListeners(): void {
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
+		this.toDispose.push(this.editorGroupService.onTabOptionsChanged(options => this.updateTabOptions(options, true)));
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
-		const showTabCloseButton = this.showTabCloseButton;
-
-		if (config.workbench && config.workbench.editor) {
-			this.showTabs = config.workbench.editor.showTabs;
-			this.showTabCloseButton = config.workbench.editor.showTabCloseButton;
-			this.showIcons = config.workbench.editor.showIcons;
-		} else {
-			this.showTabs = true;
-			this.showTabCloseButton = true;
-			this.showIcons = false;
-		}
+	private updateTabOptions(tabOptions: ITabOptions, refresh?: boolean): void {
+		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
+		this.tabOptions = tabOptions;
 
 		if (!refresh) {
 			return; // return early if no refresh is needed
@@ -237,14 +224,14 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 			// TItle Container
 			const titleContainer = $(titleControl.getContainer());
-			if (this.showTabs) {
+			if (this.tabOptions.showTabs) {
 				titleContainer.addClass('tabs');
 			} else {
 				titleContainer.removeClass('tabs');
 			}
 
 			const showingIcons = titleContainer.hasClass('show-file-icons');
-			if (this.showIcons) {
+			if (this.tabOptions.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			} else {
 				titleContainer.removeClass('show-file-icons');
@@ -255,14 +242,14 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				const usingTabs = (titleControl instanceof TabsTitleControl);
 
 				// Recreate title when tabs change
-				if (usingTabs !== this.showTabs) {
+				if (usingTabs !== this.tabOptions.showTabs) {
 					titleControl.dispose();
 					titleContainer.empty();
 					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.showIcons || showTabCloseButton !== this.showTabCloseButton) {
+				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton) {
 					titleControl.refresh();
 				}
 			}
@@ -771,7 +758,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 
 			// Trigger layout
-			this.arrangeGroups(GroupArrangement.EVEN);
+			this.arrangeGroups();
 		}
 	}
 
@@ -779,7 +766,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return this.layoutVertically ? 'vertical' : 'horizontal';
 	}
 
-	public arrangeGroups(arrangement: GroupArrangement): void {
+	public arrangeGroups(arrangement?: GroupArrangement): void {
 		if (!this.dimension) {
 			return; // too early
 		}
@@ -791,27 +778,49 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			return; // need more editors
 		}
 
-		// Minimize Others
-		if (arrangement === GroupArrangement.MINIMIZE_OTHERS) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					if (position !== this.lastActivePosition) {
-						this.silosSize[position] = this.minSize;
-						availableSize -= this.minSize;
+		switch (arrangement) {
+			case GroupArrangement.MINIMIZE_OTHERS:
+				// Minimize Others
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (position !== this.lastActivePosition) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						}
 					}
-				}
-			});
+				});
 
-			this.silosSize[this.lastActivePosition] = availableSize;
-		}
+				this.silosSize[this.lastActivePosition] = availableSize;
+				break;
+			case GroupArrangement.EVEN:
+				// Even Sizes
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						this.silosSize[position] = availableSize / visibleEditors;
+					}
+				});
+				break;
+			default:
+				// Minimized editors should remain minimized, others should keep their relative Sizes
+				let oldNonMinimizedTotal = 0;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (this.silosMinimized[position]) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						} else {
+							oldNonMinimizedTotal += this.silosSize[position];
+						}
+					}
+				});
 
-		// Even Sizes
-		else if (arrangement === GroupArrangement.EVEN) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					this.silosSize[position] = availableSize / visibleEditors;
-				}
-			});
+				// Set size for non-minimized editors
+				const scaleFactor = availableSize / oldNonMinimizedTotal;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position] && !this.silosMinimized[position]) {
+						this.silosSize[position] *= scaleFactor;
+					}
+				});
 		}
 
 		// Since we triggered a change in minimized/maximized editors, we need
@@ -894,10 +903,10 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 			// Title containers
 			const titleContainer = $(container).div({ 'class': 'title' });
-			if (this.showTabs) {
+			if (this.tabOptions.showTabs) {
 				titleContainer.addClass('tabs');
 			}
-			if (this.showIcons) {
+			if (this.tabOptions.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			}
 			this.hookTitleDragListener(titleContainer);
@@ -1091,7 +1100,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				if ($this.layoutVertically) {
 					overlay.style({ left: '0', width: '100%' });
 				} else {
-					overlay.style({ top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
+					overlay.style({ top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
 				}
 			}
 
@@ -1114,8 +1123,8 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
 						overlay = $('div').style({
-							top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
-							height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%'
+							top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
+							height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%'
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1202,7 +1211,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	}
 
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
-		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.showTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.tabOptions.showTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
 		titleAreaControl.refresh(true /* instant */);

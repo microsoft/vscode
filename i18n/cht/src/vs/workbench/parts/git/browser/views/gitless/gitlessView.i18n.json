@@ -8,6 +8,6 @@
 	"linuxDownloadFrom": "您可以從 {0} 下載。",
 	"looksLike": "您的系統上似乎未安裝 Git。",
 	"macInstallWith": "您可以使用 {0} 進行安裝、從 {1} 下載，或直接在終端機提示時輸入 {3}，以安裝 {2} 命令列開發人員工具。",
-	"pleaseRestart": "安裝 Git 之後，請重新啟動 {0}。",
+	"pleaseRestart": "安裝 Git 之後，請重新啟動 VSCode。",
 	"winInstallWith": "您可以使用 {0} 進行安裝或從 {1} 下載。"
 }

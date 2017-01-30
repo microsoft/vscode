@@ -24,7 +24,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorInput, asFileEditorInput, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -62,9 +62,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	public getResource(): URI {
-		const fileInput = asFileEditorInput(this.editor, true);
-
-		return fileInput && fileInput.getResource();
+		return toResource(this.editor, { supportSideBySide: true });
 	}
 
 	public getAriaLabel(): string {

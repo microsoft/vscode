@@ -43,7 +43,7 @@ const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replac
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
+const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
 const WIDGET_FIXED_WIDTH = 411 - 69;
@@ -352,6 +352,10 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._replaceInputBox.select();
 		// Edge browser requires focus() in addition to select()
 		this._replaceInputBox.focus();
+	}
+
+	public highlightFindOptions(): void {
+		this._findInput.highlightFindOptions();
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {

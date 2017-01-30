@@ -23,10 +23,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { keyFromOverrideIdentifier } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 
 interface IConfigurationEditOperation extends IConfigurationValue {
 	target: URI;
@@ -69,6 +71,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		// First validate before making any edits
 		return this.validate(target, operation, options).then(validation => {
 			if (typeof validation.error === 'number') {
+				// Target cannot contain JSON errors if writing to disk
 				return this.wrapError(validation.error, target);
 			}
 
@@ -185,8 +188,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		const {tabSize, insertSpaces} = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
 		const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
 
-		const {key, value} = edit;
-		return setProperty(content, [key], value, { tabSize, insertSpaces, eol });
+		const {key, value, overrideIdentifier} = edit;
+		return setProperty(content, overrideIdentifier ? [keyFromOverrideIdentifier(overrideIdentifier), key] : [key], value, { tabSize, insertSpaces, eol });
 	}
 
 	private validate(target: ConfigurationTarget, operation: IConfigurationEditOperation, options: IConfigurationEditingOptions): TPromise<IValidationResult> {
@@ -194,7 +197,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.isWorkspaceStandalone) {
 			const validKeys = this.configurationService.keys().default;
-			if (validKeys.indexOf(operation.key) < 0) {
+			if (validKeys.indexOf(operation.key) < 0 && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY });
 			}
 		}
@@ -205,7 +208,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace if no workspace opened
-		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.getWorkspace()) {
+		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.hasWorkspace()) {
 			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED });
 		}
 
@@ -228,14 +231,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 					return { exists, contents: content };
 				}
 
-				// Target cannot contain JSON errors
+				let error = void 0;
 				const parseErrors: json.ParseError[] = [];
 				json.parse(content, parseErrors);
-				if (parseErrors.length > 0) {
-					return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
+				if (!options.writeToBuffer && parseErrors.length > 0) {
+					error = ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION;
 				}
 
-				return { exists, contents: content };
+				return { exists, contents: content, error };
 			});
 		});
 	}
@@ -270,9 +273,9 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		if (target === ConfigurationTarget.USER) {
-			return { key: config.key, value: config.value, target: URI.file(this.environmentService.appSettingsPath) };
+			return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, target: URI.file(this.environmentService.appSettingsPath) };
 		}
 
-		return { key: config.key, value: config.value, target: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) };
+		return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, target: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) };
 	}
 }

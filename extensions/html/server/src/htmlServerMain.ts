@@ -6,8 +6,10 @@
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
-import { TextDocument, Diagnostic, DocumentLink, Range, TextEdit, SymbolInformation } from 'vscode-languageserver-types';
+import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
+
+import { format } from './modes/formatting';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -17,7 +19,7 @@ import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
+	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
 }
 
 // Create a connection for the server
@@ -51,16 +53,16 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	connection.onShutdown(() => {
 		languageModes.dispose();
 	});
-
+	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			completionProvider: snippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : null,
 			hoverProvider: true,
 			documentHighlightProvider: true,
 			documentRangeFormattingProvider: initializationOptions && initializationOptions['format.enable'],
-			documentLinkProvider: true,
+			documentLinkProvider: { resolveProvider: false },
 			documentSymbolProvider: true,
 			definitionProvider: true,
 			signatureHelpProvider: { triggerCharacters: ['('] },
@@ -69,9 +71,18 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
+let validation = {
+	html: true,
+	css: true,
+	javascript: true
+};
+
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
 	settings = change.settings;
+	let validationSettings = settings && settings.html && settings.html.validate || {};
+	validation.css = validationSettings.styles !== false;
+	validation.javascript = validationSettings.scripts !== false;
 
 	languageModes.getAllModes().forEach(m => {
 		if (m.configure) {
@@ -114,11 +125,13 @@ function triggerValidation(textDocument: TextDocument): void {
 
 function validateTextDocument(textDocument: TextDocument): void {
 	let diagnostics: Diagnostic[] = [];
-	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
-		if (mode.doValidation) {
-			pushAll(diagnostics, mode.doValidation(textDocument));
-		}
-	});
+	if (textDocument.languageId === 'html') {
+		languageModes.getAllModesInDocument(textDocument).forEach(mode => {
+			if (mode.doValidation && validation[mode.getId()]) {
+				pushAll(diagnostics, mode.doValidation(textDocument));
+			}
+		});
+	}
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
@@ -201,18 +214,11 @@ connection.onSignatureHelp(signatureHelpParms => {
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	let ranges = languageModes.getModesInRange(document, formatParams.range);
-	let result: TextEdit[] = [];
+
 	let unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
-	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/), html: true };
-	ranges.forEach(r => {
-		let mode = r.mode;
-		if (mode && mode.format && enabledModes[mode.getId()] && !r.attributeValue) {
-			let edits = mode.format(document, r, formatParams.options);
-			pushAll(result, edits);
-		}
-	});
-	return result;
+	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
+
+	return format(languageModes, document, formatParams.range, formatParams.options, enabledModes);
 });
 
 connection.onDocumentLinks(documentLinkParam => {

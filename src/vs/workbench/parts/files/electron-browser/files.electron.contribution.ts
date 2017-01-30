@@ -10,17 +10,18 @@ import { Registry } from 'vs/platform/platform';
 import { IAction } from 'vs/base/common/actions';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import env = require('vs/base/common/platform');
 import { asFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { GlobalNewUntitledFileAction, SaveFileAsAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { GlobalNewUntitledFileAction, SaveFileAsAction, revealInExplorerCommand } from 'vs/workbench/parts/files/browser/fileActions';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/electron-browser/dirtyFilesTracker';
-import { OpenFolderAction, OpenFileAction, OpenFileFolderAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { copyPathCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, OpenFileAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 class FileViewerActionContributor extends ActionBarContributor {
 
@@ -56,7 +57,7 @@ class FileViewerActionContributor extends ActionBarContributor {
 // Contribute Actions
 const category = nls.localize('filesCategory', "Files");
 
-const workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }), 'Files: Save As...', category);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), 'Files: New Untitled File', category);
 
@@ -72,21 +73,33 @@ if (env.isMacintosh) {
 }
 
 // Contribute to File Viewers
-const actionsRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+const actionsRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContributor);
 
 // Register Dirty Files Tracker
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	DirtyFilesTracker
 );
 
-// Register Commands
-CommandsRegistry.registerCommand('_files.openFolderPicker', (accessor: ServicesAccessor, forceNewWindow: boolean) => {
-	const windowService = accessor.get(IWindowService);
-	windowService.openFolderPicker(forceNewWindow);
-});
+// Commands
+CommandsRegistry.registerCommand('_files.openFolderPicker', openFolderPickerCommand);
+CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
+CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 
-CommandsRegistry.registerCommand('_files.windowOpen', (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
-	const windowsService = accessor.get(IWindowsService);
-	windowsService.windowOpen(paths, forceNewWindow);
-});
+// Editor Title Context Menu
+appendEditorTitleContextMenuItem('_workbench.action.files.revealInOS', RevealInOSAction.LABEL, revealInOSCommand);
+appendEditorTitleContextMenuItem('_workbench.action.files.copyPath', CopyPathAction.LABEL, copyPathCommand);
+appendEditorTitleContextMenuItem('_workbench.action.files.revealInExplorer', nls.localize('revealInSideBar', "Reveal in Side Bar"), revealInExplorerCommand);
+
+function appendEditorTitleContextMenuItem(id: string, title: string, command: ICommandHandler): void {
+
+	// Command
+	CommandsRegistry.registerCommand(id, command);
+
+	// Menu
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: { id, title },
+		when: ContextKeyExpr.equals('resourceScheme', 'file'),
+		group: '2_files'
+	});
+}

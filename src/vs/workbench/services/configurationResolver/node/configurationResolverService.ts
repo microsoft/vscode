@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -82,12 +82,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		if (!input) {
 			return '';
 		}
-		let fileEditorInput = asFileEditorInput(input);
-		if (!fileEditorInput) {
+		let fileResource = toResource(input, { filter: 'file' });
+		if (!fileResource) {
 			return '';
 		}
-		let resource = fileEditorInput.getResource();
-		return paths.normalize(resource.fsPath, true);
+		return paths.normalize(fileResource.fsPath, true);
 	}
 
 	public resolve(value: string): string;
@@ -219,10 +218,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			});
 		};
 		findInteractiveVariables(configuration);
+		let substitionCanceled = false;
 
 		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
 			return () => {
-				let commandId = null;
+				let commandId: string = null;
 				commandId = interactiveVariablesMap ? interactiveVariablesMap[interactiveVariable] : null;
 				if (!commandId) {
 					// Just launch any command if the interactive variable is not contributed by the adapter #12735
@@ -234,11 +234,13 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
 							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
 						);
+					} else {
+						substitionCanceled = true;
 					}
 				});
 			};
 		});
 
-		return sequence(factory).then(() => configuration);
+		return sequence(factory).then(() => substitionCanceled ? null : configuration);
 	}
 }

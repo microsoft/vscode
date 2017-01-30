@@ -71,6 +71,7 @@
 	"TaskSystem.active": "Zurzeit ist ein aktiver Task vorhanden, der aktuell ausgeführt wird. Beenden Sie diesen, bevor Sie einen anderen Task ausführen.",
 	"TaskSystem.activeSame": "Der Task ist bereits aktiv und im Überwachungsmodus. Um den Task zu beenden, verwenden Sie \"F1 > Task beenden\".",
 	"TaskSystem.exitAnyways": "&&Trotzdem beenden",
+	"TaskSystem.fatalError": "Die bereitgestellte Taskkonfiguration weist Validierungsfehler auf. Details finden Sie im Taskausgabeprotokoll.",
 	"TaskSystem.invalidTaskJson": "Fehler: Der Inhalt der Datei \"tasks.json\" weist Syntaxfehler auf. Bitte korrigieren sie diese, bevor Sie einen Task ausführen.\n",
 	"TaskSystem.noBuildType": "Es ist keine gültige Taskausführung konfiguriert. Unterstützte Taskausführungen sind \"service\" und \"program\".",
 	"TaskSystem.noConfiguration": "Es ist keine Taskausführung konfiguriert.",

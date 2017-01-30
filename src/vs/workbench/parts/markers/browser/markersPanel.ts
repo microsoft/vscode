@@ -18,7 +18,7 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
@@ -102,8 +102,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	public getTitle(): string {
-		let markerStatistics = this.markerService.getStatistics();
-		return this.markersModel.getTitle(markerStatistics);
+		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
 	public layout(dimension: builder.Dimension): void {
@@ -140,11 +139,8 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
-	private refreshPanel(updateTitleArea: boolean = false): TPromise<any> {
+	private refreshPanel(): TPromise<any> {
 		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
-		if (updateTitleArea) {
-			this.updateTitleArea();
-		}
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
 		this.renderMessage();
 		if (this.markersModel.hasFilteredResources()) {
@@ -216,15 +212,14 @@ export class MarkersPanel extends Panel {
 	private onMarkerChanged(changedResources: URI[]) {
 		this.updateResources(changedResources);
 		this.delayedRefresh.trigger(() => {
-			this.refreshPanel(true);
+			this.refreshPanel();
 			this.updateRangeHighlights();
 			this.autoReveal();
 		});
 	}
 
 	private onEditorsChanged(): void {
-		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
-		this.currentActiveFile = editorInput ? editorInput.getResource() : null;
+		this.currentActiveFile = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		this.autoReveal();
 	}
 

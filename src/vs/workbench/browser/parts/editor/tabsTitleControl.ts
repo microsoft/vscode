@@ -12,14 +12,14 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
+import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, asFileEditorInput, getResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -38,7 +38,6 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
-import paths = require('vs/base/common/paths');
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -59,7 +58,6 @@ export class TabsTitleControl extends TitleControl {
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -71,7 +69,7 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
@@ -218,10 +216,14 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = verboseDescription;
+				['off', 'left'].forEach(option => {
+					const domAction = this.tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
+					domAction(tabContainer, `close-button-${option}`);
+				});
 
 				// Label
 				const tabLabel = this.editorLabels[index];
-				tabLabel.setLabel({ name, description, resource: getResource(editor) }, { extraClasses: ['tab-label'], italic: !isPinned });
+				tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
 
 				// Active state
 				if (isActive) {
@@ -253,15 +255,10 @@ export class TabsTitleControl extends TitleControl {
 		const labels: IEditorInputLabel[] = [];
 
 		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
 			let description = editor.getDescription();
-			if (description && description.indexOf(paths.nativeSep) >= 0) {
-				description = paths.basename(description); // optimize for editors that show paths and build a shorter description to keep tab width small
-			}
-
 			const item: IEditorInputLabel = {
 				editor,
 				name: editor.getName(),
@@ -271,27 +268,16 @@ export class TabsTitleControl extends TitleControl {
 			labels.push(item);
 
 			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
-			if (item.description) {
-				mapLabelAndDescriptionToDuplicates.getOrSet(item.name + item.description, []).push(item);
-			}
 		});
 
-		// Mark label duplicates
+		// Mark duplicates and shorten their descriptions
 		const labelDuplicates = mapLabelToDuplicates.values();
 		labelDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
-				duplicates.forEach(duplicate => {
+				const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+				duplicates.forEach((duplicate, i) => {
+					duplicate.description = shortenedDescriptions[i];
 					duplicate.hasAmbiguousName = true;
-				});
-			}
-		});
-
-		// React to duplicates for combination of label and description
-		const descriptionDuplicates = mapLabelAndDescriptionToDuplicates.values();
-		descriptionDuplicates.forEach(duplicates => {
-			if (duplicates.length > 1) {
-				duplicates.forEach(duplicate => {
-					duplicate.description = duplicate.editor.getDescription(); // fallback to full description if the short description still has duplicates
 				});
 			}
 		});
@@ -362,12 +348,6 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
 		DOM.addClass(tabContainer, 'tab monaco-editor-background');
 
-		if (!this.showTabCloseButton) {
-			DOM.addClass(tabContainer, 'no-close-button');
-		} else {
-			DOM.removeClass(tabContainer, 'no-close-button');
-		}
-
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
 		this.editorLabels.push(editorLabel);
@@ -425,7 +405,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
-		const disposables = [];
+		const disposables: IDisposable[] = [];
 
 		// Open on Click
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
@@ -516,10 +496,11 @@ export class TabsTitleControl extends TitleControl {
 
 		// Context menu
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
+			DOM.EventHelper.stop(e, true);
 			const { group, editor } = this.toTabContext(index);
 
 			this.onContextMenu({ group, editor }, e, tab);
-		}));
+		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag start
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
@@ -529,9 +510,9 @@ export class TabsTitleControl extends TitleControl {
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Insert transfer accordingly
-			const fileInput = asFileEditorInput(editor, true);
-			if (fileInput) {
-				const resource = fileInput.getResource().toString();
+			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
+			if (fileResource) {
+				const resource = fileResource.toString();
 				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
 				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
 			}

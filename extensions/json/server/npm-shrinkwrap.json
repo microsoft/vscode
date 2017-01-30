@@ -8,9 +8,9 @@
       "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-1.0.2.tgz"
     },
     "debug": {
-      "version": "2.2.0",
+      "version": "2.6.0",
       "from": "debug@>=2.0.0 <3.0.0",
-      "resolved": "https://registry.npmjs.org/debug/-/debug-2.2.0.tgz"
+      "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.0.tgz"
     },
     "extend": {
       "version": "3.0.0",
@@ -28,44 +28,43 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "jsonc-parser": {
-      "version": "0.2.3",
-      "from": "jsonc-parser@>=0.2.3 <0.3.0",
-      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.2.3.tgz"
+      "version": "0.3.1",
+      "from": "jsonc-parser@>=0.3.0 <0.4.0"
     },
     "ms": {
-      "version": "0.7.1",
-      "from": "ms@0.7.1",
-      "resolved": "https://registry.npmjs.org/ms/-/ms-0.7.1.tgz"
+      "version": "0.7.2",
+      "from": "ms@0.7.2",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-0.7.2.tgz"
     },
     "request-light": {
-      "version": "0.1.0",
-      "from": "request-light@>=0.1.0 <0.2.0",
-      "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.1.0.tgz"
+      "version": "0.2.0",
+      "from": "request-light@0.2.0",
+      "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.2.0.tgz"
     },
     "vscode-json-languageservice": {
-      "version": "2.0.0-next.8",
+      "version": "2.0.0-next.12",
       "from": "vscode-json-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-2.0.0-next.8.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-2.0.0-next.12.tgz"
     },
     "vscode-jsonrpc": {
-      "version": "3.0.1-alpha.2",
-      "from": "vscode-jsonrpc@>=3.0.1-alpha.2 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.0.1-alpha.2.tgz"
+      "version": "3.0.2-beta.5",
+      "from": "vscode-jsonrpc@>=3.0.2-beta.5 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.0.2-beta.5.tgz"
     },
     "vscode-languageserver": {
-      "version": "3.0.1-alpha.3",
+      "version": "3.0.2-beta.5",
       "from": "vscode-languageserver@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.0.1-alpha.3.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.0.2-beta.5.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "3.0.1-alpha.2",
-      "from": "vscode-languageserver-types@>=3.0.1-alpha.2 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.1-alpha.2.tgz"
+      "version": "3.0.2-beta.5",
+      "from": "vscode-languageserver-types@>=3.0.2-beta.5 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.2-beta.5.tgz"
     },
     "vscode-nls": {
-      "version": "1.0.7",
-      "from": "vscode-nls@>=1.0.4 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+      "version": "2.0.2",
+      "from": "vscode-nls@>=2.0.2 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
     },
     "vscode-uri": {
       "version": "1.0.0",

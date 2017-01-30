@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseEditor extends Panel implements IEditor {
-	private _input: EditorInput;
+	protected _input: EditorInput;
 	private _options: EditorOptions;
 	private _position: Position;
 
@@ -42,22 +42,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return this._input;
 	}
 
-	/**
-	 * Returns the current input of this editor or null if none.
-	 */
-	public getInput(): EditorInput {
-		return this._input || null;
-	}
-
 	public get options(): EditorOptions {
 		return this._options;
-	}
-
-	/**
-	 * Returns the current options of this editor or null if none.
-	 */
-	public getOptions(): EditorOptions {
-		return this._options || null;
 	}
 
 	/**
@@ -97,7 +83,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	/**
 	 * Called to create the editor in the parent builder.
 	 */
-	public abstract createEditor(parent: Builder): void;
+	protected abstract createEditor(parent: Builder): void;
 
 	/**
 	 * Overload this function to allow for passing in a position argument.
@@ -113,7 +99,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return promise;
 	}
 
-	public setEditorVisible(visible: boolean, position: Position = null): void {
+	protected setEditorVisible(visible: boolean, position: Position = null): void {
 		this._position = position;
 	}
 

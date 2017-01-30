@@ -3,36 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .token.vs-whitespace {
+.monaco-editor .vs-whitespace {
 	display:inline-block;
 }
-.monaco-editor.hc-black .token {
+.monaco-editor.hc-black .view-line {
 	mix-blend-mode: difference;
 }
-
-.monaco-editor.vs .token					{ color: #000000; }
-.monaco-editor.vs .token.vs-whitespace		{ color: rgba(51, 51, 51, 0.2) !important; }
-.monaco-editor.vs .token.info-token			{ color: #316bcd; }
-.monaco-editor.vs .token.warn-token			{ color: #cd9731; }
-.monaco-editor.vs .token.error-token		{ color: #cd3131; }
-.monaco-editor.vs .token.debug-token		{ color: purple; }
-
-.monaco-editor.vs-dark .token				{ color: #D4D4D4; }
-.monaco-editor.vs-dark .token.vs-whitespace	{ color: rgba(227, 228, 226, 0.16) !important; }
-.monaco-editor.vs-dark .token.info-token	{ color: #6796e6; }
-.monaco-editor.vs-dark .token.warn-token	{ color: #cd9731; }
-.monaco-editor.vs-dark .token.error-token	{ color: #f44747; }
-.monaco-editor.vs-dark .token.debug-token	{ color: #b267e6; }
-
-.monaco-editor.hc-black .token				{ color: #FFFFFF; }
-.monaco-editor.hc-black .token.vs-whitespace{ color: rgba(227, 228, 226, 0.16) !important; }
-.monaco-editor.hc-black .token.info-token	{ color: #6796e6; }
-.monaco-editor.hc-black .token.warn-token	{ color: #008000; }
-.monaco-editor.hc-black .token.error-token	{ color: #FF0000; }
-.monaco-editor.hc-black .token.debug-token	{ color: #b267e6; }
-
-
-/* ----- mimic text bundle support for themes ----- */
-.monaco-editor .markup.bold { font-weight: bold; }
-.monaco-editor .markup.italic { font-style: italic; }
-.monaco-editor .markup.underline { text-decoration: underline; }
+.monaco-editor.vs .vs-whitespace		{ color: rgba(51, 51, 51, 0.2); }
+.monaco-editor.vs-dark .vs-whitespace	{ color: rgba(227, 228, 226, 0.16); }
+.monaco-editor.hc-black .vs-whitespace	{ color: rgba(227, 228, 226, 0.16); }

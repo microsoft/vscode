@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit } from 'vscode';
+import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit, workspace } from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 export default class PHPCompletionItemProvider implements CompletionItemProvider {
@@ -14,6 +14,12 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
 		let result: CompletionItem[] = [];
+
+		let shouldProvideCompletionItems = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
+		if (!shouldProvideCompletionItems) {
+			return Promise.resolve(result);
+		}
+
 		var range = document.getWordRangeAtPosition(position);
 		var prefix = range ? document.getText(range) : '';
 		if (!range) {

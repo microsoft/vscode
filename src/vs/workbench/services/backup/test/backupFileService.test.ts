@@ -205,6 +205,15 @@ suite('BackupFileService', () => {
 				});
 			});
 		});
+
+		test('should disable further backups', function (done: () => void) {
+			service.discardAllWorkspaceBackups().then(() => {
+				service.backupResource(untitledFile, 'test').then(() => {
+					assert.equal(fs.existsSync(workspaceBackupPath), false);
+					done();
+				});
+			});
+		});
 	});
 
 	suite('getWorkspaceFileBackups', () => {

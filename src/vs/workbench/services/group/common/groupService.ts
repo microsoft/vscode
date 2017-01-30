@@ -19,6 +19,13 @@ export type GroupOrientation = 'vertical' | 'horizontal';
 
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
+export interface ITabOptions {
+	showTabs?: boolean;
+	tabCloseButton?: 'left' | 'right' | 'off';
+	showIcons?: boolean;
+	previewEditors?: boolean;
+};
+
 /**
  * The editor service allows to open editors and work on the active
  * editor input and models.
@@ -45,6 +52,11 @@ export interface IEditorGroupService {
 	 * Emitted when the editor group orientation was changed.
 	 */
 	onGroupOrientationChanged: Event<void>;
+
+	/**
+	 * Emitted when tab options changed.
+	 */
+	onTabOptionsChanged: Event<ITabOptions>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.
@@ -102,4 +114,9 @@ export interface IEditorGroupService {
 	 * Provides access to the editor stacks model
 	 */
 	getStacksModel(): IEditorStacksModel;
+
+	/**
+	 * Returns true if tabs are shown, false otherwise.
+	 */
+	getTabOptions(): ITabOptions;
 }

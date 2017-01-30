@@ -502,26 +502,27 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		});
 
 		// Entry
-		const entry = document.createElement('div');
-		DOM.addClass(entry, 'quick-open-entry');
+		const row1 = DOM.$('.row');
+		const row2 = DOM.$('.row');
+		const entry = DOM.$('.quick-open-entry', null, row1, row2);
 		entryContainer.appendChild(entry);
 
 		// Icon
 		const icon = document.createElement('span');
-		entry.appendChild(icon);
+		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(entry, { supportHighlights: true });
+		const label = new IconLabel(row1, { supportHighlights: true });
 
 		// Description
 		const descriptionContainer = document.createElement('span');
-		entry.appendChild(descriptionContainer);
+		row1.appendChild(descriptionContainer);
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
 		const description = new HighlightedLabel(descriptionContainer);
 
 		// Detail
 		const detailContainer = document.createElement('div');
-		entry.appendChild(detailContainer);
+		row2.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
 		const detail = new HighlightedLabel(detailContainer);
 
@@ -689,15 +690,15 @@ export class QuickOpenModel implements
 		return this._entries;
 	}
 
-	getId(entry: QuickOpenEntry): string {
+	public getId(entry: QuickOpenEntry): string {
 		return entry.getId();
 	}
 
-	getLabel(entry: QuickOpenEntry): string {
+	public getLabel(entry: QuickOpenEntry): string {
 		return entry.getLabel();
 	}
 
-	getAriaLabel(entry: QuickOpenEntry): string {
+	public getAriaLabel(entry: QuickOpenEntry): string {
 		const ariaLabel = entry.getAriaLabel();
 		if (ariaLabel) {
 			return nls.localize('quickOpenAriaLabelEntry', "{0}, picker", entry.getAriaLabel());
@@ -706,11 +707,11 @@ export class QuickOpenModel implements
 		return nls.localize('quickOpenAriaLabel', "picker");
 	}
 
-	isVisible(entry: QuickOpenEntry): boolean {
+	public isVisible(entry: QuickOpenEntry): boolean {
 		return !entry.isHidden();
 	}
 
-	run(entry: QuickOpenEntry, mode: Mode, context: IContext): boolean {
+	public run(entry: QuickOpenEntry, mode: Mode, context: IContext): boolean {
 		return entry.run(mode, context);
 	}
 }

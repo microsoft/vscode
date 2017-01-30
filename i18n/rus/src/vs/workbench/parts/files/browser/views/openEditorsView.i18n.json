@@ -7,5 +7,5 @@
 	"dirtyCounter": "Не сохранено: {0}",
 	"openEditors": "Открытые редакторы",
 	"openEditosrSection": "Раздел открытых редакторов",
-	"treeAriaLabel": "Открытые редакторы"
+	"treeAriaLabel": "Открытые редакторы: список активных файлов"
 }

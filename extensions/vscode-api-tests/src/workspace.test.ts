@@ -24,7 +24,7 @@ suite('workspace-namespace', () => {
 		assert.equal(config['config0'], true);
 		assert.equal(config['config4'], '');
 
-		assert.throws(() => config['config4'] = 'valuevalue');
+		assert.throws(() => (<any>config)['config4'] = 'valuevalue');
 
 		assert.ok(config.has('nested.config1'));
 		assert.equal(config.get('nested.config1'), 42);
@@ -81,6 +81,21 @@ suite('workspace-namespace', () => {
 
 		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
+			assert.ok(doc.isDirty);
+		});
+	});
+
+	test('openTextDocument, untitled without path', function () {
+		return workspace.openTextDocument().then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.ok(doc.isDirty);
+		});
+	});
+
+	test('openTextDocument, untitled without path but language ID', function () {
+		return workspace.openTextDocument({ language: 'xml' }).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.equal(doc.languageId, 'xml');
 			assert.ok(doc.isDirty);
 		});
 	});

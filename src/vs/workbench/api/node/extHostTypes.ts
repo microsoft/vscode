@@ -465,7 +465,7 @@ export class Uri extends URI { }
 export class WorkspaceEdit {
 
 	private _values: [Uri, TextEdit[]][] = [];
-	private _index: { [uri: string]: number } = Object.create(null);
+	private _index = new Map<string, number>();
 
 	replace(uri: Uri, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -486,21 +486,21 @@ export class WorkspaceEdit {
 	}
 
 	has(uri: Uri): boolean {
-		return typeof this._index[uri.toString()] !== 'undefined';
+		return this._index.has(uri.toString());
 	}
 
 	set(uri: Uri, edits: TextEdit[]): void {
-		let idx = this._index[uri.toString()];
+		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
-			this._index[uri.toString()] = newLen - 1;
+			this._index.set(uri.toString(), newLen - 1);
 		} else {
 			this._values[idx][1] = edits;
 		}
 	}
 
 	get(uri: Uri): TextEdit[] {
-		let idx = this._index[uri.toString()];
+		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 
@@ -518,6 +518,16 @@ export class WorkspaceEdit {
 }
 
 export class SnippetString {
+
+	static isSnippetString(thing: any): thing is SnippetString {
+		if (thing instanceof SnippetString) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<SnippetString>thing).value === 'string';
+	}
 
 	private static _escape(value: string): string {
 		return value.replace(/\$|}|\\/g, '\\$&');
@@ -830,7 +840,8 @@ export enum CompletionItemKind {
 	Snippet = 14,
 	Color = 15,
 	File = 16,
-	Reference = 17
+	Reference = 17,
+	Folder = 18
 }
 
 export class CompletionItem {
@@ -909,7 +920,8 @@ export enum TextDocumentSaveReason {
 export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 export enum TextEditorSelectionChangeKind {

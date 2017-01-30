@@ -6,21 +6,23 @@
 
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { fill } from 'vs/base/common/arrays';
+import { rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * The forward slash path separator.
  */
-export var sep = '/';
+export const sep = '/';
 
 /**
  * The native path separator depending on the OS.
  */
-export var nativeSep = isWindows ? '\\' : '/';
+export const nativeSep = isWindows ? '\\' : '/';
 
 export function relative(from: string, to: string): string {
-	const originalNormalizedFrom = normalize(from);
-	const originalNormalizedTo = normalize(to);
+	// ignore trailing slashes
+	const originalNormalizedFrom = rtrim(normalize(from), sep);
+	const originalNormalizedTo = rtrim(normalize(to), sep);
 
 	// we're assuming here that any non=linux OS is case insensitive
 	// so we must compare each part in its lowercase form
@@ -50,7 +52,7 @@ export function relative(from: string, to: string): string {
  * @returns the directory name of a path.
  */
 export function dirname(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return '.';
 	} else if (~idx === 0) {
@@ -64,7 +66,7 @@ export function dirname(path: string): string {
  * @returns the base name of a path.
  */
 export function basename(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return path;
 	} else if (~idx === path.length - 1) {
@@ -79,7 +81,7 @@ export function basename(path: string): string {
  */
 export function extname(path: string): string {
 	path = basename(path);
-	var idx = ~path.lastIndexOf('.');
+	const idx = ~path.lastIndexOf('.');
 	return idx ? path.substring(~idx) : '';
 }
 
@@ -381,14 +383,4 @@ export function isValidBasename(name: string): boolean {
 	}
 
 	return true;
-}
-
-export const isAbsoluteRegex = /^((\/|[a-zA-Z]:\\)[^\(\)<>\\'\"\[\]]+)/;
-
-/**
- * If you have access to node, it is recommended to use node's path.isAbsolute().
- * This is a simple regex based approach.
- */
-export function isAbsolute(path: string): boolean {
-	return isAbsoluteRegex.test(path);
 }

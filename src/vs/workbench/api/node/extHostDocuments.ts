@@ -7,6 +7,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { RawText } from 'vs/editor/common/model/textModel';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -20,16 +21,14 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IModelAddedData } from './extHost.protocol';
 
-const _modeId2WordDefinition: {
-	[modeId: string]: RegExp;
-} = Object.create(null);
+const _modeId2WordDefinition = new Map<string, RegExp>();
 
 function setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
-	_modeId2WordDefinition[modeId] = wordDefinition;
+	_modeId2WordDefinition.set(modeId, wordDefinition);
 }
 
 function getWordDefinitionFor(modeId: string): RegExp {
-	return _modeId2WordDefinition[modeId];
+	return _modeId2WordDefinition.get(modeId);
 }
 
 export class ExtHostDocuments extends ExtHostDocumentsShape {
@@ -48,9 +47,9 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	private _onDidSaveDocumentEventEmitter: Emitter<vscode.TextDocument>;
 	public onDidSaveDocument: Event<vscode.TextDocument>;
 
-	private _documentData: { [modelUri: string]: ExtHostDocumentData; };
-	private _documentLoader: { [modelUri: string]: TPromise<ExtHostDocumentData> };
-	private _documentContentProviders: { [handle: number]: vscode.TextDocumentContentProvider; };
+	private _documentData = new Map<string, ExtHostDocumentData>();
+	private _documentLoader = new Map<string, TPromise<ExtHostDocumentData>>();
+	private _documentContentProviders = new Map<number, vscode.TextDocumentContentProvider>();
 
 	private _proxy: MainThreadDocumentsShape;
 
@@ -69,17 +68,11 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 		this._onDidSaveDocumentEventEmitter = new Emitter<vscode.TextDocument>();
 		this.onDidSaveDocument = this._onDidSaveDocumentEventEmitter.event;
-
-		this._documentData = Object.create(null);
-		this._documentLoader = Object.create(null);
-		this._documentContentProviders = Object.create(null);
 	}
 
 	public getAllDocumentData(): ExtHostDocumentData[] {
 		const result: ExtHostDocumentData[] = [];
-		for (let key in this._documentData) {
-			result.push(this._documentData[key]);
-		}
+		this._documentData.forEach(data => result.push(data));
 		return result;
 	}
 
@@ -87,7 +80,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		if (!resource) {
 			return;
 		}
-		const data = this._documentData[resource.toString()];
+		const data = this._documentData.get(resource.toString());
 		if (data) {
 			return data;
 		}
@@ -95,24 +88,28 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 	public ensureDocumentData(uri: URI): TPromise<ExtHostDocumentData> {
 
-		let cached = this._documentData[uri.toString()];
+		let cached = this._documentData.get(uri.toString());
 		if (cached) {
 			return TPromise.as(cached);
 		}
 
-		let promise = this._documentLoader[uri.toString()];
+		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
 			promise = this._proxy.$tryOpenDocument(uri).then(() => {
-				delete this._documentLoader[uri.toString()];
-				return this._documentData[uri.toString()];
+				this._documentLoader.delete(uri.toString());
+				return this._documentData.get(uri.toString());
 			}, err => {
-				delete this._documentLoader[uri.toString()];
+				this._documentLoader.delete(uri.toString());
 				return TPromise.wrapError(err);
 			});
-			this._documentLoader[uri.toString()] = promise;
+			this._documentLoader.set(uri.toString(), promise);
 		}
 
 		return promise;
+	}
+
+	public createDocumentData(options?: { language: string; }): TPromise<URI> {
+		return this._proxy.$tryCreateDocument(options);
 	}
 
 	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
@@ -122,21 +119,41 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 		const handle = ExtHostDocuments._handlePool++;
 
-		this._documentContentProviders[handle] = provider;
+		this._documentContentProviders.set(handle, provider);
 		this._proxy.$registerTextContentProvider(handle, scheme);
 
 		let subscription: IDisposable;
 		if (typeof provider.onDidChange === 'function') {
 			subscription = provider.onDidChange(uri => {
-				if (this._documentData[uri.toString()]) {
+				if (this._documentData.has(uri.toString())) {
 					this.$provideTextDocumentContent(handle, <URI>uri).then(value => {
-						return this._proxy.$onVirtualDocumentChange(<URI>uri, value);
+
+						const document = this._documentData.get(uri.toString());
+						if (!document) {
+							// disposed in the meantime
+							return;
+						}
+
+						// create lines and compare
+						const raw = RawText.fromString(value, {
+							defaultEOL: editorCommon.DefaultEndOfLine.CRLF,
+							tabSize: 0,
+							detectIndentation: false,
+							insertSpaces: false,
+							trimAutoWhitespace: false
+						});
+
+						// broadcast event when content changed
+						if (!document.equalLines(raw)) {
+							return this._proxy.$onVirtualDocumentChange(<URI>uri, raw);
+						}
+
 					}, onUnexpectedError);
 				}
 			});
 		}
 		return new Disposable(() => {
-			if (delete this._documentContentProviders[handle]) {
+			if (this._documentContentProviders.delete(handle)) {
 				this._proxy.$unregisterTextContentProvider(handle);
 			}
 			if (subscription) {
@@ -147,7 +164,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	}
 
 	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> {
-		const provider = this._documentContentProviders[handle];
+		const provider = this._documentContentProviders.get(handle);
 		if (!provider) {
 			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
 		}
@@ -157,15 +174,15 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	public $acceptModelAdd(initData: IModelAddedData): void {
 		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.value.lines, initData.value.EOL, initData.modeId, initData.versionId, initData.isDirty);
 		let key = data.document.uri.toString();
-		if (this._documentData[key]) {
+		if (this._documentData.has(key)) {
 			throw new Error('Document `' + key + '` already exists.');
 		}
-		this._documentData[key] = data;
+		this._documentData.set(key, data);
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
 	public $acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {
-		let data = this._documentData[strURL];
+		let data = this._documentData.get(strURL);
 
 		// Treat a mode change as a remove + add
 
@@ -175,33 +192,33 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	}
 
 	public $acceptModelSaved(strURL: string): void {
-		let data = this._documentData[strURL];
+		let data = this._documentData.get(strURL);
 		data._acceptIsDirty(false);
 		this._onDidSaveDocumentEventEmitter.fire(data.document);
 	}
 
 	public $acceptModelDirty(strURL: string): void {
-		let document = this._documentData[strURL];
+		let document = this._documentData.get(strURL);
 		document._acceptIsDirty(true);
 	}
 
 	public $acceptModelReverted(strURL: string): void {
-		let document = this._documentData[strURL];
+		let document = this._documentData.get(strURL);
 		document._acceptIsDirty(false);
 	}
 
 	public $acceptModelRemoved(strURL: string): void {
-		if (!this._documentData[strURL]) {
+		if (!this._documentData.has(strURL)) {
 			throw new Error('Document `' + strURL + '` does not exist.');
 		}
-		let data = this._documentData[strURL];
-		delete this._documentData[strURL];
+		let data = this._documentData.get(strURL);
+		this._documentData.delete(strURL);
 		this._onDidRemoveDocumentEventEmitter.fire(data.document);
 		data.dispose();
 	}
 
 	public $acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[], isDirty: boolean): void {
-		let data = this._documentData[strURL];
+		let data = this._documentData.get(strURL);
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
@@ -243,6 +260,19 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		this._textLines.length = 0;
 		this._isDirty = false;
 		super.dispose();
+	}
+
+	equalLines({lines}: editorCommon.IRawText): boolean {
+		const len = lines.length;
+		if (len !== this._lines.length) {
+			return false;
+		}
+		for (let i = 0; i < len; i++) {
+			if (lines[i] !== this._lines[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	get document(): vscode.TextDocument {

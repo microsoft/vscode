@@ -124,7 +124,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 		cursorOffset = off;
 		cursorLength = len;
 		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
-		handler.writePlaceholderAndSelectTextAreaSync();
+		handler.focusTextArea();
 	};
 
 	let updateModelAndPosition = (text: string, off: number, len: number) => {

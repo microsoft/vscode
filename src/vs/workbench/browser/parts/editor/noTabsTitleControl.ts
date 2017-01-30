@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/notabstitle';
 import errors = require('vs/base/common/errors');
-import { IEditorGroup, getResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { EditorLabel } from 'vs/workbench/browser/labels';
@@ -31,7 +31,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
@@ -54,7 +54,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private onTitleLabelClick(e: MouseEvent): void {
 		DOM.EventHelper.stop(e, false);
 		if (!this.dragged) {
-			this.quickOpenService.show();
+			setTimeout(() => this.quickOpenService.show()); // delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
 		}
 	}
 
@@ -70,7 +70,6 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private onTitleClick(e: MouseEvent): void {
-		DOM.EventHelper.stop(e, false);
 		if (!this.context) {
 			return;
 		}
@@ -117,7 +116,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Editor Label
-		const resource = getResource(editor);
+		const resource = toResource(editor, { supportSideBySide: true });
 		const name = editor.getName() || '';
 		const description = isActive ? (editor.getDescription() || '') : '';
 		let verboseDescription = editor.getDescription(true) || '';

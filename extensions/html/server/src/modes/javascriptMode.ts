@@ -64,7 +64,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		doValidation(document: TextDocument): Diagnostic[] {
 			currentTextDocument = jsDocuments.get(document);
 			const diagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
-			return diagnostics.map(diag => {
+			return diagnostics.map((diag): Diagnostic => {
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
@@ -165,7 +165,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return occurrences.map(entry => {
 					return {
 						range: convertRange(currentTextDocument, entry.textSpan),
-						kind: entry.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Text
+						kind: <DocumentHighlightKind>(entry.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Text)
 					};
 				});
 			};

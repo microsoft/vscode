@@ -3,58 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import * as platform from 'vs/platform/platform';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import * as panel from 'vs/workbench/browser/panel';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
-
-class StatusUpdater implements IWorkbenchContribution {
-	static ID = 'vs.markers.statusUpdater';
-
-	private toDispose: lifecycle.IDisposable[];
-
-	constructor(
-		@IMarkerService private markerService: IMarkerService,
-		@IActivityBarService private activityBarService: IActivityBarService
-	) {
-
-		this.toDispose = [];
-		this.toDispose.push(markerService.onMarkerChanged(() => this.updateActivityBadge()));
-	}
-
-	private updateActivityBadge(): void {
-		const stats = this.markerService.getStatistics();
-		const problemCount = stats.errors + stats.warnings + stats.infos + stats.unknowns;
-		if (problemCount > 0) {
-			const badge = new NumberBadge(problemCount, n => localize({ comment: ['Argument represents count (number) of errors and warnings.'], key: 'errorsAndWarnings' }, '{0} Errors and Warnings', n));
-			this.activityBarService.showActivity(Constants.MARKERS_PANEL_ID, badge);
-		} else {
-			this.activityBarService.showActivity(Constants.MARKERS_PANEL_ID, null);
-		}
-	}
-
-	public getId(): string {
-		return StatusUpdater.ID;
-	}
-
-	public dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
-	}
-}
+import { ToggleMarkersPanelAction, ToggleErrorsAndWarningsAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
 export function registerContributions(): void {
 
-	(<IConfigurationRegistry>platform.Registry.as(Extensions.Configuration)).registerConfiguration({
+	// configuration
+	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 		'id': 'problems',
 		'order': 101,
 		'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
@@ -68,28 +30,23 @@ export function registerContributions(): void {
 		}
 	});
 
-	// register markers panel
-	(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+	// markers panel
+	Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
 		'vs/workbench/parts/markers/browser/markersPanel',
 		'MarkersPanel',
 		Constants.MARKERS_PANEL_ID,
 		Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 		'markersPanel',
-		10
-
+		10,
+		ToggleMarkersPanelAction.ID
 	));
 
-	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
-
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, markersPanelActions.ToggleMarkersPanelAction.LABEL, {
+	// actions
+	const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
-	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
+	}), 'View: Show Problems', Messages.MARKERS_PANEL_VIEW_CATEGORY);
 
 	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleErrorsAndWarningsAction, markersPanelActions.ToggleErrorsAndWarningsAction.ID, markersPanelActions.ToggleErrorsAndWarningsAction.LABEL), '');
-
-	// Register StatusUpdater
-	(<IWorkbenchContributionsRegistry>platform.Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
-		StatusUpdater
-	);
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleErrorsAndWarningsAction, ToggleErrorsAndWarningsAction.ID, ToggleErrorsAndWarningsAction.LABEL), 'Show Errors and Warnings');
 }

@@ -6,13 +6,13 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { forEach } from 'vs/base/common/collections';
+import { TimeoutTimer } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { startsWith } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition, IWordAtPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 
@@ -30,107 +30,51 @@ export interface ISuggestEvent {
 	auto: boolean;
 }
 
-export class Context {
+export class LineContext {
 
-	lineNumber: number;
-	column: number;
-	isInEditableRange: boolean;
-
-	lineContentBefore: string;
-	lineContentAfter: string;
-
-	wordBefore: string;
-	wordAfter: string;
-
-	constructor(model: IModel, position: IPosition, private auto: boolean) {
-		const lineContent = model.getLineContent(position.lineNumber);
-		const wordUnderCursor = model.getWordAtPosition(position);
-
-		if (wordUnderCursor) {
-			this.wordBefore = lineContent.substring(wordUnderCursor.startColumn - 1, position.column - 1);
-			this.wordAfter = lineContent.substring(position.column - 1, wordUnderCursor.endColumn - 1);
-		} else {
-			this.wordBefore = '';
-			this.wordAfter = '';
+	static shouldAutoTrigger(editor: ICommonCodeEditor): boolean {
+		const model = editor.getModel();
+		if (!model) {
+			return false;
 		}
+		const pos = editor.getPosition();
+		const word = model.getWordAtPosition(pos);
+		if (!word) {
+			return false;
+		}
+		if (word.endColumn !== pos.column) {
+			return false;
+		}
+		if (!isNaN(Number(word.word))) {
+			return false;
+		}
+		return true;
+	}
 
-		this.lineNumber = position.lineNumber;
-		this.column = position.column;
-		this.lineContentBefore = lineContent.substr(0, position.column - 1);
-		this.lineContentAfter = lineContent.substr(position.column - 1);
-
-		this.isInEditableRange = true;
-
+	static isInEditableRange(editor: ICommonCodeEditor): boolean {
+		const model = editor.getModel();
+		const position = editor.getPosition();
 		if (model.hasEditableRange()) {
 			const editableRange = model.getEditableRange();
-
 			if (!editableRange.containsPosition(position)) {
-				this.isInEditableRange = false;
+				return false;
 			}
 		}
-	}
-
-	shouldAutoTrigger(): boolean {
-
-		if (this.wordBefore.length === 0) {
-			// Word before position is empty
-			return false;
-		}
-
-		if (!isNaN(Number(this.wordBefore))) {
-			// Word before is number only
-			return false;
-		}
-
-		if (this.wordAfter.length > 0) {
-			// Word after position is non empty
-			return false;
-		}
-
 		return true;
 	}
 
-	isDifferentContext(context: Context): boolean {
-		if (this.lineNumber !== context.lineNumber) {
-			// Line number has changed
-			return true;
-		}
+	readonly lineNumber: number;
+	readonly column: number;
+	readonly leadingLineContent: string;
+	readonly leadingWord: IWordAtPosition;
+	readonly auto;
 
-		if (context.column < this.column - this.wordBefore.length) {
-			// column went before word start
-			return true;
-		}
-
-		if (!startsWith(context.lineContentBefore, this.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
-			// Line has changed before position
-			return true;
-		}
-
-		if (context.wordBefore === '' && context.lineContentBefore !== this.lineContentBefore) {
-			// Most likely a space has been typed
-			return true;
-		}
-
-		return false;
-	}
-
-	shouldRetrigger(context: Context): boolean {
-		if (!startsWith(this.lineContentBefore, context.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
-			// Doesn't look like the same line
-			return false;
-		}
-
-		if (this.lineContentBefore.length > context.lineContentBefore.length && this.wordBefore.length === 0) {
-			// Text was deleted and previous current word was empty
-			return false;
-		}
-
-		if (this.auto && context.wordBefore.length === 0) {
-			// Currently in auto mode and new current word is empty
-			return false;
-		}
-
-		return true;
+	constructor(model: IModel, position: IPosition, auto: boolean) {
+		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+		this.leadingWord = model.getWordUntilPosition(position);
+		this.lineNumber = position.lineNumber;
+		this.column = position.column;
+		this.auto = auto;
 	}
 }
 
@@ -144,13 +88,14 @@ export class SuggestModel implements IDisposable {
 
 	private toDispose: IDisposable[] = [];
 	private quickSuggestDelay: number;
-	private triggerCharacterListeners: IDisposable[] = [];
-
+	private triggerCharacterListener: IDisposable;
 	private triggerAutoSuggestPromise: TPromise<void>;
+	private triggerRefilter = new TimeoutTimer();
 	private state: State;
 
 	private requestPromise: TPromise<void>;
-	private context: Context;
+	private context: LineContext;
+	private currentPosition: Position;
 
 	private completionModel: CompletionModel;
 
@@ -169,13 +114,14 @@ export class SuggestModel implements IDisposable {
 		this.requestPromise = null;
 		this.completionModel = null;
 		this.context = null;
+		this.currentPosition = editor.getPosition() || new Position(1, 1);
 
 		// wire up various listeners
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			this.updateTriggerCharacters();
 			this.cancel();
 		}));
-		this.toDispose.push(editor.onDidChangeModelMode(() => {
+		this.toDispose.push(editor.onDidChangeModelLanguage(() => {
 			this.updateTriggerCharacters();
 			this.cancel();
 		}));
@@ -196,9 +142,8 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger]);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this.triggerCharacterListener, this.triggerRefilter]);
 		this.toDispose = dispose(this.toDispose);
-		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
 		this.cancel();
 	}
 
@@ -214,7 +159,7 @@ export class SuggestModel implements IDisposable {
 
 	private updateTriggerCharacters(): void {
 
-		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
+		dispose(this.triggerCharacterListener);
 
 		if (this.editor.getConfiguration().readOnly
 			|| !this.editor.getModel()
@@ -238,10 +183,12 @@ export class SuggestModel implements IDisposable {
 			}
 		}
 
-		forEach(supportsByTriggerCharacter, entry => {
-			this.triggerCharacterListeners.push(this.editor.addTypingListener(entry.key, () => {
-				this.trigger(true, false, entry.value);
-			}));
+		this.triggerCharacterListener = this.editor.onDidType((text: string) => {
+			let lastChar = text.charAt(text.length - 1);
+			let supports = supportsByTriggerCharacter[lastChar];
+			if (supports) {
+				this.trigger(true, false, supports);
+			}
 		});
 	}
 
@@ -277,12 +224,14 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
-		if (!e.selection.isEmpty()) {
-			this.cancel();
-			return;
-		}
 
-		if (e.source !== 'keyboard' || e.reason !== CursorChangeReason.NotSet) {
+		const prevPosition = this.currentPosition;
+		this.currentPosition = this.editor.getPosition();
+
+		if (!e.selection.isEmpty()
+			|| e.source !== 'keyboard'
+			|| e.reason !== CursorChangeReason.NotSet) {
+
 			this.cancel();
 			return;
 		}
@@ -291,33 +240,36 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const isInactive = this.state === State.Idle;
-
-		if (isInactive && !this.editor.getConfiguration().contribInfo.quickSuggestions) {
-			return;
-		}
-
 		const model = this.editor.getModel();
-
 		if (!model) {
 			return;
 		}
 
-		const ctx = new Context(model, this.editor.getPosition(), false);
+		if (this.state === State.Idle) {
 
-		if (isInactive) {
-			// trigger was not called or it was canceled
-			this.cancel();
+			// trigger 24x7 IntelliSense when idle, enabled, when cursor
+			// moved RIGHT, and when at a good position
+			if (this.editor.getConfiguration().contribInfo.quickSuggestions
+				&& prevPosition.isBefore(this.currentPosition)) {
 
-			if (ctx.shouldAutoTrigger()) {
-				this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
-				this.triggerAutoSuggestPromise.then(() => {
-					this.triggerAutoSuggestPromise = null;
-					this.trigger(true);
-				});
+				this.cancel();
+
+				if (LineContext.shouldAutoTrigger(this.editor)) {
+					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
+					this.triggerAutoSuggestPromise.then(() => {
+						this.triggerAutoSuggestPromise = null;
+						this.trigger(true);
+					});
+				}
 			}
+
 		} else {
-			this.onNewContext(ctx);
+			// refine active suggestion
+			this.triggerRefilter.cancelAndSet(() => {
+				const position = this.editor.getPosition();
+				const ctx = new LineContext(model, position, this.state === State.Auto);
+				this.onNewContext(ctx);
+			}, 25);
 		}
 	}
 
@@ -329,9 +281,9 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const ctx = new Context(model, this.editor.getPosition(), auto);
+		const ctx = new LineContext(model, this.editor.getPosition(), auto);
 
-		if (!ctx.isInEditableRange) {
+		if (!LineContext.isInEditableRange(this.editor)) {
 			return;
 		}
 
@@ -362,9 +314,9 @@ export class SuggestModel implements IDisposable {
 				items = items.concat(existingItems).sort(cmpFn);
 			}
 
-			const ctx = new Context(model, this.editor.getPosition(), auto);
+			const ctx = new LineContext(model, this.editor.getPosition(), auto);
 			this.completionModel = new CompletionModel(items, this.context.column, {
-				leadingLineContent: ctx.lineContentBefore,
+				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
 			});
 			this.onNewContext(ctx);
@@ -372,42 +324,68 @@ export class SuggestModel implements IDisposable {
 		}).then(null, onUnexpectedError);
 	}
 
-	private onNewContext(ctx: Context): void {
-		if (this.context && this.context.isDifferentContext(ctx)) {
-			if (this.context.shouldRetrigger(ctx)) {
-				this.trigger(this.state === State.Auto, true);
+	private onNewContext(ctx: LineContext): void {
+
+		if (!this.context) {
+			// happens when 24x7 IntelliSense is enabled and still in its delay
+			return;
+		}
+
+		if (ctx.lineNumber !== this.context.lineNumber) {
+			// e.g. happens when pressing Enter while IntelliSense is computed
+			this.cancel();
+			return;
+		}
+
+		if (ctx.column < this.context.column) {
+			// typed -> moved cursor LEFT -> retrigger if still on a word
+			if (ctx.leadingWord.word) {
+				this.trigger(this.context.auto, true);
 			} else {
 				this.cancel();
 			}
+			return;
+		}
 
-		} else if (this.completionModel) {
+		if (!this.completionModel) {
+			// happens when IntelliSense is not yet computed
+			return;
+		}
 
-			if (this.completionModel.incomplete && ctx.column > this.context.column) {
-				const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
-				this.trigger(this.state === State.Auto, true, incomplete, complete);
-				return;
-			}
+		if (ctx.column > this.context.column && this.completionModel.incomplete) {
+			// typed -> moved cursor RIGHT & incomple model -> retrigger
+			const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
+			this.trigger(this.state === State.Auto, true, incomplete, complete);
 
-			const auto = this.state === State.Auto;
-			const oldLineContext = this.completionModel.lineContext;
+		} else {
+			// typed -> moved cursor RIGHT -> update UI
+			let oldLineContext = this.completionModel.lineContext;
 			let isFrozen = false;
 
 			this.completionModel.lineContext = {
-				leadingLineContent: ctx.lineContentBefore,
-				characterCountDelta: this.context ? ctx.column - this.context.column : 0
+				leadingLineContent: ctx.leadingLineContent,
+				characterCountDelta: ctx.column - this.context.column
 			};
 
-			// when explicitly request when the next context goes
-			// from 'results' to 'no results' freeze
-			if (!auto && this.completionModel.items.length === 0) {
-				this.completionModel.lineContext = oldLineContext;
-				isFrozen = this.completionModel.items.length > 0;
+			if (this.completionModel.items.length === 0) {
+
+				if (LineContext.shouldAutoTrigger(this.editor) && this.context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
+					// retrigger when heading into a new word
+					this.trigger(this.context.auto, true);
+					return;
+				}
+
+				if (!this.context.auto) {
+					// freeze when IntelliSense was manually requested
+					this.completionModel.lineContext = oldLineContext;
+					isFrozen = this.completionModel.items.length > 0;
+				}
 			}
 
 			this._onDidSuggest.fire({
 				completionModel: this.completionModel,
+				auto: this.context.auto,
 				isFrozen,
-				auto
 			});
 		}
 	}

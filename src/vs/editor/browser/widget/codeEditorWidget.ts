@@ -134,7 +134,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		let tokens = model.getLineTokens(lineNumber, false);
 		let inflatedTokens = tokens.inflate();
 		let tabSize = model.getOptions().tabSize;
-		return Colorizer.colorizeLine(content, inflatedTokens, tabSize);
+		return Colorizer.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 	public getView(): editorBrowser.IView {
 		return this._view;
@@ -402,6 +402,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return -1;
 		}
 		return this._view.getCodeEditorHelper().getVerticalOffsetForPosition(lineNumber, column);
+	}
+
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+		if (!this.hasView) {
+			return null;
+		}
+		return this._view.getCodeEditorHelper().getTargetAtClientPoint(clientX, clientY);
 	}
 
 	public getScrolledVisiblePosition(rawPosition: editorCommon.IPosition): { top: number; left: number; height: number; } {

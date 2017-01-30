@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
@@ -37,6 +37,10 @@ export class ResourceEditorInput extends EditorInput {
 		this.name = name;
 		this.description = description;
 		this.resource = resource;
+	}
+
+	getResource(): URI {
+		return this.resource;
 	}
 
 	getTypeId(): string {

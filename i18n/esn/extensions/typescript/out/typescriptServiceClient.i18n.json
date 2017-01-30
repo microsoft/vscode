@@ -6,20 +6,19 @@
 {
 	"channelName": "TypeScript",
 	"close": "Cerrar",
-	"doNotCheckAgain": "No volver a comprobar",
 	"localTSFound": "La carpeta del área de trabajo contiene la versión {0} de TypeScript. ¿Quiere usar esta versión en lugar de la versión {1} del lote?",
-	"moreInformation": "Más información",
 	"neverCheckLocalVesion": "No comprobar nunca la versión del área de trabajo",
 	"noServerFound": "La ruta de acceso {0} no apunta a una instalación válida de tsserver. Las características del lenguaje TypeScript se deshabilitan.",
 	"serverCouldNotBeStarted": "El servidor de lenguaje TypeScript no se pudo iniciar. El mensaje de error es: {0}",
 	"serverDied": "El servicio de lenguaje Typescript finalizó de forma inesperada cinco veces en los últimos cinco minutos. Considere la posibilidad de abrir un informe de errores.",
 	"serverDiedAfterStart": "El servicio de lenguaje TypeScript finalizó de forma inesperada cinco veces después de haberse iniciado y no se reiniciará. Abra un informe de errores.",
 	"updateGlobalWorkspaceCheck": "La configuración del usuario de \"typescript.check.workspaceVersion\" se actualizó a false.",
+	"updateGlobalWorkspaceCheckFailed": "No se pudo actualizar el parámetro de usuario \"typescript.check.workspaceVersion\". Compruebe que su archivo de configuración de usuario es válido",
 	"updateLocalWorkspaceCheck": "La configuración del área de trabajo de \"typescript.check.workspaceVersion\" se actualizó a false.",
-	"updateTscCheck": "La configuración del usuario de \"typescript.check.tscVersion\" se actualizó a false.",
+	"updateLocalWorkspaceCheckFailed": "No se pudo actualizar el parámetro de área de trabajo \"typescript.check.workspaceVersion\". Compruebe que el archivo de configuración del área de trabajo es válido",
+	"updateTsdkFailed": "No se pudo actualizar el parámetro de área de trabajo \"typescript.tsdk\". Compruebe que el archivo de configuración del área de trabajo es válido",
 	"updatedtsdk": "La configuración del área de trabajo de \"typescript.tsdk\" se actualizó a {0}.",
 	"use": "Usar área de trabajo ({0})",
 	"useBundled": "Usar empaquetado ({0})",
-	"versionMismatch": "Las versiones no coinciden; global tsc ({0}) != servicio de lenguaje de VS Code ({1}). Pueden producirse errores de compilación incoherente.",
 	"versionNumber.custom": "personalizada"
 }

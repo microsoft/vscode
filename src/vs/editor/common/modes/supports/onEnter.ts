@@ -23,10 +23,6 @@ interface IProcessedBracketPair {
 
 export class OnEnterSupport {
 
-	private static _INDENT: EnterAction = { indentAction: IndentAction.Indent };
-	private static _INDENT_OUTDENT: EnterAction = { indentAction: IndentAction.IndentOutdent };
-	private static _OUTDENT: EnterAction = { indentAction: IndentAction.Outdent };
-
 	private readonly _brackets: IProcessedBracketPair[];
 	private readonly _indentationRules: IndentationRule;
 	private readonly _regExpRules: OnEnterRule[];
@@ -71,26 +67,47 @@ export class OnEnterSupport {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
-					return OnEnterSupport._INDENT_OUTDENT;
+					return { indentAction: IndentAction.IndentOutdent };
 				}
 			}
 		}
 
 		// (3): Indentation Support
 		if (this._indentationRules) {
+			let indentOffset: null | number = null;
+			let outdentCurrentLine = false;
+
 			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
+				indentOffset = 1;
 			}
 			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
+				indentOffset = 1;
 			}
-			if (/^\s/.test(beforeEnterText)) {
-				// No reason to run regular expressions if there is nothing to outdent from
-				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
-					return OnEnterSupport._OUTDENT;
-				}
-				if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-					return OnEnterSupport._OUTDENT;
+
+			/**
+			 * Since the indentation of `beforeEnterText` might not be correct, we still provide the correct indent action
+			 * even if there is nothing to outdent from.
+			 */
+			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
+				indentOffset = indentOffset ? indentOffset - 1 : -1;
+			}
+			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
+				indentOffset = indentOffset ? indentOffset - 1 : -1;
+			}
+			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(beforeEnterText)) {
+				outdentCurrentLine = true;
+			}
+
+			if (indentOffset !== null || outdentCurrentLine) {
+				// this means at least one indentation rule is matched so we should handle it
+				indentOffset = indentOffset || 0;
+				switch (indentOffset) {
+					case -1:
+						return { indentAction: IndentAction.Outdent, outdentCurrentLine: outdentCurrentLine };
+					case 0:
+						return { indentAction: IndentAction.None, outdentCurrentLine: outdentCurrentLine };
+					case 1:
+						return { indentAction: IndentAction.Indent, outdentCurrentLine: outdentCurrentLine };
 				}
 			}
 		}
@@ -100,12 +117,32 @@ export class OnEnterSupport {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText)) {
-					return OnEnterSupport._INDENT;
+					return { indentAction: IndentAction.Indent };
 				}
 			}
 		}
 
 		return null;
+	}
+
+	public containNonWhitespace(text: string): boolean {
+		// the text doesn't contain any non-whitespace character.
+		let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(text);
+
+		if (nonWhitespaceIdx >= 0) {
+			return true;
+		}
+
+		return false;
+	}
+
+	public shouldIgnore(text: string): boolean {
+		// the text matches `unIndentedLinePattern`
+		if (this._indentationRules && this._indentationRules.unIndentedLinePattern && this._indentationRules.unIndentedLinePattern.test(text)) {
+			return true;
+		}
+
+		return false;
 	}
 
 	private static _createOpenBracketRegExp(bracket: string): RegExp {

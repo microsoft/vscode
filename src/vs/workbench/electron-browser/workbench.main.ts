@@ -12,6 +12,7 @@ import 'vs/base/common/errors';
 // Editor
 import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
+import 'vs/editor/contrib/inspectTMScopes/electron-browser/inspectTMScopes';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
 import 'vs/editor/browser/editor.all';
 
@@ -43,6 +44,7 @@ import 'vs/workbench/parts/search/browser/searchViewlet'; // can be packaged sep
 import 'vs/workbench/parts/search/browser/openAnythingHandler'; // can be packaged separately
 
 import 'vs/workbench/parts/scm/browser/scm.contribution';
+import 'vs/workbench/parts/scm/browser/scmViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/git/electron-browser/git.contribution';
 import 'vs/workbench/parts/git/browser/gitQuickOpen';
@@ -59,9 +61,13 @@ import 'vs/workbench/parts/markers/browser/markersPanel'; // can be packaged sep
 
 import 'vs/workbench/parts/html/browser/html.contribution';
 
+import 'vs/workbench/parts/walkThrough/electron-browser/walkThrough.contribution';
+
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
+
+import 'vs/workbench/parts/welcomePage/electron-browser/welcomePage.contribution';
 
 import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
 import 'vs/workbench/parts/explorers/browser/treeExplorerViewlet'; // can be packaged separately
@@ -74,19 +80,20 @@ import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be p
 
 import 'vs/workbench/electron-browser/workbench';
 
+import 'vs/workbench/parts/trust/electron-browser/trust.contribution';
+
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/node/emmet.contribution';
 
-import 'vs/workbench/parts/indentation/common/indentation';
+// Code Editor enhacements
+import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
 import 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-
-import 'vs/workbench/parts/contentprovider/common/contentprovider.contribution';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
@@ -109,4 +116,4 @@ import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution
 
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
 
-import 'vs/workbench/parts/viewpicker/browser/viewpicker.contribution';
+import 'vs/workbench/parts/welcomeOverlay/browser/welcomeOverlay';

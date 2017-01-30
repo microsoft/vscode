@@ -6,20 +6,19 @@
 {
 	"channelName": "TypeScript",
 	"close": "關閉",
-	"doNotCheckAgain": "不要再檢查",
 	"localTSFound": "工作區資料夾包含 TypeScript 版本 {0}。要使用此版本，而非配套版本 {1} 嗎?",
-	"moreInformation": "詳細資訊",
 	"neverCheckLocalVesion": "永不檢查工作區版本",
 	"noServerFound": "路徑 {0} 未指向有效的 tsserver 安裝。將停用 TypeScript 語言功能。",
 	"serverCouldNotBeStarted": "無法啟動 TypeScript 語言伺服器。錯誤訊息為: {0}",
 	"serverDied": "TypeScript 語言服務在過去 5 分鐘內意外中止 5 次。請考慮開啟問題報告。",
 	"serverDiedAfterStart": "TypeScript 語言服務在啟動後立即中止 5 次。服務將不會重新啟動。請開啟問題報告。",
 	"updateGlobalWorkspaceCheck": "已將使用者設定 'typescript.check.workspaceVersion' 更新為 false",
+	"updateGlobalWorkspaceCheckFailed": "無法更新  'typescript.check.workspaceVersion' 使用者設定。請確認您的使用者設定檔案有效",
 	"updateLocalWorkspaceCheck": "已將工作區設定 'typescript.check.workspaceVersion' 更新為 false",
-	"updateTscCheck": "已將使用者設定 'typescript.check.tscVersion' 更新為 false",
+	"updateLocalWorkspaceCheckFailed": "無法更新 'typescript.check.workspaceVersion' 工作區設定。請確認工作區設定檔案有效",
+	"updateTsdkFailed": "無法更新 'typescript.tsdk' 工作區設定。請確認工作區設定檔案有效",
 	"updatedtsdk": "已將工作區設定 'typescript.tsdk' 更新為 {0}",
 	"use": "使用工作區 ({0})",
 	"useBundled": "使用套件組合 ({0})",
-	"versionMismatch": "版本不符! 全域 TSC ({0}) != VS Code 的語言服務 ({1})。可能會發生編譯不一致的錯誤",
 	"versionNumber.custom": "自訂"
 }
