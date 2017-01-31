@@ -1391,8 +1391,6 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 
 	private getMarkerMessage(settingKey): string {
 		switch (settingKey) {
-			case 'typescript.tsdk':
-				return nls.localize('unsupportedTypeScriptTsdkSetting', "This setting must be a User Setting. To configure TypeScript for the workspace, open a TypeScript file and click on the TypeScript version in the status bar.");
 			case 'php.validate.executablePath':
 				return nls.localize('unsupportedPHPExecutablePathSetting', "This setting must be a User Setting. To configure PHP for the workspace, open a PHP file and click on 'PHP Path' in the status bar.");
 			default:
