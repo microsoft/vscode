@@ -406,6 +406,17 @@
           ],
           "description": "%config.countBadge%",
           "default": "all"
+        },
+        "git.checkoutType": {
+          "type": "string",
+          "enum": [
+            "all",
+            "local",
+            "tags",
+            "remote"
+          ],
+          "description": "%config.checkoutType%",
+          "default": "all"
         }
       }
     }
