@@ -381,7 +381,7 @@ export class CommandCenter {
 	@CommandCenter.CatchErrors
 	async checkout(): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string>('checkoutType');
+		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
