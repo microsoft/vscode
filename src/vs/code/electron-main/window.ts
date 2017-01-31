@@ -33,7 +33,6 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-	allowFullscreen?: boolean;
 	titleBarStyle?: 'native' | 'custom';
 }
 
@@ -590,14 +589,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private validateWindowState(state: IWindowState): IWindowState {
 		if (!state) {
 			return null;
-		}
-
-		if (state.mode === WindowMode.Fullscreen) {
-			if (this.options.allowFullscreen) {
-				return state;
-			}
-
-			state.mode = WindowMode.Normal; // if we do not allow fullscreen, treat this state as normal window state
 		}
 
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {

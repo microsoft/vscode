@@ -66,6 +66,10 @@ export interface IOpenConfiguration {
 	initialStartup?: boolean;
 }
 
+interface INewWindowState extends ISingleWindowState {
+	hasDefaultState?: boolean;
+}
+
 interface IWindowState {
 	workspacePath?: string;
 	uiState: ISingleWindowState;
@@ -762,12 +766,27 @@ export class WindowsManager implements IWindowsMainService {
 		// New window
 		if (!vscodeWindow) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const state = this.getNewWindowState(configuration);
+
+			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+			let allowFullscreen: boolean;
+			if (state.hasDefaultState) {
+				allowFullscreen = (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0);
+			}
+
+			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
+			else {
+				allowFullscreen = this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen);
+			}
+
+			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
+				state.mode = WindowMode.Normal;
+			}
 
 			vscodeWindow = new VSCodeWindow({
-				state: this.getNewWindowState(configuration),
+				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen) || (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0),
 				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			},
 				this.logService,
@@ -822,7 +841,7 @@ export class WindowsManager implements IWindowsMainService {
 		return vscodeWindow;
 	}
 
-	private getNewWindowState(configuration: IWindowConfiguration): ISingleWindowState {
+	private getNewWindowState(configuration: IWindowConfiguration): INewWindowState {
 
 		// extension development host Window - load from stored settings if any
 		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
@@ -876,7 +895,7 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		let state = defaultWindowState();
+		let state = defaultWindowState() as INewWindowState;
 		state.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2);
 		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
 
@@ -905,6 +924,8 @@ export class WindowsManager implements IWindowsMainService {
 		if (ensureNoOverlap) {
 			state = this.ensureNoOverlap(state);
 		}
+
+		state.hasDefaultState = true; // flag as default state
 
 		return state;
 	}
