@@ -252,7 +252,11 @@
 			}
 		},
 		{
-			"scope": "support.type.property-name",
+			"scope": [
+				"support.type.vendored.property-name",
+				"support.type.property-name",
+				"variable.css"
+			],
 			"settings": {
 				"foreground": "#9cdcfe"
 			}
