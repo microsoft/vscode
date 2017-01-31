@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { Throttler } from 'vs/base/common/async';
@@ -192,8 +191,6 @@ class CommitAction extends Action {
 
 export class SCMViewlet extends Viewlet {
 
-	private static readonly ACCEPT_KEYBINDING = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
-
 	private cachedDimension: Dimension;
 	private editor: SCMEditor;
 	private listContainer: HTMLElement;
@@ -317,13 +314,6 @@ export class SCMViewlet extends Viewlet {
 	focus(): void {
 		super.focus();
 		this.editor.focus();
-	}
-
-	private acceptThrottler = new Throttler();
-	private accept(): void {
-		// this.acceptThrottler
-		// 	.queue(() => this.scmService.activeProvider.commit(this.inputBox.value))
-		// 	.done(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err));
 	}
 
 	private open(e: ISCMResource): void {

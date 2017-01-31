@@ -8,6 +8,7 @@
 import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
 import { IRef, RefType } from './git';
 import { Model, Resource, Status } from './model';
+import { CommitController } from './commit';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -125,7 +126,11 @@ export class CommandCenter {
 
 	private disposables: Disposable[];
 
-	constructor(private model: Model, private outputChannel: OutputChannel) {
+	constructor(
+		private model: Model,
+		private commitController: CommitController,
+		private outputChannel: OutputChannel
+	) {
 		this.disposables = CommandCenter.Commands
 			.map(({ commandId, method }) => commands.registerCommand(commandId, method, this));
 	}
@@ -286,7 +291,7 @@ export class CommandCenter {
 			return;
 		}
 
-		return await this.model.clean(resource);
+		await this.model.clean(resource);
 	}
 
 	@CommandCenter.Command('git.cleanAll')
@@ -301,13 +306,45 @@ export class CommandCenter {
 			return;
 		}
 
-		return await this.model.clean(...this.model.workingTreeGroup.resources);
+		await this.model.clean(...this.model.workingTreeGroup.resources);
 	}
 
-	@CommandCenter.CatchErrors
-	async commit(message: string): Promise<void> {
+	private async _commit(fn: () => Promise<string>): Promise<boolean> {
+		if (this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.length === 0) {
+			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
+			return false;
+		}
+
+		const message = await fn();
+
+		if (!message) {
+			// TODO@joao: show modal dialog to confirm empty message commit
+			return false;
+		}
+
 		const all = this.model.indexGroup.resources.length === 0;
-		return this.model.commit(message, { all });
+		await this.model.commit(message, { all });
+
+		return true;
+	}
+
+	@CommandCenter.Command('git.commit')
+	@CommandCenter.CatchErrors
+	async commit(): Promise<void> {
+		await this._commit(async () => await window.showInputBox({
+			placeHolder: localize('commit message', "Commit message"),
+			prompt: localize('provide commit message', "Please provide a commit message")
+		}));
+	}
+
+	@CommandCenter.Command('git.commitWithInput')
+	@CommandCenter.CatchErrors
+	async commitWithInput(): Promise<void> {
+		const didCommit = await this._commit(async () => this.commitController.message);
+
+		if (didCommit) {
+			this.commitController.message = '';
+		}
 	}
 
 	@CommandCenter.Command('git.commitStaged')
