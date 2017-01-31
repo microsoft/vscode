@@ -1,7 +1,7 @@
 [
 	{
 		"c": "regex",
-		"t": "source.coffee variable.other.assignment.coffee",
+		"t": "source.coffee variable.assignment.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -210,6 +210,72 @@
 	},
 	{
 		"c": "/",
+		"t": "source.coffee keyword.operator.coffee",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "3",
+		"t": "source.coffee constant.numeric.coffee",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "a",
+		"t": "source.coffee variable.assignment.coffee",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.coffee",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.coffee keyword.operator.coffee",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " b",
+		"t": "source.coffee",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "/",
 		"t": "source.coffee string.regexp.coffee punctuation.definition.string.begin.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
@@ -220,18 +286,7 @@
 		}
 	},
 	{
-		"c": "3",
-		"t": "source.coffee string.regexp.coffee",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
-		}
-	},
-	{
-		"c": "a = b/c ",
+		"c": "c ",
 		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
@@ -298,7 +353,7 @@
 	},
 	{
 		"c": "name",
-		"t": "source.coffee variable.other.assignment.coffee",
+		"t": "source.coffee variable.assignment.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -353,7 +408,7 @@
 	},
 	{
 		"c": "test",
-		"t": "source.coffee variable.other.assignment.coffee",
+		"t": "source.coffee variable.assignment.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -375,7 +430,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.block.coffee punctuation.definition.string.begin.coffee",
+		"t": "source.coffee string.regexp.coffee punctuation.definition.string.begin.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -386,7 +441,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -397,7 +452,7 @@
 	},
 	{
 		"c": "#{",
-		"t": "source.coffee string.regexp.block.coffee meta.embedded.line.coffee punctuation.section.embedded.begin.coffee",
+		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -408,7 +463,7 @@
 	},
 	{
 		"c": "name",
-		"t": "source.coffee string.regexp.block.coffee meta.embedded.line.coffee source.coffee",
+		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -419,7 +474,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.coffee string.regexp.block.coffee meta.embedded.line.coffee punctuation.section.embedded.end.coffee source.coffee",
+		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -430,7 +485,7 @@
 	},
 	{
 		"c": "fancyRegExp = ",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -441,7 +496,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.block.coffee punctuation.definition.string.end.coffee",
+		"t": "source.coffee string.regexp.coffee punctuation.definition.string.end.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -661,7 +716,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.block.coffee punctuation.definition.string.begin.coffee",
+		"t": "source.coffee string.regexp.coffee punctuation.definition.string.begin.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
