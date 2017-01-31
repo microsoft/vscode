@@ -6,11 +6,7 @@
 {
 	"foldAction.label": "折りたたみ",
 	"foldAllAction.label": "すべて折りたたみ",
-	"foldLevel1Action.label": "折りたたみレベル 1",
-	"foldLevel2Action.label": "折りたたみレベル 2",
-	"foldLevel3Action.label": "折りたたみレベル 3",
-	"foldLevel4Action.label": "折りたたみレベル 4",
-	"foldLevel5Action.label": "折りたたみレベル 5",
+	"foldLevelAction.label": "折りたたみレベル {0}",
 	"foldRecursivelyAction.label": "再帰的に折りたたむ",
 	"unFoldRecursivelyAction.label": "再帰的に展開する",
 	"unfoldAction.label": "展開",

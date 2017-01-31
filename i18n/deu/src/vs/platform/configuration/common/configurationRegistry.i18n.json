@@ -7,6 +7,8 @@
 	"invalid.properties": "\"configuration.properties\" muss ein Objekt sein.",
 	"invalid.title": "configuration.title muss eine Zeichenfolge sein.",
 	"invalid.type": "Wenn eine Festlegung erfolgt, muss \"configuration.type\" auf \"object\" festgelegt werden.",
+	"overrideSettings.description": "Zu überschreibende Einstellungen für einen Sprachbezeichnersatz konfigurieren",
+	"overrideSettings.title": "Einstellungen überschreiben",
 	"vscode.extension.contributes.configuration": "Trägt Konfigurationseigenschaften bei.",
 	"vscode.extension.contributes.configuration.properties": "Die Beschreibung der Konfigurationseigenschaften.",
 	"vscode.extension.contributes.configuration.title": "Eine Zusammenfassung der Einstellungen. Diese Bezeichnung wird in der Einstellungsdatei als trennender Kommentar verwendet."

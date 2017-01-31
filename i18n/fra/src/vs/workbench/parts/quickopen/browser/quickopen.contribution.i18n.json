@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "Atteindre la ligne",
 	"gotoSymbolDescription": "Atteindre le symbole dans le fichier",
 	"gotoSymbolDescriptionScoped": "Atteindre le symbole dans le fichier par catégorie",
-	"helpDescription": "Afficher l'aide"
+	"helpDescription": "Afficher l'aide",
+	"viewPickerDescription": "Ouvrir l'affichage"
 }

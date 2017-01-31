@@ -6,5 +6,7 @@
 {
 	"quickNavigateNext": "Zum nächsten Element in Quick Open navigieren",
 	"quickNavigatePrevious": "Zum vorherigen Element in Quick Open navigieren",
-	"quickOpen": "Gehe zu Datei..."
+	"quickOpen": "Gehe zu Datei...",
+	"quickSelectNext": "Nächstes Element in Quick Open auswählen",
+	"quickSelectPrevious": "Vorheriges Element in Quick Open auswählen"
 }

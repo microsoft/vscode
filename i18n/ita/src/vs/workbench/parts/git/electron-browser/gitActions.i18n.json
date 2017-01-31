@@ -7,7 +7,6 @@
 	"already exists": "Il repository di destinazione esiste già. Selezionare un'altra directory in cui eseguire la clonazione.",
 	"cloning": "Clonazione del repository '{0}'...",
 	"directory": "Directory di clonazione di destinazione",
-	"repo": "Specificare un URL per il repository GIT.",
 	"url": "URL del repository",
 	"valid": "Specificare un URL valido per il repository GIT"
 }

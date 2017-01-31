@@ -16,6 +16,7 @@
 	"install": "Installa il comando '{0}' in PATH",
 	"later": "In seguito",
 	"laterInfo": "Nota: è sempre possibile eseguire l'azione '{0}' dal riquadro comandi.",
+	"not available": "Questo comando non è disponibile",
 	"ok": "OK",
 	"shellCommand": "Comando della shell",
 	"successFrom": "Il comando della shell '{0}' è stato disinstallato da PATH.",
