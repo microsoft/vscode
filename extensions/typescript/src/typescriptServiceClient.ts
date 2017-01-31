@@ -493,15 +493,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			const localVersion = this.getTypeScriptVersion(localModulePath);
 			messageShown = window.showQuickPick<MyQuickPickItem>([
 				{
-					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
-					description: localVersion || localModulePath,
-					detail: modulePath === localModulePath && (modulePath !== this.globalTypescriptPath || useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
-					id: MessageAction.useLocal
-				}, {
 					label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
 					description: shippedVersion || this.globalTypescriptPath,
 					detail: modulePath === this.globalTypescriptPath && (modulePath !== localModulePath || !useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
 					id: MessageAction.useBundled,
+				}, {
+					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
+					description: localVersion || localModulePath,
+					detail: modulePath === localModulePath && (modulePath !== this.globalTypescriptPath || useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
+					id: MessageAction.useLocal
 				}, {
 					label: localize('learnMore', 'Learn More'),
 					description: '',
