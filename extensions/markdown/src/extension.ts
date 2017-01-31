@@ -129,7 +129,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
-
 	let resource = uri;
 	if (!(resource instanceof vscode.Uri)) {
 		if (vscode.window.activeTextEditor) {
@@ -147,7 +146,7 @@ function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
 		return;
 	}
 
-	let thenable = vscode.commands.executeCommand('vscode.previewHtml',
+	const thenable = vscode.commands.executeCommand('vscode.previewHtml',
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
 		`Preview '${path.basename(resource.fsPath)}'`);
@@ -188,16 +187,14 @@ function showSource(mdUri: vscode.Uri) {
 	}
 
 	const docUri = vscode.Uri.parse(mdUri.query);
-
-	for (let editor of vscode.window.visibleTextEditors) {
+	for (const editor of vscode.window.visibleTextEditors) {
 		if (editor.document.uri.toString() === docUri.toString()) {
 			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
 		}
 	}
 
-	return vscode.workspace.openTextDocument(docUri).then(doc => {
-		return vscode.window.showTextDocument(doc);
-	});
+	return vscode.workspace.openTextDocument(docUri)
+		.then(vscode.window.showTextDocument);
 }
 
 function getPackageInfo(): IPackageInfo | null {
