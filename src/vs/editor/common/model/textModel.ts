@@ -749,7 +749,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public static toRawText(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static toTextSource(rawText: string): editorCommon.ITextSource2 {
 		// Count the number of lines that end with \r\n
 		let carriageReturnCnt = 0;
 		let lastCarriageReturnIndex = -1;
@@ -770,22 +770,50 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			lines[0] = lines[0].substr(1);
 		}
 
-		const lineFeedCnt = lines.length - 1;
-		let EOL = '';
+		return {
+			BOM: BOM,
+			lines: lines,
+			length: rawText.length,
+			containsRTL: containsRTL,
+			isBasicASCII: isBasicASCII,
+			totalCRCount: carriageReturnCnt
+		};
+	}
+
+	/**
+	 * if text source is empty or with precisely one line, returns null. No end of line is detected.
+	 * if text source contains more lines ending with '\r\n', returns '\r\n'.
+	 * Otherwise returns '\n'. More lines end with '\n'.
+	 */
+	public static getEndOfLine(textSource: editorCommon.ITextSource2): string {
+		const lineFeedCnt = textSource.lines.length - 1;
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
-			EOL = (opts.defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
-		} else if (carriageReturnCnt > lineFeedCnt / 2) {
+			return null;
+		}
+		if (textSource.totalCRCount > lineFeedCnt / 2) {
 			// More than half of the file contains \r\n ending lines
-			EOL = '\r\n';
-		} else {
-			// At least one line more ends in \n
-			EOL = '\n';
+			return '\r\n';
+		}
+		// At least one line more ends in \n
+		return '\n';
+	}
+
+	public static toRawText(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+		const textSource = TextModel.toTextSource(rawText);
+		return TextModel.toRawTextFromTextSource(textSource, opts);
+	}
+
+	public static toRawTextFromTextSource(textSource: editorCommon.ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+		let EOL = TextModel.getEndOfLine(textSource);
+		if (!EOL) {
+			// This is an empty file or a file with precisely one line
+			EOL = (opts.defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
 		}
 
 		let resolvedOpts: editorCommon.TextModelResolvedOptions;
 		if (opts.detectIndentation) {
-			let guessedIndentation = guessIndentation(lines, opts.tabSize, opts.insertSpaces);
+			let guessedIndentation = guessIndentation(textSource.lines, opts.tabSize, opts.insertSpaces);
 			resolvedOpts = new editorCommon.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
@@ -802,12 +830,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		return {
-			BOM: BOM,
+			BOM: textSource.BOM,
 			EOL: EOL,
-			lines: lines,
-			length: rawText.length,
-			containsRTL: containsRTL,
-			isBasicASCII: isBasicASCII,
+			lines: textSource.lines,
+			length: textSource.length,
+			containsRTL: textSource.containsRTL,
+			isBasicASCII: textSource.isBasicASCII,
 			options: resolvedOpts
 		};
 	}
@@ -869,13 +897,44 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 export class RawText {
 
+	public static toRawText(textSourceOrString: editorCommon.ITextSource2 | string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+		if (typeof textSourceOrString === 'string') {
+			return RawText.fromString(textSourceOrString, opts);
+		} else {
+			return RawText.fromTextSource(textSourceOrString, opts);
+		}
+	}
+
+	public static toRawTextWithModelOptions(textSourceOrString: editorCommon.ITextSource2 | string, model: editorCommon.IModel): editorCommon.IRawText {
+		if (typeof textSourceOrString === 'string') {
+			return RawText.fromStringWithModelOptions(textSourceOrString, model);
+		} else {
+			return RawText.fromTextSourceWithModelOptions(textSourceOrString, model);
+		}
+	}
+
 	public static fromString(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		return TextModel.toRawText(rawText, opts);
+	}
+
+	public static fromTextSource(textSource: editorCommon.ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+		return TextModel.toRawTextFromTextSource(textSource, opts);
 	}
 
 	public static fromStringWithModelOptions(rawText: string, model: editorCommon.IModel): editorCommon.IRawText {
 		let opts = model.getOptions();
 		return TextModel.toRawText(rawText, {
+			tabSize: opts.tabSize,
+			insertSpaces: opts.insertSpaces,
+			trimAutoWhitespace: opts.trimAutoWhitespace,
+			detectIndentation: false,
+			defaultEOL: opts.defaultEOL
+		});
+	}
+
+	public static fromTextSourceWithModelOptions(textSource: editorCommon.ITextSource2, model: editorCommon.IModel): editorCommon.IRawText {
+		let opts = model.getOptions();
+		return TextModel.toRawTextFromTextSource(textSource, {
 			tabSize: opts.tabSize,
 			insertSpaces: opts.insertSpaces,
 			trimAutoWhitespace: opts.trimAutoWhitespace,

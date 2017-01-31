@@ -6,14 +6,14 @@
 
 import { IStringStream } from 'vs/platform/files/common/files';
 import * as crypto from 'crypto';
-import { ITextSource } from 'vs/editor/common/editorCommon';
+import { ITextSource2 } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
 
 export interface ModelBuilderResult {
 	readonly hash: string;
-	readonly value: ITextSource;
+	readonly value: ITextSource2;
 }
 
 class ModelLineBasedBuilder {
@@ -46,15 +46,6 @@ class ModelLineBasedBuilder {
 	}
 
 	public finish(length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
-		let lineFeedCnt = this.lines.length - 1;
-		let EOL = '';
-		if (carriageReturnCnt > lineFeedCnt / 2) {
-			// More than half of the file contains \r\n ending lines
-			EOL = '\r\n';
-		} else {
-			// At least one line more ends in \n
-			EOL = '\n';
-		}
 		return {
 			hash: this.hash.digest('hex'),
 			value: {
@@ -62,14 +53,14 @@ class ModelLineBasedBuilder {
 				lines: this.lines,
 				length,
 				containsRTL: containsRTL,
-				EOL,
+				totalCRCount: carriageReturnCnt,
 				isBasicASCII,
 			}
 		};
 	}
 }
 
-export function computeHash(rawText: ITextSource): string {
+export function computeHash(rawText: ITextSource2): string {
 	let hash = crypto.createHash('sha1');
 	for (let i = 0, len = rawText.lines.length; i < len; i++) {
 		hash.update(rawText.lines[i] + '\n');

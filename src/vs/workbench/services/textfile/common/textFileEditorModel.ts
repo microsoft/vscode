@@ -16,7 +16,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import { IModelContentChangedEvent, ITextSource } from 'vs/editor/common/editorCommon';
+import { IModelContentChangedEvent, ITextSource2 } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -355,7 +355,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: string | ITextSource): TPromise<EditorModel> {
+	private doUpdateTextModel(value: string | ITextSource2): TPromise<EditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
 		this.setDirty(false); // Ensure we are not tracking a stale state
@@ -370,7 +370,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.as<EditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: string | ITextSource, backup: URI): TPromise<EditorModel> {
+	private doCreateTextModel(resource: URI, value: string | ITextSource2, backup: URI): TPromise<EditorModel> {
 		diag('load() - created text editor model', this.resource, new Date());
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
