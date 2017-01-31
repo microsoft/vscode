@@ -26,5 +26,6 @@
 	"config.path": "Path to the git executable",
 	"config.autorefresh": "Whether auto refreshing is enabled",
 	"config.autofetch": "Whether auto fetching is enabled",
-	"config.enableLongCommitWarning": "Whether long commit messages should be warned about"
+	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
+	"config.countBadge": "Controls the git badge counter"
 }

@@ -41,8 +41,15 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	private update(): void {
 		const provider = this.scmService.activeProvider;
-		const count = provider ? provider.resources.reduce<number>((r, g) => r + g.resources.length, 0) : 0;
+		let count = 0;
 
+		if (provider) {
+			if (typeof provider.count === 'number') {
+				count = provider.count;
+			} else {
+				count = provider.resources.reduce<number>((r, g) => r + g.resources.length, 0);
+			}
+		}
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));

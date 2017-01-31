@@ -40,6 +40,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly label: string;
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChange: Event<ISCMResourceGroup[]>;
+	readonly count?: number | undefined;
 
 	open(uri: ISCMResource): TPromise<void>;
 	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void>;
