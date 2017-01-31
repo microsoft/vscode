@@ -130,9 +130,10 @@ export class WalkThroughPart extends BaseEditor {
 							broken: !scrollTarget,
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
 						});
-						if (scrollTarget) {
-							const targetTop = scrollTarget.getBoundingClientRect().top;
-							const containerTop = this.content.getBoundingClientRect().top;
+						const innerContent = this.content.firstElementChild;
+						if (scrollTarget && innerContent) {
+							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
+							const containerTop = innerContent.getBoundingClientRect().top;
 							this.scrollbar.updateState({ scrollTop: targetTop - containerTop });
 						}
 					} else {
@@ -303,6 +304,23 @@ export class WalkThroughPart extends BaseEditor {
 					};
 					updateHeight(true);
 					this.contentDisposables.push(editor.onDidChangeModelContent(() => updateHeight(false)));
+					this.contentDisposables.push(editor.onDidChangeCursorPosition(e => {
+						const innerContent = this.content.firstElementChild;
+						if (innerContent) {
+							const targetTop = div.getBoundingClientRect().top;
+							const containerTop = innerContent.getBoundingClientRect().top;
+							const lineHeight = editor.getConfiguration().lineHeight;
+							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
+							const lineBottom = lineTop + lineHeight;
+							const scrollTop = this.scrollbar.getScrollTop();
+							const height = this.scrollbar.getHeight();
+							if (scrollTop > lineTop) {
+								this.scrollbar.updateState({ scrollTop: lineTop });
+							} else if (scrollTop < lineBottom - height) {
+								this.scrollbar.updateState({ scrollTop: lineBottom - height });
+							}
+						}
+					}));
 
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
 
