@@ -40,7 +40,7 @@ import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/com
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -48,6 +48,8 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { revealInOSCommand, revealInExplorerCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -1680,27 +1682,6 @@ export class FocusFilesExplorer extends Action {
 	}
 }
 
-export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const viewletService = accessor.get(IViewletService);
-	const contextService = accessor.get(IWorkspaceContextService);
-
-	viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
-		const isInsideWorkspace = contextService.isInsideWorkspace(resource);
-		if (isInsideWorkspace) {
-			const explorerView = viewlet.getExplorerView();
-			if (explorerView) {
-				explorerView.expand();
-				explorerView.select(resource, true);
-			}
-		} else {
-			const openEditorsView = viewlet.getOpenEditorsView();
-			if (openEditorsView) {
-				openEditorsView.expand();
-			}
-		}
-	});
-};
-
 export class ShowActiveFileInExplorer extends Action {
 
 	public static ID = 'workbench.files.action.showActiveFileInExplorer';
@@ -1776,6 +1757,101 @@ export class RefreshExplorerView extends Action {
 				explorerView.refresh();
 			}
 		});
+	}
+}
+
+export class OpenFileAction extends Action {
+
+	static ID = 'workbench.action.files.openFile';
+	static LABEL = nls.localize('openFile', "Open File...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+
+		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
+	}
+}
+
+export class ShowOpenedFileInNewWindow extends Action {
+
+	public static ID = 'workbench.action.files.showOpenedFileInNewWindow';
+	public static LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		if (fileResource) {
+			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true });
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class RevealInOSAction extends Action {
+
+	public static LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
+
+	constructor(
+		private resource: URI,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super('workbench.action.files.revealInWindows', RevealInOSAction.LABEL);
+
+		this.order = 45;
+	}
+
+	public run(): TPromise<any> {
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, this.resource]);
+
+		return TPromise.as(true);
+	}
+}
+
+export class GlobalRevealInOSAction extends Action {
+
+	public static ID = 'workbench.action.files.revealActiveFileInWindows';
+	public static LABEL = isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		if (fileResource) {
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, fileResource]);
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+		}
+
+		return TPromise.as(true);
 	}
 }
 
