@@ -137,8 +137,8 @@ export class StartAction extends AbstractDebugAction {
 				return this.commandService.executeCommand('_workbench.startDebug', configuration || configName);
 			}
 
-			if (this.contextService.getWorkspace()) {
-				return manager.openConfigFile(false, commandAndType ? commandAndType.type : undefined);
+			if (this.contextService.getWorkspace() && commandAndType) {
+				return manager.openConfigFile(false, commandAndType.type);
 			}
 		});
 	}
