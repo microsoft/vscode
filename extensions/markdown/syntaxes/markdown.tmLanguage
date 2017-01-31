@@ -332,7 +332,7 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(^|\G)\s*(?=&lt;(script|style|pre)(\s|$|&gt;))</string>
+							<string>(^|\G)\s*(?=&lt;(script|style|pre)(\s|$|&gt;)(?!.*?&lt;/(script|style|pre)&gt;))</string>
 							<key>patterns</key>
 							<array>
 								<dict>
