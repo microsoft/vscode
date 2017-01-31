@@ -167,6 +167,7 @@ export class QuickFixModel {
 			&& !this._editor.getConfiguration().readOnly) {
 
 			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
+			this._quickFixOracle.trigger();
 		}
 	}
 
