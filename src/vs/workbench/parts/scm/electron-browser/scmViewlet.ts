@@ -6,12 +6,8 @@
 'use strict';
 
 import 'vs/css!./media/scmViewlet';
-import { localize } from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
-import { Throttler } from 'vs/base/common/async';
-import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
@@ -27,17 +23,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { Action, IAction, IActionItem } from 'vs/base/common/actions';
+import { IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { isDarkTheme } from 'vs/platform/theme/common/themes';
+import { SCMEditor } from './scmEditor';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -145,59 +140,10 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	}
 }
 
-/**
- * HACK
- */
-class CommitAction extends Action {
-
-	private activeProvider: ISCMProvider;
-	private isRunning = false;
-	private throttler = new Throttler();
-	private disposables: IDisposable[] = [];
-
-	constructor(
-		private inputBox: InputBox,
-		@ISCMService scmService: ISCMService,
-		@IMessageService private messageService: IMessageService
-	) {
-		super('scm.commit', localize('commit', "Commit"), 'scm-commit');
-
-		this.setActiveProvider(scmService.activeProvider);
-		scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
-		inputBox.onDidChange(this.updateEnablement, this, this.disposables);
-	}
-
-	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
-		this.activeProvider = activeProvider;
-		this.updateEnablement();
-	}
-
-	private updateEnablement(): void {
-		this.enabled = !!this.activeProvider && !this.isRunning && !!this.inputBox.value;
-	}
-
-	run(): TPromise<any> {
-		return this.throttler
-			.queue(() => {
-				this.isRunning = true;
-				return this.activeProvider.commit(this.inputBox.value);
-			})
-			.then(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err))
-			.then(() => this.isRunning = false);
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-	}
-}
-
 export class SCMViewlet extends Viewlet {
 
-	private static ACCEPT_KEYBINDING = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
-
 	private cachedDimension: Dimension;
-	private inputBoxContainer: HTMLElement;
-	private inputBox: InputBox;
+	private editor: SCMEditor;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
@@ -214,7 +160,8 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IModelService private modelService: IModelService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -240,22 +187,22 @@ export class SCMViewlet extends Viewlet {
 		parent.addClass('scm-viewlet');
 
 		const root = parent.getHTMLElement();
-		this.inputBoxContainer = append(root, $('.scm-commit-box'));
+		const editorContainer = append(root, $('.scm-editor'));
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
-			ariaLabel: localize('acceptAria', "Changes: Type message and press {0} to accept the changes", SCMViewlet.ACCEPT_KEYBINDING),
-			flexibleHeight: true
-		});
+		this.editor = this.instantiationService.createInstance(SCMEditor, editorContainer);
+		this.editor.onDidChangeContent(() => this.layout(), null, this.disposables);
+		this.disposables.push(this.editor);
 
-		chain(domEvent(this.inputBox.inputElement, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.accept, this, this.disposables);
+		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+		// 	placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
+		// 	ariaLabel: localize('acceptAria', "Changes: Type message and press {0} to accept the changes", SCMViewlet.ACCEPT_KEYBINDING),
+		// 	flexibleHeight: true
+		// });
 
-		chain(this.inputBox.onDidHeightChange)
-			.map(() => this.cachedDimension)
-			.on(this.layout, this, this.disposables);
+		// chain(domEvent(this.inputBox.inputElement, 'keydown'))
+		// 	.map(e => new StandardKeyboardEvent(e))
+		// 	.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
+		// 	.on(this.accept, this, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
@@ -273,7 +220,7 @@ export class SCMViewlet extends Viewlet {
 			.on(this.open, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-		this.disposables.push(this.inputBox, this.list);
+		this.disposables.push(this.list);
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
@@ -290,7 +237,6 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
-
 		const elements = provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
 
@@ -303,13 +249,13 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		this.cachedDimension = dimension;
-		this.inputBox.layout();
 
-		const listHeight = dimension.height - (this.inputBox.height + 12 /* margin */);
+		const editorHeight = Math.min(this.editor.lineCount, 8) * this.editor.lineHeight;
+		this.editor.layout({ width: dimension.width - 25, height: editorHeight });
+
+		const listHeight = dimension.height - (editorHeight + 12 /* margin */);
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
-
-		toggleClass(this.inputBoxContainer, 'scroll', this.inputBox.height >= 134);
 	}
 
 	getOptimalWidth(): number {
@@ -318,14 +264,7 @@ export class SCMViewlet extends Viewlet {
 
 	focus(): void {
 		super.focus();
-		this.inputBox.focus();
-	}
-
-	private acceptThrottler = new Throttler();
-	private accept(): void {
-		this.acceptThrottler
-			.queue(() => this.scmService.activeProvider.commit(this.inputBox.value))
-			.done(() => this.inputBox.value = '', err => this.messageService.show(Severity.Error, err));
+		this.editor.focus();
 	}
 
 	private open(e: ISCMResource): void {
@@ -333,10 +272,7 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		return [
-			this.instantiationService.createInstance(CommitAction, this.inputBox),
-			...this.menus.getTitleActions()
-		];
+		return this.menus.getTitleActions();
 	}
 
 	getSecondaryActions(): IAction[] {
