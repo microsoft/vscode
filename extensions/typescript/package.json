@@ -31,7 +31,8 @@
 		"onLanguage:typescriptreact",
 		"onLanguage:jsx-tags",
 		"onCommand:typescript.reloadProjects",
-		"onCommand:javascript.reloadProjects"
+		"onCommand:javascript.reloadProjects",
+		"onCommand:typescript.selectTypeScriptVersion"
 	],
 	"main": "./out/typescriptMain",
 	"enableProposedApi": true,
@@ -260,6 +261,10 @@
 			{
 				"command": "javascript.reloadProjects",
 				"title": "%javascript.reloadProjects.title%"
+			},
+			{
+				"command": "typescript.selectTypeScriptVersion",
+				"title": "%typescript.selectTypeScriptVersion.title%"
 			}
 		],
 		"breakpoints": [

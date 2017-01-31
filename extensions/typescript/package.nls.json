@@ -24,5 +24,6 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "Defines whether an open brace is put onto a new line for functions or not.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Defines whether an open brace is put onto a new line for control blocks or not.",
 	"javascript.validate.enable": "Enable/disable JavaScript validation.",
-	"typescript.referencesCodeLens.enabled": "Enable/disable the references code lens"
+	"typescript.referencesCodeLens.enabled": "Enable/disable the references code lens",
+	"typescript.selectTypeScriptVersion.title": "Select TypeScript version"
 }
