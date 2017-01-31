@@ -360,6 +360,16 @@
           "group": "inline"
         }
       ]
+    },
+    "configuration": {
+      "title": "Git",
+      "properties": {
+        "git.autofetch": {
+          "type": "boolean",
+          "description": "%config.autofetch%",
+          "default": true
+        }
+      }
     }
   },
   "dependencies": {

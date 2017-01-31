@@ -22,5 +22,6 @@
 	"command.pushTo": "Push to...",
 	"command.sync": "Sync",
 	"command.publish": "Publish",
-	"command.showOutput": "Show Git Output"
+	"command.showOutput": "Show Git Output",
+	"config.autofetch": "Whether auto fetching is enabled."
 }
