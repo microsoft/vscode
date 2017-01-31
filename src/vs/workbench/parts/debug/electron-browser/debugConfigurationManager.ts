@@ -389,9 +389,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	private guessAdapter(type?: string): TPromise<Adapter> {
 		if (type) {
 			const adapter = this.getAdapter(type);
-			if (adapter) {
-				return TPromise.as(adapter);
-			}
+			return TPromise.as(adapter);
 		}
 
 		const editor = this.editorService.getActiveEditor();
