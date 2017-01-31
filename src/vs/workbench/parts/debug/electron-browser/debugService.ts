@@ -573,6 +573,9 @@ export class DebugService implements debug.IDebugService {
 							return TPromise.join(compound.configurations.map(name => this.createProcess(name)));
 						}
 						const config = typeof configurationOrName === 'string' ? this.configurationManager.getConfiguration(configurationOrName) : configurationOrName;
+						if (!config) {
+							return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configurationOrName)));
+						}
 
 						return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
 							if (!resolvedConfig) {
