@@ -18,12 +18,13 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
-import { IModelService, IRawTextProvider } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { RawText } from 'vs/editor/common/model/textModel';
+import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -338,7 +339,7 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | IRawTextProvider, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
+	private _createModelData(value: string | editorCommon.ITextSource, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language);
 
@@ -346,7 +347,8 @@ export class ModelServiceImpl implements IModelService {
 		if (typeof value === 'string') {
 			model = Model.createFromString(value, options, languageIdentifier, resource);
 		} else {
-			model = new Model(value.toRawText(options), languageIdentifier, resource);
+			const rawText = ModelServiceImpl.toRawText(value, options);
+			model = new Model(rawText, languageIdentifier, resource);
 		}
 		let modelId = MODEL_ID(model.uri);
 
@@ -361,13 +363,50 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: editorCommon.IModel, value: string | IRawTextProvider): void {
+	private static toRawText(textSource: editorCommon.ITextSource, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+		let lineFeedCnt = textSource.lines.length - 1;
+		let EOL = textSource.EOL;
+		if (lineFeedCnt === 0) {
+			// This is an empty file or a file with precisely one line
+			EOL = (opts.defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
+		}
+
+		let resolvedOpts: editorCommon.TextModelResolvedOptions;
+		if (opts.detectIndentation) {
+			let guessedIndentation = guessIndentation(textSource.lines, opts.tabSize, opts.insertSpaces);
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+				tabSize: guessedIndentation.tabSize,
+				insertSpaces: guessedIndentation.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
+				defaultEOL: opts.defaultEOL
+			});
+		} else {
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+				tabSize: opts.tabSize,
+				insertSpaces: opts.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
+				defaultEOL: opts.defaultEOL
+			});
+		}
+
+		return {
+			BOM: textSource.BOM,
+			EOL: EOL,
+			lines: textSource.lines,
+			length: textSource.length,
+			containsRTL: textSource.containsRTL,
+			isBasicASCII: textSource.isBasicASCII,
+			options: resolvedOpts
+		};
+	}
+
+	public updateModel(model: editorCommon.IModel, value: string | editorCommon.ITextSource): void {
 		let rawText: editorCommon.IRawText;
 		if (typeof value === 'string') {
 			rawText = RawText.fromStringWithModelOptions(value, model);
 		} else {
 			let creationOptions = this.getCreationOptions(model.getLanguageIdentifier().language);
-			rawText = value.toRawText(creationOptions);
+			rawText = ModelServiceImpl.toRawText(value, creationOptions);
 		}
 
 		// Return early if the text is already set in that form
@@ -379,7 +418,7 @@ export class ModelServiceImpl implements IModelService {
 		model.setValueFromRawText(rawText);
 	}
 
-	public createModel(value: string | IRawTextProvider, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
+	public createModel(value: string | editorCommon.ITextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {

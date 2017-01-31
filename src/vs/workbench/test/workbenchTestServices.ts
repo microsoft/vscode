@@ -35,7 +35,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
-import { IModelService, IRawTextProvider } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -49,7 +49,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IRawText, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
+import { ITextSource } from 'vs/editor/common/editorCommon';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -151,25 +151,13 @@ export class TestTextFileService extends TextFileService {
 
 		return this.fileService.resolveContent(resource, options).then((content) => {
 			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
-			const rawTextProvider: IRawTextProvider = {
-				getEntireContent: (): string => {
-					return raw.lines.join(raw.EOL);
-				},
-				getFirstLine: (): string => {
-					return raw.lines[0];
-				},
-				toRawText: (opts: ITextModelCreationOptions): IRawText => {
-					return raw;
-				}
-			};
-
 			return <IRawTextContent>{
 				resource: content.resource,
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
 				encoding: content.encoding,
-				value: rawTextProvider,
+				value: raw,
 				valueLogicalHash: null
 			};
 		});
@@ -726,8 +714,8 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as([]);
 	}
 
-	public parseBackupContent(rawText: IRawTextProvider): string {
-		return rawText.getEntireContent();
+	public parseBackupContent(rawText: ITextSource): string {
+		return rawText.lines.join('\n');
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {
