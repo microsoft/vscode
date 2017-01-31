@@ -27,6 +27,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get id(): string { return this._id; }
 	get label(): string { return this.features.label; }
 
+	private _count: number | undefined = undefined;
+	get count(): number | undefined { return this._count; }
+
 	constructor(
 		private _id: string,
 		private proxy: ExtHostSCMShape,
@@ -68,7 +71,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		// }
 	}
 
-	$onChange(rawResourceGroups: SCMRawResourceGroup[]): void {
+	$onChange(rawResourceGroups: SCMRawResourceGroup[], count: number | undefined): void {
 		this._resources = rawResourceGroups.map(rawGroup => {
 			const [id, label, rawResources] = rawGroup;
 
@@ -93,6 +96,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			return { id, label, resources };
 		});
+		this._count = count;
 
 		this._onDidChange.fire(this.resources);
 	}
@@ -130,14 +134,14 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		delete this.providers[id];
 	}
 
-	$onChange(id: string, rawResourceGroups: SCMRawResourceGroup[]): void {
+	$onChange(id: string, rawResourceGroups: SCMRawResourceGroup[], count: number | undefined): void {
 		const provider = this.providers[id];
 
 		if (!provider) {
 			return;
 		}
 
-		provider.$onChange(rawResourceGroups);
+		provider.$onChange(rawResourceGroups, count);
 	}
 
 	dispose(): void {

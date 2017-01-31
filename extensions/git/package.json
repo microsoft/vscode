@@ -374,7 +374,10 @@
       "title": "Git",
       "properties": {
         "git.path": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "%config.path%",
           "default": null,
           "isExecutable": true
@@ -393,6 +396,16 @@
           "type": "boolean",
           "description": "%config.enableLongCommitWarning%",
           "default": true
+        },
+        "git.countBadge": {
+          "type": "string",
+          "enum": [
+            "all",
+            "tracked",
+            "off"
+          ],
+          "description": "%config.countBadge%",
+          "default": "all"
         }
       }
     }
