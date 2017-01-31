@@ -32,6 +32,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -163,6 +164,11 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register Save Error Handler
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	SaveErrorHandler
+);
+
+// Register Dirty Files Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	DirtyFilesTracker
 );
 
 // Configuration
