@@ -257,9 +257,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -400,9 +400,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -521,9 +521,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -675,9 +675,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -862,9 +862,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -972,9 +972,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1104,9 +1104,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1302,9 +1302,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1412,9 +1412,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1456,9 +1456,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1533,9 +1533,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -2512,9 +2512,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -2699,9 +2699,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3106,9 +3106,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3326,9 +3326,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3535,9 +3535,9 @@
 		"t": "source.css.scss meta.set.variable.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3689,9 +3689,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4107,9 +4107,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4272,9 +4272,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4404,9 +4404,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4525,9 +4525,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4679,9 +4679,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4855,9 +4855,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -5042,9 +5042,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -5900,9 +5900,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -6648,9 +6648,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -6802,9 +6802,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.media.scss support.type.property-name.media.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.media.css: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.media.css: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -6868,9 +6868,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7055,9 +7055,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7165,9 +7165,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7374,9 +7374,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7550,9 +7550,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7616,9 +7616,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7682,9 +7682,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -8892,9 +8892,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -8958,9 +8958,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9024,9 +9024,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9365,9 +9365,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9607,9 +9607,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9805,9 +9805,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -10146,9 +10146,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -10278,9 +10278,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -10652,9 +10652,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -11037,9 +11037,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -11510,9 +11510,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -12797,9 +12797,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -12841,9 +12841,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -12907,9 +12907,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -12984,9 +12984,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13072,9 +13072,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13270,9 +13270,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13556,9 +13556,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13600,9 +13600,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13666,9 +13666,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14117,9 +14117,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14183,9 +14183,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14249,9 +14249,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14898,9 +14898,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14964,9 +14964,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -15030,9 +15030,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -15745,9 +15745,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -16218,9 +16218,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -16416,9 +16416,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -16493,9 +16493,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -17032,9 +17032,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -17076,9 +17076,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -17131,9 +17131,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -18066,9 +18066,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -18132,9 +18132,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -18440,9 +18440,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -18979,9 +18979,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19111,9 +19111,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19298,9 +19298,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19430,9 +19430,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19617,9 +19617,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19727,9 +19727,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19936,9 +19936,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -20068,9 +20068,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -20321,9 +20321,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},

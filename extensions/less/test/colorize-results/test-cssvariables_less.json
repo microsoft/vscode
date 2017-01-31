@@ -334,9 +334,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.css: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.css: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
