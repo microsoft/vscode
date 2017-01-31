@@ -6,15 +6,13 @@
 {
 	"acceptLocalChanges": "Utiliser les modifications locales et remplacer le contenu du disque",
 	"compareChanges": "Comparer",
-	"conflictingFileHasChanged": "Le contenu du fichier sur disque a changé. Le côté gauche de l'éditeur de comparaison a été actualisé. Passez le contenu en revue, puis résolvez à nouveau les conflits.",
 	"discard": "Abandonner",
 	"genericSaveError": "Échec d'enregistrement de '{0}' ({1}).",
 	"overwrite": "Remplacer",
 	"readonlySaveError": "Échec de l'enregistrement de '{0}' : le fichier est protégé en écriture. Sélectionnez 'Remplacer' pour supprimer la protection.",
-	"resolveSaveConflict": "Résoudre le conflit d'enregistrement",
 	"retry": "Réessayer",
 	"revertLocalChanges": "Ignorer les modifications locales et restaurer le contenu sur disque",
-	"saveConflictDiffLabel": "{0} (sur disque) ↔ {1} (dans {2})",
+	"saveConflictDiffLabel": "{0} (sur disque) ↔ {1} (dans {2}) - Résoudre le conflit d'enregistrement",
 	"staleSaveError": "Échec de l'enregistrement de '{0}' : le contenu sur disque est plus récent. Cliquez sur **Comparer** pour comparer votre version à celle située sur le disque.",
 	"userGuide": "Utilisez les actions de la barre d'outils de l'éditeur pour **annuler** vos modifications, ou pour **remplacer** le contenu sur disque par le contenu incluant vos changements"
 }

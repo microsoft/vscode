@@ -6,9 +6,11 @@
 {
 	"error.cannotloadicontheme": "{0} を読み込めません",
 	"error.cannotloadtheme": "{0} を読み込めません",
-	"error.cannotparse": "plist ファイルの解析中に問題が発生しました: {0}",
+	"error.cannotparse": "テーマ ファイルの解析中に問題が発生しました: {0}",
 	"error.cannotparseicontheme": "アイコン ファイルのファイル解析に問題があります: {0}",
 	"error.cannotparsejson": "JSON テーマ ファイルの解析中に問題が発生しました: {0}",
+	"error.invalidformat": "JSON テーマ ファイルの解析中に問題が発生しました: {0}。'settings' は配列ではありません。",
+	"error.plist.invalidformat": "テーマ ファイルの解析中に問題が発生しました: {0}. 'settings' は配列ではありません。",
 	"invalid.path.1": "拡張機能のフォルダー ({2}) の中に 'contributes.{0}.path' ({1}) が含まれている必要があります。これにより、拡張機能を移植できなくなる可能性があります。",
 	"reqarray": "拡張点 '{0}' は配列でなければなりません。",
 	"reqid": "`contributes.{0}.id` で想定される文字列。指定された値: {1}",

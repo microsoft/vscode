@@ -15,10 +15,11 @@
 	"debugConsoleAction": "Debugging-Konsole",
 	"debugFocusConsole": "Focus-Debugging-Konsole",
 	"disableAllBreakpoints": "Alle Haltepunkte deaktivieren",
+	"disableBreakpoint": "Haltepunkt deaktivieren",
 	"disconnectDebug": "Trennen",
 	"editConditionalBreakpoint": "Haltepunkt bearbeiten...",
-	"editWatchExpression": "Ausdruck bearbeiten",
 	"enableAllBreakpoints": "Alle Haltepunkte aktivieren",
+	"enableBreakpoint": "Haltepunkt aktivieren",
 	"focusProcess": "Fokus auf Prozess",
 	"launchJsonNeedsConfigurtion": "Konfigurieren oder reparieren Sie \"launch.json\".",
 	"openLaunchJson": "{0} öffnen",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "Prozedurschritt",
 	"stepOverDebug": "Prozedurschritt",
 	"stopDebug": "Beenden",
-	"toggleEnablement": "Haltepunkt aktivieren/deaktivieren",
 	"unreadOutput": "Neue Ausgabe in Debugging-Konsole"
 }

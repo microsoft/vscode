@@ -11,6 +11,7 @@
 	"lines.copyUp": "行を上へコピー",
 	"lines.delete": "行の削除",
 	"lines.deleteAllLeft": "残りをすべて削除する",
+	"lines.deleteAllRight": "権限をすべて削除",
 	"lines.indent": "行のインデント",
 	"lines.insertAfter": "行を下に挿入",
 	"lines.insertBefore": "行を上に挿入",

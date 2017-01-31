@@ -6,5 +6,7 @@
 {
 	"quickNavigateNext": "Quick Open で次に移動",
 	"quickNavigatePrevious": "Quick Open で前に移動",
-	"quickOpen": "ファイルに移動..."
+	"quickOpen": "ファイルに移動...",
+	"quickSelectNext": "Quick Open で [次へ] を選択",
+	"quickSelectPrevious": "Quick Open で [前へ] を選択"
 }

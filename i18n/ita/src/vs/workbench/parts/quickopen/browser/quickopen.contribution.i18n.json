@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "Vai alla riga",
 	"gotoSymbolDescription": "Vai al simbolo nel file",
 	"gotoSymbolDescriptionScoped": "Vai al simbolo nel file per categoria",
-	"helpDescription": "Visualizza la Guida"
+	"helpDescription": "Visualizza la Guida",
+	"viewPickerDescription": "Apri visualizzazione"
 }

@@ -10,6 +10,7 @@
 	"changeIndentation": "インデントの変更",
 	"changeMode": "言語モードの変更",
 	"configureAssociationsExt": "'{0}' に対するファイルの関連付けの構成...",
+	"configureModeSettings": "'{0}' 言語ベース設定を構成します...",
 	"currentAssociation": "現在の関連付け",
 	"disableTabMode": "アクセシビリティ モードを無効にする",
 	"endOfLineCarriageReturnLineFeed": "CRLF",

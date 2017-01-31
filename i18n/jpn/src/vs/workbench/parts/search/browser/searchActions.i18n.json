@@ -6,6 +6,8 @@
 {
 	"ClearSearchResultsAction.label": "検索結果のクリア",
 	"ConfigureGlobalExclusionsAction.label": "設定を開く",
+	"FocusNextSearchResult.label": "次の検索結果にフォーカス",
+	"FocusPreviousSearchResult.label": "前の検索結果にフォーカス",
 	"RefreshAction.label": "最新の情報に更新",
 	"RemoveAction.label": "削除",
 	"file.replaceAll.label": "すべて置換",
