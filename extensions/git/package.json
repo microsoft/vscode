@@ -95,6 +95,11 @@
         }
       },
       {
+        "command": "git.commit",
+        "title": "%command.commit%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitStaged",
         "title": "%command.commitStaged%",
         "category": "Git"
@@ -163,6 +168,14 @@
         "command": "git.showOutput",
         "title": "%command.showOutput%",
         "category": "Git"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "git.commitWithInput",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "inSCMInput"
       }
     ],
     "menus": {

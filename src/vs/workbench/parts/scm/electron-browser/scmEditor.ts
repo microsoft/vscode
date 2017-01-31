@@ -5,13 +5,14 @@
 
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel, IEditorOptions, IDimension } from 'vs/editor/common/editorCommon';
 import { memoize } from 'vs/base/common/decorators';
 import { EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { MenuPreventer } from 'vs/editor/contrib/multicursor/browser/menuPreventer';
@@ -26,6 +27,8 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 
 class SCMCodeEditorWidget extends CodeEditorWidget {
 
@@ -57,7 +60,9 @@ class SCMCodeEditorWidget extends CodeEditorWidget {
 	}
 }
 
-export class SCMEditor {
+export const InSCMInputContextKey = new RawContextKey<boolean>('inSCMInput', false);
+
+export class SCMEditor implements ITextModelContentProvider {
 
 	private editor: SCMCodeEditorWidget;
 	private model: IModel;
@@ -99,14 +104,28 @@ export class SCMEditor {
 	constructor(
 		container: HTMLElement,
 		@IThemeService private themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService private modelService: IModelService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
-		this.editor = this.instantiationService.createInstance(SCMCodeEditorWidget, container, this.editorOptions);
-		this.model = this.modelService.createModel('', null, URI.parse(`scm:input`));
-		this.editor.setModel(this.model);
+		textModelResolverService.registerTextModelContentProvider('scm', this);
 
+		const scopedContextKeyService = this.contextKeyService.createScoped(container);
+		InSCMInputContextKey.bindTo(scopedContextKeyService).set(true);
+		this.disposables.push(scopedContextKeyService);
+
+		const services = new ServiceCollection();
+		services.set(IContextKeyService, scopedContextKeyService);
+		const scopedInstantiationService = instantiationService.createChild(services);
+
+		this.editor = scopedInstantiationService.createInstance(SCMCodeEditorWidget, container, this.editorOptions);
 		this.themeService.onDidColorThemeChange(e => this.editor.updateOptions(this.editorOptions), null, this.disposables);
+
+		textModelResolverService.createModelReference(URI.parse('scm:input')).done(ref => {
+			this.model = ref.object.textEditorModel;
+			this.editor.setModel(this.model);
+		});
 	}
 
 	get lineHeight(): number {
@@ -115,6 +134,10 @@ export class SCMEditor {
 
 	// TODO@joao TODO@alex isn't there a better way to get the number of lines?
 	get lineCount(): number {
+		if (!this.model) {
+			return 0;
+		}
+
 		const modelLength = this.model.getValueLength();
 		const lastPosition = this.model.getPositionAt(modelLength);
 		const lastLineTop = this.editor.getTopForPosition(lastPosition.lineNumber, lastPosition.column);
@@ -129,6 +152,14 @@ export class SCMEditor {
 
 	focus(): void {
 		this.editor.focus();
+	}
+
+	provideTextContent(resource: URI): TPromise<IModel> {
+		if (resource.toString() !== 'scm:input') {
+			return TPromise.as(null);
+		}
+
+		return TPromise.as(this.modelService.createModel('', null, resource));
 	}
 
 	dispose(): void {

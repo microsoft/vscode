@@ -5,15 +5,16 @@
 
 'use strict';
 
-import { workspace, window, languages, Disposable, Uri, TextDocumentChangeEvent, HoverProvider, Hover, TextEditor, Position, TextDocument, Range, TextEditorDecorationType } from 'vscode';
+import { workspace, window, languages, Disposable, Uri, TextDocumentChangeEvent, HoverProvider, Hover, TextEditor, Position, TextDocument, Range, TextEditorDecorationType, WorkspaceEdit } from 'vscode';
 import { Model } from './model';
 import { filterEvent } from './util';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
+const scmInputUri = Uri.parse('scm:input');
 
 function isSCMInput(uri: Uri) {
-	return uri.toString() === 'scm:input';
+	return uri.toString() === scmInputUri.toString();
 }
 
 interface Diagnostic {
@@ -22,13 +23,35 @@ interface Diagnostic {
 }
 
 // TODO@Joao: hover dissapears if editor is scrolled
-export class CommitHandler implements HoverProvider {
+export class CommitController implements HoverProvider {
 
 	private visibleTextEditorsDisposable: Disposable;
 	private editor: TextEditor;
 	private diagnostics: Diagnostic[] = [];
 	private decorationType: TextEditorDecorationType;
 	private disposables: Disposable[] = [];
+
+	get message(): string | undefined {
+		if (!this.editor) {
+			return;
+		}
+
+		return this.editor.document.getText();
+	}
+
+	set message(message: string | undefined) {
+		if (!this.editor || message === undefined) {
+			return;
+		}
+
+		const document = this.editor.document;
+		const start = document.lineAt(0).range.start;
+		const end = document.lineAt(document.lineCount - 1).range.end;
+		const range = new Range(start, end);
+		const edit = new WorkspaceEdit();
+		edit.replace(scmInputUri, range, message);
+		workspace.applyEdit(edit);
+	}
 
 	constructor(private model: Model) {
 		this.visibleTextEditorsDisposable = window.onDidChangeVisibleTextEditors(this.onVisibleTextEditors, this);

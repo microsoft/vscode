@@ -21,10 +21,6 @@ export class GitSCMProvider implements SCMProvider {
 		scm.registerSCMProvider('git', this);
 	}
 
-	commit(message: string): Thenable<void> {
-		return this.commandCenter.commit(message);
-	}
-
 	open(resource: Resource): ProviderResult<void> {
 		return this.commandCenter.open(resource);
 	}
