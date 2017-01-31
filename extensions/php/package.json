@@ -11,7 +11,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "php",
-			"extensions": [ ".php", ".php4", ".php5", ".phtml", ".ctp" ],
+			"extensions": [ ".php", ".php4", ".php5", ".ctp" ],
 			"aliases": [ "PHP", "php" ],
 			"mimetypes": ["application/x-php"],
 			"configuration": "./language-configuration.json"
