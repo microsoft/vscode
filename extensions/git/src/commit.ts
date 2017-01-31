@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, window, languages, Disposable, Uri, TextDocumentChangeEvent, HoverProvider, Hover, TextEditor, Position, TextDocument, Range, TextEditorDecorationType, WorkspaceEdit } from 'vscode';
+import { workspace, window, languages, Disposable, Uri, HoverProvider, Hover, TextEditor, Position, TextDocument, Range, TextEditorDecorationType, WorkspaceEdit } from 'vscode';
 import { Model } from './model';
 import { filterEvent } from './util';
 import * as nls from 'vscode-nls';
@@ -77,18 +77,19 @@ export class CommitController implements HoverProvider {
 		this.editor = editor;
 
 		const onDidChange = filterEvent(workspace.onDidChangeTextDocument, e => e.document && isSCMInput(e.document.uri));
-		onDidChange(this.onSCMInputChange, this, this.disposables);
+		onDidChange(this.update, this, this.disposables);
 
+		workspace.onDidChangeConfiguration(this.update, this, this.disposables);
 		languages.registerHoverProvider({ scheme: 'scm' }, this);
 	}
 
-	private onSCMInputChange(e: TextDocumentChangeEvent): void {
+	private update(): void {
 		this.diagnostics = [];
 
-		const range = e.document.lineAt(0).range;
+		const range = this.editor.document.lineAt(0).range;
 		const length = range.end.character - range.start.character;
 
-		if (length > 80) {
+		if (workspace.getConfiguration('git').get<boolean>('enableLongCommitWarning') && length > 80) {
 			const message = localize('too long', "You should keep the first line under 50 characters.\n\nYou can use more lines for extra information.");
 			this.diagnostics.push({ range, message });
 		}

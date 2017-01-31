@@ -388,6 +388,11 @@
           "type": "boolean",
           "description": "%config.autofetch%",
           "default": true
+        },
+        "git.enableLongCommitWarning": {
+          "type": "boolean",
+          "description": "%config.enableLongCommitWarning%",
+          "default": true
         }
       }
     }
