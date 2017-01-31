@@ -20,7 +20,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 
 
 
-class TrustContribution implements IWorkbenchContribution {
+class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution {
 
 	private static storageKey = 'workspace.settings.unsupported.warning';
 	private toDispose: IDisposable[] = [];
@@ -59,11 +59,11 @@ class TrustContribution implements IWorkbenchContribution {
 	}
 
 	private hasShownWarning(): boolean {
-		return this.storageService.getBoolean(TrustContribution.storageKey, StorageScope.WORKSPACE, false);
+		return this.storageService.getBoolean(UnsupportedWorkspaceSettingsContribution.storageKey, StorageScope.WORKSPACE, false);
 	}
 
 	private rememberWarningWasShown(): void {
-		this.storageService.store(TrustContribution.storageKey, true, StorageScope.WORKSPACE);
+		this.storageService.store(UnsupportedWorkspaceSettingsContribution.storageKey, true, StorageScope.WORKSPACE);
 	}
 
 	private showWarning(unsupportedKeys: string[]): void {
@@ -95,4 +95,4 @@ class TrustContribution implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(TrustContribution);
+workbenchRegistry.registerWorkbenchContribution(UnsupportedWorkspaceSettingsContribution);
