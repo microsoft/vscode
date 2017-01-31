@@ -252,8 +252,8 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const rawText = TextModel.toRawText('metadata\ncontent', TextModel.DEFAULT_CREATION_OPTIONS);
-			assert.equal(service.parseBackupContent(rawText), 'content');
+			const textSource = TextModel.toTextSource('metadata\ncontent');
+			assert.equal(service.parseBackupContent(textSource), 'content');
 		});
 	});
 });
