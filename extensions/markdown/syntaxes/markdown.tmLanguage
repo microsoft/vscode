@@ -522,7 +522,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>(^|\G)([ ]{4}|\t)</string>
+							<string>((^|\G)([ ]{4}|\t))|(^[ \t]*$)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
@@ -549,7 +549,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>(^|\G)([ ]{4}|\t)</string>
+							<string>((^|\G)([ ]{4}|\t))|(^[ \t]*$)</string>
 						</dict>
 					</array>
 				</dict>
