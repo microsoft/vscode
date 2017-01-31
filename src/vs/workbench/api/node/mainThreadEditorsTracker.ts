@@ -210,7 +210,7 @@ export class MainThreadTextEditor {
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
 
-			let creationOpts = this._modelService.getCreationOptions();
+			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 
@@ -403,17 +403,21 @@ export class MainThreadTextEditor {
 			return false;
 		}
 
+		const snippetController = SnippetController.get(this._codeEditor);
+
+		// cancel previous snippet mode
+		snippetController.leaveSnippet();
+
+		// set selection, focus editor
 		const selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
 		this._codeEditor.setSelections(selections);
 		this._codeEditor.focus();
 
+		// make modifications
 		if (opts.undoStopBefore) {
 			this._codeEditor.pushUndoStop();
 		}
-
-		const snippetController = SnippetController.get(this._codeEditor);
 		snippetController.insertSnippet(template, 0, 0);
-
 		if (opts.undoStopAfter) {
 			this._codeEditor.pushUndoStop();
 		}

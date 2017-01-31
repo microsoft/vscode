@@ -69,7 +69,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: editorCommon.ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy my edit history and settings

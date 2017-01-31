@@ -1624,7 +1624,7 @@ export interface ITextModel {
 	 * Replace the entire text buffer value contained in this model.
 	 * @internal
 	 */
-	setValueFromRawText(newValue: IRawText): void;
+	setValueFromRawText(newValue: ITextSource): void;
 
 	/**
 	 * Get the text stored in this model.
@@ -1649,7 +1649,7 @@ export interface ITextModel {
 	 * Check if the raw text stored in this model equals another raw text.
 	 * @internal
 	 */
-	equals(other: IRawText): boolean;
+	equals(other: ITextSource): boolean;
 
 	/**
 	 * Get the text in a certain range.
@@ -2360,7 +2360,7 @@ export interface IModelContentChangedEvent {
  * The raw text backing a model.
  * @internal
  */
-export interface IRawText {
+export interface ITextSource {
 	/**
 	 * The entire text length.
 	 */
@@ -2385,6 +2385,13 @@ export interface IRawText {
 	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
 	 */
 	readonly isBasicASCII: boolean;
+}
+
+/**
+ * The raw text backing a model.
+ * @internal
+ */
+export interface IRawText extends ITextSource {
 	/**
 	 * The options associated with this text.
 	 */

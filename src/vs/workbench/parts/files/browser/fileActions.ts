@@ -568,6 +568,7 @@ export class CreateFileAction extends BaseCreateAction {
 	constructor(
 		element: FileStat,
 		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -577,7 +578,9 @@ export class CreateFileAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
+		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(stat => {
+			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+		}, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -592,6 +595,7 @@ export class CreateFolderAction extends BaseCreateAction {
 	constructor(
 		element: FileStat,
 		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -601,7 +605,9 @@ export class CreateFolderAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
+		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(stat => {
+			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+		}, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -758,6 +764,7 @@ export class ImportFileAction extends BaseFileAction {
 		element: FileStat,
 		clazz: string,
 		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -843,7 +850,13 @@ export class ImportFileAction extends BaseFileAction {
 							}
 
 							return revertPromise.then(() => {
-								return this.fileService.importFile(sourceFile, targetElement.resource).then(null, (error: any) => {
+								return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
+
+									// if we only import one file, just open it directly
+									if (filesArray.length === 1) {
+										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+									}
+								}, (error: any) => {
 									this.messageService.show(Severity.Error, error);
 								});
 							});
@@ -975,6 +988,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		element: FileStat,
 		target: FileStat,
 		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -994,7 +1008,11 @@ export class DuplicateFileAction extends BaseFileAction {
 		}
 
 		// Copy File
-		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then(null, (error: any) => {
+		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then(stat => {
+			if (!stat.isDirectory) {
+				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+			}
+		}, (error: any) => {
 			this.onError(error);
 		});
 
@@ -1686,7 +1704,7 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 export class ShowActiveFileInExplorer extends Action {
 
 	public static ID = 'workbench.files.action.showActiveFileInExplorer';
-	public static LABEL = nls.localize('showInExplorer', "Show Active File in Explorer");
+	public static LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
 
 	constructor(
 		id: string,

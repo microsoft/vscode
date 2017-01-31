@@ -33,7 +33,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 			if (!codeEditorModel) {
 				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
 			} else {
-				codeEditorModel.setValueFromRawText(content.value);
+				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;
@@ -81,7 +81,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 				const mode = this.modeService.getOrCreateMode(modeId);
 				codeEditorModel = this.modelService.createModel(codeSnippet, mode, resource);
 			} else {
-				codeEditorModel.setValueFromRawText(content.value);
+				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;

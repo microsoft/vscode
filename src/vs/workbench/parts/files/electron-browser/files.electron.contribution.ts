@@ -22,7 +22,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { isWindows } from 'vs/base/common/platform';
 
 class FileViewerActionContributor extends ActionBarContributor {
 
@@ -90,7 +89,7 @@ CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', o
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem('_workbench.action.files.revealInOS', RevealInOSAction.LABEL, revealInOSCommand);
 appendEditorTitleContextMenuItem('_workbench.action.files.copyPath', CopyPathAction.LABEL, copyPathCommand);
-appendEditorTitleContextMenuItem('_workbench.action.files.revealInExplorer', isWindows ? nls.localize('showInSideBar', "Show in Side Bar") : nls.localize('showInExplorer', "Show in Explorer"), revealInExplorerCommand);
+appendEditorTitleContextMenuItem('_workbench.action.files.revealInExplorer', nls.localize('revealInSideBar', "Reveal in Side Bar"), revealInExplorerCommand);
 
 function appendEditorTitleContextMenuItem(id: string, title: string, command: ICommandHandler): void {
 

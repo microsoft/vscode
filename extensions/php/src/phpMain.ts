@@ -53,13 +53,13 @@ export function activate(context: vscode.ExtensionContext): any {
 		let settingsExecutablePath = readLocalExecutableSetting();
 		if (settingsExecutablePath) {
 			migrateExecutablePath(settingsExecutablePath).then((value) => {
+				context.workspaceState.update(MigratedKey, true);
 				// User has pressed escape;
 				if (!value) {
 					// activate the validator with the current settings.
 					validator.activate(context.subscriptions);
 					return;
 				}
-				context.workspaceState.update(MigratedKey, true);
 				context.workspaceState.update(PathKey, value);
 				validator.updateWorkspaceExecutablePath(value, false);
 				validator.activate(context.subscriptions);
@@ -121,12 +121,38 @@ function getExecutablePath(context: vscode.ExtensionContext): string {
 }
 
 function migrateExecutablePath(settingsExecutablePath: string): Thenable<string> {
-	return vscode.window.showInputBox(
+	return vscode.window.showInformationMessage(
+		localize('php.migrateWorkspaceSetting', 'Do you want to use {0} as your future PHP executable path?', settingsExecutablePath),
 		{
-			prompt: localize('php.migrateExecutablePath', 'Use the above path as the PHP executable path?'),
-			value: settingsExecutablePath
+			title: localize('php.yes', 'Yes'),
+			id: 'yes'
+		},
+		{
+			title: localize('php.edit', 'Edit'),
+			id: 'edit'
+		},
+		{
+			title: localize('php.more', 'Learn More'),
+			id: 'more'
 		}
-	);
+	).then((selected) => {
+		if (!selected) {
+			return undefined;
+		}
+		if (selected.id === 'yes') {
+			return settingsExecutablePath;
+		} else if (selected.id === 'edit') {
+			return vscode.window.showInputBox(
+				{
+					prompt: localize('php.migrateExecutablePath', 'Use the above path as the PHP executable path?'),
+					value: settingsExecutablePath
+				}
+			);
+		} else if (selected.id === 'more') {
+			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+			return undefined;
+		}
+	});
 }
 
 function readLocalExecutableSetting(): string {

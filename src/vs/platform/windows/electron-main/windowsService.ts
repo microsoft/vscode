@@ -94,7 +94,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (vscodeWindow) {
-			this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow });
+			this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow, forceReuseWindow: true });
 		}
 
 		return TPromise.as(null);
