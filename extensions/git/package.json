@@ -364,6 +364,11 @@
     "configuration": {
       "title": "Git",
       "properties": {
+        "git.autorefresh": {
+          "type": "boolean",
+          "description": "%config.autorefresh%",
+          "default": true
+        },
         "git.autofetch": {
           "type": "boolean",
           "description": "%config.autofetch%",
