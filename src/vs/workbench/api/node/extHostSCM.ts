@@ -113,7 +113,6 @@ export class ExtHostSCM {
 
 		this._proxy.$register(providerId, {
 			label: provider.label,
-			supportsCommit: !!provider.commit,
 			supportsOpen: !!provider.open,
 			supportsDrag: !!provider.drag,
 			supportsOriginalResource: !!provider.getOriginalResource
@@ -160,16 +159,6 @@ export class ExtHostSCM {
 			delete this._providers[providerId];
 			this._proxy.$unregister(providerId);
 		});
-	}
-
-	$commit(providerId: string, message: string): TPromise<void> {
-		const provider = this._providers[providerId];
-
-		if (!provider) {
-			return TPromise.as(null);
-		}
-
-		return asWinJsPromise(token => provider.commit(message, token));
 	}
 
 	$open(providerId: string, resourceGroupId: string, uri: string): TPromise<void> {

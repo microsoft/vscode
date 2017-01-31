@@ -38,14 +38,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this.disposables.push(scmService.registerSCMProvider(this));
 	}
 
-	commit(message: string): TPromise<void> {
-		if (!this.features.supportsCommit) {
-			return TPromise.as(null);
-		}
-
-		return this.proxy.$commit(this.id, message);
-	}
-
 	open(resource: ISCMResource): TPromise<void> {
 		if (!this.features.supportsOpen) {
 			return TPromise.as(null);
