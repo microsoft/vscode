@@ -19,7 +19,7 @@ import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/bas
 import comparers = require('vs/base/common/comparers');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { $, Builder } from 'vs/base/browser/builder';
-import platform = require('vs/base/common/platform');
+import { isMacintosh } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -393,24 +393,31 @@ export class FileController extends DefaultController {
 
 		this.didCatchEnterDown = false;
 
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterUp.bind(this));
-		if (platform.isMacintosh) {
-			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
-		} else {
-			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
-		}
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyCode.Enter : KeyCode.F2, this.onF2.bind(this));
-		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, this.onCopy.bind(this));
-		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, this.onPaste.bind(this));
+		// Open
+		this.downKeyBindingDispatcher.set(isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, (t, e) => this.onEnterDown(t, e));
+		this.upKeyBindingDispatcher.set(isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, (t, e) => this.onEnterUp(t, e));
 
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, this.onLeft.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace, this.onDelete.bind(this));
+		// Open to the side
+		if (isMacintosh) {
+			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, (t, e) => this.onModifierEnterUp(t, e)); // Mac: somehow Cmd+Enter does not work
 		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
+			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (t, e) => this.onModifierEnterUp(t, e));
+		}
+
+		// Rename
+		this.downKeyBindingDispatcher.set(isMacintosh ? KeyCode.Enter : KeyCode.F2, (t, e) => this.onF2(t, e));
+
+		// Copy / Paste
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, (t, e) => this.onCopy(t, e));
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, (t, e) => this.onPaste(t, e));
+
+		// Delete
+		if (isMacintosh) {
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (t, e) => this.onDelete(t, e));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace, (t, e) => this.onDelete(t, e));
+		} else {
+			this.downKeyBindingDispatcher.set(KeyCode.Delete, (t, e) => this.onDelete(t, e));
+			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, (t, e) => this.onDelete(t, e));
 		}
 
 		this.state = state;
@@ -783,7 +790,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return DRAG_OVER_REJECT;
 		}
 
-		const isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
+		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const fromDesktop = data instanceof DesktopDragAndDropData;
 
 		// Desktop DND
@@ -864,7 +871,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 		// In-Explorer DND (Move/Copy file)
 		else {
 			const source: FileStat = data.getData()[0];
-			const isCopy = (originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh);
+			const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 			promise = tree.expand(target).then(() => {
 
