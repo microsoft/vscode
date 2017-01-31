@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.css",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.css",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
