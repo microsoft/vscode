@@ -135,7 +135,6 @@ declare module 'vscode' {
 		readonly onDidChange: Event<SCMResourceGroup[]>;
 		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 
-		commit?(message: string, token: CancellationToken): ProviderResult<void>;
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
 		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
 	}
