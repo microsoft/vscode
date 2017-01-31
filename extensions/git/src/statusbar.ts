@@ -42,6 +42,7 @@ export class CheckoutStatusBar {
 
 		this.raw.command = 'git.checkout';
 		this.raw.color = 'rgb(255, 255, 255)';
+		this.raw.tooltip = localize('checkout', 'Checkout...');
 		this.raw.text = '$(git-branch) ' +
 			head +
 			(this.model.workingTreeGroup.resources.length > 0 ? '*' : '') +
