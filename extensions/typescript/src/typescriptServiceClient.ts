@@ -488,43 +488,31 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		const useWorkspaceVersionSetting = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
 		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
 		const localModulePath = this.localTypeScriptPath;
-		let messageShown: Thenable<MyQuickPickItem | undefined>;
+
+		const pickOptions: MyQuickPickItem[] = [];
+
+		pickOptions.push({
+			label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
+			description: shippedVersion || this.globalTypescriptPath,
+			detail: modulePath === this.globalTypescriptPath && (modulePath !== localModulePath || !useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
+			id: MessageAction.useBundled,
+		});
+
 		if (localModulePath) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
-			messageShown = window.showQuickPick<MyQuickPickItem>([
-				{
-					label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
-					description: shippedVersion || this.globalTypescriptPath,
-					detail: modulePath === this.globalTypescriptPath && (modulePath !== localModulePath || !useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
-					id: MessageAction.useBundled,
-				}, {
-					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
-					description: localVersion || localModulePath,
-					detail: modulePath === localModulePath && (modulePath !== this.globalTypescriptPath || useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
-					id: MessageAction.useLocal
-				}, {
-					label: localize('learnMore', 'Learn More'),
-					description: '',
-					id: MessageAction.learnMore
-				}], {
-					placeHolder: localize(
-						'selectTsVersion',
-						'Select the TypeScript version used for JavaScript and TypeScript language features'),
-					ignoreFocusOut: firstRun
-				});
-		} else {
-			messageShown = window.showQuickPick<MyQuickPickItem>([
-				{
-					label: localize('learnMore', 'Learn More'),
-					description: '',
-					id: MessageAction.learnMore
-				}], {
-					placeHolder: localize(
-						'versionCheckUsingBundledTS',
-						'Using VSCode\'s TypeScript version {0} for JavaScript and TypeScript language features',
-						shippedVersion),
-				});
+			pickOptions.push({
+				label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
+				description: localVersion || localModulePath,
+				detail: modulePath === localModulePath && (modulePath !== this.globalTypescriptPath || useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
+				id: MessageAction.useLocal
+			});
 		}
+
+		pickOptions.push({
+			label: localize('learnMore', 'Learn More'),
+			description: '',
+			id: MessageAction.learnMore
+		});
 
 		const tryShowRestart = (newModulePath: string) => {
 			if (firstRun || newModulePath === this.modulePath) {
@@ -546,32 +534,38 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				});
 		};
 
-		return messageShown.then(selected => {
-			if (!selected) {
-				return modulePath;
-			}
-			switch (selected.id) {
-				case MessageAction.useLocal:
-					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
-						.then(_ => {
-							if (localModulePath) {
-								tryShowRestart(localModulePath);
-							}
-							return localModulePath;
-						});
-				case MessageAction.useBundled:
-					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
-						.then(_ => {
-							tryShowRestart(this.globalTypescriptPath);
-							return this.globalTypescriptPath;
-						});
-				case MessageAction.learnMore:
-					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+		return window.showQuickPick<MyQuickPickItem>(pickOptions, {
+			placeHolder: localize(
+				'selectTsVersion',
+				'Select the TypeScript version used for JavaScript and TypeScript language features'),
+			ignoreFocusOut: firstRun
+		})
+			.then(selected => {
+				if (!selected) {
 					return modulePath;
-				default:
-					return modulePath;
-			}
-		});
+				}
+				switch (selected.id) {
+					case MessageAction.useLocal:
+						return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
+							.then(_ => {
+								if (localModulePath) {
+									tryShowRestart(localModulePath);
+								}
+								return localModulePath;
+							});
+					case MessageAction.useBundled:
+						return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
+							.then(_ => {
+								tryShowRestart(this.globalTypescriptPath);
+								return this.globalTypescriptPath;
+							});
+					case MessageAction.learnMore:
+						commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+						return modulePath;
+					default:
+						return modulePath;
+				}
+			});
 	}
 
 	private serviceStarted(resendModels: boolean): void {
