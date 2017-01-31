@@ -52,8 +52,7 @@
 				"php.validate.executablePath": {
 					"type": ["string", "null"],
 					"default": null,
-					"description": "%configuration.validate.executablePath%",
-					"isExecutable": true
+					"description": "%configuration.validate.executablePath%"
 				},
 				"php.validate.run": {
 					"type": "string",
