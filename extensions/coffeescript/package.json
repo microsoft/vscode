@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/coffee-script.tmbundle Syntaxes/CoffeeScript.tmLanguage ./syntaxes/coffeescript.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-coffee-script grammars/coffeescript.cson ./syntaxes/coffeescript.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -16,7 +16,7 @@
 		"grammars": [{
 			"language": "coffeescript",
 			"scopeName": "source.coffee",
-			"path": "./syntaxes/coffeescript.json"
+			"path": "./syntaxes/coffeescript.tmLanguage.json"
 		}],
 		"breakpoints": [
 			{
