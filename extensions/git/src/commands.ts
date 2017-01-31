@@ -331,10 +331,22 @@ export class CommandCenter {
 	@CommandCenter.Command('git.commit')
 	@CommandCenter.CatchErrors
 	async commit(): Promise<void> {
-		await this._commit(async () => await window.showInputBox({
-			placeHolder: localize('commit message', "Commit message"),
-			prompt: localize('provide commit message', "Please provide a commit message")
-		}));
+		const message = this.commitController.message;
+
+		const didCommit = await this._commit(async () => {
+			if (message) {
+				return message;
+			}
+
+			return await window.showInputBox({
+				placeHolder: localize('commit message', "Commit message"),
+				prompt: localize('provide commit message', "Please provide a commit message")
+			});
+		});
+
+		if (message && didCommit) {
+			this.commitController.message = '';
+		}
 	}
 
 	@CommandCenter.Command('git.commitWithInput')

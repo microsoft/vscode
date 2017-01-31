@@ -97,7 +97,11 @@
       {
         "command": "git.commit",
         "title": "%command.commit%",
-        "category": "Git"
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/check.svg",
+          "dark": "resources/icons/dark/check.svg"
+        }
       },
       {
         "command": "git.commitStaged",
@@ -180,6 +184,11 @@
     ],
     "menus": {
       "scm/title": [
+        {
+          "command": "git.commit",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
         {
           "command": "git.refresh",
           "group": "navigation",
