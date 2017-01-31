@@ -49,7 +49,6 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
-const QUICK_OPEN_MODE = new RawContextKey<boolean>('inQuickOpen', false);
 
 interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
@@ -116,7 +115,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.promisesToCompleteOnHide = [];
 
-		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(contextKeyService);
+		this.inQuickOpenMode = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();

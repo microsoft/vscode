@@ -16,7 +16,7 @@ import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
@@ -37,7 +37,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/themeService';
 
@@ -59,6 +59,8 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+
+	private explorerFocussedContext: IContextKey<boolean>;
 
 	private shouldRefresh: boolean;
 
@@ -96,7 +98,8 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
-		this.folderContext = new RawContextKey<boolean>('explorerResourceIsFolder', undefined).bindTo(contextKeyService);
+		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
+		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -354,6 +357,12 @@ export class ExplorerView extends CollapsibleViewletView {
 			this.resourceContext.set(e.focus && e.focus.resource);
 			this.folderContext.set(e.focus && e.focus.isDirectory);
 		}));
+
+		// Update explorer focus context
+		const explorerFocusTracker = DOM.trackFocus(this.explorerViewer.getHTMLElement());
+		explorerFocusTracker.addFocusListener(() => this.explorerFocussedContext.set(true));
+		explorerFocusTracker.addBlurListener(() => this.explorerFocussedContext.reset());
+		this.toDispose.push(explorerFocusTracker);
 
 		return this.explorerViewer;
 	}

@@ -16,7 +16,13 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
 
-export const ExplorerViewletVisible = new RawContextKey<boolean>('explorerViewletVisible', true);
+/**
+ * Context Keys to use with keybindings for the Explorer and Open Editors view
+ */
+export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true);
+export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false);
+export const ExplorerFocussedContext = new RawContextKey<boolean>('explorerFocus', false);
+export const OpenEditorsFocussedContext = new RawContextKey<boolean>('openEditorsFocus', false);
 
 /**
  * File editor input id.
