@@ -881,13 +881,13 @@
 	},
 	{
 		"c": ".welcomebox",
-		"t": "text.jade constant.language.js",
+		"t": "text.jade entity.other.attribute-name.class.jade",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6"
+			"dark_plus": "entity.other.attribute-name: #9CDCFE",
+			"light_plus": "entity.other.attribute-name: #FF0000",
+			"dark_vs": "entity.other.attribute-name: #9CDCFE",
+			"light_vs": "entity.other.attribute-name: #FF0000",
+			"hc_black": "entity.other.attribute-name: #9CDCFE"
 		}
 	},
 	{
@@ -1035,13 +1035,13 @@
 	},
 	{
 		"c": ".loginbox",
-		"t": "text.jade constant.language.js",
+		"t": "text.jade entity.other.attribute-name.class.jade",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6"
+			"dark_plus": "entity.other.attribute-name: #9CDCFE",
+			"light_plus": "entity.other.attribute-name: #FF0000",
+			"dark_vs": "entity.other.attribute-name: #9CDCFE",
+			"light_vs": "entity.other.attribute-name: #FF0000",
+			"hc_black": "entity.other.attribute-name: #9CDCFE"
 		}
 	},
 	{
