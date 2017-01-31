@@ -74,7 +74,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 					return '';
 				};
 
-				const markdown = content.value.getEntireContent().replace(/\r\n/g, '\n'); // TODO: Can marked digest \r\n ?
+				const markdown = content.value.lines.join('\n');
 				marked(markdown, { renderer });
 
 				const modeId = this.modeService.getModeIdForLanguageName(languageName);

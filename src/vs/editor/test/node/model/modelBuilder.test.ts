@@ -6,13 +6,21 @@
 
 import * as assert from 'assert';
 import { ModelBuilder, computeHash } from 'vs/editor/node/model/modelBuilder';
-import { ITextModelCreationOptions, IRawText } from 'vs/editor/common/editorCommon';
+import { ITextModelCreationOptions, ITextSource } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
 
 export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
-	let expectedRawText = TextModel.toRawText(chunks.join(''), opts);
-	let expectedHash = computeHash(expectedRawText);
+	let rawText = TextModel.toRawText(chunks.join(''), opts);
+	let expectedTextSource: ITextSource = {
+		BOM: rawText.BOM,
+		containsRTL: rawText.containsRTL,
+		EOL: rawText.EOL,
+		isBasicASCII: rawText.isBasicASCII,
+		length: rawText.length,
+		lines: rawText.lines
+	};
+	let expectedHash = computeHash(expectedTextSource);
 
 	let builder = new ModelBuilder();
 	for (let i = 0, len = chunks.length; i < len; i++) {
@@ -20,24 +28,23 @@ export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptio
 	}
 	let actual = builder.finish();
 
-	let actualRawText = actual.toRawText(opts);
+	let actualTextSource = actual.value;
 	let actualHash = actual.hash;
 
 	assert.equal(actualHash, expectedHash);
-	assert.deepEqual(actualRawText, expectedRawText);
+	assert.deepEqual(actualTextSource, expectedTextSource);
 
 	return expectedHash;
 }
 
-function toRawText(lines: string[]): IRawText {
+function toRawText(lines: string[]): ITextSource {
 	return {
 		BOM: '',
 		lines: lines,
 		EOL: '\n',
 		length: 0,
 		containsRTL: false,
-		isBasicASCII: true,
-		options: null
+		isBasicASCII: true
 	};
 }
 
