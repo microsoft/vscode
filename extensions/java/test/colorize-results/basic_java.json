@@ -462,6 +462,105 @@
 		}
 	},
 	{
+		"c": "<",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.begin.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	},
+	{
+		"c": "p",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html entity.name.tag.block.any.html",
+		"r": {
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.end.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	},
+	{
+		"c": "Note:",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "</",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.begin.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	},
+	{
+		"c": "p",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html entity.name.tag.block.any.html",
+		"r": {
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.end.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	},
+	{
+		"c": " Hello",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\t * ",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
 		"c": "@",
 		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc keyword.other.documentation.param.javadoc punctuation.definition.keyword.javadoc",
 		"r": {
