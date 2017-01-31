@@ -23,5 +23,6 @@
 	"command.sync": "Sync",
 	"command.publish": "Publish",
 	"command.showOutput": "Show Git Output",
+	"config.autorefresh": "Whether auto refreshing is enabled.",
 	"config.autofetch": "Whether auto fetching is enabled."
 }

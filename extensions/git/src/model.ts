@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window } from 'vscode';
+import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
 import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -449,6 +449,13 @@ export class Model {
 	}
 
 	private onFSChange(uri: Uri): void {
+		const config = workspace.getConfiguration('git');
+		const autorefresh = config.get<boolean>('autorefresh');
+
+		if (!autorefresh) {
+			return;
+		}
+
 		if (!this.operations.isIdle()) {
 			return;
 		}
