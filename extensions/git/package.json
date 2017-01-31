@@ -373,6 +373,12 @@
     "configuration": {
       "title": "Git",
       "properties": {
+        "git.path": {
+          "type": ["string", "null"],
+          "description": "%config.path%",
+          "default": null,
+          "isExecutable": true
+        },
         "git.autorefresh": {
           "type": "boolean",
           "description": "%config.autorefresh%",
