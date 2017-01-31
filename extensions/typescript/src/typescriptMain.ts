@@ -84,7 +84,7 @@ export function activate(context: ExtensionContext): void {
 		clientHost.reloadProjects();
 	}));
 
-	context.subscriptions.push(commands.registerCommand('_typescript.onVersionStatusClicked', () => {
+	context.subscriptions.push(commands.registerCommand('typescript.showVersionPicker', () => {
 		client.onVersionStatusClicked();
 	}));
 
