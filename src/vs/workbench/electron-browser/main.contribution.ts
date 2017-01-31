@@ -181,6 +181,11 @@ let properties: { [path: string]: IJSONSchema; } = {
 	'window.openFilesInNewWindow': {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
+		'enumDescriptions': [
+			nls.localize('window.openFilesInNewWindow.on', "\"on\": files will open in a new window"),
+			nls.localize('window.openFilesInNewWindow.off', "\"off\": files will open in the last active window"),
+			nls.localize('window.openFilesInNewWindow.default', "\"default\": files will open in the last active window unless opened via the dock or from finder (macOS only)")
+		],
 		'default': 'default',
 		'description':
 		nls.localize('openFilesInNewWindow',
@@ -194,6 +199,11 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	'window.openFoldersInNewWindow': {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
+		'enumDescriptions': [
+			nls.localize('window.openFoldersInNewWindow.on', "\"on\": folders will open in a new window"),
+			nls.localize('window.openFoldersInNewWindow.off', "\"off\": folders will replace the last active window"),
+			nls.localize('window.openFoldersInNewWindow.default', "\"default\": folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
+		],
 		'default': 'default',
 		'description': nls.localize('openFoldersInNewWindow',
 			`Controls if folders should open in a new window or replace the last active window.
@@ -206,6 +216,11 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	'window.reopenFolders': {
 		'type': 'string',
 		'enum': ['none', 'one', 'all'],
+		'enumDescriptions': [
+			nls.localize('window.reopenFolders.none', "\"none\": Never reopen a folder."),
+			nls.localize('window.reopenFolders.one', "\"one\": Reopen the last active folder."),
+			nls.localize('window.reopenFolders.all', "\"all\": Reopen all folders of the last session."),
+		],
 		'default': 'one',
 		'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
 	},
@@ -227,6 +242,12 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	'window.newWindowDimensions': {
 		'type': 'string',
 		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
+		'enumDescriptions': [
+			nls.localize('window.newWindowDimensions.default', "\"default\": Open new windows in the center of the screen."),
+			nls.localize('window.newWindowDimensions.inherit', "\"inherit\": Open new windows with same dimension as last active one."),
+			nls.localize('window.newWindowDimensions.maximized', "\"maximized\": Open new windows maximized."),
+			nls.localize('window.newWindowDimensions.fullscreen', "\"fullscreen\": Open new windows in full screen mode.")
+		],
 		'default': 'default',
 		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window. By default, a new window will open in the center of the screen with small dimensions. When set to  'inherit', the window will get the same dimensions as the last active one. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'.")
 	},
@@ -236,6 +257,12 @@ if (platform.isWindows || platform.isLinux) {
 	properties['window.menuBarVisibility'] = {
 		'type': 'string',
 		'enum': ['default', 'visible', 'toggle', 'hidden'],
+		'enumDescriptions': [
+			nls.localize('window.menuBarVisibility.default', "\"default\": Menu is only hidden in full screen mode."),
+			nls.localize('window.menuBarVisibility.visible', "\"visible\": Menu is always visible even in full screen mode."),
+			nls.localize('window.menuBarVisibility.toggle', "\"toggle\": Menu is hidden but can be displayed via Alt key."),
+			nls.localize('window.menuBarVisibility.hidden', "\"hidden\": Menu is always hidden.")
+		],
 		'default': 'default',
 		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
 	};

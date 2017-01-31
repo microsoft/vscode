@@ -631,11 +631,15 @@ namespace TaskDescription {
 		testTask?: string;
 	}
 
+	export function isEmpty(value: TaskConfiguration): boolean {
+		return !value || !value.tasks || Object.keys(value.tasks).length === 0;
+	}
+
 	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): TaskConfiguration {
-		let result: IStringDictionary<TaskSystem.TaskDescription> = Object.create(null);
 		if (!tasks) {
-			return { tasks: result };
+			return undefined;
 		}
+		let parsedTasks: IStringDictionary<TaskSystem.TaskDescription> = Object.create(null);
 		let defaultBuildTask: { id: string; exact: number; } = { id: null, exact: -1 };
 		let defaultTestTask: { id: string; exact: number; } = { id: null, exact: -1 };
 		tasks.forEach((externalTask) => {
@@ -682,7 +686,7 @@ namespace TaskDescription {
 			}
 			mergeGlobals(task, globals);
 			fillDefaults(task);
-			result[task.id] = task;
+			parsedTasks[task.id] = task;
 			if (context.isTermnial && task.command && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
 				context.validationStatus.state = ValidationState.Warning;
 				context.logger.log(nls.localize('ConfigurationParser.shellArgs', 'The task {0} is a shell command and specifies arguments. To ensure correct command line quoting please merge args into the command.', task.name));
@@ -710,10 +714,18 @@ namespace TaskDescription {
 		if (defaultTestTask.exact > 0) {
 			testTask = defaultTestTask.id;
 		}
-		return { tasks: result, buildTask, testTask };
+		let result = { tasks: parsedTasks, buildTask, testTask };
+		return isEmpty(result) ? undefined : result;
 	}
 
 	export function merge(target: TaskConfiguration, source: TaskConfiguration): TaskConfiguration {
+		if (isEmpty(source)) {
+			return target;
+		}
+		if (isEmpty(target)) {
+			return source;
+		}
+
 		if (source.tasks) {
 			// Tasks are keyed by ID but we need to merge by name
 			let targetNames: IStringDictionary<string> = Object.create(null);
@@ -921,10 +933,10 @@ class ConfigurationParser {
 		let taskConfig: TaskDescription.TaskConfiguration;
 		if (fileConfig.tasks) {
 			taskConfig = TaskDescription.from(fileConfig.tasks, globals, context);
-			if (globalTasks) {
-				taskConfig = TaskDescription.merge(taskConfig, globalTasks);
-			}
-		} else {
+		}
+		taskConfig = TaskDescription.merge(taskConfig, globalTasks);
+
+		if (TaskDescription.isEmpty(taskConfig)) {
 			let tasks: IStringDictionary<TaskSystem.TaskDescription> = Object.create(null);
 			let buildTask: string;
 			if (globals.command && globals.command.name) {
@@ -944,6 +956,7 @@ class ConfigurationParser {
 				tasks[task.id] = task;
 				buildTask = task.id;
 			}
+
 			taskConfig = {
 				tasks: tasks,
 				buildTask

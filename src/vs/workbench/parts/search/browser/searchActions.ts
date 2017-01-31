@@ -80,7 +80,7 @@ export class ToggleRegexAction extends Action {
 export class ShowNextSearchTermAction extends Action {
 
 	public static ID = 'search.history.showNext';
-	public static LABEL = nls.localize('nextSearchTerm', "Show next search term");
+	public static LABEL = nls.localize('nextSearchTerm', "Show Next Search Term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -96,7 +96,7 @@ export class ShowNextSearchTermAction extends Action {
 export class ShowPreviousSearchTermAction extends Action {
 
 	public static ID = 'search.history.showPrevious';
-	public static LABEL = nls.localize('previousSearchTerm', "Show previous search term");
+	public static LABEL = nls.localize('previousSearchTerm', "Show Previous Search Term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -112,7 +112,7 @@ export class ShowPreviousSearchTermAction extends Action {
 export class FocusNextInputAction extends Action {
 
 	public static ID = 'search.focus.nextInputBox';
-	public static LABEL = nls.localize('focusNextInputBox', "Focus next input box");
+	public static LABEL = nls.localize('focusNextInputBox', "Focus Next Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -127,7 +127,7 @@ export class FocusNextInputAction extends Action {
 export class FocusPreviousInputAction extends Action {
 
 	public static ID = 'search.focus.previousInputBox';
-	public static LABEL = nls.localize('focusPreviousInputBox', "Focus previous input box");
+	public static LABEL = nls.localize('focusPreviousInputBox', "Focus Previous Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);

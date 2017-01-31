@@ -285,7 +285,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	protected _resetValue(newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: editorCommon.ITextSource): void {
 		this._constructLines(newValue);
 		this._increaseVersionId();
 	}
@@ -303,7 +303,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	public equals(other: editorCommon.IRawText): boolean {
+	public equals(other: editorCommon.ITextSource): boolean {
 		this._assertNotDisposed();
 		if (this._BOM !== other.BOM) {
 			return false;
@@ -339,7 +339,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this.setValueFromRawText(rawText);
 	}
 
-	public setValueFromRawText(newValue: editorCommon.IRawText): void {
+	public setValueFromRawText(newValue: editorCommon.ITextSource): void {
 		this._assertNotDisposed();
 		if (newValue === null) {
 			// There's nothing to do
@@ -812,8 +812,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	protected _constructLines(rawText: editorCommon.IRawText): void {
-		const tabSize = rawText.options.tabSize;
+	private _constructLines(rawText: editorCommon.ITextSource): void {
+		const tabSize = this._options.tabSize;
 		let rawLines = rawText.lines;
 		let modelLines: ModelLine[] = [];
 

@@ -294,9 +294,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			const actionDescriptor = actionDescriptors[i];
-			const keys = this.keybindingService.lookupKeybindings(actionDescriptor.id);
-			const keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			const keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			const [keybind] = this.keybindingService.lookupKeybindings(actionDescriptor.id);
+			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
+			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
 
 			if (actionDescriptor.label) {
 
@@ -312,7 +312,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, actionDescriptor));
+					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, actionDescriptor));
 				}
 			}
 		}
@@ -326,9 +326,9 @@ export class CommandsHandler extends QuickOpenHandler {
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
 
-			const keys = this.keybindingService.lookupKeybindings(action.id);
-			const keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			const keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			const [keybind] = this.keybindingService.lookupKeybindings(action.id);
+			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
+			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
 			const label = action.label;
 
 			if (label) {
@@ -338,7 +338,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
 				}
 			}
 		}
@@ -350,12 +350,12 @@ export class CommandsHandler extends QuickOpenHandler {
 		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			const keys = this.keybindingService.lookupKeybindings(action.id);
-			const keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			const keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			const [keybind] = this.keybindingService.lookupKeybindings(action.id);
+			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
+			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
 			const highlights = wordFilter(searchValue, action.label);
 			if (highlights) {
-				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel.join(', '), keyAriaLabel.join(', '), action.label, null, highlights, null, action));
+				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, action.label, null, highlights, null, action));
 			}
 		}
 

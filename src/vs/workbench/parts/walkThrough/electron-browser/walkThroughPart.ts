@@ -34,6 +34,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -129,9 +130,10 @@ export class WalkThroughPart extends BaseEditor {
 							broken: !scrollTarget,
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
 						});
-						if (scrollTarget) {
-							const targetTop = scrollTarget.getBoundingClientRect().top;
-							const containerTop = this.content.getBoundingClientRect().top;
+						const innerContent = this.content.firstElementChild;
+						if (scrollTarget && innerContent) {
+							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
+							const containerTop = innerContent.getBoundingClientRect().top;
 							this.scrollbar.updateState({ scrollTop: targetTop - containerTop });
 						}
 					} else {
@@ -247,6 +249,7 @@ export class WalkThroughPart extends BaseEditor {
 				if (strings.endsWith(input.getResource().path, '.html')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
+					this.updateMarkerClasses();
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
@@ -301,6 +304,23 @@ export class WalkThroughPart extends BaseEditor {
 					};
 					updateHeight(true);
 					this.contentDisposables.push(editor.onDidChangeModelContent(() => updateHeight(false)));
+					this.contentDisposables.push(editor.onDidChangeCursorPosition(e => {
+						const innerContent = this.content.firstElementChild;
+						if (innerContent) {
+							const targetTop = div.getBoundingClientRect().top;
+							const containerTop = innerContent.getBoundingClientRect().top;
+							const lineHeight = editor.getConfiguration().lineHeight;
+							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
+							const lineBottom = lineTop + lineHeight;
+							const scrollTop = this.scrollbar.getScrollTop();
+							const height = this.scrollbar.getHeight();
+							if (scrollTop > lineTop) {
+								this.scrollbar.updateState({ scrollTop: lineTop });
+							} else if (scrollTop < lineBottom - height) {
+								this.scrollbar.updateState({ scrollTop: lineBottom - height });
+							}
+						}
+					}));
 
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
 
@@ -324,12 +344,20 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
+				this.updateMarkerClasses();
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input.getResource());
 			});
+	}
+
+	private updateMarkerClasses() {
+		const innerContent = this.content.firstElementChild;
+		if (SCMPreview.enabled && innerContent) {
+			innerContent.classList.add('scmEnabled');
+		}
 	}
 
 	private style(div: HTMLElement) {

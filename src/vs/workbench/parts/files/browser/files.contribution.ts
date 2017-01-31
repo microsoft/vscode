@@ -232,6 +232,12 @@ configurationRegistry.registerConfiguration({
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],
+			'enumDescriptions': [
+				nls.localize('files.autoSave.off', "\"off\": A dirty file is never automatically saved."),
+				nls.localize('files.autoSave.afterDelay', "\"afterDelay\": A dirty file is automatically saved after the configured \"files.autoSaveDelay\"."),
+				nls.localize('files.autoSave.onFocusChange', "\"onFocusChange\": A dirty file is automatically saved when the editor loses focus."),
+				nls.localize('files.autoSave.onWindowChange', "\"onWindowChange\": A dirty file is automatically saved when the window loses focus.")
+			],
 			'default': AutoSaveConfiguration.OFF,
 			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\" (editor loses focus), \"{3}\" (window loses focus). If set to \"{4}\", you can configure the delay in \"files.autoSaveDelay\".", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},

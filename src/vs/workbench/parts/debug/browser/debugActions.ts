@@ -11,7 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
+import { IDebugService, IConfig, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -126,14 +126,15 @@ export class StartAction extends AbstractDebugAction {
 			return this.commandService.executeCommand('_workbench.startDebug', configName);
 		}
 
-		const configuration = manager.getConfiguration(configName);
+		let configuration = manager.getConfiguration(configName);
 		return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(commandAndType => {
+			configuration = this.massageConfiguartion(configuration);
 			if (commandAndType && commandAndType.command) {
 				return this.commandService.executeCommand(commandAndType.command, configuration || this.getDefaultConfiguration());
 			}
 
 			if (configName) {
-				return this.commandService.executeCommand('_workbench.startDebug', configName);
+				return this.commandService.executeCommand('_workbench.startDebug', configuration || configName);
 			}
 
 			if (this.contextService.getWorkspace()) {
@@ -144,6 +145,10 @@ export class StartAction extends AbstractDebugAction {
 
 	protected getDefaultConfiguration(): any {
 		return {};
+	}
+
+	protected massageConfiguartion(config: IConfig): IConfig {
+		return config;
 	}
 
 	// Disabled if the launch drop down shows the launch config that is already running.
@@ -169,6 +174,14 @@ export class RunAction extends StartAction {
 
 	protected getDefaultConfiguration(): any {
 		return { noDebug: true };
+	}
+
+	protected massageConfiguartion(config: IConfig): IConfig {
+		if (config) {
+			config.noDebug = true;
+		}
+
+		return config;
 	}
 }
 

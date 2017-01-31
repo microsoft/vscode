@@ -1811,7 +1811,7 @@
 		},
 		"type-builtin-literals": {
 			"name": "support.type.builtin.js",
-			"match": "(?<!\\.|\\$)\\b(this|true|false|undefined|null)\\b(?!\\$)"
+			"match": "(?<!\\.|\\$)\\b(this|true|false|undefined|null|object)\\b(?!\\$)"
 		},
 		"type-paren-or-function-parameters": {
 			"name": "meta.type.paren.cover.js",
@@ -1993,6 +1993,10 @@
 				{
 					"name": "storage.modifier.js",
 					"match": "(?<!\\.|\\$)\\b(extends)\\b(?!\\$)"
+				},
+				{
+					"name": "keyword.operator.assignment.js",
+					"match": "\\=(?!>)"
 				},
 				{
 					"include": "#type"
@@ -2249,10 +2253,6 @@
 				{
 					"name": "support.class.node.js",
 					"match": "(?x)(?<!\\.|\\$)\\b(Buffer|EventEmitter|Server|Pipe|Socket|REPLServer|ReadStream|WriteStream|Stream\n  |Inflate|Deflate|InflateRaw|DeflateRaw|GZip|GUnzip|Unzip|Zip)\\b(?!\\$)"
-				},
-				{
-					"name": "support.module.node.js",
-					"match": "(?x)(?<!\\.|\\$)\\b(assert|buffer|child_process|cluster|constants|crypto|dgram|dns|domain|events|fs|http|https|net\n  |os|path|punycode|querystring|readline|repl|stream|string_decoder|timers|tls|tty|url|util|vm|zlib)\\b(?!\\$)"
 				},
 				{
 					"match": "(?x)(?<!\\.|\\$)\\b(process)(?:(\\.)(?:\n  (arch|argv|config|connected|env|execArgv|execPath|exitCode|mainModule|pid|platform|release|stderr|stdin|stdout|title|version|versions)\n  |\n  (abort|chdir|cwd|disconnect|exit|[sg]ete?[gu]id|send|[sg]etgroups|initgroups|kill|memoryUsage|nextTick|umask|uptime|hrtime)\n))?\\b(?!\\$)",
@@ -2874,7 +2874,7 @@
 		"regex": {
 			"patterns": [
 				{
-					"name": "string.regex.js",
+					"name": "string.regexp.js",
 					"begin": "(?<=[=(:,\\[?+!]|return|case|=>|&&|\\|\\||\\*\\/)\\s*(/)(?![/*])(?=(?:[^/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+/(?![/*])[gimy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"1": {
@@ -2897,7 +2897,7 @@
 					]
 				},
 				{
-					"name": "string.regex.js",
+					"name": "string.regexp.js",
 					"begin": "(?<![_$[:alnum:]])/(?![/*])(?=(?:[^/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+/(?![/*])[gimy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
@@ -3706,5 +3706,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/e47681d06a4db46d286c53b14ab0a5ab17e71cd8"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/5c16c3ce4ede362f39fca054d7b25d85b25ecc68"
 }

@@ -144,11 +144,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		// Respond directly to empty search
-		if (!searchValue) {
-			return TPromise.as(new QuickOpenModel([]));
-		}
-
 		let promise: TPromise<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => this.doGetResults(searchValue)); // Run search with delay as needed
