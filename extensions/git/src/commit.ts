@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, languages, Disposable, Uri, TextDocumentChangeEvent, DiagnosticCollection, Diagnostic, DiagnosticSeverity } from 'vscode';
+import { workspace, window, languages, Disposable, Uri, TextDocumentChangeEvent, HoverProvider, Hover, TextEditor, Position, TextDocument, Range, TextEditorDecorationType } from 'vscode';
 import { Model } from './model';
 import { filterEvent } from './util';
 import * as nls from 'vscode-nls';
@@ -16,32 +16,71 @@ function isSCMInput(uri: Uri) {
 	return uri.toString() === 'scm:input';
 }
 
-// TODO@Joao: prevent these diagnostics from showing in global error/warnings
-// TODO@Joao: hover dissapears if editor is scrolled
-export class CommitHandler {
+interface Diagnostic {
+	range: Range;
+	message: string;
+}
 
-	private diagnosticCollection: DiagnosticCollection;
+// TODO@Joao: hover dissapears if editor is scrolled
+export class CommitHandler implements HoverProvider {
+
+	private visibleTextEditorsDisposable: Disposable;
+	private editor: TextEditor;
+	private diagnostics: Diagnostic[] = [];
+	private decorationType: TextEditorDecorationType;
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
+		this.visibleTextEditorsDisposable = window.onDidChangeVisibleTextEditors(this.onVisibleTextEditors, this);
+		this.onVisibleTextEditors(window.visibleTextEditors);
+
+		this.decorationType = window.createTextEditorDecorationType({
+			isWholeLine: true,
+			color: 'rgb(228, 157, 43)',
+			dark: {
+				color: 'rgb(220, 211, 71)'
+			}
+		});
+	}
+
+	private onVisibleTextEditors(editors: TextEditor[]): void {
+		const [editor] = editors.filter(e => isSCMInput(e.document.uri));
+
+		if (!editor) {
+			return;
+		}
+
+		this.visibleTextEditorsDisposable.dispose();
+		this.editor = editor;
+
 		const onDidChange = filterEvent(workspace.onDidChangeTextDocument, e => e.document && isSCMInput(e.document.uri));
 		onDidChange(this.onSCMInputChange, this, this.disposables);
 
-		this.diagnosticCollection = languages.createDiagnosticCollection(localize('git commit message', "Git Commit Message"));
-		this.disposables.push(this.diagnosticCollection);
+		languages.registerHoverProvider({ scheme: 'scm' }, this);
 	}
 
 	private onSCMInputChange(e: TextDocumentChangeEvent): void {
-		const uri = e.document.uri;
-		const firstLineRange = e.document.lineAt(0).range;
-		const firstLineLength = firstLineRange.end.character - firstLineRange.start.character;
+		this.diagnostics = [];
 
-		if (firstLineLength > 80) {
-			const warning = new Diagnostic(firstLineRange, localize('too long', "You should keep the first line under 50 characters.\nYou can use more lines for extra information."), DiagnosticSeverity.Warning);
-			this.diagnosticCollection.set(uri, [warning]);
-		} else {
-			this.diagnosticCollection.clear();
+		const range = e.document.lineAt(0).range;
+		const length = range.end.character - range.start.character;
+
+		if (length > 80) {
+			const message = localize('too long', "You should keep the first line under 50 characters.\n\nYou can use more lines for extra information.");
+			this.diagnostics.push({ range, message });
 		}
+
+		this.editor.setDecorations(this.decorationType, this.diagnostics.map(d => d.range));
+	}
+
+	provideHover(document: TextDocument, position: Position): Hover | undefined {
+		const [decoration] = this.diagnostics.filter(d => d.range.contains(position));
+
+		if (!decoration) {
+			return;
+		}
+
+		return new Hover(decoration.message, decoration.range);
 	}
 
 	dispose(): void {
