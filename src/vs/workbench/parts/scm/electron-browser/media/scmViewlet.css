@@ -9,16 +9,8 @@
 	background-position: center;
 }
 
-.scm-viewlet > .scm-commit-box {
+.scm-viewlet > .scm-editor {
 	padding: 5px 9px 5px 16px;
-}
-
-.scm-viewlet > .scm-commit-box > .monaco-inputbox > .wrapper > .mirror {
-	max-height: 134px;
-}
-
-.scm-viewlet > .scm-commit-box.scroll > .monaco-inputbox > .wrapper > textarea.input {
-	overflow-y: scroll;
 }
 
 .scm-viewlet .monaco-list-row {

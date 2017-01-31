@@ -15,6 +15,7 @@ import { filterEvent, anyEvent } from './util';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
+import { CommitController } from './commit';
 import * as nls from 'vscode-nls';
 
 const localize = nls.config()();
@@ -41,7 +42,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
-	const commandCenter = new CommandCenter(model, outputChannel);
+	const commitHandler = new CommitController(model);
+	const commandCenter = new CommandCenter(model, commitHandler, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
 	const contentProvider = new GitContentProvider(git, rootPath, onGitChange);
 	const checkoutStatusBar = new CheckoutStatusBar(model);
@@ -50,6 +52,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const mergeDecorator = new MergeDecorator(model);
 
 	disposables.push(
+		commitHandler,
 		commandCenter,
 		provider,
 		contentProvider,

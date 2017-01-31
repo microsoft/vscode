@@ -8,6 +8,7 @@
 	"command.unstageAll": "Unstage All",
 	"command.clean": "Clean",
 	"command.cleanAll": "Clean All",
+	"command.commit": "Commit",
 	"command.commitStaged": "Commit Staged",
 	"command.commitStagedSigned": "Commit Staged (Signed Off)",
 	"command.commitAll": "Commit All",
