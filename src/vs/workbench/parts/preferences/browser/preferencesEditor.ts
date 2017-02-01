@@ -171,11 +171,13 @@ export class PreferencesEditor extends BaseEditor {
 		this.disposablesByInput = dispose(this.disposablesByInput);
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, newInput.master, options).then(() => {
 			this.showTotalCount();
-			if (!this.getDefaultPreferencesRenderer()) {
+			const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
+			const editablePreferencesRender = this.getEditablePreferencesRenderer();
+			if (!defaultPreferencesRenderer || !editablePreferencesRender) {
 				return;
 			}
-			this.getDefaultPreferencesRenderer().onFocusPreference(setting => this.getEditablePreferencesRenderer().focusPreference(setting), this.disposablesByInput);
-			this.getDefaultPreferencesRenderer().onClearFocusPreference(setting => this.getEditablePreferencesRenderer().clearFocus(setting), this.disposablesByInput);
+			defaultPreferencesRenderer.onFocusPreference(setting => editablePreferencesRender.focusPreference(setting), this.disposablesByInput);
+			defaultPreferencesRenderer.onClearFocusPreference(setting => editablePreferencesRender.clearFocus(setting), this.disposablesByInput);
 			this.filterPreferences(this.searchWidget.value());
 		});
 	}
@@ -190,11 +192,12 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private filterPreferences(filter: string) {
-		if (!this.getDefaultPreferencesRenderer()) {
-			return;
-		}
 		const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
 		const editablePreferencesRender = this.getEditablePreferencesRenderer();
+		if (!defaultPreferencesRenderer || !editablePreferencesRender) {
+			return;
+		}
+
 		if (filter) {
 			const filterResult = defaultPreferencesRenderer.preferencesModel.filterSettings(filter);
 			defaultPreferencesRenderer.filterPreferences(filterResult);
@@ -214,10 +217,13 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private showTotalCount(): void {
-		if (this.getDefaultPreferencesRenderer()) {
-			const count = this.getCount(this.getDefaultPreferencesRenderer().preferencesModel.settingsGroups);
-			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count), count);
+		const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
+		const editablePreferencesRender = this.getEditablePreferencesRenderer();
+		if (!defaultPreferencesRenderer || !editablePreferencesRender) {
+			return;
 		}
+		const count = this.getCount(defaultPreferencesRenderer.preferencesModel.settingsGroups);
+		this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count), count);
 	}
 
 	private showSearchResultsMessage(count: number): string {
@@ -228,12 +234,14 @@ export class PreferencesEditor extends BaseEditor {
 
 	private focusNextPreference() {
 		const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
-		if (defaultPreferencesRenderer) {
-			const setting = defaultPreferencesRenderer.iterator.next();
-			if (setting) {
-				defaultPreferencesRenderer.focusPreference(setting);
-				this.getEditablePreferencesRenderer().focusPreference(setting);
-			}
+		const editablePreferencesRender = this.getEditablePreferencesRenderer();
+		if (!defaultPreferencesRenderer || !editablePreferencesRender) {
+			return;
+		}
+		const setting = defaultPreferencesRenderer.iterator.next();
+		if (setting) {
+			defaultPreferencesRenderer.focusPreference(setting);
+			editablePreferencesRender.focusPreference(setting);
 		}
 	}
 
