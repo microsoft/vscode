@@ -149,7 +149,7 @@ class LanguageProvider {
 		let config = workspace.getConfiguration(this.id);
 
 		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
-		this.completionItemProvider.updateConfiguration(config);
+		this.completionItemProvider.updateConfiguration();
 
 		let hoverProvider = new HoverProvider(client);
 		let definitionProvider = new DefinitionProvider(client);
@@ -166,7 +166,7 @@ class LanguageProvider {
 		}
 
 		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
-		this.referenceCodeLensProvider.updateConfiguration(config);
+		this.referenceCodeLensProvider.updateConfiguration();
 		if (client.apiVersion.has206Features()) {
 			languages.registerCodeLensProvider(this.description.modeIds, this.referenceCodeLensProvider);
 		}
@@ -252,10 +252,10 @@ class LanguageProvider {
 		let config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
 		if (this.completionItemProvider) {
-			this.completionItemProvider.updateConfiguration(config);
+			this.completionItemProvider.updateConfiguration();
 		}
 		if (this.referenceCodeLensProvider) {
-			this.referenceCodeLensProvider.updateConfiguration(config);
+			this.referenceCodeLensProvider.updateConfiguration();
 		}
 		if (this.formattingProvider) {
 			this.formattingProvider.updateConfiguration(config);
@@ -388,7 +388,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	/* internal */ populateService(): void {
 		// See https://github.com/Microsoft/TypeScript/issues/5530
-		workspace.saveAll(false).then((value) => {
+		workspace.saveAll(false).then(_ => {
 			Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].reInitialize());
 		});
 	}
@@ -462,7 +462,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 					diagnostic.source = language.diagnosticSource;
 					language.configFileDiagnosticsReceived(body.configFile, [diagnostic]);
 				}
-			}, (error) => {
+			}, _error => {
 				language.configFileDiagnosticsReceived(body.configFile, [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
 			});
 		}

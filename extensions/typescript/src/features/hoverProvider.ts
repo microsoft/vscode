@@ -34,6 +34,7 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 					[{ language: 'typescript', value: data.displayString }, data.documentation],
 					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
 			}
+			return undefined;
 		}, (err) => {
 			this.client.error(`'quickinfo' request failed with error.`, err);
 			return null;

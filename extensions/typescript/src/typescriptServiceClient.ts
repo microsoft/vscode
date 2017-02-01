@@ -663,6 +663,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						if (item && item.id === MessageAction.reportIssue) {
 							return commands.executeCommand('workbench.action.reportIssues');
 						}
+						return undefined;
 					});
 				}
 			}
