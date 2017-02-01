@@ -721,9 +721,9 @@ export class ModelLine {
 
 	public getMarkers(): LineMarker[] {
 		if (!this._markers) {
-			return [];
+			return null;
 		}
-		return this._markers.slice(0);
+		return this._markers;
 	}
 
 	public updateLineNumber(markersTracker: MarkersTracker, newLineNumber: number): void {

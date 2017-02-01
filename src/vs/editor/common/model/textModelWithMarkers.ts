@@ -137,14 +137,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		return Object.keys(this._markerIdToMarker).length;
 	}
 
-	protected _getLineMarkers(lineNumber: number): LineMarker[] {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		return this._lines[lineNumber - 1].getMarkers();
-	}
-
 	_removeMarker(id: string): void {
 		let marker = this._markerIdToMarker[id];
 		if (!marker) {
