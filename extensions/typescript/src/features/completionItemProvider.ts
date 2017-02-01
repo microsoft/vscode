@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace, ProviderResult } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -145,7 +145,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		this.config = { useCodeSnippetsOnMethodSuggest: false };
 	}
 
-	public updateConfiguration(config: WorkspaceConfiguration): void {
+	public updateConfiguration(): void {
 		// Use shared setting for js and ts
 		let typeScriptConfig = workspace.getConfiguration('typescript');
 		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
@@ -217,41 +217,43 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem> {
-		if (item instanceof MyCompletionItem) {
-			const filepath = this.client.normalizePath(item.document.uri);
-			if (!filepath) {
-				return null;
-			}
-			let args: CompletionDetailsRequestArgs = {
-				file: filepath,
-				line: item.position.line + 1,
-				offset: item.position.character + 1,
-				entryNames: [item.label]
-			};
-			return this.client.execute('completionEntryDetails', args, token).then((response) => {
-				const details = response.body;
-				if (!details || !details.length || !details[0]) {
-					return item;
-				}
-				const detail = details[0];
-				item.documentation = Previewer.plain(detail.documentation);
-				item.detail = Previewer.plain(detail.displayParts);
-
-				if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
-					return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
-						if (shouldCompleteFunction) {
-							item.insertText = this.snippetForFunctionCall(detail);
-						}
-						return item;
-					});
-				}
-
-				return item;
-			}, (err) => {
-				this.client.error(`'completionEntryDetails' request failed with error.`, err);
-				return item;
-			});
+		if (!(item instanceof MyCompletionItem)) {
+			return null;
 		}
+
+		const filepath = this.client.normalizePath(item.document.uri);
+		if (!filepath) {
+			return null;
+		}
+		let args: CompletionDetailsRequestArgs = {
+			file: filepath,
+			line: item.position.line + 1,
+			offset: item.position.character + 1,
+			entryNames: [item.label]
+		};
+		return this.client.execute('completionEntryDetails', args, token).then((response) => {
+			const details = response.body;
+			if (!details || !details.length || !details[0]) {
+				return item;
+			}
+			const detail = details[0];
+			item.documentation = Previewer.plain(detail.documentation);
+			item.detail = Previewer.plain(detail.displayParts);
+
+			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
+				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
+					if (shouldCompleteFunction) {
+						item.insertText = this.snippetForFunctionCall(detail);
+					}
+					return item;
+				});
+			}
+
+			return item;
+		}, (err) => {
+			this.client.error(`'completionEntryDetails' request failed with error.`, err);
+			return item;
+		});
 	}
 
 	private isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
