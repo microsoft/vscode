@@ -4,7 +4,7 @@
   "private": true,
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "typescript": "^2.0.10"
+    "typescript": "^2.1.5"
   },
   "scripts": {
     "postinstall": "node ./postinstall"
