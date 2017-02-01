@@ -372,7 +372,6 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 // Explorer Controller
 export class FileController extends DefaultController {
-	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
 
 	private contributedContextMenu: IMenu;
@@ -391,34 +390,9 @@ export class FileController extends DefaultController {
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
-		this.didCatchEnterDown = false;
-
-		// Open
-		this.downKeyBindingDispatcher.set(isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, (t, e) => this.onEnterDown(t, e));
-		this.upKeyBindingDispatcher.set(isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, (t, e) => this.onEnterUp(t, e));
-
-		// Open to the side
-		if (isMacintosh) {
-			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, (t, e) => this.onModifierEnterUp(t, e)); // Mac: somehow Cmd+Enter does not work
-		} else {
-			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (t, e) => this.onModifierEnterUp(t, e));
-		}
-
-		// Rename
-		this.downKeyBindingDispatcher.set(isMacintosh ? KeyCode.Enter : KeyCode.F2, (t, e) => this.onF2(t, e));
-
 		// Copy / Paste
 		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, (t, e) => this.onCopy(t, e));
 		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, (t, e) => this.onPaste(t, e));
-
-		// Delete
-		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (t, e) => this.onDelete(t, e));
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace, (t, e) => this.onDelete(t, e));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, (t, e) => this.onDelete(t, e));
-			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, (t, e) => this.onDelete(t, e));
-		}
 
 		this.state = state;
 	}
@@ -529,63 +503,6 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onEnterDown(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getHighlight()) {
-			return false;
-		}
-
-		const payload = { origin: 'keyboard' };
-
-		const stat: FileStat = tree.getFocus();
-		if (stat) {
-
-			// Directory: Toggle expansion
-			if (stat.isDirectory) {
-				tree.toggleExpansion(stat);
-			}
-
-			// File: Open
-			else {
-				tree.setFocus(stat, payload);
-				this.openEditor(stat, false, false);
-			}
-		}
-
-		this.didCatchEnterDown = true;
-
-		return true;
-	}
-
-	private onEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
-		if (!this.didCatchEnterDown || tree.getHighlight()) {
-			return false;
-		}
-
-		const stat: FileStat = tree.getFocus();
-		if (stat && !stat.isDirectory) {
-			this.openEditor(stat, false, false);
-		}
-
-		this.didCatchEnterDown = false;
-
-		return true;
-	}
-
-	private onModifierEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getHighlight()) {
-			return false;
-		}
-
-		const stat: FileStat = tree.getFocus();
-		if (stat && !stat.isDirectory) {
-			this.openEditor(stat, false, true);
-		}
-
-		this.didCatchEnterDown = false;
-
-		return true;
-	}
-
 	private onCopy(tree: ITree, event: IKeyboardEvent): boolean {
 		const stat: FileStat = tree.getFocus();
 		if (stat) {
@@ -617,29 +534,6 @@ export class FileController extends DefaultController {
 
 			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
 		}
-	}
-
-	private onF2(tree: ITree, event: IKeyboardEvent): boolean {
-		const stat: FileStat = tree.getFocus();
-
-		if (stat) {
-			this.runAction(tree, stat, 'workbench.files.action.triggerRename').done();
-
-			return true;
-		}
-
-		return false;
-	}
-
-	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const stat: FileStat = tree.getFocus();
-		if (stat) {
-			this.runAction(tree, stat, 'workbench.files.action.moveFileToTrash', event).done();
-
-			return true;
-		}
-
-		return false;
 	}
 
 	private runAction(tree: ITree, stat: FileStat, id: string, event?: IKeyboardEvent): TPromise<any> {

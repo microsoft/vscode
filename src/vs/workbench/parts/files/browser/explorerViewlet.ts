@@ -292,6 +292,10 @@ export class ExplorerViewlet extends Viewlet {
 		return this.actionRunner;
 	}
 
+	public getViewletState(): FileViewletState {
+		return this.viewletState;
+	}
+
 	public getOptimalWidth(): number {
 		const additionalMargin = 16;
 		const openedEditorsViewWidth = this.openEditorsVisible ? this.openEditorsView.getOptimalWidth() : 0;
