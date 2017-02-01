@@ -5,15 +5,15 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
-import { IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo } from 'vs/editor/common/editorCommon';
+import { IScrollEvent, IConfiguration, IConfigurationChangedEvent, EditorLayoutInfo } from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { IVisibleLineData, ViewLayer } from 'vs/editor/browser/view/viewLayer';
+import { IVisibleLine, ViewLayer } from 'vs/editor/browser/view/viewLayer';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
-import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
@@ -75,7 +75,7 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 	// ----- end event handlers
 
 	_createLine(): ViewOverlayLine {
-		return new ViewOverlayLine(this._context, this._dynamicOverlays);
+		return new ViewOverlayLine(this._context.configuration, this._dynamicOverlays);
 	}
 
 
@@ -99,21 +99,21 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 	}
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
-		super._renderLines(ctx.linesViewportData);
+		super._renderLines(ctx.viewportData);
 	}
 }
 
-export class ViewOverlayLine implements IVisibleLineData {
+export class ViewOverlayLine implements IVisibleLine {
 
-	private _context: ViewContext;
+	private _configuration: IConfiguration;
 	private _dynamicOverlays: DynamicViewOverlay[];
 	private _domNode: FastDomNode;
 	private _renderPieces: string;
 	private _lineHeight: number;
 
-	constructor(context: ViewContext, dynamicOverlays: DynamicViewOverlay[]) {
-		this._context = context;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
+		this._configuration = configuration;
+		this._lineHeight = this._configuration.editor.lineHeight;
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
@@ -130,23 +130,23 @@ export class ViewOverlayLine implements IVisibleLineData {
 		this._domNode = createFastDomNode(domNode);
 	}
 
-	onContentChanged(): void {
+	public onContentChanged(): void {
 		// Nothing
 	}
-	onTokensChanged(): void {
+	public onTokensChanged(): void {
 		// Nothing
 	}
-	onConfigurationChanged(e: IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
 		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
+			this._lineHeight = this._configuration.editor.lineHeight;
 		}
 	}
 
-	shouldUpdateHTML(startLineNumber: number, lineNumber: number, inlineDecorations: InlineDecoration[]): boolean {
+	public shouldUpdateHTML(lineNumber: number, viewportData: ViewportData): boolean {
 		let newPieces = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			let dynamicOverlay = this._dynamicOverlays[i];
-			newPieces += dynamicOverlay.render(startLineNumber, lineNumber);
+			newPieces += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
 		}
 
 		let piecesEqual = (this._renderPieces === newPieces);
@@ -158,17 +158,17 @@ export class ViewOverlayLine implements IVisibleLineData {
 		return !piecesEqual;
 	}
 
-	getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void {
+	public getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void {
 		out.push(`<div lineNumber="${lineNumber}" style="position:absolute;top:${deltaTop}px;width:100%;height:${this._lineHeight}px;">`);
 		out.push(this.getLineInnerHTML(lineNumber));
 		out.push(`</div>`);
 	}
 
-	getLineInnerHTML(lineNumber: number): string {
+	private getLineInnerHTML(lineNumber: number): string {
 		return this._renderPieces;
 	}
 
-	layoutLine(lineNumber: number, deltaTop: number): void {
+	public layoutLine(lineNumber: number, deltaTop: number): void {
 		this._domNode.setLineNumber(String(lineNumber));
 		this._domNode.setTop(deltaTop);
 		this._domNode.setHeight(this._lineHeight);

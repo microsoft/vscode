@@ -11,7 +11,7 @@ import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ScrollManager } from 'vs/editor/browser/viewLayout/scrollManager';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
 import { ILayoutProvider as IRenderingLayoutProvider } from 'vs/editor/common/view/renderingContext';
 
@@ -98,7 +98,7 @@ export interface IVerticalLayoutProvider {
 	/**
 	 * Compute the lines that need to be rendered in the current viewport position.
 	 */
-	getLinesViewportData(): ViewLinesViewportData;
+	getLinesViewportData(): IPartialViewLinesViewportData;
 
 }
 
@@ -123,7 +123,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 		this.configuration.setMaxLineNumber(this.model.getMaxLineNumber());
 
-		this.linesLayout = new LinesLayout(configuration, model);
+		this.linesLayout = new LinesLayout(configuration, this.model.getLineCount());
 
 		this._updateHeight();
 	}
@@ -144,7 +144,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	}
 
 	public onModelFlushed(): boolean {
-		this.linesLayout.onModelFlushed();
+		this.linesLayout.onModelFlushed(this.model.getLineCount());
 		this.updateLineCount();
 		this._updateHeight();
 		return false;
@@ -278,7 +278,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getWhitespaceAtVerticalOffset(verticalOffset: number): editorCommon.IViewWhitespaceViewportData {
 		return this.linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
-	public getLinesViewportData(): ViewLinesViewportData {
+	public getLinesViewportData(): IPartialViewLinesViewportData {
 		return this.linesLayout.getLinesViewportData(this.getCurrentViewport());
 	}
 	public getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[] {
