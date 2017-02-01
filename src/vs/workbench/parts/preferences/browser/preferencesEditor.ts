@@ -535,13 +535,11 @@ export abstract class PreferencesEditorContribution<T> extends Disposable implem
 		const model = this.editor.getModel();
 		this.disposePreferencesRenderer();
 		if (model) {
-			this.preferencesService.resolvePreferencesEditorModel(model.uri)
-				.then(editorModel => {
-					if (editorModel) {
-						this.preferencesRenderer = this.createPreferencesRenderer(editorModel);
-						if (this.preferencesRenderer) {
-							this.preferencesRenderer.render();
-						}
+			this.createPreferencesRenderer()
+				.then(preferencesRenderer => {
+					this.preferencesRenderer = preferencesRenderer;
+					if (this.preferencesRenderer) {
+						this.preferencesRenderer.render();
 					}
 				});
 		}
@@ -551,7 +549,7 @@ export abstract class PreferencesEditorContribution<T> extends Disposable implem
 		return this.preferencesRenderer;
 	}
 
-	protected abstract createPreferencesRenderer(editorModel: IPreferencesEditorModel<any>): IPreferencesRenderer<T>
+	protected abstract createPreferencesRenderer(): TPromise<IPreferencesRenderer<T>>
 	abstract getId(): string;
 
 	private disposePreferencesRenderer() {
@@ -571,11 +569,14 @@ export class DefaultSettingsEditorContribution extends PreferencesEditorContribu
 
 	static ID: string = 'editor.contrib.defaultsettings';
 
-	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel<ISetting>): IPreferencesRenderer<ISetting> {
-		if (editorModel instanceof DefaultSettingsEditorModel) {
-			return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
-		}
-		return null;
+	protected createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
+		return this.preferencesService.resolvePreferencesEditorModel(this.editor.getModel().uri)
+			.then(editorModel => {
+				if (editorModel instanceof DefaultSettingsEditorModel) {
+					return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
+				}
+				return null;
+			});
 	}
 
 	getId(): string {
@@ -592,24 +593,25 @@ export class SettingsEditorContribution extends PreferencesEditorContribution<IS
 		return SettingsEditorContribution.ID;
 	}
 
-	protected createPreferencesRenderer(editorModel: IPreferencesEditorModel<ISetting>): IPreferencesRenderer<ISetting> {
-		if (editorModel instanceof SettingsEditorModel) {
-			if (ConfigurationTarget.USER === editorModel.configurationTarget) {
-				return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, editorModel);
-			}
-			return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, editorModel);
-		}
-		return null;
+	protected createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
+		return TPromise.join<any>([this.preferencesService.createDefaultPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.resolvePreferencesEditorModel(this.editor.getModel().uri)])
+			.then(([defaultSettingsModel, settingsModel]) => {
+				if (settingsModel instanceof SettingsEditorModel) {
+					if (ConfigurationTarget.USER === settingsModel.configurationTarget) {
+						return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+					}
+					return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+				}
+				return null;
+			});
 	}
 }
 
 class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
-	protected initializationPromise: TPromise<void>;
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
 	private highlightPreferencesRenderer: HighlightPreferencesRenderer;
-	private defaultSettingsModel: DefaultSettingsEditorModel;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 
 	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
@@ -623,7 +625,7 @@ class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<IS
 
 	private filterResult: IFilterResult;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, private defaultPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
@@ -633,7 +635,9 @@ class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<IS
 		super();
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightPreferencesRenderer = this._register(instantiationService.createInstance(HighlightPreferencesRenderer, editor));
-		this.initializationPromise = this.initialize();
+		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultPreferencesModel, this.settingHighlighter));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
+		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
 
 	public get iterator(): IIterator<ISetting> {
@@ -641,23 +645,10 @@ class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<IS
 	}
 
 	public render(): void {
-		this.initializationPromise.then(() => {
-			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
-			if (this.filterResult) {
-				this.filterPreferences(this.filterResult);
-			}
-		});
-	}
-
-	private initialize(): TPromise<void> {
-		return this.preferencesService.createDefaultPreferencesEditorModel(this.preferencesService.defaultSettingsResource)
-			.then(defaultSettingsModel => {
-				this.defaultSettingsModel = <DefaultSettingsEditorModel>defaultSettingsModel;
-				this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => defaultSettingsModel, this.settingHighlighter));
-				this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
-				this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
-				return null;
-			});
+		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
+		if (this.filterResult) {
+			this.filterPreferences(this.filterResult);
+		}
 	}
 
 	public updatePreference(key: string, value: any, source: ISetting): void {
@@ -703,7 +694,7 @@ class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<IS
 		this.filterResult = filterResult;
 		this.highlightPreferencesRenderer.render([]);
 		this.settingHighlighter.clear(true);
-		if (this.defaultSettingsModel && filterResult) {
+		if (this.defaultPreferencesModel && filterResult) {
 			const settings = distinct(filterResult.filteredGroups.reduce((settings: ISetting[], settingsGroup: ISettingsGroup) => {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
@@ -737,14 +728,14 @@ class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPrefere
 
 	private untrustedSettingRenderer: UnTrustedWorkspaceSettingsRenderer;
 
-	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
+	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, defaultPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, preferencesService, telemetryService, configurationEditingService, messageService, instantiationService);
+		super(editor, preferencesModel, defaultPreferencesModel, preferencesService, telemetryService, configurationEditingService, messageService, instantiationService);
 		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnTrustedWorkspaceSettingsRenderer, editor, preferencesModel));
 	}
 
