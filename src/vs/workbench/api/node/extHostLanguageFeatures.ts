@@ -101,19 +101,15 @@ class CodeLensAdapter {
 }
 
 class DefinitionAdapter {
-
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.DefinitionProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.DefinitionProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private documents: ExtHostDocuments,
+		private provider: vscode.DefinitionProvider)
+	{ }
 
 	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
-		let doc = this._documents.getDocumentData(resource).document;
+		let doc = this.documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
-		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
+		return asWinJsPromise(token => this.provider.provideDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
 			} else if (value) {
@@ -125,19 +121,15 @@ class DefinitionAdapter {
 }
 
 class ImplementationAdapter {
-
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.ImplementationProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.ImplementationProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private documents: ExtHostDocuments,
+		private provider: vscode.ImplementationProvider)
+	{ }
 
 	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
-		let doc = this._documents.getDocumentData(resource).document;
+		let doc = this.documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
-		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(value => {
+		return asWinJsPromise(token => this.provider.provideImplementation(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
 			} else if (value) {
@@ -147,6 +139,26 @@ class ImplementationAdapter {
 		});
 	}
 }
+
+class TypeDefinitionAdapter {
+	constructor(
+		private documents: ExtHostDocuments,
+		private provider: vscode.TypeDefinitionProvider)
+	{ }
+
+	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+		const doc = this.documents.getDocumentData(resource).document;
+		const pos = TypeConverters.toPosition(position);
+		return asWinJsPromise(token => this.provider.provideTypeDefinition(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(TypeConverters.location.from);
+			} else if (value) {
+				return TypeConverters.location.from(value);
+			}
+		});
+	}
+}
+
 
 class HoverAdapter {
 
@@ -650,7 +662,7 @@ class LinkProviderAdapter {
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter;
 
 export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
@@ -758,6 +770,17 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	$provideImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
 		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(resource, position));
+	}
+
+	registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new TypeDefinitionAdapter(this._documents, provider));
+		this._proxy.$registerTypeDefinitionSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
+		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(resource, position));
 	}
 
 	// --- extra info
