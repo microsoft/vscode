@@ -103,9 +103,9 @@ export class PreferencesEditor extends BaseEditor {
 	private searchWidget: SearchWidget;
 	private settingsTabsWidget: SettingsTabsWidget;
 	private sideBySidePreferencesWidget: SideBySidePreferencesWidget;
+	private preferencesRenderers: PreferencesRenderers;
 
 	private delayedFilterLogging: Delayer<void>;
-	private disposablesByInput: IDisposable[] = [];
 
 	private latestEmptyFilters: string[] = [];
 
@@ -128,19 +128,19 @@ export class PreferencesEditor extends BaseEditor {
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer));
 		this._register(this.searchWidget.onDidChange(value => this.filterPreferences(value.trim())));
-		this._register(this.searchWidget.onEnter(value => this.focusNextPreference()));
+		this._register(this.searchWidget.onEnter(value => this.preferencesRenderers.focusNextPreference()));
 
 		this.settingsTabsWidget = this._register(this.instantiationService.createInstance(SettingsTabsWidget, this.headerContainer));
 		this._register(this.settingsTabsWidget.onSwitch(() => this.switchSettings()));
 
 		const editorsContainer = DOM.append(parentElement, DOM.$('.preferences-editors-container'));
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
+		this.preferencesRenderers = this._register(new PreferencesRenderers());
 	}
 
 	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
 		const oldInput = <PreferencesEditorInput>this.input;
-		return super.setInput(newInput, options)
-			.then(() => this.updateInput(oldInput, newInput, options));
+		return super.setInput(newInput, options).then(() => this.updateInput(oldInput, newInput, options));
 	}
 
 	public layout(dimension: Dimension): void {
@@ -151,8 +151,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	public getControl(): IEditorControl {
-		const editablePreferencesEditor = this.sideBySidePreferencesWidget.getEditablePreferencesEditor();
-		return editablePreferencesEditor ? editablePreferencesEditor.getControl() : null;
+		return this.sideBySidePreferencesWidget.getControl();
 	}
 
 	public focus(): void {
@@ -168,16 +167,9 @@ export class PreferencesEditor extends BaseEditor {
 		const editablePreferencesUri = toResource(newInput.master);
 		this.settingsTabsWidget.show(editablePreferencesUri.toString() === this.preferencesService.userSettingsResource.toString() ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
 
-		this.disposablesByInput = dispose(this.disposablesByInput);
-		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, newInput.master, options).then(() => {
-			this.showTotalCount();
-			const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
-			const editablePreferencesRender = this.getEditablePreferencesRenderer();
-			if (!defaultPreferencesRenderer || !editablePreferencesRender) {
-				return;
-			}
-			defaultPreferencesRenderer.onFocusPreference(setting => editablePreferencesRender.focusPreference(setting), this.disposablesByInput);
-			defaultPreferencesRenderer.onClearFocusPreference(setting => editablePreferencesRender.clearFocus(setting), this.disposablesByInput);
+		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
+			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
 			this.filterPreferences(this.searchWidget.value());
 		});
 	}
@@ -192,38 +184,13 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private filterPreferences(filter: string) {
-		const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
-		const editablePreferencesRender = this.getEditablePreferencesRenderer();
-		if (!defaultPreferencesRenderer || !editablePreferencesRender) {
-			return;
+		const count = this.preferencesRenderers.filterPreferences(filter);
+		const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
+		this.searchWidget.showMessage(message, count);
+		if (count === 0) {
+			this.latestEmptyFilters.push(filter);
 		}
-
-		if (filter) {
-			const filterResult = defaultPreferencesRenderer.preferencesModel.filterSettings(filter);
-			defaultPreferencesRenderer.filterPreferences(filterResult);
-			editablePreferencesRender.filterPreferences(filterResult);
-			const count = this.getCount(filterResult.filteredGroups);
-			this.searchWidget.showMessage(this.showSearchResultsMessage(count), count);
-
-			if (count === 0) {
-				this.latestEmptyFilters.push(filter);
-			}
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
-		} else {
-			defaultPreferencesRenderer.filterPreferences(null);
-			editablePreferencesRender.filterPreferences(null);
-			this.showTotalCount();
-		}
-	}
-
-	private showTotalCount(): void {
-		const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
-		const editablePreferencesRender = this.getEditablePreferencesRenderer();
-		if (!defaultPreferencesRenderer || !editablePreferencesRender) {
-			return;
-		}
-		const count = this.getCount(defaultPreferencesRenderer.preferencesModel.settingsGroups);
-		this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count), count);
+		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
 	}
 
 	private showSearchResultsMessage(count: number): string {
@@ -232,41 +199,15 @@ export class PreferencesEditor extends BaseEditor {
 				nls.localize('settingsFound', "{0} Settings matched", count);
 	}
 
-	private focusNextPreference() {
-		const defaultPreferencesRenderer = this.getDefaultPreferencesRenderer();
-		const editablePreferencesRender = this.getEditablePreferencesRenderer();
-		if (!defaultPreferencesRenderer || !editablePreferencesRender) {
-			return;
-		}
-		const setting = defaultPreferencesRenderer.iterator.next();
-		if (setting) {
-			defaultPreferencesRenderer.focusPreference(setting);
-			editablePreferencesRender.focusPreference(setting);
-		}
-	}
-
-	private getDefaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
-		const detailsEditor = this.sideBySidePreferencesWidget.getDefaultPreferencesEditor();
-		if (detailsEditor) {
-			return (<CodeEditor>this.sideBySidePreferencesWidget.getDefaultPreferencesEditor().getControl()).getContribution<PreferencesEditorContribution<ISetting>>(DefaultSettingsEditorContribution.ID).getPreferencesRenderer();
-		}
-		return null;
-	}
-
-	private getEditablePreferencesRenderer(): IPreferencesRenderer<ISetting> {
-		if (this.sideBySidePreferencesWidget.getEditablePreferencesEditor()) {
-			return (<CodeEditor>this.sideBySidePreferencesWidget.getEditablePreferencesEditor().getControl()).getContribution<PreferencesEditorContribution<ISetting>>(SettingsEditorContribution.ID).getPreferencesRenderer();
-		}
-		return null;
-	}
-
 	private reportFilteringUsed(filter: string): void {
-		let data = {
-			filter,
-			emptyFilters: this.getLatestEmptyFiltersForTelemetry()
-		};
-		this.latestEmptyFilters = [];
-		this.telemetryService.publicLog('defaultSettings.filter', data);
+		if (filter) {
+			let data = {
+				filter,
+				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
+			};
+			this.latestEmptyFilters = [];
+			this.telemetryService.publicLog('defaultSettings.filter', data);
+		}
 	}
 
 	/**
@@ -277,8 +218,63 @@ export class PreferencesEditor extends BaseEditor {
 		let cumulativeSize = 0;
 		return this.latestEmptyFilters.filter(filterText => (cumulativeSize += filterText.length) <= 8192);
 	}
+}
 
-	private getCount(settingsGroups: ISettingsGroup[]): number {
+class PreferencesRenderers extends Disposable {
+
+	private _defaultPreferencesRenderer: IPreferencesRenderer<ISetting>;
+	private _editablePreferencesRenderer: IPreferencesRenderer<ISetting>;
+
+	private _disposables: IDisposable[] = [];
+
+	public get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
+		return this._defaultPreferencesRenderer;
+	}
+
+	public set defaultPreferencesRenderer(defaultPreferencesRenderer: IPreferencesRenderer<ISetting>) {
+		this._defaultPreferencesRenderer = defaultPreferencesRenderer;
+
+		this._disposables = dispose(this._disposables);
+		this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this._disposables);
+		this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this._disposables);
+	}
+
+	public set editablePreferencesRenderer(editableSettingsRenderer: IPreferencesRenderer<ISetting>) {
+		this._editablePreferencesRenderer = editableSettingsRenderer;
+	}
+
+	public filterPreferences(filter: string): number {
+		const filterResult = filter ? this._defaultPreferencesRenderer.preferencesModel.filterSettings(filter) : null;
+		this._filterPreferences(filterResult, this._defaultPreferencesRenderer);
+		this._filterPreferences(filterResult, this._editablePreferencesRenderer);
+		return this._getCount(filterResult ? filterResult.filteredGroups : (this._defaultPreferencesRenderer ? this._defaultPreferencesRenderer.preferencesModel.settingsGroups : []));
+	}
+
+	public focusNextPreference() {
+		const setting = this._defaultPreferencesRenderer.iterator.next();
+		this._focusPreference(setting, this._defaultPreferencesRenderer);
+		this._focusPreference(setting, this._editablePreferencesRenderer);
+	}
+
+	private _filterPreferences(filterResult: IFilterResult, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+		if (preferencesRenderer) {
+			preferencesRenderer.filterPreferences(filterResult);
+		}
+	}
+
+	private _focusPreference(preference: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+		if (preference && preferencesRenderer) {
+			preferencesRenderer.focusPreference(preference);
+		}
+	}
+
+	private _clearFocus(preference: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+		if (preference && preferencesRenderer) {
+			preferencesRenderer.clearFocus(preference);
+		}
+	}
+
+	private _getCount(settingsGroups: ISettingsGroup[]): number {
 		let count = 0;
 		for (const group of settingsGroups) {
 			for (const section of group.sections) {
@@ -287,9 +283,14 @@ export class PreferencesEditor extends BaseEditor {
 		}
 		return count;
 	}
+
+	public dispose(): void {
+		dispose(this._disposables);
+		super.dispose();
+	}
 }
 
-export class SideBySidePreferencesWidget extends Widget {
+class SideBySidePreferencesWidget extends Widget {
 
 	private dimension: Dimension;
 
@@ -319,13 +320,18 @@ export class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
 	}
 
-	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
 		return this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput)
 			.then(() => {
 				this.dolayout(this.sash.getVerticalSashLeft());
 				return TPromise.join([this.defaultPreferencesEditor.updateInput(defaultPreferencesEditorInput, options, toResource(editablePreferencesEditorInput), this.editablePreferencesEditor),
 				this.editablePreferencesEditor.setInput(editablePreferencesEditorInput, options)])
-					.then(() => null);
+					.then(() => {
+						return {
+							defaultPreferencesRenderer: (<CodeEditor>this.defaultPreferencesEditor.getControl()).getContribution<DefaultSettingsEditorContribution>(DefaultSettingsEditorContribution.ID).getPreferencesRenderer(),
+							editablePreferencesRenderer: (<CodeEditor>this.editablePreferencesEditor.getControl()).getContribution<SettingsEditorContribution>(SettingsEditorContribution.ID).getPreferencesRenderer()
+						};
+					});
 			});
 	}
 
@@ -340,12 +346,8 @@ export class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	public getEditablePreferencesEditor(): IEditor {
-		return this.editablePreferencesEditor;
-	}
-
-	public getDefaultPreferencesEditor(): DefaultPreferencesEditor {
-		return this.defaultPreferencesEditor;
+	public getControl(): IEditorControl {
+		return this.editablePreferencesEditor ? this.editablePreferencesEditor.getControl() : null;
 	}
 
 	public clearInput(): void {
