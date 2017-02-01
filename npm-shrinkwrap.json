@@ -89,8 +89,8 @@
     },
     "emmet": {
       "version": "1.3.1",
-      "from": "emmet@1.3.1",
-      "resolved": "https://registry.npmjs.org/emmet/-/emmet-1.3.1.tgz"
+      "from": "ramya-rao-a/emmet#vscode",
+      "resolved": "git+https://github.com/ramya-rao-a/emmet.git#1d75a37a8c75795e103dae72b897eb0790c523ae"
     },
     "expand-brackets": {
       "version": "0.1.5",
