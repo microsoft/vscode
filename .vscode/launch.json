@@ -66,6 +66,16 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"name": "Attach to Search process",
+			"port": 7890,
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
 			"name": "Attach to CLI Process",
 			"protocol": "legacy",
 			"port": 5874,

@@ -35,7 +35,7 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
 import { MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { getExcludes, ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { getExcludes, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -988,10 +988,7 @@ export class SearchViewlet extends Viewlet {
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
 		this.viewModel.cancelSearch();
 
-		// Progress total is 100.0% for more progress bar granularity
-		let progressTotal = 1000;
-		let progressRunner = this.progressService.show(progressTotal);
-		let progressWorked = 0;
+		let progressRunner = this.progressService.show(/*infinite=*/true);
 
 		this.loading = true;
 		this.searchWidget.searchInput.clearMessage();
@@ -1015,14 +1012,7 @@ export class SearchViewlet extends Viewlet {
 		let isDone = false;
 		let onComplete = (completed?: ISearchComplete) => {
 			isDone = true;
-
-			// Complete up to 100% as needed
-			if (completed) {
-				progressRunner.worked(progressTotal - progressWorked);
-				setTimeout(() => progressRunner.done(), 200);
-			} else {
-				progressRunner.done();
-			}
+			progressRunner.done();
 
 			this.onSearchResultsChanged().then(() => autoExpand(true));
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
@@ -1126,46 +1116,13 @@ export class SearchViewlet extends Viewlet {
 			}
 		};
 
-		let total: number = 0;
-		let worked: number = 0;
 		let visibleMatches = 0;
-		let onProgress = (p: ISearchProgressItem) => {
-			// Progress
-			if (p.total) {
-				total = p.total;
-			}
-			if (p.worked) {
-				worked = p.worked;
-			}
-		};
 
 		// Handle UI updates in an interval to show frequent progress and results
 		let uiRefreshHandle = setInterval(() => {
 			if (isDone) {
 				window.clearInterval(uiRefreshHandle);
 				return;
-			}
-
-			// Progress bar update
-			let fakeProgress = true;
-			if (total > 0 && worked > 0) {
-				let ratio = Math.round((worked / total) * progressTotal);
-				if (ratio > progressWorked) { // never show less progress than what we have already
-					progressRunner.worked(ratio - progressWorked);
-					progressWorked = ratio;
-					fakeProgress = false;
-				}
-			}
-
-			// Fake progress up to 90%, or when actual progress beats it
-			const fakeMax = 900;
-			const fakeMultiplier = 12;
-			if (fakeProgress && progressWorked < fakeMax) {
-				// Linearly decrease the rate of fake progress.
-				// 1 is the smallest allowed amount of progress.
-				const fakeAmt = Math.round((fakeMax - progressWorked) / fakeMax * fakeMultiplier) || 1;
-				progressWorked += fakeAmt;
-				progressRunner.worked(fakeAmt);
 			}
 
 			// Search result tree update
@@ -1188,7 +1145,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.searchWidget.setReplaceAllActionState(false);
 		// this.replaceService.disposeAllReplacePreviews();
-		this.viewModel.search(query).done(onComplete, onError, onProgress);
+		this.viewModel.search(query).done(onComplete, onError);
 	}
 
 	private updateSearchResultCount(): void {
