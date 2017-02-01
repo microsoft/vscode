@@ -78,8 +78,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, () => {
-			dom.addClass(this.start, 'active');
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (this.action.enabled && e.button === 0) {
+				dom.addClass(this.start, 'active');
+			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
 			dom.removeClass(this.start, 'active');
