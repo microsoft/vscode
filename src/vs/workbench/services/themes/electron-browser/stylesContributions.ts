@@ -304,7 +304,7 @@ class EditorWhiteSpaceStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme, cssRules: string[]): void {
 		if (theme.getGlobalSettings().invisibles) {
 			let invisibles = new Color(theme.getGlobalSettings().invisibles);
-			cssRules.push(`.vs-whitespace { color: ${invisibles}; }`);
+			cssRules.push(`.vs-whitespace { color: ${invisibles} !important; }`);
 		}
 	}
 }
