@@ -172,6 +172,19 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+		},
+		'workbench.openMode': {
+			'type': 'string',
+			'enum': ['singleClick', 'doubleClick'],
+			'default': 'singleClick',
+			'description': nls.localize('openMode', `Controls if an item is opened by doing a single-click or double-click.
+- singleClick (default):
+	- folders are toggled between opened/closed when they are single-clicked
+	- files are previewed or opened, depending on workbench.editor.enablePreview setting
+- false:
+	- both folders and files are only selected when they are single-clicked
+	- folders are toggled between opened/closed when they are double-clicked
+	- files are opened as pinned when they are double-clicked`)
 		}
 	}
 });

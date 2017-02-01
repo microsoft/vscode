@@ -91,8 +91,14 @@ export enum ClickBehavior {
 	ON_MOUSE_UP
 }
 
+export enum WorkbenchOpenMode {
+	SINGLE_CLICK,
+	DOUBLE_CLICK
+}
+
 export interface IControllerOptions {
 	clickBehavior?: ClickBehavior;
+	openMode?: WorkbenchOpenMode;
 }
 
 interface IKeybindingDispatcherItem {
@@ -134,7 +140,7 @@ export class DefaultController implements _.IController {
 
 	private options: IControllerOptions;
 
-	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP }) {
+	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP, openMode: WorkbenchOpenMode.SINGLE_CLICK }) {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
@@ -199,6 +205,7 @@ export class DefaultController implements _.IController {
 
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		var payload = { origin: origin, originalEvent: eventish };
+		const isDoubleClick = (origin === 'mouse' && (<mouse.IMouseEvent>eventish).detail === 2);
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);
@@ -214,10 +221,12 @@ export class DefaultController implements _.IController {
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
-			if (tree.isExpanded(element)) {
-				tree.collapse(element).done(null, errors.onUnexpectedError);
-			} else {
-				tree.expand(element).done(null, errors.onUnexpectedError);
+			if (this.openOnSingleClick() || isDoubleClick) {
+				if (tree.isExpanded(element)) {
+					tree.collapse(element).done(null, errors.onUnexpectedError);
+				} else {
+					tree.expand(element).done(null, errors.onUnexpectedError);
+				}
 			}
 		}
 
@@ -417,6 +426,16 @@ export class DefaultController implements _.IController {
 		}
 
 		return false;
+	}
+
+	protected setOpenMode(openMode: WorkbenchOpenMode) {
+		if (this.options.openMode !== openMode) {
+			this.options.openMode = openMode;
+		}
+	}
+
+	protected openOnSingleClick() {
+		return this.options.openMode === WorkbenchOpenMode.SINGLE_CLICK;
 	}
 }
 

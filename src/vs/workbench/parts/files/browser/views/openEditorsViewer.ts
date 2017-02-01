@@ -32,6 +32,8 @@ import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/edito
 import { keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TreeControllerBase } from 'vs/workbench/browser/treeController';
 
 const $ = dom.$;
 
@@ -200,16 +202,17 @@ export class Renderer implements IRenderer {
 	}
 }
 
-export class Controller extends treedefaults.DefaultController {
+export class Controller extends TreeControllerBase {
 
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
+		super(configurationService, { clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
 	}
 
 	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
@@ -262,7 +265,13 @@ export class Controller extends treedefaults.DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
+
+			if (isDoubleClick) {
+				this.openEditor(element, true, event.ctrlKey || event.metaKey);
+			}
+			else if (this.openOnSingleClick()) {
+				this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
+			}
 		}
 
 		return true;

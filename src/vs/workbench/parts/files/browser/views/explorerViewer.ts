@@ -30,7 +30,6 @@ import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/plat
 import { DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -49,6 +48,7 @@ import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { TreeControllerBase } from 'vs/workbench/browser/treeController';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
@@ -371,7 +371,7 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 }
 
 // Explorer Controller
-export class FileController extends DefaultController {
+export class FileController extends TreeControllerBase {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
 
@@ -385,9 +385,10 @@ export class FileController extends DefaultController {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
+		super(configurationService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
@@ -458,7 +459,9 @@ export class FileController extends DefaultController {
 		tree.DOMFocus();
 
 		// Expand / Collapse
-		tree.toggleExpansion(stat);
+		if (this.openOnSingleClick() || isDoubleClick) {
+			tree.toggleExpansion(stat);
+		}
 
 		// Allow to unselect
 		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
@@ -480,7 +483,12 @@ export class FileController extends DefaultController {
 			tree.setSelection([stat], payload);
 
 			if (!stat.isDirectory) {
-				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
+				if (isDoubleClick) {
+					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), true);
+				}
+				else if (this.openOnSingleClick()) {
+					this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
+				}
 			}
 		}
 
