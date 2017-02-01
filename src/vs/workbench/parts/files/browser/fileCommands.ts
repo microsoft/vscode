@@ -105,11 +105,18 @@ export const moveFocussedExplorerItemToTrashCommand = (accessor: ServicesAccesso
 function withFocussedExplorerItem(accessor: ServicesAccessor): TPromise<{ viewlet: ExplorerViewlet, tree: ITree, item: FileStat }> {
 	const viewletService = accessor.get(IViewletService);
 
+	// Return early if the active viewlet is not the explorer
+	const activeViewlet = viewletService.getActiveViewlet();
+	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
+		return TPromise.as(void 0);
+	}
+
+	// Go through viewlet to retrieve focussed item
 	return viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
 		const tree = viewlet.getExplorerView().getViewer();
 
-		// Ignore if in highlight mode
-		if (tree.getHighlight()) {
+		// Ignore if in highlight mode or not focussed
+		if (tree.getHighlight() || !tree.isDOMFocused()) {
 			return void 0;
 		}
 
