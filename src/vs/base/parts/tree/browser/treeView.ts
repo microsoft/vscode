@@ -1353,7 +1353,7 @@ export class TreeView extends HeightMap {
 
 		var viewItem = this.getItemAround(event.target);
 
-		if (!viewItem || (event.posx === 0 && event.posy === 0)) {
+		if (!viewItem || (event.posx === 0 && event.posy === 0 && event.browserEvent.type === DOM.EventType.DRAG_LEAVE)) {
 			// dragging outside of tree
 
 			if (this.currentDropTarget) {
