@@ -4,5 +4,3 @@
  *--------------------------------------------------------------------------------------------*/
 
 /// <reference path='../../../../src/vs/vscode.d.ts'/>
-/// <reference path='../../../../extensions/node.d.ts'/>
-/// <reference path='../../../../extensions/declares.d.ts'/>
