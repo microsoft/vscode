@@ -280,9 +280,9 @@ export default class PHPValidationProvider {
 		let message: string = null;
 		if (error.code === 'ENOENT') {
 			if (this.executable) {
-				message = localize('wrongExecutable', 'Cannot validate since {0} is not a valid php executable. Click on the Path status bar item to configure the executable.', executable);
+				message = localize('wrongExecutable', 'Cannot validate since {0} is not a valid php executable. Use the setting \'php.validate.executablePath\' to configure the PHP executable.', executable);
 			} else {
-				message = localize('noExecutable', 'Cannot validate since no PHP executable is set. Click on the Path status bar item to configure the executable.');
+				message = localize('noExecutable', 'Cannot validate since no PHP executable is set. Use the setting \'php.validate.executablePath\' to configure the PHP executable.');
 			}
 		} else {
 			message = error.message ? error.message : localize('unknownReason', 'Failed to run php using path: {0}. Reason is unknown.', executable);
