@@ -121,7 +121,7 @@ export class PrefixSumComputer {
 		if (this.values.length === 0) {
 			return 0;
 		}
-		return this.getAccumulatedValue(this.values.length - 1);
+		return this._getAccumulatedValue(this.values.length - 1);
 	}
 
 	public getAccumulatedValue(index: number): number {
@@ -130,7 +130,10 @@ export class PrefixSumComputer {
 		}
 
 		index = toUint32(index);
+		return this._getAccumulatedValue(index);
+	}
 
+	private _getAccumulatedValue(index: number): number {
 		if (index <= this.prefixSumValidIndex[0]) {
 			return this.prefixSum[index];
 		}
@@ -164,7 +167,7 @@ export class PrefixSumComputer {
 		while (low <= high) {
 			mid = low + ((high - low) / 2) | 0;
 
-			midStop = this.getAccumulatedValue(mid);
+			midStop = this._getAccumulatedValue(mid);
 			midStart = midStop - this.values[mid];
 
 			if (accumulatedValue < midStart) {

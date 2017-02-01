@@ -6,9 +6,7 @@
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { VerticalObjects } from 'vs/editor/common/viewLayout/verticalObjects';
-import { Range } from 'vs/editor/common/core/range';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
@@ -20,20 +18,18 @@ import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesView
 export class LinesLayout {
 
 	private configuration: editorCommon.IConfiguration;
-	private model: IViewModel;
 	private verticalObjects: VerticalObjects;
 
 	private _lineHeight: number;
 	private _scrollBeyondLastLine: boolean;
 
-	constructor(configuration: editorCommon.IConfiguration, model: IViewModel) {
+	constructor(configuration: editorCommon.IConfiguration, lineCount: number) {
 		this.configuration = configuration;
 		this._lineHeight = this.configuration.editor.lineHeight;
 		this._scrollBeyondLastLine = this.configuration.editor.viewInfo.scrollBeyondLastLine;
 
-		this.model = model;
 		this.verticalObjects = new VerticalObjects();
-		this.verticalObjects.replaceLines(model.getLineCount());
+		this.verticalObjects.replaceLines(lineCount);
 	}
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void {
@@ -75,8 +71,8 @@ export class LinesLayout {
 	/**
 	 * Event handler, call when the model associated to this view has been flushed.
 	 */
-	public onModelFlushed(): void {
-		this.verticalObjects.replaceLines(this.model.getLineCount());
+	public onModelFlushed(lineCount: number): void {
+		this.verticalObjects.replaceLines(lineCount);
 	}
 
 	/**
@@ -188,26 +184,8 @@ export class LinesLayout {
 	 * @param viewport The viewport.
 	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getLinesViewportData(visibleBox: editorCommon.Viewport): ViewLinesViewportData {
-		let partialData = this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
-		let decorationsData = this.model.getDecorationsViewportData(partialData.startLineNumber, partialData.endLineNumber);
-		let visibleRange = new Range(
-			partialData.startLineNumber,
-			1,
-			partialData.endLineNumber,
-			this.model.getLineMaxColumn(partialData.endLineNumber)
-		);
-
-		let startLineNumber = partialData.startLineNumber === partialData.endLineNumber || partialData.relativeVerticalOffset[0] >= partialData.viewportTop ? partialData.startLineNumber : partialData.startLineNumber + 1;
-		let endLineNumber = partialData.relativeVerticalOffset[partialData.relativeVerticalOffset.length - 1] + this._lineHeight <= partialData.viewportTop + partialData.viewportHeight ? partialData.endLineNumber : partialData.endLineNumber - 1;
-		let visibleRangeWithCompleteLines = new Range(
-			startLineNumber,
-			1,
-			endLineNumber,
-			this.model.getLineMaxColumn(endLineNumber)
-		);
-
-		return new ViewLinesViewportData(partialData, visibleRange, visibleRangeWithCompleteLines, decorationsData);
+	public getLinesViewportData(visibleBox: editorCommon.Viewport): IPartialViewLinesViewportData {
+		return this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 	}
 
 	/**

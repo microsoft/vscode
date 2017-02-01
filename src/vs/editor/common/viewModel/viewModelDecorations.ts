@@ -7,11 +7,22 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IDecorationsViewportData, InlineDecoration, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IModelRangeToViewRangeConverter {
 	convertModelRangeToViewRange(modelRange: Range, isWholeLine: boolean): Range;
 	convertViewRangeToModelRange(viewRange: Range): Range;
+}
+
+export interface IDecorationsViewportData {
+	/**
+	 * decorations in the viewport.
+	 */
+	readonly decorations: ViewModelDecoration[];
+	/**
+	 * inline decorations grouped by each line in the viewport.
+	 */
+	readonly inlineDecorations: InlineDecoration[][];
 }
 
 export class ViewModelDecorations implements IDisposable {
