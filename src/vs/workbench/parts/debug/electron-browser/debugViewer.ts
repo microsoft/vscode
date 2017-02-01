@@ -93,7 +93,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
 		data.name.textContent = replaceWhitespace(variable.name);
-		data.name.title = variable.type ? variable.type : '';
+		data.name.title = variable.type ? variable.type : variable.name;
 	}
 
 	if (variable.value) {
