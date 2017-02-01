@@ -1674,7 +1674,7 @@ declare module 'vscode' {
 	export interface TypeDefinitionProvider {
 
 		/**
-		 * Provide the implementations of the symbol at the given position and document.
+		 * Provide the type definition of the symbol at the given position and document.
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.

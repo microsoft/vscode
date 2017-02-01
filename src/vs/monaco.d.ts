@@ -4591,7 +4591,7 @@ declare module monaco.languages {
      */
     export interface TypeDefinitionProvider {
         /**
-         * Provide the implementation of the symbol at the given position and document.
+         * Provide the type definition of the symbol at the given position and document.
          */
         provideTypeDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
     }
