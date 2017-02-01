@@ -166,6 +166,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		const isEscape = e.equals(KeyCode.Escape);
 		const isEnter = e.equals(KeyCode.Enter);
 		if (isEscape || isEnter) {
+			e.preventDefault();
+			e.stopPropagation();
 			wrapUp(isEnter);
 		}
 	}));
@@ -778,7 +780,7 @@ export class VariablesController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
+	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof Variable && !element.hasChildren) {
 			this.debugService.getViewModel().setSelectedExpression(element);
