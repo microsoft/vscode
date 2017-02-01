@@ -8,15 +8,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { MarkdownEngine } from './markdownEngine';
-
 export default class MarkdownDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
 	private _linkPattern = /(\[[^\]]*\]\(\s*?)(\S+?)(\s+[^\)]*)?\)/g;
 
-	constructor(private engine: MarkdownEngine) { }
+	constructor() { }
 
-	public provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
+	public provideDocumentLinks(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		const base = path.dirname(document.uri.fsPath);
 		const text = document.getText();
