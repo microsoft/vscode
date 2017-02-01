@@ -52,7 +52,7 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 		if (!uri.path) {
 			resourcePath = document.uri.path;
 		} else if (uri.path[0] === '/') {
-			resourcePath = path.join(vscode.workspace.rootPath, uri.path);
+			resourcePath = path.join(vscode.workspace.rootPath || '', uri.path);
 		} else {
 			resourcePath = path.join(base, uri.path);
 		}

@@ -96,7 +96,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				};
 				return Promise.resolve(codeLens);
 			}
-			return Promise.reject(codeLens);
+			return Promise.reject<CodeLens>(codeLens);
 		}).catch(() => {
 			codeLens.command = {
 				title: localize('referenceErrorLabel', 'Could not determine references'),

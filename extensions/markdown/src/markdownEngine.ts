@@ -115,7 +115,7 @@ export class MarkdownEngine {
 				if (!uri.scheme && uri.path && !uri.fragment) {
 					// Assume it must be a file
 					if (uri.path[0] === '/') {
-						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath, uri.path));
+						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath || '', uri.path));
 					} else {
 						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
 					}
