@@ -33,12 +33,13 @@ export class PrefixSumComputer {
 	/**
 	 * prefixSum[i], 0 <= i <= prefixSumValidIndex can be trusted
 	 */
-	private prefixSumValidIndex: number;
+	private prefixSumValidIndex: Int32Array;
 
 	constructor(values: Uint32Array) {
 		this.values = values;
 		this.prefixSum = new Uint32Array(values.length);
-		this.prefixSumValidIndex = -1;
+		this.prefixSumValidIndex = new Int32Array(1);
+		this.prefixSumValidIndex[0] = -1;
 	}
 
 	public getCount(): number {
@@ -60,13 +61,13 @@ export class PrefixSumComputer {
 		this.values.set(oldValues.subarray(insertIndex), insertIndex + insertValuesLen);
 		this.values.set(insertValues, insertIndex);
 
-		if (insertIndex - 1 < this.prefixSumValidIndex) {
-			this.prefixSumValidIndex = insertIndex - 1;
+		if (insertIndex - 1 < this.prefixSumValidIndex[0]) {
+			this.prefixSumValidIndex[0] = insertIndex - 1;
 		}
 
 		this.prefixSum = new Uint32Array(this.values.length);
-		if (this.prefixSumValidIndex >= 0) {
-			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex + 1));
+		if (this.prefixSumValidIndex[0] >= 0) {
+			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex[0] + 1));
 		}
 	}
 
@@ -78,8 +79,8 @@ export class PrefixSumComputer {
 			return;
 		}
 		this.values[index] = value;
-		if (index - 1 < this.prefixSumValidIndex) {
-			this.prefixSumValidIndex = index - 1;
+		if (index - 1 < this.prefixSumValidIndex[0]) {
+			this.prefixSumValidIndex[0] = index - 1;
 		}
 	}
 
@@ -108,11 +109,11 @@ export class PrefixSumComputer {
 		this.values.set(oldValues.subarray(startIndex + cnt), startIndex);
 
 		this.prefixSum = new Uint32Array(this.values.length);
-		if (startIndex - 1 < this.prefixSumValidIndex) {
-			this.prefixSumValidIndex = startIndex - 1;
+		if (startIndex - 1 < this.prefixSumValidIndex[0]) {
+			this.prefixSumValidIndex[0] = startIndex - 1;
 		}
-		if (this.prefixSumValidIndex >= 0) {
-			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex + 1));
+		if (this.prefixSumValidIndex[0] >= 0) {
+			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex[0] + 1));
 		}
 	}
 
@@ -130,11 +131,11 @@ export class PrefixSumComputer {
 
 		index = toUint32(index);
 
-		if (index <= this.prefixSumValidIndex) {
+		if (index <= this.prefixSumValidIndex[0]) {
 			return this.prefixSum[index];
 		}
 
-		let startIndex = this.prefixSumValidIndex + 1;
+		let startIndex = this.prefixSumValidIndex[0] + 1;
 		if (startIndex === 0) {
 			this.prefixSum[0] = this.values[0];
 			startIndex++;
@@ -147,7 +148,7 @@ export class PrefixSumComputer {
 		for (let i = startIndex; i <= index; i++) {
 			this.prefixSum[i] = this.prefixSum[i - 1] + this.values[i];
 		}
-		this.prefixSumValidIndex = Math.max(this.prefixSumValidIndex, index);
+		this.prefixSumValidIndex[0] = Math.max(this.prefixSumValidIndex[0], index);
 		return this.prefixSum[index];
 	}
 
