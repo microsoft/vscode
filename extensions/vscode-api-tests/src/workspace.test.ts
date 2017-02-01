@@ -184,7 +184,10 @@ suite('workspace-namespace', () => {
 							assert.ok(onDidSaveTextDocument);
 
 							while (disposables.length) {
-								disposables.pop().dispose();
+								const item = disposables.pop();
+								if (item) {
+									item.dispose();
+								}
 							}
 
 							return deleteFile(file);
