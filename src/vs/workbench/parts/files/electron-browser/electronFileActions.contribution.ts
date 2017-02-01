@@ -14,7 +14,7 @@ import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/
 import { asFileResource } from 'vs/workbench/parts/files/common/files';
 import { copyPathCommand, GlobalCopyPathAction, CopyPathAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import { RevealInOSAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, revealInExplorerCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { revealInOSCommand, revealInExplorerCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -60,11 +60,6 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Global
 // Contribute to File Viewers
 const actionsRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContributor);
-
-// Commands
-CommandsRegistry.registerCommand('_files.openFolderPicker', openFolderPickerCommand);
-CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
-CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem('_workbench.action.files.revealInOS', RevealInOSAction.LABEL, revealInOSCommand);

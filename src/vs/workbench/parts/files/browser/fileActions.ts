@@ -647,10 +647,14 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		}
 
 		// Read context
-		if (context && context.event) {
-			const bypassTrash = (isMacintosh && context.event.altKey) || (!isMacintosh && context.event.shiftKey);
-			if (bypassTrash) {
-				this.useTrash = false;
+		if (context) {
+			if (context.event) {
+				const bypassTrash = (isMacintosh && context.event.altKey) || (!isMacintosh && context.event.shiftKey);
+				if (bypassTrash) {
+					this.useTrash = false;
+				}
+			} else if (typeof context.useTrash === 'boolean') {
+				this.useTrash = context.useTrash;
 			}
 		}
 
@@ -1859,22 +1863,12 @@ export function keybindingForAction(id: string, keybindingService: IKeybindingSe
 	switch (id) {
 		case GlobalNewUntitledFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
-		case TriggerRenameFileAction.ID:
-			return new Keybinding(isMacintosh ? KeyCode.Enter : KeyCode.F2);
 		case SaveFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
-		case MoveFileToTrashAction.ID:
-			return new Keybinding(isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete);
 		case CopyFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_C);
 		case PasteFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_V);
-		case OpenToSideAction.ID:
-			if (isMacintosh) {
-				return new Keybinding(KeyMod.WinCtrl | KeyCode.Enter);
-			} else {
-				return new Keybinding(KeyMod.CtrlCmd | KeyCode.Enter);
-			}
 	}
 
 	if (keybindingService) {

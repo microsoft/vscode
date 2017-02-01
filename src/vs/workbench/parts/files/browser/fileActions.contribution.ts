@@ -23,6 +23,10 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerItemCommand, deleteFocussedExplorerItemCommand, moveFocussedExplorerItemToTrashCommand, openFocussedExplorerSideBySideItemCommand, renameFocussedExplorerItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -195,3 +199,65 @@ if (isMacintosh) {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'Files: Open File...', category);
 	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'Files: Open Folder...', category);
 }
+
+// Commands
+CommandsRegistry.registerCommand('_files.openFolderPicker', openFolderPickerCommand);
+CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
+CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
+
+const explorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('explorerFocus'));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.files.action.open',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: explorerFocusCondition,
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+	},
+	handler: openFocussedExplorerItemCommand
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.files.action.openToSide',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: explorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+	mac: {
+		primary: KeyMod.WinCtrl | KeyCode.Enter
+	},
+	handler: openFocussedExplorerSideBySideItemCommand
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.files.action.triggerRename',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: explorerFocusCondition,
+	primary: KeyCode.F2,
+	mac: {
+		primary: KeyCode.Enter
+	},
+	handler: renameFocussedExplorerItemCommand
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.files.action.moveFileToTrash',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: explorerFocusCondition,
+	primary: KeyCode.Delete,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.Backspace
+	},
+	handler: moveFocussedExplorerItemToTrashCommand
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.files.action.delete',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: explorerFocusCondition,
+	primary: KeyMod.Shift | KeyCode.Delete,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
+	},
+	handler: deleteFocussedExplorerItemCommand
+});
