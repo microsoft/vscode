@@ -97,7 +97,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onTitleChanged = new Emitter<string>();
 
 		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
+		this._createXterm();
 
+		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
 			this.attachToElement(_container);
 		}
@@ -105,6 +107,25 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
 		this._instanceDisposables.push(disposable);
+	}
+
+	/**
+	 * Create xterm.js instance and attach data listeners.
+	 */
+	protected _createXterm(): void {
+		this._xterm = xterm({
+			scrollback: this._configHelper.getScrollback()
+		});
+		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
+		this._xterm.on('data', (data) => {
+			if (this._process) {
+				this._process.send({
+					event: 'input',
+					data: this._sanitizeInput(data)
+				});
+			}
+			return false;
+		});
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -117,21 +138,7 @@ export class TerminalInstance implements ITerminalInstance {
 		DOM.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
-		this._xterm = xterm({
-			scrollback: this._configHelper.getScrollback()
-		});
 		this._xterm.open(this._xtermElement);
-
-		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
-		this._xterm.on('data', (data) => {
-			if (this._process) {
-				this._process.send({
-					event: 'input',
-					data: this._sanitizeInput(data)
-				});
-			}
-			return false;
-		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -387,9 +394,6 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
-		if (!this._xterm) {
-			return;
-		}
 		if (message.type === 'data') {
 			this._xterm.write(message.content);
 		}
