@@ -90,22 +90,6 @@ export class WalkThroughPart extends BaseEditor {
 		this.content = document.createElement('div');
 		this.content.tabIndex = 0;
 		this.content.style.outlineStyle = 'none';
-		this.content.addEventListener('mousedown', e => {
-			this.focus();
-		});
-		this.content.addEventListener('focus', e => {
-			this.editorFocus.set(true);
-		});
-		this.content.addEventListener('blur', e => {
-			this.editorFocus.reset();
-		});
-		this.content.addEventListener('focusin', e => {
-			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
-			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
-				this.content.scrollTop = this.scrollbar.getScrollTop();
-				this.content.scrollLeft = this.scrollbar.getScrollLeft();
-			}
-		});
 
 		this.scrollbar = new DomScrollableElement(this.content, {
 			canUseTranslate3d: false,
@@ -115,7 +99,45 @@ export class WalkThroughPart extends BaseEditor {
 		this.disposables.push(this.scrollbar);
 		container.appendChild(this.scrollbar.getDomNode());
 
+		this.registerFocusHandlers();
 		this.registerClickHandler();
+
+		this.disposables.push(this.scrollbar.onScroll(e => this.updatedScrollPosition()));
+	}
+
+	private updatedScrollPosition() {
+		const scrollHeight = this.scrollbar.getScrollHeight();
+		if (scrollHeight && this.input instanceof WalkThroughInput) {
+			const scrollTop = this.scrollbar.getScrollTop();
+			const height = this.scrollbar.getHeight();
+			this.input.relativeScrollPosition(scrollTop / scrollHeight, (scrollTop + height) / scrollHeight);
+		}
+	}
+
+	private addEventListener<K extends keyof HTMLElementEventMap, E extends HTMLElement>(element: E, type: K, listener: (this: E, ev: HTMLElementEventMap[K]) => any, useCapture?: boolean): IDisposable;
+	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable;
+	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable {
+		element.addEventListener(type, listener, useCapture);
+		return { dispose: () => { element.removeEventListener(type, listener, useCapture); } };
+	}
+
+	private registerFocusHandlers() {
+		this.disposables.push(this.addEventListener(this.content, 'mousedown', e => {
+			this.focus();
+		}));
+		this.disposables.push(this.addEventListener(this.content, 'focus', e => {
+			this.editorFocus.set(true);
+		}));
+		this.disposables.push(this.addEventListener(this.content, 'blur', e => {
+			this.editorFocus.reset();
+		}));
+		this.disposables.push(this.addEventListener(this.content, 'focusin', e => {
+			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
+			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
+				this.content.scrollTop = this.scrollbar.getScrollTop();
+				this.content.scrollLeft = this.scrollbar.getScrollLeft();
+			}
+		}));
 	}
 
 	private registerClickHandler() {
@@ -256,6 +278,7 @@ export class WalkThroughPart extends BaseEditor {
 					}
 					this.scrollbar.scanDomNode();
 					this.loadTextEditorViewState(input.getResource());
+					this.updatedScrollPosition();
 					return;
 				}
 
@@ -326,18 +349,21 @@ export class WalkThroughPart extends BaseEditor {
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(once(editor.onKeyDown)(() => {
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
 							snippet: i
 						});
@@ -350,6 +376,7 @@ export class WalkThroughPart extends BaseEditor {
 				}
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input.getResource());
+				this.updatedScrollPosition();
 			});
 	}
 
