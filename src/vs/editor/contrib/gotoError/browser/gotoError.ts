@@ -222,7 +222,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this.create();
-		this._wireModelAndView();
 	}
 
 	dispose(): void {
@@ -254,12 +253,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 	public show(where: editorCommon.IPosition, heightInLines: number): void {
 		super.show(where, heightInLines);
 		this.focus();
-	}
-
-	private _wireModelAndView(): void {
-		// listen to events
-		this._model.onCurrentMarkerChanged(this.showAtMarker, this, this._callOnDispose);
-		this._model.onMarkerSetChanged(this._onMarkersChanged, this, this._callOnDispose);
 	}
 
 	public showAtMarker(marker: IMarker): void {
@@ -295,7 +288,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		});
 	}
 
-	private _onMarkersChanged(): void {
+	public onMarkersChanged(): void {
 		const marker = this._model.findMarkerAtPosition(this.position);
 		if (marker) {
 			this._container.classList.remove('stale');
@@ -313,6 +306,40 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private computeRequiredHeight() {
 		return 1 + this._message.lines;
 	}
+}
+
+class MarkerNavigationWidgetsController {
+	private _navigationWidget: MarkerNavigationWidget;
+	private _widgets: MarkerNavigationWidget[] = [];
+	private _callOnDispose: IDisposable[] = [];
+
+
+	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
+		this._wireModelAndView();
+		this._navigationWidget = new MarkerNavigationWidget(editor, _model, _commandService);
+	}
+
+	dispose(): void {
+		this._callOnDispose = dispose(this._callOnDispose);
+		this._widgets.forEach(widget => widget.dispose());
+	}
+
+	private _wireModelAndView(): void {
+		// listen to events
+		this._model.onCurrentMarkerChanged(this._show, this, this._callOnDispose);
+		this._model.onMarkerSetChanged(this._onMarkersChanged, this, this._callOnDispose);
+	}
+
+	private _onMarkersChanged(): void {
+		this._widgets.forEach(widget => widget.onMarkersChanged())
+	}
+
+	private _show(marker: IMarker): void {
+		if(this._navigationWidget){
+			this._navigationWidget.showAtMarker(marker);
+		}
+	}
+
 }
 
 class MarkerNavigationAction extends EditorAction {
@@ -356,7 +383,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private _editor: ICodeEditor;
 	private _model: MarkerModel;
-	private _zone: MarkerNavigationWidget;
+	private _zonesController: MarkerNavigationWidgetsController;
 	private _callOnClose: IDisposable[] = [];
 	private _markersNavigationVisible: IContextKey<boolean>;
 
@@ -381,7 +408,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _cleanUp(): void {
 		this._markersNavigationVisible.reset();
 		this._callOnClose = dispose(this._callOnClose);
-		this._zone = null;
+		this._zonesController = null;
 		this._model = null;
 	}
 
@@ -393,11 +420,11 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 		const markers = this._getMarkers();
 		this._model = new MarkerModel(this._editor, markers);
-		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._commandService);
+		this._zonesController = new MarkerNavigationWidgetsController(this._editor, this._model, this._commandService);
 		this._markersNavigationVisible.set(true);
 
 		this._callOnClose.push(this._model);
-		this._callOnClose.push(this._zone);
+		this._callOnClose.push(this._zonesController);
 
 		this._callOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
 		this._model.onCurrentMarkerChanged(marker => !marker && this._cleanUp(), undefined, this._callOnClose);
