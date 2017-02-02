@@ -247,7 +247,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 	private readonly _characterMapping: CharacterMapping;
 	private readonly _charWidth: number;
-	private readonly _charOffset: Uint32Array;
+	private _charOffset: Uint32Array;
 
 	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
 		this.domNode = domNode;
@@ -255,7 +255,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 		this._characterMapping = characterMapping;
 		this._charWidth = renderLineInput.spaceWidth;
-		this._charOffset = FastRenderedViewLine._createCharOffset(characterMapping);
+		this._charOffset = null;
 	}
 
 	private static _createCharOffset(characterMapping: CharacterMapping): Uint32Array {
@@ -281,8 +281,16 @@ class FastRenderedViewLine implements IRenderedViewLine {
 		return result;
 	}
 
+	private _getOrCreateCharOffset(): Uint32Array {
+		if (this._charOffset === null) {
+			this._charOffset = FastRenderedViewLine._createCharOffset(this._characterMapping);
+		}
+		return this._charOffset;
+	}
+
 	public getWidth(): number {
-		return this._getCharPosition(this._charOffset.length);
+		const charOffset = this._getOrCreateCharOffset();
+		return this._getCharPosition(charOffset.length);
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
@@ -309,11 +317,12 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	private _getCharPosition(column: number): number {
-		if (this._charOffset.length === 0) {
+		const charOffset = this._getOrCreateCharOffset();
+		if (charOffset.length === 0) {
 			// No characters on this line
 			return 0;
 		}
-		return Math.round(this._charWidth * this._charOffset[column - 1]);
+		return Math.round(this._charWidth * charOffset[column - 1]);
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
