@@ -16,7 +16,7 @@ import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IFilesConfiguration, ExplorerFolderContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
@@ -60,6 +60,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
 
+	private filesExplorerFocussedContext: IContextKey<boolean>;
 	private explorerFocussedContext: IContextKey<boolean>;
 
 	private shouldRefresh: boolean;
@@ -99,6 +100,8 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
+
+		this.filesExplorerFocussedContext = FilesExplorerFocussedContext.bindTo(contextKeyService);
 		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
 	}
 
@@ -360,10 +363,18 @@ export class ExplorerView extends CollapsibleViewletView {
 		}));
 
 		// Update explorer focus context
-		const explorerFocusTracker = DOM.trackFocus(this.explorerViewer.getHTMLElement());
-		explorerFocusTracker.addFocusListener(() => this.explorerFocussedContext.set(true));
-		explorerFocusTracker.addBlurListener(() => this.explorerFocussedContext.reset());
-		this.toDispose.push(explorerFocusTracker);
+		const viewerFocusTracker = DOM.trackFocus(this.explorerViewer.getHTMLElement());
+		viewerFocusTracker.addFocusListener(() => {
+			setTimeout(() => {
+				this.filesExplorerFocussedContext.set(true);
+				this.explorerFocussedContext.set(true);
+			}, 0 /* wait for any BLUR to happen */);
+		});
+		viewerFocusTracker.addBlurListener(() => {
+			this.filesExplorerFocussedContext.reset();
+			this.explorerFocussedContext.reset();
+		});
+		this.toDispose.push(viewerFocusTracker);
 
 		return this.explorerViewer;
 	}

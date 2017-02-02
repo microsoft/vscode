@@ -21,8 +21,9 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true);
 export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false);
-export const ExplorerFocussedContext = new RawContextKey<boolean>('explorerFocus', false);
+export const FilesExplorerFocussedContext = new RawContextKey<boolean>('filesExplorerFocus', false);
 export const OpenEditorsFocussedContext = new RawContextKey<boolean>('openEditorsFocus', false);
+export const ExplorerFocussedContext = new RawContextKey<boolean>('explorerFocus', false);
 
 /**
  * File editor input id.

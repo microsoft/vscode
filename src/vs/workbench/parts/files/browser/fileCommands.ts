@@ -75,10 +75,7 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 	});
 };
 
-export const openFocussedExplorerItemCommand = (accessor: ServicesAccessor) => openFocussedExplorerItem(accessor, false);
-export const openFocussedExplorerSideBySideItemCommand = (accessor: ServicesAccessor) => openFocussedExplorerItem(accessor, true);
-
-function openFocussedExplorerItem(accessor: ServicesAccessor, sideBySide: boolean): void {
+function openFocussedExplorerViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
 	withFocussedExplorerViewItem(accessor).then(res => {
 		if (res) {
 
@@ -105,18 +102,6 @@ function runActionOnFocussedExplorerViewItem(accessor: ServicesAccessor, id: str
 		}
 	});
 }
-
-export const renameFocussedExplorerItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.triggerRename');
-};
-
-export const deleteFocussedExplorerItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: false });
-};
-
-export const moveFocussedExplorerItemToTrashCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: true });
-};
 
 function withExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewlet> {
 	const viewletService = accessor.get(IViewletService);
@@ -146,7 +131,7 @@ function withFocussedExplorerViewItem(accessor: ServicesAccessor): TPromise<{ ex
 	});
 };
 
-export function withFocussedExplorerResource(accessor: ServicesAccessor): TPromise<IFileResource> {
+function withFocussedExplorerFileResource(accessor: ServicesAccessor): TPromise<IFileResource> {
 	return withExplorer(accessor).then(explorer => {
 		if (!explorer) {
 			return void 0; // hidden explorer
@@ -168,5 +153,29 @@ export function withFocussedExplorerResource(accessor: ServicesAccessor): TPromi
 		}
 
 		return explorerItemToFileResource(focussedTree.getFocus());
+	});
+};
+
+export const openFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => openFocussedExplorerViewItem(accessor, false);
+export const openFocussedExplorerViewItemSideBySideCommand = (accessor: ServicesAccessor) => openFocussedExplorerViewItem(accessor, true);
+
+export const renameFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => {
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.triggerRename');
+};
+
+export const deleteFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => {
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: false });
+};
+
+export const moveFocussedExplorerViewItemToTrashCommand = (accessor: ServicesAccessor) => {
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: true });
+};
+
+
+export const copyPathOfFocussedExplorerItem = (accessor: ServicesAccessor) => {
+	withFocussedExplorerFileResource(accessor).then(file => {
+		if (file) {
+			copyPathCommand(accessor, file.resource);
+		}
 	});
 };

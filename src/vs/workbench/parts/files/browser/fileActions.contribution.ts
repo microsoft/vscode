@@ -23,7 +23,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerItemCommand, deleteFocussedExplorerItemCommand, moveFocussedExplorerItemToTrashCommand, openFocussedExplorerSideBySideItemCommand, renameFocussedExplorerItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { copyPathOfFocussedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerViewItemCommand, deleteFocussedExplorerViewItemCommand, moveFocussedExplorerViewItemToTrashCommand, openFocussedExplorerViewItemSideBySideCommand, renameFocussedExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -239,61 +239,70 @@ CommandsRegistry.registerCommand('_files.openFolderPicker', openFolderPickerComm
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 
+const filesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('filesExplorerFocus'));
 const explorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('explorerFocus'));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.open',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: filesExplorerFocusCondition,
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 	},
-	handler: openFocussedExplorerItemCommand
+	handler: openFocussedExplorerViewItemCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.openToSide',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: filesExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	handler: openFocussedExplorerSideBySideItemCommand
+	handler: openFocussedExplorerViewItemSideBySideCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.triggerRename',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: filesExplorerFocusCondition,
 	primary: KeyCode.F2,
 	mac: {
 		primary: KeyCode.Enter
 	},
-	handler: renameFocussedExplorerItemCommand
+	handler: renameFocussedExplorerViewItemCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.moveFileToTrash',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: filesExplorerFocusCondition,
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
 	},
-	handler: moveFocussedExplorerItemToTrashCommand
+	handler: moveFocussedExplorerViewItemToTrashCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.delete',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: filesExplorerFocusCondition,
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
 	},
-	handler: deleteFocussedExplorerItemCommand
+	handler: deleteFocussedExplorerViewItemCommand
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.files.copyPath',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: explorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
+	handler: copyPathOfFocussedExplorerItem
 });
 
 // Editor Title Context Menu
