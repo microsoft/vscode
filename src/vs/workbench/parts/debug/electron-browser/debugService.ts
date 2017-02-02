@@ -285,6 +285,7 @@ export class DebugService implements debug.IDebugService {
 
 							return stackFrameToFocus.openInEditor(this.editorService);
 						}
+						return undefined;
 					});
 				}
 			}, errors.onUnexpectedError);
@@ -579,7 +580,7 @@ export class DebugService implements debug.IDebugService {
 					return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
 						if (!resolvedConfig) {
 							// User canceled resolving of interactive variables, silently return
-							return;
+							return undefined;
 						}
 
 						if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
@@ -609,6 +610,7 @@ export class DebugService implements debug.IDebugService {
 									CloseAction
 								]
 							});
+							return undefined;
 						}, (err: TaskError) => {
 							if (err.code !== TaskErrors.NotConfigured) {
 								throw err;
@@ -725,6 +727,7 @@ export class DebugService implements debug.IDebugService {
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin
 				});
+				return undefined;
 			}).then(undefined, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
 					// Do not show 'canceled' error messages to the user #7906
@@ -745,6 +748,7 @@ export class DebugService implements debug.IDebugService {
 				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 				const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
 				this.messageService.show(severity.Error, { message: errorMessage, actions });
+				return undefined;
 			});
 		});
 	}

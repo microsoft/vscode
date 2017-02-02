@@ -59,6 +59,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 							return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 						}
 					}
+					return undefined;
 				});
 			} else {
 				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);

@@ -380,6 +380,7 @@ for (let i = 0; i < 9; i++) {
 					return editorService.openEditor(editor);
 				}
 			}
+			return undefined;
 		}
 	});
 }
@@ -397,6 +398,7 @@ function toKeyCode(index: number): KeyCode {
 		case 8: return KeyCode.KEY_8;
 		case 9: return KeyCode.KEY_9;
 	}
+	return undefined;
 }
 
 // Editor Commands

@@ -101,6 +101,7 @@ export class QuickFixOracle {
 			}
 			idx++;
 		}
+		return undefined;
 	}
 
 	private _wordAtPosition(): IRange {
@@ -115,6 +116,7 @@ export class QuickFixOracle {
 				endColumn: info.endColumn
 			};
 		}
+		return undefined;
 	}
 }
 

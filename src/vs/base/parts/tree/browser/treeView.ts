@@ -1594,6 +1594,7 @@ export class TreeView extends HeightMap {
 				return null;
 			}
 		} while (element = element.parentElement);
+		return undefined;
 	}
 
 	// Cleanup

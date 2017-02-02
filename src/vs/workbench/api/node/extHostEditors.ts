@@ -656,6 +656,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 				return TPromise.wrapError(silent);
 			}
 			console.warn(err);
+			return undefined;
 		});
 	}
 }

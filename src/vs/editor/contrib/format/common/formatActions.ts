@@ -336,4 +336,5 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			}
 		}().run(accessor, editor);
 	}
+	return undefined;
 });

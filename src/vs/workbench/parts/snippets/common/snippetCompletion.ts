@@ -67,7 +67,7 @@ class InsertSnippetAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 
 		if (!editor.getModel()) {
-			return;
+			return undefined;
 		}
 
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -101,6 +101,7 @@ class InsertSnippetAction extends EditorAction {
 						return true;
 					}
 					resolve(snippet);
+					return false;
 				});
 			} else {
 				// let user pick a snippet

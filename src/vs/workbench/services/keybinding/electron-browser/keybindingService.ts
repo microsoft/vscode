@@ -296,7 +296,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {
-			return;
+			return undefined;
 		}
 
 		return desc;

@@ -162,7 +162,7 @@ export class SearchService implements IRawSearchService {
 	private trySortedSearchFromCache(config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
-			return;
+			return undefined;
 		}
 
 		const cacheLookupStartTime = Date.now();
@@ -201,6 +201,7 @@ export class SearchService implements IRawSearchService {
 				cached.cancel();
 			});
 		}
+		return undefined;
 	}
 
 	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): IRawFileMatch[] {

@@ -211,6 +211,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				if (valid && item) {
 					return lastValue || options.value || '';
 				}
+				return undefined;
 			});
 		});
 	}

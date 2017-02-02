@@ -157,6 +157,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 		if (controller) {
 			return controller.run(this._forward);
 		}
+		return undefined;
 	}
 }
 

@@ -206,6 +206,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 				if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 					return this.viewletService.openViewlet(filesCommon.VIEWLET_ID, false);
 				}
+				return undefined;
 			});
 		});
 	}
@@ -435,6 +436,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 					});
 				});
 			}
+			return undefined;
 		});
 	}
 

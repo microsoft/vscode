@@ -358,6 +358,7 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 				} else {
 					this.timeout = Math.min(Math.round(this.timeout * 1.2), AutoFetcher.MAX_TIMEOUT); // backoff
 				}
+				return undefined;
 			});
 		}
 
@@ -457,7 +458,7 @@ export class GitService extends EventEmitter
 		if (!storageService.getBoolean(IgnoreOldGitStorageKey, StorageScope.GLOBAL, false)) {
 			this.raw.serviceState().done(state => {
 				if (state !== RawServiceState.OK) {
-					return;
+					return undefined;
 				}
 
 				return this.raw.getVersion().then(version => {

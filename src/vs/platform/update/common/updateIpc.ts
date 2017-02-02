@@ -35,6 +35,7 @@ export class UpdateChannel implements IUpdateChannel {
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
 			case 'quitAndInstall': return this.service.quitAndInstall();
 		}
+		return undefined;
 	}
 }
 

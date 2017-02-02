@@ -49,6 +49,7 @@ export class LaunchChannel implements ILaunchChannel {
 			case 'get-main-process-id':
 				return this.service.getMainProcessId();
 		}
+		return undefined;
 	}
 }
 

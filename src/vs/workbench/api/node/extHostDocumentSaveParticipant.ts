@@ -63,7 +63,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 				if (didTimeout) {
 					// timeout - no more listeners
-					return;
+					return undefined;
 				}
 
 				const document = this._documents.getDocumentData(resource).document;
@@ -150,7 +150,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 			// apply edits iff any and iff document
 			// didn't change somehow in the meantime
 			if (edits.length === 0) {
-				return;
+				return undefined;
 			}
 
 			if (version === document.version) {

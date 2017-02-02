@@ -174,6 +174,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			if (!success) {
 				return TPromise.wrapError('cannot open ' + uri.toString());
 			}
+			return undefined;
 		}, err => {
 			return TPromise.wrapError('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err));
 		});
@@ -225,6 +226,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
 						return this._modelService.createModel(value, mode, uri);
 					}
+					return undefined;
 				});
 			}
 		});

@@ -770,6 +770,7 @@ export class FocusProcessAction extends AbstractDebugAction {
 			if (stackFrame) {
 				return stackFrame.openInEditor(this.editorService, true);
 			}
+			return undefined;
 		});
 	}
 }
