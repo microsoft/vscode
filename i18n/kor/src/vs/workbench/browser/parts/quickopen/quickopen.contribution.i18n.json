@@ -6,5 +6,7 @@
 {
 	"quickNavigateNext": "Quick Open에서 다음 탐색",
 	"quickNavigatePrevious": "Quick Open에서 이전 탐색",
-	"quickOpen": "파일로 이동..."
+	"quickOpen": "파일로 이동...",
+	"quickSelectNext": "Quick Open에서 다음 선택",
+	"quickSelectPrevious": "Quick Open에서 이전 선택"
 }

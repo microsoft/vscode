@@ -6,6 +6,7 @@
 {
 	"actions.goToDecl.label": "Gehe zu Definition",
 	"actions.goToDeclToSide.label": "Definition an der Seite öffnen",
+	"actions.goToImplementation.label": "Zur Implementierung wechseln",
 	"actions.previewDecl.label": "Peek-Definition",
 	"meta.title": " – {0} Definitionen",
 	"multipleResults": "Klicken Sie, um {0} Definitionen anzuzeigen."

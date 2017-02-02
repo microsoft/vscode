@@ -15,10 +15,11 @@
 	"debugConsoleAction": "디버그 콘솔",
 	"debugFocusConsole": "디버그 콘솔에 포커스",
 	"disableAllBreakpoints": "모든 중단점 해제",
+	"disableBreakpoint": "중단점 사용 안 함",
 	"disconnectDebug": "연결 끊기",
 	"editConditionalBreakpoint": "중단점 편집...",
-	"editWatchExpression": "식 편집",
 	"enableAllBreakpoints": "모든 중단점 설정",
+	"enableBreakpoint": "중단점 사용",
 	"focusProcess": "프로세스에 포커스",
 	"launchJsonNeedsConfigurtion": "'launch.json' 구성 또는 수정",
 	"openLaunchJson": "{0} 열기",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "단계 출력",
 	"stepOverDebug": "단위 실행",
 	"stopDebug": "중지",
-	"toggleEnablement": "중단점 사용/사용 안 함",
 	"unreadOutput": "디버그 콘솔의 새 출력"
 }

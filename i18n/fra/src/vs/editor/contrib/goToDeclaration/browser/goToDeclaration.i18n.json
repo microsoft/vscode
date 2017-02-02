@@ -6,6 +6,8 @@
 {
 	"actions.goToDecl.label": "Atteindre la définition",
 	"actions.goToDeclToSide.label": "Ouvrir la définition sur le côté",
+	"actions.goToImplementation.label": "Accéder à l'implémentation",
+	"actions.peekImplementation.label": "Aperçu de l'implémentation",
 	"actions.previewDecl.label": "Apercu de définition",
 	"meta.title": " – {0} définitions",
 	"multipleResults": "Cliquez pour afficher {0} définitions."

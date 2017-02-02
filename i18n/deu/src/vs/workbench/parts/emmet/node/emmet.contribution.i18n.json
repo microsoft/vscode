@@ -6,6 +6,7 @@
 {
 	"emmetConfigurationTitle": "Emmet",
 	"emmetExclude": "Ein Array von Sprachen, in dem Emmet-Abkürzungen nicht erweitert werden sollen.",
+	"emmetExtensionsPath": "Pfad zu einem Ordner mit Emmet-Profilen, Ausschnitten und Voreinstellungen",
 	"emmetPreferences": "Einstellungen, die zum Ändern des Verhaltens einiger Aktionen und Konfliktlöser von Emmet verwendet werden.",
 	"emmetSyntaxProfiles": "Definieren Sie das Profil für die angegebene Syntax, oder verwenden Sie Ihr eigenes Profil mit bestimmten Regeln.",
 	"triggerExpansionOnTab": "Wenn aktiviert, werden Emmet-Abkürzungen beim Drücken der TAB-TASTE erweitert."

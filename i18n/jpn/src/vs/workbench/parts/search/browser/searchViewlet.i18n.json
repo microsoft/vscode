@@ -15,6 +15,7 @@
 	"noResultsFound": "結果はありません。構成された除外の設定を確認してください - ",
 	"noResultsIncludes": "'{0}' に結果はありません - ",
 	"noResultsIncludesExcludes": "'{0}' に '{1}' を除外した結果はありません - ",
+	"openFolder": "フォルダーを開く",
 	"openSettings.message": "設定を開く",
 	"removeAll.confirmation.message": "{1} ファイルで {0} 件の出現箇所を削除しますか?",
 	"removeAll.message": "{1} ファイルで {0} 件の出現箇所を削除しました。",
@@ -28,5 +29,6 @@
 	"searchMaxResultsWarning": "結果セットにはすべての一致項目のサブセットのみが含まれています。より限定的な検索条件を入力して、検索結果を絞り込んでください。",
 	"searchScope.excludes": "除外するファイル",
 	"searchScope.includes": "含めるファイル",
+	"searchWithoutFolder": "まだフォルダーを開いていません。開いているファイルのみを検索しています - ",
 	"treeAriaLabel": "検索結果"
 }

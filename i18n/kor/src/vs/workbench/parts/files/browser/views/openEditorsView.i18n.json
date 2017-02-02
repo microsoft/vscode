@@ -7,5 +7,5 @@
 	"dirtyCounter": "{0}이(가) 저장되지 않음",
 	"openEditors": "열려 있는 편집기",
 	"openEditosrSection": "열려 있는 편집기 섹션",
-	"treeAriaLabel": "열려 있는 편집기"
+	"treeAriaLabel": "열린 편집기: 활성 파일 목록"
 }

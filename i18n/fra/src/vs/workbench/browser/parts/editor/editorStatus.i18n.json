@@ -10,6 +10,7 @@
 	"changeIndentation": "Changer le retrait",
 	"changeMode": "Changer le mode de langage",
 	"configureAssociationsExt": "Configurer l'association de fichier pour '{0}'...",
+	"configureModeSettings": "Configurer les paramètres du langage '{0}'...",
 	"currentAssociation": "Association actuelle",
 	"disableTabMode": "Désactiver le mode d'accessibilité",
 	"endOfLineCarriageReturnLineFeed": "CRLF",

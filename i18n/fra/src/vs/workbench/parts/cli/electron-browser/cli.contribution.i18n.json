@@ -16,6 +16,7 @@
 	"install": "Installer la commande '{0}' dans PATH",
 	"later": "Plus tard",
 	"laterInfo": "N'oubliez pas que vous pouvez toujours exécuter l'action '{0}' à partir de la palette de commandes.",
+	"not available": "Cette commande n'est pas disponible",
 	"ok": "OK",
 	"shellCommand": "Commande d'interpréteur de commandes",
 	"successFrom": "La commande d'interpréteur de commandes '{0}' a été correctement désinstallée à partir de PATH.",

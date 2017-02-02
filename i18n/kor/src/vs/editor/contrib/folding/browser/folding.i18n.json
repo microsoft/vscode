@@ -6,11 +6,7 @@
 {
 	"foldAction.label": "접기",
 	"foldAllAction.label": "모두 접기",
-	"foldLevel1Action.label": "수준 1 접기",
-	"foldLevel2Action.label": "수준 2 접기",
-	"foldLevel3Action.label": "수준 3 접기",
-	"foldLevel4Action.label": "수준 4 접기",
-	"foldLevel5Action.label": "수준 5 접기",
+	"foldLevelAction.label": "수준 {0} 접기",
 	"foldRecursivelyAction.label": "재귀적으로 접기",
 	"unFoldRecursivelyAction.label": "재귀적으로 펼치기",
 	"unfoldAction.label": "펼치기",
