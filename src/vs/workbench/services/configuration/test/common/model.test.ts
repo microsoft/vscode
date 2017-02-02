@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { WorkspaceConfigModel, ScopedConfigModel, TrustedWorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/model';
+import { WorkspaceConfigModel, ScopedConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/model';
 
 suite('ConfigurationService - Model', () => {
 
 	test('Test consolidate (settings and tasks)', () => {
-		const settingsConfig = new TrustedWorkspaceSettingsConfigModel(JSON.stringify({
+		const settingsConfig = new WorkspaceSettingsConfigModel(JSON.stringify({
 			awesome: true
 		}));
 
@@ -29,7 +29,7 @@ suite('ConfigurationService - Model', () => {
 	});
 
 	test('Test consolidate (settings and launch)', () => {
-		const settingsConfig = new TrustedWorkspaceSettingsConfigModel(JSON.stringify({
+		const settingsConfig = new WorkspaceSettingsConfigModel(JSON.stringify({
 			awesome: true
 		}));
 
@@ -48,7 +48,7 @@ suite('ConfigurationService - Model', () => {
 	});
 
 	test('Test consolidate (settings and launch and tasks) - launch/tasks wins over settings file', () => {
-		const settingsConfig = new TrustedWorkspaceSettingsConfigModel(JSON.stringify({
+		const settingsConfig = new WorkspaceSettingsConfigModel(JSON.stringify({
 			awesome: true,
 			launch: {
 				launchConfig: 'defined',
