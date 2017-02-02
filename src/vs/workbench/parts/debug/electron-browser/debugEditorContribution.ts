@@ -131,11 +131,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					getActionsContext: () => breakpoint
 				});
 			} else {
-				const breakpoint = this.debugService.getModel().getBreakpoints()
-					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber).pop();
+				const breakpoints = this.debugService.getModel().getBreakpoints()
+					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber);
 
-				if (breakpoint) {
-					this.debugService.removeBreakpoints(breakpoint.getId());
+				if (breakpoints.length) {
+					breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 				} else if (canSetBreakpoints) {
 					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}

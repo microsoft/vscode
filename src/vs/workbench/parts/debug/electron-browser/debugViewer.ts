@@ -1258,6 +1258,9 @@ export class BreakpointsRenderer implements IRenderer {
 
 		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
+		if (breakpoint.column) {
+			data.lineNumber.textContent += `:${breakpoint.column}`;
+		}
 		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 
