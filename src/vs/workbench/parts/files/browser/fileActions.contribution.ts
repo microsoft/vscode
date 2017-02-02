@@ -27,7 +27,7 @@ import { revealInOSFocussedExplorerItem, openFocussedOpenedEditorsViewItemComman
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource, ExplorerFocusCondition, OpenedEditorsFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -239,14 +239,10 @@ CommandsRegistry.registerCommand('_files.openFolderPicker', openFolderPickerComm
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 
-const filesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('filesExplorerFocus'));
-const openedEditorsFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('openEditorsFocus'));
-const explorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('explorerFocus'));
-
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.openEditors.open',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: openedEditorsFocusCondition,
+	when: OpenedEditorsFocusCondition,
 	primary: KeyCode.Enter,
 	handler: openFocussedOpenedEditorsViewItemCommand
 });
@@ -254,7 +250,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.filesExplorer.open',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: filesExplorerFocusCondition,
+	when: FilesExplorerFocusCondition,
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
@@ -265,7 +261,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.explorer.openToSide',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
@@ -276,7 +272,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.filesExplorer.rename',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: filesExplorerFocusCondition,
+	when: FilesExplorerFocusCondition,
 	primary: KeyCode.F2,
 	mac: {
 		primary: KeyCode.Enter
@@ -287,7 +283,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.filesExplorer.moveFileToTrash',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: filesExplorerFocusCondition,
+	when: FilesExplorerFocusCondition,
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -298,7 +294,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.filesExplorer.deleteFile',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: filesExplorerFocusCondition,
+	when: FilesExplorerFocusCondition,
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
@@ -309,7 +305,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.explorer.copyPath',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
@@ -320,7 +316,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.explorer.revealInOS',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: explorerFocusCondition,
+	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R

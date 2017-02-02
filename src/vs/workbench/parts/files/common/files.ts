@@ -9,7 +9,7 @@ import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Explorer viewlet id.
@@ -19,11 +19,21 @@ export const VIEWLET_ID = 'workbench.view.explorer';
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view
  */
-export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true);
-export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false);
-export const FilesExplorerFocussedContext = new RawContextKey<boolean>('filesExplorerFocus', false);
-export const OpenEditorsFocussedContext = new RawContextKey<boolean>('openEditorsFocus', false);
-export const ExplorerFocussedContext = new RawContextKey<boolean>('explorerFocus', false);
+const explorerViewletVisibleId = 'explorerViewletVisible';
+const filesExplorerFocusId = 'filesExplorerFocus';
+const openEditorsFocusId = 'openEditorsFocus';
+const explorerViewletFocusId = 'explorerViewletFocus';
+const explorerResourceIsFolderId = 'explorerResourceIsFolder';
+
+export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
+export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
+export const FilesExplorerFocussedContext = new RawContextKey<boolean>(filesExplorerFocusId, false);
+export const OpenEditorsFocussedContext = new RawContextKey<boolean>(openEditorsFocusId, false);
+export const ExplorerFocussedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
+
+export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));
+export const OpenedEditorsFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(openEditorsFocusId));
+export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId));
 
 /**
  * File editor input id.
