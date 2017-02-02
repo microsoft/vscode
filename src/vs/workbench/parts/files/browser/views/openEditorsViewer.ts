@@ -241,22 +241,6 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-
-		// Editor groups should never get selected nor expanded/collapsed
-		if (element instanceof EditorGroup) {
-			event.preventDefault();
-			event.stopPropagation();
-
-			return true;
-		}
-
-		this.openEditor(element, false, event.ctrlKey || event.metaKey);
-
-		return super.onEnter(tree, event);
-	}
-
 	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;

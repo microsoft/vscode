@@ -23,7 +23,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { copyPathOfFocussedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerViewItemCommand, deleteFocussedExplorerViewItemCommand, moveFocussedExplorerViewItemToTrashCommand, openFocussedExplorerViewItemSideBySideCommand, renameFocussedExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { openFocussedOpenedEditorsViewItemCommand, openFocussedExplorerItemSideBySideCommand, copyPathOfFocussedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerViewItemCommand, deleteFocussedExplorerViewItemCommand, moveFocussedExplorerViewItemToTrashCommand, renameFocussedExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -240,7 +240,16 @@ CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 
 const filesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('filesExplorerFocus'));
+const openedEditorsFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('openEditorsFocus'));
 const explorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has('explorerViewletVisible'), ContextKeyExpr.has('explorerFocus'));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.files.action.openEditors.open',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: openedEditorsFocusCondition,
+	primary: KeyCode.Enter,
+	handler: openFocussedOpenedEditorsViewItemCommand
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.open',
@@ -256,12 +265,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.files.action.openToSide',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: filesExplorerFocusCondition,
+	when: explorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	handler: openFocussedExplorerViewItemSideBySideCommand
+	handler: openFocussedExplorerItemSideBySideCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
