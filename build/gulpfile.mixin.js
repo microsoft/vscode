@@ -31,7 +31,7 @@ gulp.task('mixin', function () {
 		return;
 	}
 
-	const url = `https://github.com/${ repo }/archive/${ pkg.distro }.zip`;
+	const url = `https://github.com/${repo}/archive/${pkg.distro}.zip`;
 	const opts = { base: '' };
 	const username = process.env['VSCODE_MIXIN_USERNAME'];
 	const password = process.env['VSCODE_MIXIN_PASSWORD'];
@@ -48,10 +48,14 @@ gulp.task('mixin', function () {
 		.pipe(util.rebase(1));
 
 	if (quality) {
-		const build = all.pipe(filter('build/**'));
+		const pattern = ['build/**'];
+		if (process.env['VSCODE_PERFORMANCE']) {
+			pattern.push('performance/**')
+		}
+		const build = all.pipe(filter(pattern));
 		const productJsonFilter = filter('product.json', { restore: true });
 
-		const vsdaFilter = (function() {
+		const vsdaFilter = (function () {
 			const filter = [];
 			if (process.platform !== 'win32') { filter.push('!**/vsda_win32.node'); }
 			if (process.platform !== 'darwin') { filter.push('!**/vsda_darwin.node'); }
