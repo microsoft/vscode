@@ -21,6 +21,7 @@ function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
 	} else if (decorations.iconPath) {
 		return `${decorations.iconPath}`;
 	}
+	return undefined;
 }
 
 export interface Cache {

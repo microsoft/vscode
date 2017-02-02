@@ -23,6 +23,7 @@ namespace MapMap {
 		if (map[key1]) {
 			return map[key1][key2];
 		}
+		return undefined;
 	}
 
 	export function set<V>(map: MapMap<V>, key1: string, key2: string, value: V): void {

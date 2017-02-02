@@ -52,6 +52,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 				if (configurationService.lookup<boolean>('editor.wordBasedSuggestions').value) {
 					return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
 				}
+				return undefined;
 			}
 		});
 		this._registrations = [linkProvider, completionProvider];

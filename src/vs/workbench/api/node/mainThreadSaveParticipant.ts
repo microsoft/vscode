@@ -143,7 +143,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
 			|| !this._configurationService.lookup('editor.formatOnSave', model.getLanguageIdentifier().language).value) {
-			return;
+			return undefined;
 		}
 
 		const versionNow = model.getVersionId();
@@ -180,6 +180,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
 				}
 			}
+			return undefined;
 		});
 	}
 
@@ -212,6 +213,7 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 						return TPromise.wrapError('listener failed');
 					}
 				}
+				return undefined;
 			}).then(resolve, reject);
 		});
 	}

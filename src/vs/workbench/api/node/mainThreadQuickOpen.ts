@@ -51,6 +51,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 			if (item) {
 				return item.handle;
 			}
+			return undefined;
 		}, undefined, progress => {
 			if (progress) {
 				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);

@@ -755,5 +755,6 @@ export class ModelLine {
 				return i;
 			}
 		}
+		return undefined;
 	}
 }

@@ -72,7 +72,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 	public getSnippetCompletions(model: ITokenizedModel, position: IPosition): ISuggestion[] {
 		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		if (!this._snippets[languageId]) {
-			return;
+			return undefined;
 		}
 
 		const result: ISnippetSuggestion[] = [];

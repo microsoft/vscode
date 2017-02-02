@@ -32,7 +32,7 @@ export class Colorizer {
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
 		if (!mimeType) {
 			console.error('Mode not detected');
-			return;
+			return undefined;
 		}
 
 		standaloneColorService.setTheme(theme);

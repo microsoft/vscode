@@ -383,6 +383,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					type: adapter.type
 				};
 			}
+			return undefined;
 		});
 	}
 
@@ -416,6 +417,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 							viewlet.focus();
 						});
 				}
+				return undefined;
 			});
 	}
 

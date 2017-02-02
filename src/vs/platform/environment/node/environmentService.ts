@@ -133,7 +133,7 @@ export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { po
 
 function parsePathArg(arg: string, process: NodeJS.Process): string {
 	if (!arg) {
-		return;
+		return undefined;
 	}
 
 	// Determine if the arg is relative or absolute, if relative use the original CWD

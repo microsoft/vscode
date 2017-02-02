@@ -39,7 +39,7 @@ export class MainThreadCommands extends MainThreadCommandsShape {
 			this._disposables[id].dispose();
 			delete this._disposables[id];
 		}
-		return;
+		return undefined;
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {

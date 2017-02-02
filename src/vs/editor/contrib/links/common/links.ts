@@ -125,12 +125,12 @@ CommandsRegistry.registerCommand('_executeLinkProvider', (accessor, ...args) => 
 
 	const [uri] = args;
 	if (!(uri instanceof URI)) {
-		return;
+		return undefined;
 	}
 
 	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
-		return;
+		return undefined;
 	}
 
 	return getLinks(model);

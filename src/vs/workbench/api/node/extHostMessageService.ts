@@ -37,6 +37,7 @@ export class ExtHostMessageService {
 			if (typeof handle === 'number') {
 				return commands[handle];
 			}
+			return undefined;
 		});
 	}
 }

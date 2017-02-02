@@ -456,5 +456,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		if (wordAtText) {
 			return new Range(position.line, wordAtText.startColumn - 1, position.line, wordAtText.endColumn - 1);
 		}
+		return undefined;
 	}
 }

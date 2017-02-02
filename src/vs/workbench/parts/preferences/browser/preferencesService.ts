@@ -165,6 +165,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				});
 		} else {
 			this.openSettings();
+			return undefined;
 		}
 	}
 

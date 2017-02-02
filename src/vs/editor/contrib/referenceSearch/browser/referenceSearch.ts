@@ -103,12 +103,12 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
 		if (!control || typeof control.getEditorType !== 'function') {
-			return;
+			return undefined;
 		}
 
 		let controller = ReferencesController.get(control);
 		if (!controller) {
-			return;
+			return undefined;
 		}
 
 		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
@@ -126,12 +126,12 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
 		if (!control || typeof control.getEditorType !== 'function') {
-			return;
+			return undefined;
 		}
 
 		let controller = ReferencesController.get(control);
 		if (!controller) {
-			return;
+			return undefined;
 		}
 
 		return TPromise.as(controller.toggleWidget(

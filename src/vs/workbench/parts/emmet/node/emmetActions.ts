@@ -149,6 +149,7 @@ class LazyEmmet {
 						return TPromise.join([snippetsPromise, profilesPromise, preferencesPromise]);
 					}
 					this._messageService.show(Severity.Error, `The path set in emmet.extensionsPath "${LazyEmmet.extensionsPath}" does not exist.`);
+					return undefined;
 				});
 			}
 		}
@@ -236,7 +237,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 			if (!editorAccessor.isEmmetEnabledMode()) {
 				this.noExpansionOccurred(editor);
-				return;
+				return undefined;
 			}
 
 			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, workspaceRoot, (_emmet) => {

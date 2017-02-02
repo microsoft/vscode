@@ -52,7 +52,7 @@ class ConfigureLocaleAction extends Action {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat) => {
 			if (!stat) {
-				return;
+				return undefined;
 			}
 			return this.editorService.openEditor({
 				resource: stat.resource,
