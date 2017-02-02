@@ -260,7 +260,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 		function parseMessageArguments(args: any[]): { options: vscode.MessageOptions; items: any[]; } {
 			const [first, ...rest] = args;
 
-			if (first && (typeof first === 'string' || first.title)) {
+			if (typeof first === 'string' || (first && first.title)) {
 				return { options: emptyMessageOptions, items: args };
 			} else {
 				return { options: first || emptyMessageOptions, items: rest };
