@@ -252,7 +252,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.open',
+	id: 'workbench.files.action.filesExplorer.open',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: filesExplorerFocusCondition,
 	primary: KeyCode.Enter,
@@ -263,7 +263,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.openToSide',
+	id: 'workbench.files.action.explorer.openToSide',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: explorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -274,7 +274,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.triggerRename',
+	id: 'workbench.files.action.filesExplorer.rename',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: filesExplorerFocusCondition,
 	primary: KeyCode.F2,
@@ -285,7 +285,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.moveFileToTrash',
+	id: 'workbench.files.action.filesExplorer.moveFileToTrash',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: filesExplorerFocusCondition,
 	primary: KeyCode.Delete,
@@ -296,7 +296,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.delete',
+	id: 'workbench.files.action.filesExplorer.deleteFile',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: filesExplorerFocusCondition,
 	primary: KeyMod.Shift | KeyCode.Delete,
@@ -307,7 +307,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.files.copyPath',
+	id: 'workbench.files.action.explorer.copyPath',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: explorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
@@ -318,7 +318,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.files.revealInWindows',
+	id: 'workbench.files.action.explorer.revealInOS',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: explorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,

@@ -185,15 +185,15 @@ export const openFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) 
 export const openFocussedOpenedEditorsViewItemCommand = (accessor: ServicesAccessor) => openFocussedOpenedEditorsViewItem(accessor, false);
 
 export const renameFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.triggerRename');
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.filesExplorer.rename');
 };
 
 export const deleteFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: false });
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.filesExplorer.moveFileToTrash', { useTrash: false });
 };
 
 export const moveFocussedExplorerViewItemToTrashCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: true });
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.filesExplorer.moveFileToTrash', { useTrash: true });
 };
 
 export const copyPathOfFocussedExplorerItem = (accessor: ServicesAccessor) => {
