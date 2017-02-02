@@ -302,6 +302,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: explorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
+	win: {
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+	},
 	handler: copyPathOfFocussedExplorerItem
 });
 
