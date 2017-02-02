@@ -73,7 +73,7 @@ export class ReferenceAction extends EditorAction {
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 1.3
+				order: 1.5
 			}
 		});
 	}
