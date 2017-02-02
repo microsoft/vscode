@@ -195,6 +195,7 @@ export class ModeServiceImpl implements IModeService {
 			}).done(null, onUnexpectedError);
 			return r;
 		}
+		return undefined;
 	}
 
 	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {

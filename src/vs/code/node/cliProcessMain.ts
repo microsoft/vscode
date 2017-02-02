@@ -68,6 +68,7 @@ class Main {
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			return this.uninstallExtension(ids);
 		}
+		return undefined;
 	}
 
 	private listExtensions(showVersions: boolean): TPromise<any> {

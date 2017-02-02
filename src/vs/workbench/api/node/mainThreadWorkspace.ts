@@ -48,7 +48,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<Uri[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace) {
-			return;
+			return undefined;
 		}
 
 		const search = this._searchService.search({
@@ -63,6 +63,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			if (!isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
+			return undefined;
 		});
 
 		this._activeSearches[requestId] = search;
@@ -79,6 +80,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			search.cancel();
 			return TPromise.as(true);
 		}
+		return undefined;
 	}
 
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> {
