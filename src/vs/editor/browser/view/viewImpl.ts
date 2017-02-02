@@ -47,6 +47,7 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -632,15 +633,21 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
 		if (this._isDisposed) {
-			throw new Error('ViewImpl.getVisibleRangeInViewportExcludingPartialRenderedLines: View is disposed');
+			throw new Error('ViewImpl.getCompletelyVisibleLinesRangeInViewport: View is disposed');
 		}
-		let completelyVisibleLinesRange = this.layoutProvider.getLinesViewportData().completelyVisibleLinesRange;
+
+		let partialData = this.layoutProvider.getLinesViewportData();
+		let startLineNumber = partialData.startLineNumber === partialData.endLineNumber || partialData.relativeVerticalOffset[0] >= partialData.viewportTop ? partialData.startLineNumber : partialData.startLineNumber + 1;
+		let endLineNumber = partialData.relativeVerticalOffset[partialData.relativeVerticalOffset.length - 1] + this._context.configuration.editor.lineHeight <= partialData.viewportTop + partialData.viewportHeight ? partialData.endLineNumber : partialData.endLineNumber - 1;
+		let completelyVisibleLinesRange = new Range(
+			startLineNumber,
+			1,
+			endLineNumber,
+			this._context.model.getLineMaxColumn(endLineNumber)
+		);
+
 		return this._context.model.convertViewRangeToModelRange(completelyVisibleLinesRange);
 	}
-
-	//	public getLineInfoProvider():view.ILineInfoProvider {
-	//		return this.viewLines;
-	//	}
 
 	public getInternalEventBus(): IEventEmitter {
 		if (this._isDisposed) {
@@ -868,10 +875,10 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			return;
 		}
 
-		let linesViewportData = this.layoutProvider.getLinesViewportData();
+		let viewportData = new ViewportData(this.layoutProvider.getLinesViewportData(), this._context.model);
 
 		if (this.viewLines.shouldRender()) {
-			this.viewLines.renderText(linesViewportData, () => {
+			this.viewLines.renderText(viewportData, () => {
 				this.keyboardHandler.writeToTextArea();
 			});
 			this.viewLines.onDidRender();
@@ -882,7 +889,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this.keyboardHandler.writeToTextArea();
 		}
 
-		let renderingContext = new RenderingContext(this.viewLines, this.layoutProvider, linesViewportData);
+		let renderingContext = new RenderingContext(this.viewLines, this.layoutProvider, viewportData);
 
 		// Render the rest of the parts
 		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {

@@ -171,6 +171,7 @@ class DataSource implements tree.IDataSource {
 		} else if (element instanceof OneReference) {
 			return (<OneReference>element).id;
 		}
+		return undefined;
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
@@ -180,6 +181,7 @@ class DataSource implements tree.IDataSource {
 		if (element instanceof FileReferences && !(<FileReferences>element).failure) {
 			return true;
 		}
+		return false;
 	}
 
 	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): TPromise<any[]> {
@@ -383,7 +385,7 @@ class Renderer extends LegacyRenderer {
 			const preview = element.parent.preview.preview(element.range);
 
 			if (!preview) {
-				return;
+				return undefined;
 			}
 
 			$('.reference').innerHtml(
@@ -633,6 +635,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		if (this._model) {
 			return this._onNewModel();
 		}
+		return undefined;
 	}
 
 	private _onNewModel(): TPromise<any> {
@@ -701,6 +704,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				return element.children[0];
 			}
 		}
+		return undefined;
 	}
 
 	private _revealReference(reference: OneReference) {

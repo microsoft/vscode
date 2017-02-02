@@ -9,31 +9,17 @@ import { IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/comm
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-
-export interface IDecorationsViewportData {
-	decorations: ViewModelDecoration[];
-	/**
-	 * inline decorations grouped by each line in the viewport
-	 */
-	inlineDecorations: InlineDecoration[][];
-}
 
 export interface IViewModel extends IEventEmitter {
+	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
+	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 
 	getTabSize(): number;
-
 	getLineCount(): number;
-	mightContainRTL(): boolean;
-	mightContainNonBasicASCII(): boolean;
 	getLineContent(lineNumber: number): string;
 	getLineIndentGuide(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getLineTokens(lineNumber: number): ViewLineToken[];
-	getDecorationsViewportData(startLineNumber: number, endLineNumber: number): IDecorationsViewportData;
 	getLineRenderLineNumber(lineNumber: number): string;
 	/**
 	 * Get the maximum line number that will appear next to a line
@@ -43,8 +29,6 @@ export interface IViewModel extends IEventEmitter {
 	getEOL(): string;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
-	getSelections(): Selection[];
-
 	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;
 	convertViewRangeToModelRange(viewRange: Range): Range;
 
@@ -52,8 +36,62 @@ export interface IViewModel extends IEventEmitter {
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(position: IPosition): Position;
 	convertModelPositionToViewPosition(modelLineNumber: number, modelColumn: number): Position;
-	convertModelSelectionToViewSelection(modelSelection: Selection): Selection;
 	modelPositionIsVisible(position: Position): boolean;
+}
+
+export class ViewLineRenderingData {
+	/**
+	 * The minimum allowed column at this view line.
+	 */
+	public readonly minColumn: number;
+	/**
+	 * The maximum allowed column at this view line.
+	 */
+	public readonly maxColumn: number;
+	/**
+	 * The content at this view line.
+	 */
+	public readonly content: string;
+	/**
+	 * If set to false, it is guaranteed that `content` contains only LTR chars.
+	 */
+	public readonly mightContainRTL: boolean;
+	/**
+	 * If set to false, it is guaranteed that `content` contains only basic ASCII chars.
+	 */
+	public readonly mightContainNonBasicASCII: boolean;
+	/**
+	 * The tokens at this view line.
+	 */
+	public readonly tokens: ViewLineToken[];
+	/**
+	 * Inline decorations at this view line.
+	 */
+	public readonly inlineDecorations: InlineDecoration[];
+	/**
+	 * The tab size for this view model.
+	 */
+	public readonly tabSize: number;
+
+	constructor(
+		minColumn: number,
+		maxColumn: number,
+		content: string,
+		mightContainRTL: boolean,
+		mightContainNonBasicASCII: boolean,
+		tokens: ViewLineToken[],
+		inlineDecorations: InlineDecoration[],
+		tabSize: number
+	) {
+		this.minColumn = minColumn;
+		this.maxColumn = maxColumn;
+		this.content = content;
+		this.mightContainRTL = mightContainRTL;
+		this.mightContainNonBasicASCII = mightContainNonBasicASCII;
+		this.tokens = tokens;
+		this.inlineDecorations = inlineDecorations;
+		this.tabSize = tabSize;
+	}
 }
 
 export class InlineDecoration {

@@ -65,7 +65,7 @@ function findSpecificGit(path: string): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
-		child.stdout.on('data', b => buffers.push(b));
+		child.stdout.on('data', (b: Buffer) => buffers.push(b));
 		child.on('error', e);
 		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
@@ -82,7 +82,7 @@ function findGitDarwin(): Promise<IGit> {
 
 			function getVersion(path: string) {
 				// make sure git executes
-				cp.exec('git --version', (err, stdout) => {
+				cp.exec('git --version', (err, stdout: Buffer) => {
 					if (err) {
 						return e('git not found');
 					}

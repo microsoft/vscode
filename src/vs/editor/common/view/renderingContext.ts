@@ -5,7 +5,7 @@
 'use strict';
 
 import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { Viewport } from 'vs/editor/common/editorCommon';
@@ -28,7 +28,7 @@ export class RenderingContext implements IRenderingContext {
 
 	_renderingContextBrand: void;
 
-	public readonly linesViewportData: ViewLinesViewportData;
+	public readonly viewportData: ViewportData;
 
 	public readonly scrollWidth: number;
 	public readonly scrollHeight: number;
@@ -44,16 +44,16 @@ export class RenderingContext implements IRenderingContext {
 	private readonly _layoutProvider: ILayoutProvider;
 	private readonly _viewLines: IViewLines;
 
-	constructor(viewLines: IViewLines, layoutProvider: ILayoutProvider, linesViewportData: ViewLinesViewportData) {
+	constructor(viewLines: IViewLines, layoutProvider: ILayoutProvider, viewportData: ViewportData) {
 		this._viewLines = viewLines;
 		this._layoutProvider = layoutProvider;
-		this.linesViewportData = linesViewportData;
+		this.viewportData = viewportData;
 
 		this.scrollWidth = this._layoutProvider.getScrollWidth();
 		this.scrollHeight = this._layoutProvider.getScrollHeight();
 
-		this.visibleRange = this.linesViewportData.visibleRange;
-		this.bigNumbersDelta = this.linesViewportData.bigNumbersDelta;
+		this.visibleRange = this.viewportData.visibleRange;
+		this.bigNumbersDelta = this.viewportData.bigNumbersDelta;
 
 		const vInfo = this._layoutProvider.getCurrentViewport();
 		this.viewportWidth = vInfo.width;
@@ -74,13 +74,13 @@ export class RenderingContext implements IRenderingContext {
 
 	public lineIsVisible(lineNumber: number): boolean {
 		return (
-			this.linesViewportData.visibleRange.startLineNumber <= lineNumber
-			&& lineNumber <= this.linesViewportData.visibleRange.endLineNumber
+			this.viewportData.visibleRange.startLineNumber <= lineNumber
+			&& lineNumber <= this.viewportData.visibleRange.endLineNumber
 		);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {
-		return this.linesViewportData.getDecorationsInViewport();
+		return this.viewportData.getDecorationsInViewport();
 	}
 
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] {
@@ -88,7 +88,7 @@ export class RenderingContext implements IRenderingContext {
 	}
 
 	public visibleRangeForPosition(position: Position): VisibleRange {
-		const deltaTop = this.linesViewportData.visibleRangesDeltaTop;
+		const deltaTop = this.viewportData.visibleRangesDeltaTop;
 		const visibleRanges = this._viewLines.visibleRangesForRange2(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			deltaTop
@@ -101,18 +101,18 @@ export class RenderingContext implements IRenderingContext {
 }
 
 export interface IRestrictedRenderingContext {
-	linesViewportData: ViewLinesViewportData;
+	readonly viewportData: ViewportData;
 
-	scrollWidth: number;
-	scrollHeight: number;
+	readonly scrollWidth: number;
+	readonly scrollHeight: number;
 
-	visibleRange: Range;
-	bigNumbersDelta: number;
+	readonly visibleRange: Range;
+	readonly bigNumbersDelta: number;
 
-	viewportTop: number;
-	viewportWidth: number;
-	viewportHeight: number;
-	viewportLeft: number;
+	readonly viewportTop: number;
+	readonly viewportWidth: number;
+	readonly viewportHeight: number;
+	readonly viewportLeft: number;
 
 	getScrolledTopFromAbsoluteTop(absoluteTop: number): number;
 	getViewportVerticalOffsetForLineNumber(lineNumber: number): number;

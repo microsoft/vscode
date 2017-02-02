@@ -63,5 +63,8 @@
         "url": "vscode://schemas/extensions"
       }
     ]
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
   }
 }

@@ -103,6 +103,7 @@ interface IZenModeSettings {
 	fullScreen: boolean;
 	hideTabs: boolean;
 	hideStatusBar: boolean;
+	restore: boolean;
 }
 
 export interface IWorkbenchStartedInfo {
@@ -820,8 +821,10 @@ export class Workbench implements IPartService {
 		if (reason === ShutdownReason.RELOAD) {
 			this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 		}
+
+		const zenConfig = this.configurationService.getConfiguration<IZenModeSettings>('zenMode');
 		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
-		this.storageService.store(Workbench.zenModeActiveSettingKey, reason === ShutdownReason.RELOAD && this.zenMode.active, StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.zenModeActiveSettingKey, (zenConfig.restore || reason === ShutdownReason.RELOAD) && this.zenMode.active, StorageScope.WORKSPACE);
 
 		// Pass shutdown on to each participant
 		this.toShutdown.forEach(s => s.shutdown());

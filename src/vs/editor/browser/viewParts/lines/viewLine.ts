@@ -8,15 +8,14 @@ import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { IConfiguration, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { renderViewLine, RenderLineInput, RenderLineOutput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
-import { IVisibleLineData } from 'vs/editor/browser/view/viewLayer';
+import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -66,34 +65,49 @@ export class DomReadingContext {
 
 }
 
-export class ViewLine implements IVisibleLineData {
+class ViewLineOptions {
+	public readonly renderWhitespace: 'none' | 'boundary' | 'all';
+	public readonly renderControlCharacters: boolean;
+	public readonly spaceWidth: number;
+	public readonly useMonospaceOptimizations: boolean;
+	public readonly lineHeight: number;
+	public readonly stopRenderingLineAfter: number;
 
-	private _context: ViewContext;
-	private _renderWhitespace: 'none' | 'boundary' | 'all';
-	private _renderControlCharacters: boolean;
-	private _spaceWidth: number;
-	private _useMonospaceOptimizations: boolean;
-	private _lineHeight: number;
-	private _stopRenderingLineAfter: number;
+	constructor(config: IConfiguration) {
+		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
+		this.renderControlCharacters = config.editor.viewInfo.renderControlCharacters;
+		this.spaceWidth = config.editor.fontInfo.spaceWidth;
+		this.useMonospaceOptimizations = (
+			config.editor.fontInfo.isMonospace
+			&& !config.editor.viewInfo.disableMonospaceOptimizations
+		);
+		this.lineHeight = config.editor.lineHeight;
+		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
+	}
 
+	public equals(other: ViewLineOptions): boolean {
+		return (
+			this.renderWhitespace === other.renderWhitespace
+			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.spaceWidth === other.spaceWidth
+			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
+			&& this.lineHeight === other.lineHeight
+			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+		);
+	}
+}
+
+export class ViewLine implements IVisibleLine {
+
+	private readonly _configuration: IConfiguration;
+	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
-
 	private _renderedViewLine: IRenderedViewLine;
 
-	constructor(context: ViewContext) {
-		this._context = context;
-		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
-		this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
-		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		this._useMonospaceOptimizations = (
-			this._context.configuration.editor.fontInfo.isMonospace
-			&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
-		);
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
-
+	constructor(configuration: IConfiguration) {
+		this._configuration = configuration;
+		this._options = new ViewLineOptions(this._configuration);
 		this._isMaybeInvalid = true;
-
 		this._renderedViewLine = null;
 	}
 
@@ -123,62 +137,39 @@ export class ViewLine implements IVisibleLineData {
 		this._isMaybeInvalid = true;
 	}
 	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
-		if (e.viewInfo.renderWhitespace) {
-			this._isMaybeInvalid = true;
-			this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
+		let newOptions = new ViewLineOptions(this._configuration);
+		if (this._options.equals(newOptions)) {
+			// Nothing changed
+			return;
 		}
-		if (e.viewInfo.renderControlCharacters) {
-			this._isMaybeInvalid = true;
-			this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
-		}
-		if (e.viewInfo.disableMonospaceOptimizations) {
-			this._isMaybeInvalid = true;
-			this._useMonospaceOptimizations = (
-				this._context.configuration.editor.fontInfo.isMonospace
-				&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
-			);
-		}
-		if (e.fontInfo) {
-			this._isMaybeInvalid = true;
-			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-			this._useMonospaceOptimizations = (
-				this._context.configuration.editor.fontInfo.isMonospace
-				&& !this._context.configuration.editor.viewInfo.disableMonospaceOptimizations
-			);
-		}
-		if (e.lineHeight) {
-			this._isMaybeInvalid = true;
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.viewInfo.stopRenderingLineAfter) {
-			this._isMaybeInvalid = true;
-			this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
-		}
+		this._isMaybeInvalid = true;
+		this._options = newOptions;
 	}
 
-	public shouldUpdateHTML(startLineNumber: number, lineNumber: number, inlineDecorations: InlineDecoration[]): boolean {
+	public shouldUpdateHTML(lineNumber: number, viewportData: ViewportData): boolean {
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
 			return false;
 		}
 		this._isMaybeInvalid = false;
 
-		const model = this._context.model;
-		const actualInlineDecorations = Decoration.filter(inlineDecorations, lineNumber, model.getLineMinColumn(lineNumber), model.getLineMaxColumn(lineNumber));
-		const lineContent = model.getLineContent(lineNumber);
+		const lineData = viewportData.getViewLineRenderingData(lineNumber);
+
+		const options = this._options;
+		const actualInlineDecorations = Decoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
 		let renderLineInput = new RenderLineInput(
-			this._useMonospaceOptimizations,
-			lineContent,
-			model.mightContainRTL(),
-			model.getLineMinColumn(lineNumber) - 1,
-			model.getLineTokens(lineNumber),
+			options.useMonospaceOptimizations,
+			lineData.content,
+			lineData.mightContainRTL,
+			lineData.minColumn - 1,
+			lineData.tokens,
 			actualInlineDecorations,
-			model.getTabSize(),
-			this._spaceWidth,
-			this._stopRenderingLineAfter,
-			this._renderWhitespace,
-			this._renderControlCharacters
+			lineData.tabSize,
+			options.spaceWidth,
+			options.stopRenderingLineAfter,
+			options.renderWhitespace,
+			options.renderControlCharacters
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -189,13 +180,13 @@ export class ViewLine implements IVisibleLineData {
 		const output = renderViewLine(renderLineInput);
 
 		let renderedViewLine: IRenderedViewLine = null;
-		if (canUseFastRenderedViewLine && this._useMonospaceOptimizations && !output.containsForeignElements) {
+		if (canUseFastRenderedViewLine && options.useMonospaceOptimizations && !output.containsForeignElements) {
 			let isRegularASCII = true;
-			if (model.mightContainNonBasicASCII()) {
-				isRegularASCII = strings.isBasicASCII(lineContent);
+			if (lineData.mightContainNonBasicASCII) {
+				isRegularASCII = strings.isBasicASCII(lineData.content);
 			}
 
-			if (isRegularASCII && lineContent.length < 1000) {
+			if (isRegularASCII && lineData.content.length < 1000) {
 				// Browser rounding errors have been observed in Chrome and IE, so using the fast
 				// view line only for short lines. Please test before removing the length check...
 				renderedViewLine = new FastRenderedViewLine(
@@ -222,19 +213,19 @@ export class ViewLine implements IVisibleLineData {
 	}
 
 	public getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void {
-		out.push(`<div lineNumber="${lineNumber}" style="top:${deltaTop}px;height:${this._lineHeight}px;" class="${ClassNames.VIEW_LINE}">`);
+		out.push(`<div lineNumber="${lineNumber}" style="top:${deltaTop}px;height:${this._options.lineHeight}px;" class="${ClassNames.VIEW_LINE}">`);
 		out.push(this.getLineInnerHTML(lineNumber));
 		out.push(`</div>`);
 	}
 
-	public getLineInnerHTML(lineNumber: number): string {
+	private getLineInnerHTML(lineNumber: number): string {
 		return this._renderedViewLine.html;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number): void {
 		this._renderedViewLine.domNode.setLineNumber(String(lineNumber));
 		this._renderedViewLine.domNode.setTop(deltaTop);
-		this._renderedViewLine.domNode.setHeight(this._lineHeight);
+		this._renderedViewLine.domNode.setHeight(this._options.lineHeight);
 	}
 
 	// --- end IVisibleLineData

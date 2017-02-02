@@ -15,7 +15,7 @@ import { ViewLayer } from 'vs/editor/browser/view/viewLayer';
 import { DomReadingContext, ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewLines, VisibleRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
@@ -351,7 +351,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	// --- implementation
 
 	_createLine(): ViewLine {
-		return new ViewLine(this._context);
+		return new ViewLine(this._context.configuration);
 	}
 
 	private _updateLineWidths(): void {
@@ -375,15 +375,15 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		throw new Error('Not supported');
 	}
 
-	public renderText(linesViewportData: ViewLinesViewportData, onAfterLinesRendered: () => void): void {
+	public renderText(viewportData: ViewportData, onAfterLinesRendered: () => void): void {
 		if (!this.shouldRender()) {
 			throw new Error('I did not ask to render!');
 		}
 
 		// (1) render lines - ensures lines are in the DOM
-		super._renderLines(linesViewportData);
-		this._lastRenderedData.setBigNumbersDelta(linesViewportData.bigNumbersDelta);
-		this._lastRenderedData.setCurrentVisibleRange(linesViewportData.visibleRange);
+		super._renderLines(viewportData);
+		this._lastRenderedData.setBigNumbersDelta(viewportData.bigNumbersDelta);
+		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
 		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
 		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
 
@@ -417,13 +417,13 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 		// (4) handle scrolling
 		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + viewportData.visibleRangesDeltaTop + 'px, 0px)';
 			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform);
 			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
 			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
 		} else {
 			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, '');
-			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
+			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, viewportData.visibleRangesDeltaTop); // TODO@Alex
 			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
 		}
 

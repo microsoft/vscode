@@ -61,15 +61,15 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 	$setItems(items: MyQuickPickItems[]): Thenable<any> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
-			return;
 		}
+		return undefined;
 	}
 
 	$setError(error: Error): Thenable<any> {
 		if (this._doSetError) {
 			this._doSetError(error);
-			return;
 		}
+		return undefined;
 	}
 
 	// ---- input

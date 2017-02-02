@@ -13,30 +13,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { ViewModelDecoration, IDecorationsViewportData, IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-
-export interface ILinesCollection {
-	setTabSize(newTabSize: number, emit: (evenType: string, payload: any) => void): boolean;
-	setWrappingColumn(newWrappingColumn: number, columnsForFullWidthChar: number, emit: (evenType: string, payload: any) => void): boolean;
-	setWrappingIndent(newWrappingIndent: editorCommon.WrappingIndent, emit: (evenType: string, payload: any) => void): boolean;
-
-	onModelFlushed(versionId: number, emit: (evenType: string, payload: any) => void): void;
-	onModelLinesDeleted(versionId: number, fromLineNumber: number, toLineNumber: number, emit: (evenType: string, payload: any) => void): void;
-	onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, text: string[], emit: (evenType: string, payload: any) => void): void;
-	onModelLineChanged(versionId: number, lineNumber: number, newText: string, emit: (evenType: string, payload: any) => void): boolean;
-	getOutputLineCount(): number;
-	getOutputLineContent(outputLineNumber: number): string;
-	getOutputIndentGuide(outputLineNumber: number): number;
-	getOutputLineMinColumn(outputLineNumber: number): number;
-	getOutputLineMaxColumn(outputLineNumber: number): number;
-	getOutputLineTokens(outputLineNumber: number): ViewLineToken[];
-	convertOutputPositionToInputPosition(viewLineNumber: number, viewColumn: number): Position;
-	convertInputPositionToOutputPosition(inputLineNumber: number, inputColumn: number): Position;
-	setHiddenAreas(ranges: editorCommon.IRange[], emit: (evenType: string, payload: any) => void): void;
-	inputPositionIsVisible(inputLineNumber: number, inputColumn: number): boolean;
-	dispose(): void;
-}
+import { ViewLineRenderingData, ViewModelDecoration, IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 export class ViewModel extends EventEmitter implements IViewModel {
 
@@ -46,7 +24,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 	private listenersToRemove: IDisposable[];
 	private _toDispose: IDisposable[];
-	private lines: ILinesCollection;
+	private lines: SplitLinesCollection;
 	private decorations: ViewModelDecorations;
 	private cursors: ViewModelCursors;
 
@@ -56,7 +34,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 	private getCurrentCenteredModelRange: () => Range;
 
-	constructor(lines: ILinesCollection, editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, getCurrentCenteredModelRange: () => Range) {
+	constructor(lines: SplitLinesCollection, editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, getCurrentCenteredModelRange: () => Range) {
 		super();
 		this.lines = lines;
 
@@ -409,20 +387,12 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.lines.getOutputLineCount();
 	}
 
-	public mightContainRTL(): boolean {
-		return this.model.mightContainRTL();
-	}
-
-	public mightContainNonBasicASCII(): boolean {
-		return this.model.mightContainNonBasicASCII();
+	public getLineIndentGuide(lineNumber: number): number {
+		return this.lines.getOutputIndentGuide(lineNumber);
 	}
 
 	public getLineContent(lineNumber: number): string {
 		return this.lines.getOutputLineContent(lineNumber);
-	}
-
-	public getLineIndentGuide(lineNumber: number): number {
-		return this.lines.getOutputIndentGuide(lineNumber);
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
@@ -447,10 +417,6 @@ export class ViewModel extends EventEmitter implements IViewModel {
 			return 0;
 		}
 		return result + 2;
-	}
-
-	public getLineTokens(lineNumber: number): ViewLineToken[] {
-		return this.lines.getOutputLineTokens(lineNumber);
 	}
 
 	public getLineRenderLineNumber(viewLineNumber: number): string {
@@ -480,14 +446,28 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.model.getLineCount();
 	}
 
-	public getDecorationsViewportData(startLineNumber: number, endLineNumber: number): IDecorationsViewportData {
-		let viewRange = new Range(
-			startLineNumber,
-			this.getLineMinColumn(startLineNumber),
-			endLineNumber,
-			this.getLineMaxColumn(endLineNumber)
+	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
+		return this.decorations.getDecorationsViewportData(visibleRange).decorations;
+	}
+
+	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+		let mightContainRTL = this.model.mightContainRTL();
+		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
+		let tabSize = this.getTabSize();
+		let lineData = this.lines.getOutputLineRenderingData(lineNumber);
+		let allInlineDecorations = this.decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
+		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
+
+		return new ViewLineRenderingData(
+			lineData.minColumn,
+			lineData.maxColumn,
+			lineData.content,
+			mightContainRTL,
+			mightContainNonBasicASCII,
+			lineData.tokens,
+			inlineDecorations,
+			tabSize
 		);
-		return this.decorations.getDecorationsViewportData(viewRange);
 	}
 
 	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
@@ -501,10 +481,6 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {
 		var modelRange = this.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
-	}
-
-	public getSelections(): Selection[] {
-		return this.cursors.getSelections();
 	}
 
 	// View -> Model conversion and related methods

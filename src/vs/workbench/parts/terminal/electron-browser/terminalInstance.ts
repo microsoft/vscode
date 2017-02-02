@@ -540,8 +540,30 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _getLangEnvVariable(locale: string) {
 		const parts = locale.split('-');
 		const n = parts.length;
-		if (n > 1) {
-			parts[n - 1] = parts[n - 1].toUpperCase();
+		const language = parts[0];
+		if (n === 0) {
+			return '';
+		}
+		if (n === 1) {
+			// app.getLocale can return just a language without a variant, fill in the variant for
+			// supported languages as many shells expect a 2-part locale.
+			const languageVariants = {
+				de: 'DE',
+				en: 'US',
+				es: 'ES',
+				fr: 'FR',
+				it: 'IT',
+				ja: 'JP',
+				ko: 'KR',
+				ru: 'RU',
+				zh: 'TW'
+			};
+			if (language in languageVariants) {
+				parts.push(languageVariants[language]);
+			}
+		} else {
+			// Ensure the variant is uppercase
+			parts[1] = parts[1].toUpperCase();
 		}
 		return parts.join('_') + '.UTF-8';
 	}
