@@ -5,11 +5,11 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
-import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart';
-import { WalkThroughArrowUpAction, WalkThroughArrowDownAction, WalkThroughPageUpAction, WalkThroughPageDownAction } from 'vs/workbench/parts/walkThrough/electron-browser/walkThroughActions';
-import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/parts/walkThrough/node/walkThroughContentProvider';
-import { EditorWalkThroughAction } from 'vs/workbench/parts/walkThrough/electron-browser/editor/editorWalkThrough';
+import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
+import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
+import { WalkThroughArrowUpAction, WalkThroughArrowDownAction, WalkThroughPageUpAction, WalkThroughPageDownAction } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughActions';
+import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughContentProvider';
+import { EditorWalkThroughAction } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
 import { Registry } from 'vs/platform/platform';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
@@ -24,7 +24,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(new EditorDescriptor(WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),
-		'vs/workbench/parts/walkThrough/electron-browser/walkThroughPart',
+		'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart',
 		'WalkThroughPart'),
 	[new SyncDescriptor(WalkThroughInput)]);
 

@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { WalkThroughInput } from 'vs/workbench/parts/walkThrough/node/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { Schemas } from 'vs/base/common/network';
 
 export class EditorWalkThroughAction extends Action {
