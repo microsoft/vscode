@@ -673,9 +673,6 @@ export class DebugService implements debug.IDebugService {
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
 			const process = this.model.addProcess(configuration, session);
 
-			if (!this.viewModel.focusedProcess) {
-				this.focusStackFrameAndEvaluate(null, process);
-			}
 			this.toDisposeOnSessionEnd.set(session.getId(), []);
 			if (client) {
 				this.toDisposeOnSessionEnd.get(session.getId()).push(client);
@@ -697,7 +694,9 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
-
+				if (!this.viewModel.focusedProcess) {
+					this.focusStackFrameAndEvaluate(null, process);
+				}
 				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
@@ -719,7 +718,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.setStateAndEmit(session.getId(), debug.State.Running);
 
-				this.telemetryService.publicLog('debugSessionStart', {
+				return this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
@@ -727,7 +726,6 @@ export class DebugService implements debug.IDebugService {
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin
 				});
-				return undefined;
 			}).then(undefined, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
 					// Do not show 'canceled' error messages to the user #7906
