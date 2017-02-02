@@ -858,7 +858,8 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.model.removeProcess(session.getId());
-		if (this.viewModel.focusedProcess.getId() === session.getId()) {
+		const focusedProcess = this.viewModel.focusedProcess;
+		if (focusedProcess && focusedProcess.getId() === session.getId()) {
 			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 		}
 		this.setStateAndEmit(session.getId(), debug.State.Inactive);
