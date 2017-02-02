@@ -353,7 +353,7 @@ export class TrieMap<E> {
 		for (const part of parts) {
 			node = children[part];
 			if (!node) {
-				return;
+				return undefined;
 			}
 			children = node.children;
 		}
@@ -382,6 +382,7 @@ export class TrieMap<E> {
 		if (lastNode) {
 			return lastNode.element;
 		}
+		return undefined;
 	}
 
 	findSuperstr(path: string): TrieMap<E> {
@@ -392,7 +393,7 @@ export class TrieMap<E> {
 		for (const part of parts) {
 			node = children[part];
 			if (!node) {
-				return;
+				return undefined;
 			}
 			children = node.children;
 		}

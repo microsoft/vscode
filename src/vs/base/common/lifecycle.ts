@@ -25,6 +25,7 @@ export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T 
 			first.dispose();
 			return first;
 		}
+		return undefined;
 	} else {
 		dispose(first);
 		dispose(rest);
@@ -69,6 +70,7 @@ export class Disposables extends Disposable {
 			for (let element of arg) {
 				return this._register(element);
 			}
+			return undefined;
 		}
 	}
 }

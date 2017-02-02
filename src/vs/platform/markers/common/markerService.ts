@@ -182,7 +182,7 @@ export class MarkerService implements IMarkerService {
 		let {code, severity, message, source, startLineNumber, startColumn, endLineNumber, endColumn} = data;
 
 		if (!message) {
-			return;
+			return undefined;
 		}
 
 		// santize data
