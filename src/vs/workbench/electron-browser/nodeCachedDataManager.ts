@@ -77,6 +77,7 @@ export class NodeCachedDataManager {
 						if (diff > limit) {
 							return rimraf(path);
 						}
+						return undefined;
 					});
 				});
 

@@ -51,7 +51,7 @@ export default class CallbackList {
 
 	public invoke(...args: any[]): any[] {
 		if (!this._callbacks) {
-			return;
+			return undefined;
 		}
 
 		const ret: any[] = [],
