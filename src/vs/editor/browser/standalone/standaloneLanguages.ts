@@ -239,7 +239,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 
 			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
 				if (!value) {
-					return;
+					return undefined;
 				}
 				if (!value.range && word) {
 					value.range = new Range(position.lineNumber, word.startColumn, position.column, word.endColumn);
@@ -621,7 +621,7 @@ class SuggestAdapter {
 				result.incomplete = list.isIncomplete;
 			} else if (!value) {
 				// undefined and null are valid results
-				return;
+				return undefined;
 			} else {
 				// warn about everything else
 				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);

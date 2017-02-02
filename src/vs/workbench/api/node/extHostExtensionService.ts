@@ -123,6 +123,7 @@ class ExtensionStoragePath {
 		if (this._value) {
 			return paths.join(this._value, extension.id);
 		}
+		return undefined;
 	}
 
 	private _getOrCreateWorkspaceStoragePath(): TPromise<string> {
@@ -311,6 +312,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 				if (errors[1]) {
 					return TPromise.wrapError(errors[1]);
 				}
+				return undefined;
 			});
 		});
 	}

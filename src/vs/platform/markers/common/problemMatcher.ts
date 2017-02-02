@@ -245,6 +245,7 @@ class AbstractLineMatcher implements ILineMatcher {
 				marker: marker
 			};
 		}
+		return undefined;
 	}
 
 	protected getResource(filename: string): URI {

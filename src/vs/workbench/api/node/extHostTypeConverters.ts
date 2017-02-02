@@ -111,7 +111,7 @@ export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 
 export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 	if (typeof position !== 'number') {
-		return;
+		return undefined;
 	}
 	if (position === EditorPosition.ONE) {
 		return <number>types.ViewColumn.One;
@@ -120,6 +120,7 @@ export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 	} else if (position === EditorPosition.THREE) {
 		return <number>types.ViewColumn.Three;
 	}
+	return undefined;
 }
 
 function isDecorationOptions(something: any): something is vscode.DecorationOptions {

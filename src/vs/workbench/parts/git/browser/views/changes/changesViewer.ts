@@ -100,6 +100,7 @@ export class DataSource implements tree.IDataSource {
 			var statusGroup = <git.IStatusGroup>element;
 			return statusGroup.all().length > 0;
 		}
+		return false;
 	}
 
 	public getChildren(tree: tree.ITree, element: any): winjs.Promise {
@@ -691,6 +692,7 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 				case git.StatusType.MERGE: return nls.localize('ariaLabelMerge', "Merge, Git");
 			}
 		}
+		return undefined;
 	}
 }
 
@@ -724,14 +726,14 @@ export class Controller extends treedefaults.DefaultController {
 			var focus = tree.getFocus();
 
 			if (!(focus instanceof gitmodel.FileStatus) || !(element instanceof gitmodel.FileStatus)) {
-				return;
+				return undefined;
 			}
 
 			var focusStatus = <gitmodel.FileStatus>focus;
 			var elementStatus = <gitmodel.FileStatus>element;
 
 			if (focusStatus.getType() !== elementStatus.getType()) {
-				return;
+				return undefined;
 			}
 
 			if (this.canSelect(tree, element)) {
@@ -743,7 +745,7 @@ export class Controller extends treedefaults.DefaultController {
 				}
 			}
 
-			return;
+			return undefined;
 		}
 
 		tree.setFocus(element);
@@ -753,7 +755,7 @@ export class Controller extends treedefaults.DefaultController {
 				tree.toggleSelection(element, { origin: 'mouse', originalEvent: event });
 			}
 
-			return;
+			return undefined;
 		}
 
 		return super.onLeftClick(tree, element, event);

@@ -34,6 +34,7 @@ export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Ra
 				}, onUnexpectedExternalError);
 			};
 		}
+		return undefined;
 	})).then(() => result);
 }
 
@@ -54,6 +55,7 @@ export function getDocumentFormattingEdits(model: IReadOnlyModel, options: Forma
 				}, onUnexpectedExternalError);
 			};
 		}
+		return undefined;
 	})).then(() => result);
 }
 

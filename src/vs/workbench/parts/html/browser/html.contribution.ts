@@ -57,7 +57,7 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 
 	if (!codeEditor) {
 		console.warn('NO matching editor found');
-		return;
+		return undefined;
 	}
 
 	const textModelResolverService = accessor.get(ITextModelResolverService);

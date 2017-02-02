@@ -352,6 +352,7 @@ export class DefaultController implements _.IController {
 					tree.focusParent(payload);
 					return tree.reveal(tree.getFocus());
 				}
+				return undefined;
 			}).done(null, errors.onUnexpectedError);
 		}
 		return true;
@@ -369,6 +370,7 @@ export class DefaultController implements _.IController {
 					tree.focusFirstChild(payload);
 					return tree.reveal(tree.getFocus());
 				}
+				return undefined;
 			}).done(null, errors.onUnexpectedError);
 		}
 		return true;

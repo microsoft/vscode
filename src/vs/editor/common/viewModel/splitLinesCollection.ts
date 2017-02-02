@@ -591,7 +591,7 @@ export class SplitLinesCollection {
 
 	public onModelLineChanged(versionId: number, lineNumber: number, newText: string, emit: (evenType: string, payload: any) => void): boolean {
 		if (versionId <= this._validModelVersionId) {
-			return;
+			return undefined;
 		}
 		this._validModelVersionId = versionId;
 		let lineIndex = lineNumber - 1;

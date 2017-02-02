@@ -165,7 +165,7 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	// don't run the action when not enabled
 	if (!actionInstance.enabled) {
 		actionInstance.dispose();
-		return;
+		return undefined;
 	}
 
 	if (telemetryService) {

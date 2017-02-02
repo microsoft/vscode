@@ -43,6 +43,7 @@ class ToggleBreakpointAction extends EditorAction {
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
 			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
 		}
+		return undefined;
 	}
 }
 

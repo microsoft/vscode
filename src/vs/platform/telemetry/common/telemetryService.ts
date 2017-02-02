@@ -116,6 +116,7 @@ export class TelemetryService implements ITelemetryService {
 				if (typeof value === 'string') {
 					return this._cleanupInfo(value);
 				}
+				return undefined;
 			});
 
 			this._appender.log(eventName, data);

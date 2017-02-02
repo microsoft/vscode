@@ -139,7 +139,7 @@ suite('QuickOpen performance', () => {
 					let i = n;
 					return (function iterate(): TPromise<Timer.ITimerEvent> {
 						if (!i--) {
-							return;
+							return undefined;
 						}
 						return measure()
 							.then(([uncachedEvent, cachedEvent]) => {
@@ -154,6 +154,7 @@ suite('QuickOpen performance', () => {
 						});
 					});
 				}
+				return undefined;
 			});
 	});
 });

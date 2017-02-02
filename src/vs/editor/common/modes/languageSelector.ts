@@ -77,4 +77,5 @@ export function score(selector: LanguageSelector, uri: URI, language: string): n
 
 		return Math.max(valueLanguage, valueScheme, valuePattern);
 	}
+	return undefined;
 }

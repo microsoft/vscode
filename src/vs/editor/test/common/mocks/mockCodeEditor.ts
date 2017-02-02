@@ -76,7 +76,7 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
-	getAttribute(attr: string): string { return; }
+	getAttribute(attr: string): string { return undefined; }
 }
 
 export function withMockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {

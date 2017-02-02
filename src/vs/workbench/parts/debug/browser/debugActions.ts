@@ -141,6 +141,7 @@ export class StartAction extends AbstractDebugAction {
 				if (this.contextService.getWorkspace() && commandAndType) {
 					return manager.openConfigFile(false, commandAndType.type);
 				}
+				return undefined;
 			});
 		});
 	}

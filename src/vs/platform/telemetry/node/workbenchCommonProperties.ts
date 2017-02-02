@@ -73,6 +73,7 @@ function getSqmUserId(storageService: IStorageService): TPromise<string> {
 			storageService.store('telemetry.sqm.userId', result);
 			return result;
 		}
+		return undefined;
 	});
 }
 
@@ -86,6 +87,7 @@ function getSqmMachineId(storageService: IStorageService): TPromise<string> {
 			storageService.store('telemetry.sqm.machineId', result);
 			return result;
 		}
+		return undefined;
 	});
 }
 

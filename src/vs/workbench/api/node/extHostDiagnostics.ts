@@ -168,6 +168,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		if (Array.isArray(result)) {
 			return <vscode.Diagnostic[]>Object.freeze(result.slice(0));
 		}
+		return undefined;
 	}
 
 	has(uri: URI): boolean {
