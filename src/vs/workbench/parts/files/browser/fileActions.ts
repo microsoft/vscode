@@ -49,7 +49,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import { revealInOSCommand, revealInExplorerCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -1858,6 +1858,56 @@ export class GlobalRevealInOSAction extends Action {
 			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, fileResource]);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class CopyPathAction extends Action {
+
+	public static LABEL = nls.localize('copyPath', "Copy Path");
+
+	constructor(
+		private resource: URI,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super('workbench.action.files.copyPath', CopyPathAction.LABEL);
+
+		this.order = 140;
+	}
+
+	public run(): TPromise<any> {
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, this.resource]);
+
+		return TPromise.as(true);
+	}
+}
+
+export class GlobalCopyPathAction extends Action {
+
+	public static ID = 'workbench.action.files.copyPathOfActiveFile';
+	public static LABEL = nls.localize('copyPathOfActive', "Copy Path of Active File");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		const fileResource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
+		if (fileResource) {
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, fileResource]);
+			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 		}
 
 		return TPromise.as(true);

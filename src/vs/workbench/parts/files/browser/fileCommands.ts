@@ -15,12 +15,20 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
-import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, explorerItemToFileResource, IFileResource } from 'vs/workbench/parts/files/common/files';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import labels = require('vs/base/common/labels');
 
 // Commands
+
+export const copyPathCommand = (accessor: ServicesAccessor, resource: URI) => {
+	const clipboardService = accessor.get(IClipboardService);
+
+	clipboardService.writeText(labels.getPathLabel(resource));
+};
 
 export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
@@ -71,7 +79,7 @@ export const openFocussedExplorerItemCommand = (accessor: ServicesAccessor) => o
 export const openFocussedExplorerSideBySideItemCommand = (accessor: ServicesAccessor) => openFocussedExplorerItem(accessor, true);
 
 function openFocussedExplorerItem(accessor: ServicesAccessor, sideBySide: boolean): void {
-	withFocussedExplorerItem(accessor).then(res => {
+	withFocussedExplorerViewItem(accessor).then(res => {
 		if (res) {
 
 			// Directory: Toggle expansion
@@ -90,44 +98,75 @@ function openFocussedExplorerItem(accessor: ServicesAccessor, sideBySide: boolea
 	});
 }
 
+function runActionOnFocussedExplorerViewItem(accessor: ServicesAccessor, id: string, context?: any): void {
+	withFocussedExplorerViewItem(accessor).then(res => {
+		if (res) {
+			res.explorer.getViewletState().actionProvider.runAction(res.tree, res.item, id, context).done(null, errors.onUnexpectedError);
+		}
+	});
+}
+
 export const renameFocussedExplorerItemCommand = (accessor: ServicesAccessor) => {
-	runExplorerActionOnFocussedItem(accessor, 'workbench.files.action.triggerRename');
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.triggerRename');
 };
 
 export const deleteFocussedExplorerItemCommand = (accessor: ServicesAccessor) => {
-	runExplorerActionOnFocussedItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: false });
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: false });
 };
 
 export const moveFocussedExplorerItemToTrashCommand = (accessor: ServicesAccessor) => {
-	runExplorerActionOnFocussedItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: true });
+	runActionOnFocussedExplorerViewItem(accessor, 'workbench.files.action.moveFileToTrash', { useTrash: true });
 };
 
-function withFocussedExplorerItem(accessor: ServicesAccessor): TPromise<{ viewlet: ExplorerViewlet, tree: ITree, item: FileStat }> {
+function withExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewlet> {
 	const viewletService = accessor.get(IViewletService);
 
-	// Return early if the active viewlet is not the explorer
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
-		return TPromise.as(void 0);
+		return TPromise.as(void 0); // Return early if the active viewlet is not the explorer
 	}
 
-	// Go through viewlet to retrieve focussed item
-	return viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
-		const tree = viewlet.getExplorerView().getViewer();
+	return viewletService.openViewlet(VIEWLET_ID, false);
+};
+
+function withFocussedExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
+	return withExplorer(accessor).then(explorer => {
+		if (!explorer || !explorer.getExplorerView()) {
+			return void 0; // empty folder or hidden explorer
+		}
+
+		const tree = explorer.getExplorerView().getViewer();
 
 		// Ignore if in highlight mode or not focussed
 		if (tree.getHighlight() || !tree.isDOMFocused()) {
 			return void 0;
 		}
 
-		return { viewlet, tree, item: tree.getFocus() };
+		return { explorer, tree, item: tree.getFocus() };
 	});
 };
 
-function runExplorerActionOnFocussedItem(accessor: ServicesAccessor, id: string, context?: any): void {
-	withFocussedExplorerItem(accessor).then(res => {
-		if (res) {
-			res.viewlet.getViewletState().actionProvider.runAction(res.tree, res.item, id, context).done(null, errors.onUnexpectedError);
+export function withFocussedExplorerResource(accessor: ServicesAccessor): TPromise<IFileResource> {
+	return withExplorer(accessor).then(explorer => {
+		if (!explorer) {
+			return void 0; // hidden explorer
 		}
+
+		let editorsView = explorer.getOpenEditorsView();
+		let explorerView = explorer.getExplorerView();
+
+		let focussedTree: ITree;
+		if (editorsView && editorsView.getViewer().isDOMFocused()) {
+			focussedTree = editorsView.getViewer();
+		} else if (explorerView && explorerView.getViewer().isDOMFocused()) {
+			focussedTree = explorerView.getViewer();
+		}
+
+		// Ignore if in highlight mode or not focussed
+		if (!focussedTree || focussedTree.getHighlight()) {
+			return void 0;
+		}
+
+		return explorerItemToFileResource(focussedTree.getFocus());
 	});
-}
+};
