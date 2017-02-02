@@ -809,8 +809,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				linesCollection,
 				this.id,
 				this._configuration,
-				this.model,
-				() => this.getCenteredRangeInViewport()
+				this.model
 			);
 
 			let viewModelHelper: IViewModelHelper = {

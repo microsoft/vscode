@@ -47,10 +47,7 @@ suite('ViewModelDecorations', () => {
 			linesCollection,
 			EDITOR_ID,
 			configuration,
-			model,
-			() => {
-				return new Range(1, 1, 1, 1);
-			}
+			model
 		);
 
 		callback(viewModel, model);

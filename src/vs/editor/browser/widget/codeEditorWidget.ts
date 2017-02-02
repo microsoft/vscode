@@ -151,7 +151,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCenteredRangeInViewport();
+		return this.viewModel.getCenteredRangeInViewport();
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
