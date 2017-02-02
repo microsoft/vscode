@@ -35,6 +35,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { isObject } from 'vs/base/common/types';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -301,16 +302,7 @@ export class WalkThroughPart extends BaseEditor {
 					const id = `snippet-${model.uri.fragment}`;
 					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
-					var options: IEditorOptions = {
-						scrollBeyondLastLine: false,
-						scrollbar: DefaultConfig.editor.scrollbar,
-						overviewRulerLanes: 3,
-						fixedOverflowWidgets: true,
-						lineNumbersMinChars: 1,
-						theme: this.themeService.getColorTheme().id,
-					};
-
-					const editor = this.instantiationService.createInstance(CodeEditor, div, options);
+					const editor = this.instantiationService.createInstance(CodeEditor, div, this.getEditorOptions(snippet.textEditorModel.getModeId()));
 					editor.setModel(model);
 					this.contentDisposables.push(editor);
 
@@ -346,6 +338,7 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 
 					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
+					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()))));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
@@ -378,6 +371,19 @@ export class WalkThroughPart extends BaseEditor {
 				this.loadTextEditorViewState(input.getResource());
 				this.updatedScrollPosition();
 			});
+	}
+
+	private getEditorOptions(language: string): IEditorOptions {
+		const config = this.configurationService.getConfiguration<IEditorOptions>({ overrideIdentifier: language, section: 'editor' });
+		return {
+			...isObject(config) ? config : Object.create(null),
+			scrollBeyondLastLine: false,
+			scrollbar: DefaultConfig.editor.scrollbar,
+			overviewRulerLanes: 3,
+			fixedOverflowWidgets: true,
+			lineNumbersMinChars: 1,
+			theme: this.themeService.getColorTheme().id,
+		};
 	}
 
 	private updateMarkerClasses() {
