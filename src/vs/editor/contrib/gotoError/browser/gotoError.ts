@@ -322,6 +322,7 @@ class MarkerNavigationWidgetsController {
 	dispose(): void {
 		this._callOnDispose = dispose(this._callOnDispose);
 		this._widgets.forEach(widget => widget.dispose());
+		this._navigationWidget.dispose();
 	}
 
 	private _wireModelAndView(): void {
