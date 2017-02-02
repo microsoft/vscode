@@ -166,7 +166,11 @@ function withFocussedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat
 		}
 
 		return withFocussedOpenEditorsViewItem(accessor).then(res => {
-			return res.item;
+			if (res) {
+				return res.item;
+			}
+
+			return void 0;
 		});
 	}) as TPromise<FileStat | OpenEditor>; // TypeScript fail
 };
