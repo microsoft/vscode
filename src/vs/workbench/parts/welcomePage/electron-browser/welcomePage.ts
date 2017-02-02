@@ -28,6 +28,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 const enabledKey = 'workbench.welcome.enabled';
 
@@ -90,6 +91,7 @@ class WelcomePage {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.create();
@@ -112,7 +114,7 @@ class WelcomePage {
 		}
 		showOnStartup.addEventListener('click', e => {
 			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: enabledKey, value: showOnStartup.checked })
-				.then(null, onUnexpectedError);
+				.then(null, error => this.messageService.show(Severity.Error, error));
 		});
 
 		recentlyOpened.then(({folders}) => {
