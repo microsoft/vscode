@@ -556,7 +556,7 @@ export class TerminalInstance implements ITerminalInstance {
 				ja: 'JP',
 				ko: 'KR',
 				ru: 'RU',
-				zh: 'TW'
+				zh: 'CN'
 			};
 			if (language in languageVariants) {
 				parts.push(languageVariants[language]);
