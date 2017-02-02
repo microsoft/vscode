@@ -599,7 +599,6 @@ export class CreateFolderAction extends BaseCreateAction {
 	constructor(
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -609,9 +608,7 @@ export class CreateFolderAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(stat => {
-			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
-		}, (error) => {
+		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
