@@ -101,15 +101,18 @@ class CodeLensAdapter {
 }
 
 class DefinitionAdapter {
-	constructor(
-		private documents: ExtHostDocuments,
-		private provider: vscode.DefinitionProvider)
-	{ }
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.DefinitionProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.DefinitionProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
 
 	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
-		let doc = this.documents.getDocumentData(resource).document;
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
-		return asWinJsPromise(token => this.provider.provideDefinition(doc, pos, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
 			} else if (value) {
@@ -121,15 +124,18 @@ class DefinitionAdapter {
 }
 
 class ImplementationAdapter {
-	constructor(
-		private documents: ExtHostDocuments,
-		private provider: vscode.ImplementationProvider)
-	{ }
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.ImplementationProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.ImplementationProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
 
 	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
-		let doc = this.documents.getDocumentData(resource).document;
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
-		return asWinJsPromise(token => this.provider.provideImplementation(doc, pos, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
 			} else if (value) {
@@ -141,20 +147,24 @@ class ImplementationAdapter {
 }
 
 class TypeDefinitionAdapter {
-	constructor(
-		private documents: ExtHostDocuments,
-		private provider: vscode.TypeDefinitionProvider)
-	{ }
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.TypeDefinitionProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.TypeDefinitionProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
 
 	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
-		const doc = this.documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
-		return asWinJsPromise(token => this.provider.provideTypeDefinition(doc, pos, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
 			} else if (value) {
 				return TypeConverters.location.from(value);
 			}
+			return undefined;
 		});
 	}
 }

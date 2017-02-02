@@ -275,10 +275,6 @@ export class PeekImplementationAction extends DefinitionAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
-			},
-			menuOpts: {
-				group: 'navigation',
-				order: 1.3
 			}
 		});
 	}
@@ -307,7 +303,7 @@ export class GoToTypeDefintionAction extends DefinitionAction {
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 1.3
+				order: 1.4
 			}
 		});
 	}
@@ -333,10 +329,6 @@ export class PeekTypeDefinitionAction extends DefinitionAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: 0
-			},
-			menuOpts: {
-				group: 'navigation',
-				order: 1.3
 			}
 		});
 	}
