@@ -101,7 +101,6 @@ class CodeLensAdapter {
 }
 
 class DefinitionAdapter {
-
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.DefinitionProvider;
 
@@ -125,7 +124,6 @@ class DefinitionAdapter {
 }
 
 class ImplementationAdapter {
-
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.ImplementationProvider;
 
@@ -147,6 +145,30 @@ class ImplementationAdapter {
 		});
 	}
 }
+
+class TypeDefinitionAdapter {
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.TypeDefinitionProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.TypeDefinitionProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+		const doc = this._documents.getDocumentData(resource).document;
+		const pos = TypeConverters.toPosition(position);
+		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(TypeConverters.location.from);
+			} else if (value) {
+				return TypeConverters.location.from(value);
+			}
+			return undefined;
+		});
+	}
+}
+
 
 class HoverAdapter {
 
@@ -650,7 +672,7 @@ class LinkProviderAdapter {
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter;
 
 export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
@@ -758,6 +780,17 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	$provideImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
 		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(resource, position));
+	}
+
+	registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new TypeDefinitionAdapter(this._documents, provider));
+		this._proxy.$registerTypeDefinitionSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
+		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(resource, position));
 	}
 
 	// --- extra info

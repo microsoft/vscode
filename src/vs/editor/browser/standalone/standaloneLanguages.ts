@@ -275,10 +275,17 @@ export function registerDefinitionProvider(languageId: string, provider: modes.D
 }
 
 /**
- * Register a type implementation provider (used by e.g. go to implementation).
+ * Register a implementation provider (used by e.g. go to implementation).
  */
 export function registerImplementationProvider(languageId: string, provider: modes.ImplementationProvider): IDisposable {
 	return modes.ImplementationProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a type definition provider (used by e.g. go to type definition).
+ */
+export function registerTypeDefinitionProvider(languageId: string, provider: modes.TypeDefinitionProvider): IDisposable {
+	return modes.TypeDefinitionProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -682,6 +689,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentHighlightProvider: registerDocumentHighlightProvider,
 		registerDefinitionProvider: registerDefinitionProvider,
 		registerImplementationProvider: registerImplementationProvider,
+		registerTypeDefinitionProvider: registerTypeDefinitionProvider,
 		registerCodeLensProvider: registerCodeLensProvider,
 		registerCodeActionProvider: registerCodeActionProvider,
 		registerDocumentFormattingEditProvider: registerDocumentFormattingEditProvider,

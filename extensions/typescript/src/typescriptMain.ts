@@ -26,6 +26,7 @@ import { ITypescriptServiceClientHost } from './typescriptService';
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
 import ImplementationProvider from './features/ImplementationProvider';
+import TypeDefintionProvider from './features/typeDefinitionProvider';
 import DocumentHighlightProvider from './features/documentHighlightProvider';
 import ReferenceProvider from './features/referenceProvider';
 import DocumentSymbolProvider from './features/documentSymbolProvider';
@@ -155,6 +156,7 @@ class LanguageProvider {
 		let hoverProvider = new HoverProvider(client);
 		let definitionProvider = new DefinitionProvider(client);
 		let implementationProvider = new ImplementationProvider(client);
+		const typeDefinitionProvider = new TypeDefintionProvider(client);
 		let documentHighlightProvider = new DocumentHighlightProvider(client);
 		let referenceProvider = new ReferenceProvider(client);
 		let documentSymbolProvider = new DocumentSymbolProvider(client);
@@ -180,6 +182,9 @@ class LanguageProvider {
 			if (client.apiVersion.has220Features()) {
 				// TODO: TS 2.1.5 returns incorrect results for implementation locations.
 				languages.registerImplementationProvider(selector, implementationProvider);
+			}
+			if (client.apiVersion.has213Features()) {
+				languages.registerTypeDefinitionProvider(selector, typeDefinitionProvider);
 			}
 			languages.registerDocumentHighlightProvider(selector, documentHighlightProvider);
 			languages.registerReferenceProvider(selector, referenceProvider);
