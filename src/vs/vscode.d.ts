@@ -3582,6 +3582,16 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showInformationMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+
+		/**
+		 * Show an information message to users. Optionally provide an array of items which will be presented as
+		 * clickable buttons.
+		 *
+		 * @param message The message to show.
+		 * @param options Configures the behaviour of the message.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
 		export function showInformationMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
 
 		/**
@@ -3594,6 +3604,17 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+
+		/**
+		 * Show an information message.
+		 *
+		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param options Configures the behaviour of the message.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
 		export function showInformationMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
@@ -3606,6 +3627,17 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+
+		/**
+		 * Show a warning message.
+		 *
+		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param options Configures the behaviour of the message.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
 		export function showWarningMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
 
 		/**
@@ -3618,6 +3650,17 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+
+		/**
+		 * Show a warning message.
+		 *
+		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param options Configures the behaviour of the message.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
 		export function showWarningMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
@@ -3630,6 +3673,17 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+
+		/**
+		 * Show an error message.
+		 *
+		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param options Configures the behaviour of the message.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
 		export function showErrorMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
 
 		/**
@@ -3642,6 +3696,17 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+
+		/**
+		 * Show an error message.
+		 *
+		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param options Configures the behaviour of the message.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
 		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
