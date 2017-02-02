@@ -852,20 +852,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return result;
 	}
 
-	private _lastRenderedCenteredLineNumber: number = -1;
-
-	public getCenteredRangeInViewport(): Range {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl.getCenteredRangeInViewport: View is disposed');
-		}
-		if (this._lastRenderedCenteredLineNumber === -1) {
-			return null;
-		}
-		let viewLineNumber = this._lastRenderedCenteredLineNumber;
-		let currentCenteredViewRange = new Range(viewLineNumber, this._context.model.getLineMinColumn(viewLineNumber), viewLineNumber, this._context.model.getLineMaxColumn(viewLineNumber));
-		return this._context.model.convertViewRangeToModelRange(currentCenteredViewRange);
-	}
-
 	private _actualRender(): void {
 		if (!dom.isInDOM(this.domNode)) {
 			return;
@@ -880,7 +866,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		}
 
 		let partialViewportData = this.layoutProvider.getLinesViewportData();
-		this._lastRenderedCenteredLineNumber = partialViewportData.centeredLineNumber;
+		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
 		let viewportData = new ViewportData(partialViewportData, this._context.model);
 

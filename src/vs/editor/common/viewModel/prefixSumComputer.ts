@@ -46,14 +46,14 @@ export class PrefixSumComputer {
 		return this.values.length;
 	}
 
-	public insertValues(insertIndex: number, insertValues: Uint32Array): void {
+	public insertValues(insertIndex: number, insertValues: Uint32Array): boolean {
 		insertIndex = toUint32(insertIndex);
 		const oldValues = this.values;
 		const oldPrefixSum = this.prefixSum;
 		const insertValuesLen = insertValues.length;
 
 		if (insertValuesLen === 0) {
-			return;
+			return false;
 		}
 
 		this.values = new Uint32Array(oldValues.length + insertValuesLen);
@@ -69,22 +69,24 @@ export class PrefixSumComputer {
 		if (this.prefixSumValidIndex[0] >= 0) {
 			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex[0] + 1));
 		}
+		return true;
 	}
 
-	public changeValue(index: number, value: number): void {
+	public changeValue(index: number, value: number): boolean {
 		index = toUint32(index);
 		value = toUint32(value);
 
 		if (this.values[index] === value) {
-			return;
+			return false;
 		}
 		this.values[index] = value;
 		if (index - 1 < this.prefixSumValidIndex[0]) {
 			this.prefixSumValidIndex[0] = index - 1;
 		}
+		return true;
 	}
 
-	public removeValues(startIndex: number, cnt: number): void {
+	public removeValues(startIndex: number, cnt: number): boolean {
 		startIndex = toUint32(startIndex);
 		cnt = toUint32(cnt);
 
@@ -92,7 +94,7 @@ export class PrefixSumComputer {
 		const oldPrefixSum = this.prefixSum;
 
 		if (startIndex >= oldValues.length) {
-			return;
+			return false;
 		}
 
 		let maxCnt = oldValues.length - startIndex;
@@ -101,7 +103,7 @@ export class PrefixSumComputer {
 		}
 
 		if (cnt === 0) {
-			return;
+			return false;
 		}
 
 		this.values = new Uint32Array(oldValues.length - cnt);
@@ -115,6 +117,7 @@ export class PrefixSumComputer {
 		if (this.prefixSumValidIndex[0] >= 0) {
 			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex[0] + 1));
 		}
+		return true;
 	}
 
 	public getTotalValue(): number {
@@ -183,5 +186,79 @@ export class PrefixSumComputer {
 		}
 
 		return new PrefixSumIndexOfResult(mid, accumulatedValue - midStart);
+	}
+}
+
+export class PrefixSumComputerWithCache {
+
+	private readonly _actual: PrefixSumComputer;
+	private _cacheAccumulatedValueStart: number = 0;
+	private _cache: PrefixSumIndexOfResult[] = null;
+
+	constructor(values: Uint32Array) {
+		this._actual = new PrefixSumComputer(values);
+		this._bustCache();
+	}
+
+	private _bustCache(): void {
+		this._cacheAccumulatedValueStart = 0;
+		this._cache = null;
+	}
+
+	public getCount(): number {
+		return this._actual.getCount();
+	}
+
+	public insertValues(insertIndex: number, insertValues: Uint32Array): void {
+		if (this._actual.insertValues(insertIndex, insertValues)) {
+			this._bustCache();
+		}
+	}
+
+	public changeValue(index: number, value: number): void {
+		if (this._actual.changeValue(index, value)) {
+			this._bustCache();
+		}
+	}
+
+	public removeValues(startIndex: number, cnt: number): void {
+		if (this._actual.removeValues(startIndex, cnt)) {
+			this._bustCache();
+		}
+	}
+
+	public getTotalValue(): number {
+		return this._actual.getTotalValue();
+	}
+
+	public getAccumulatedValue(index: number): number {
+		return this._actual.getAccumulatedValue(index);
+	}
+
+	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
+		accumulatedValue = Math.floor(accumulatedValue); //@perf
+
+		if (this._cache !== null) {
+			let cacheIndex = accumulatedValue - this._cacheAccumulatedValueStart;
+			if (cacheIndex >= 0 && cacheIndex < this._cache.length) {
+				// Cache hit!
+				return this._cache[cacheIndex];
+			}
+		}
+
+		// Cache miss!
+		return this._actual.getIndexOf(accumulatedValue);
+	}
+
+	/**
+	 * Gives a hint that a lot of requests are about to come in for these accumulated values.
+	 */
+	public warmUpCache(accumulatedValueStart: number, accumulatedValueEnd: number): void {
+		let newCache: PrefixSumIndexOfResult[] = [];
+		for (let accumulatedValue = accumulatedValueStart; accumulatedValue <= accumulatedValueEnd; accumulatedValue++) {
+			newCache[accumulatedValue - accumulatedValueStart] = this.getIndexOf(accumulatedValue);
+		}
+		this._cache = newCache;
+		this._cacheAccumulatedValueStart = accumulatedValueStart;
 	}
 }

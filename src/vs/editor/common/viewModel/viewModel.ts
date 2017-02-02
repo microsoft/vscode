@@ -11,6 +11,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface IViewModel extends IEventEmitter {
+	/**
+	 * Gives a hint that a lot of requests are about to come in for these line numbers.
+	 */
+	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
+
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 

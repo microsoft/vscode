@@ -32,9 +32,9 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _renderRelativeLineNumbers: boolean;
 	private _lastCursorPosition: Position;
 
-	private getCurrentCenteredModelRange: () => Range;
+	private _centeredViewLine: number;
 
-	constructor(lines: SplitLinesCollection, editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, getCurrentCenteredModelRange: () => Range) {
+	constructor(lines: SplitLinesCollection, editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
 		super();
 		this.lines = lines;
 
@@ -46,7 +46,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
 		this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
 
-		this.getCurrentCenteredModelRange = getCurrentCenteredModelRange;
+		this._centeredViewLine = -1;
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, {
 			convertModelRangeToViewRange: (modelRange: Range, isWholeLine: boolean): Range => {
@@ -61,7 +61,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		});
 		this.decorations.reset();
 
-		this.cursors = new ViewModelCursors(this.configuration, this);
+		this.cursors = new ViewModelCursors(this.configuration);
 
 		this.listenersToRemove = [];
 		this._toDispose = [];
@@ -180,6 +180,16 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return false;
 	}
 
+	public getCenteredRangeInViewport(): Range {
+		if (this._centeredViewLine === -1) {
+			// Never got rendered
+			return null;
+		}
+		let viewLineNumber = this._centeredViewLine;
+		let currentCenteredViewRange = new Range(viewLineNumber, this.getLineMinColumn(viewLineNumber), viewLineNumber, this.getLineMaxColumn(viewLineNumber));
+		return this.convertViewRangeToModelRange(currentCenteredViewRange);
+	}
+
 	private _onEvents(events: EmitterEvent[]): void {
 
 		// We might need to restore the current centered view range in the following circumstances:
@@ -193,7 +203,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 		let previousCenteredModelRange: Range = null;
 		if (!ViewModel._containsModelContentChangeEvent(events) && ViewModel._containsWrappingRelatedEvents(events)) {
-			previousCenteredModelRange = this.getCurrentCenteredModelRange();
+			previousCenteredModelRange = this.getCenteredRangeInViewport();
 		}
 
 		let i: number,
@@ -254,9 +264,9 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 				case editorCommon.EventType.ModelOptionsChanged:
 					// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
-					let prevLineCount = this.lines.getOutputLineCount();
+					let prevLineCount = this.lines.getViewLineCount();
 					let tabSizeChanged = this._onTabSizeChange(this.model.getOptions().tabSize);
-					let newLineCount = this.lines.getOutputLineCount();
+					let newLineCount = this.lines.getViewLineCount();
 					if (tabSizeChanged && prevLineCount !== newLineCount) {
 						revealPreviousCenteredModelRange = true;
 					}
@@ -363,37 +373,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
 	}
 
-	public validateViewPosition(viewLineNumber: number, viewColumn: number, modelPosition: Position): Position {
-		if (viewLineNumber < 1) {
-			viewLineNumber = 1;
-		}
-		var lineCount = this.getLineCount();
-		if (viewLineNumber > lineCount) {
-			viewLineNumber = lineCount;
-		}
-		var viewMinColumn = this.getLineMinColumn(viewLineNumber);
-		var viewMaxColumn = this.getLineMaxColumn(viewLineNumber);
-		if (viewColumn < viewMinColumn) {
-			viewColumn = viewMinColumn;
-		}
-		if (viewColumn > viewMaxColumn) {
-			viewColumn = viewMaxColumn;
-		}
-		var computedModelPosition = this.convertViewPositionToModelPosition(viewLineNumber, viewColumn);
-		if (computedModelPosition.equals(modelPosition)) {
-			return new Position(viewLineNumber, viewColumn);
-		}
-		return this.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
-	}
-
-	public validateViewSelection(viewSelection: Selection, modelSelection: Selection): Selection {
-		let modelSelectionStart = new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
-		let modelPosition = new Position(modelSelection.positionLineNumber, modelSelection.positionColumn);
-
-		let viewSelectionStart = this.validateViewPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn, modelSelectionStart);
-		let viewPosition = this.validateViewPosition(viewSelection.positionLineNumber, viewSelection.positionColumn, modelPosition);
-
-		return new Selection(viewSelectionStart.lineNumber, viewSelectionStart.column, viewPosition.lineNumber, viewPosition.column);
+	public validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position {
+		return this.lines.validateViewPosition(viewLineNumber, viewColumn, expectedModelPosition);
 	}
 
 	private onCursorPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
@@ -403,6 +384,16 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.cursors.onCursorSelectionChanged(e, (eventType: string, payload: any) => this.emit(eventType, payload));
 	}
 	private onCursorRevealRange(e: editorCommon.ICursorRevealRangeEvent): void {
+		// Ensure event has viewRange
+		if (!e.viewRange) {
+			e = {
+				range: e.range,
+				viewRange: this.convertModelRangeToViewRange(e.range),
+				verticalType: e.verticalType,
+				revealHorizontal: e.revealHorizontal,
+				revealCursor: e.revealCursor,
+			};
+		}
 		this.cursors.onCursorRevealRange(e, (eventType: string, payload: any) => this.emit(eventType, payload));
 	}
 	private onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent): void {
@@ -415,23 +406,31 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public getLineCount(): number {
-		return this.lines.getOutputLineCount();
+		return this.lines.getViewLineCount();
+	}
+
+	/**
+	 * Gives a hint that a lot of requests are about to come in for these line numbers.
+	 */
+	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
+		this._centeredViewLine = centeredLineNumber;
+		this.lines.warmUpLookupCache(startLineNumber, endLineNumber);
 	}
 
 	public getLineIndentGuide(lineNumber: number): number {
-		return this.lines.getOutputIndentGuide(lineNumber);
+		return this.lines.getViewLineIndentGuide(lineNumber);
 	}
 
 	public getLineContent(lineNumber: number): string {
-		return this.lines.getOutputLineContent(lineNumber);
+		return this.lines.getViewLineContent(lineNumber);
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
-		return this.lines.getOutputLineMinColumn(lineNumber);
+		return this.lines.getViewLineMinColumn(lineNumber);
 	}
 
 	public getLineMaxColumn(lineNumber: number): number {
-		return this.lines.getOutputLineMaxColumn(lineNumber);
+		return this.lines.getViewLineMaxColumn(lineNumber);
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
@@ -485,7 +484,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		let mightContainRTL = this.model.mightContainRTL();
 		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		let tabSize = this.getTabSize();
-		let lineData = this.lines.getOutputLineRenderingData(lineNumber);
+		let lineData = this.lines.getViewLineRenderingData(lineNumber);
 		let allInlineDecorations = this.decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
 		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 
@@ -517,7 +516,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	// View -> Model conversion and related methods
 
 	public convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		return this.lines.convertOutputPositionToInputPosition(viewLineNumber, viewColumn);
+		return this.lines.convertViewPositionToModelPosition(viewLineNumber, viewColumn);
 	}
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
@@ -547,7 +546,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public convertModelPositionToViewPosition(modelLineNumber: number, modelColumn: number): Position {
-		return this.lines.convertInputPositionToOutputPosition(modelLineNumber, modelColumn);
+		return this.lines.convertModelPositionToViewPosition(modelLineNumber, modelColumn);
 	}
 
 	public convertModelRangeToViewRange(modelRange: Range): Range {
@@ -562,14 +561,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
-		var selectionStart = this.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
-		var position = this.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
 	public modelPositionIsVisible(position: Position): boolean {
-		return this.lines.inputPositionIsVisible(position.lineNumber, position.column);
+		return this.lines.modelPositionIsVisible(position.lineNumber, position.column);
 	}
 
 }
