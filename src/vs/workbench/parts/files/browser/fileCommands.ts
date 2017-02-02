@@ -21,8 +21,6 @@ import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import labels = require('vs/base/common/labels');
-import { Position } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 // Commands
 
@@ -101,16 +99,8 @@ function openFocussedOpenedEditorsViewItem(accessor: ServicesAccessor, sideBySid
 	withFocussedOpenEditorsViewItem(accessor).then(res => {
 		if (res) {
 			const editorService = accessor.get(IWorkbenchEditorService);
-			const editorGroupService = accessor.get(IEditorGroupService);
-			const model = editorGroupService.getStacksModel();
 
-			let position = model.positionOfGroup(res.item.editorGroup);
-			if (sideBySide && position !== Position.THREE) {
-				position++;
-			}
-
-			editorGroupService.activateGroup(model.groupAt(position));
-			editorService.openEditor(res.item.editorInput, position).done(() => editorGroupService.activateGroup(model.groupAt(position)), errors.onUnexpectedError);
+			editorService.openEditor(res.item.editorInput, null, sideBySide);
 		}
 	});
 }
