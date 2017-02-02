@@ -48,11 +48,7 @@ gulp.task('mixin', function () {
 		.pipe(util.rebase(1));
 
 	if (quality) {
-		const pattern = ['build/**'];
-		if (process.env['VSCODE_PERFORMANCE']) {
-			pattern.push('performance/**')
-		}
-		const build = all.pipe(filter(pattern));
+		const build = all.pipe(filter('build/**'));
 		const productJsonFilter = filter('product.json', { restore: true });
 
 		const vsdaFilter = (function () {
