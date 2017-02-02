@@ -623,15 +623,13 @@ export class VariablesActionProvider implements IActionProvider {
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		let actions: IAction[] = [];
+		const actions: IAction[] = [];
 		const variable = <Variable>element;
-		if (!variable.hasChildren) {
-			actions.push(this.instantiationService.createInstance(SetValueAction, SetValueAction.ID, SetValueAction.LABEL, variable));
-			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
-			actions.push(new Separator());
-		}
-
+		actions.push(this.instantiationService.createInstance(SetValueAction, SetValueAction.ID, SetValueAction.LABEL, variable));
+		actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
+		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(AddToWatchExpressionsAction, AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable));
+
 		return TPromise.as(actions);
 	}
 
@@ -782,7 +780,7 @@ export class VariablesController extends BaseDebugController {
 
 	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (element instanceof Variable && !element.hasChildren) {
+		if (element instanceof Variable) {
 			this.debugService.getViewModel().setSelectedExpression(element);
 			return true;
 		}
