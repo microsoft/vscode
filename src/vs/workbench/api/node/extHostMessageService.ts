@@ -17,7 +17,7 @@ export class ExtHostMessageService {
 		this._proxy = threadService.get(MainContext.MainThreadMessageService);
 	}
 
-	showMessage(severity: Severity, message: string, commands: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem> {
+	showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem> {
 
 		const items: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 
@@ -33,7 +33,7 @@ export class ExtHostMessageService {
 			}
 		}
 
-		return this._proxy.$showMessage(severity, message, items).then(handle => {
+		return this._proxy.$showMessage(severity, message, options, items).then(handle => {
 			if (typeof handle === 'number') {
 				return commands[handle];
 			}

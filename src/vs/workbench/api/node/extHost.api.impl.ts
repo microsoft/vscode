@@ -255,6 +255,18 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 		};
 
+		const emptyMessageOptions: vscode.MessageOptions = Object.create(null);
+
+		function parseMessageArguments(args: any[]): { options: vscode.MessageOptions; items: any[]; } {
+			const [first, ...rest] = args;
+
+			if (first && (typeof first === 'string' || first.title)) {
+				return { options: emptyMessageOptions, items: args };
+			} else {
+				return { options: first || emptyMessageOptions, items: rest };
+			}
+		}
+
 		// namespace: window
 		const window: typeof vscode.window = {
 			get activeTextEditor() {
@@ -287,14 +299,17 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			showInformationMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Info, message, items);
+			showInformationMessage(message, ...args) {
+				const { options, items } = parseMessageArguments(args);
+				return extHostMessageService.showMessage(Severity.Info, message, options, items);
 			},
-			showWarningMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Warning, message, items);
+			showWarningMessage(message, ...args) {
+				const { options, items } = parseMessageArguments(args);
+				return extHostMessageService.showMessage(Severity.Warning, message, options, items);
 			},
-			showErrorMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Error, message, items);
+			showErrorMessage(message, ...args) {
+				const { options, items } = parseMessageArguments(args);
+				return extHostMessageService.showMessage(Severity.Error, message, options, items);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -325,7 +340,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', []);
+				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
 			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
 				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);

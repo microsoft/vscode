@@ -176,7 +176,7 @@ export abstract class MainThreadLanguagesShape {
 }
 
 export abstract class MainThreadMessageServiceShape {
-	$showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> { throw ni(); }
+	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> { throw ni(); }
 }
 
 export abstract class MainThreadOutputServiceShape {
