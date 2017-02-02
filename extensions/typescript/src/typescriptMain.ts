@@ -52,12 +52,12 @@ interface LanguageDescription {
 }
 
 export function activate(context: ExtensionContext): void {
-	let MODE_ID_TS = 'typescript';
-	let MODE_ID_TSX = 'typescriptreact';
-	let MODE_ID_JS = 'javascript';
-	let MODE_ID_JSX = 'javascriptreact';
+	const MODE_ID_TS = 'typescript';
+	const MODE_ID_TSX = 'typescriptreact';
+	const MODE_ID_JS = 'javascript';
+	const MODE_ID_JSX = 'javascriptreact';
 
-	let clientHost = new TypeScriptServiceClientHost([
+	const clientHost = new TypeScriptServiceClientHost([
 		{
 			id: 'typescript',
 			diagnosticSource: 'ts',
@@ -74,7 +74,7 @@ export function activate(context: ExtensionContext): void {
 		}
 	], context.storagePath, context.globalState, context.workspaceState);
 
-	let client = clientHost.serviceClient;
+	const client = clientHost.serviceClient;
 
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
 		clientHost.reloadProjects();
@@ -103,7 +103,6 @@ const validateSetting = 'validate.enable';
 
 class LanguageProvider {
 
-	private description: LanguageDescription;
 	private extensions: ObjectMap<boolean>;
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
@@ -117,8 +116,10 @@ class LanguageProvider {
 
 	private _validate: boolean;
 
-	constructor(private client: TypeScriptServiceClient, description: LanguageDescription) {
-		this.description = description;
+	constructor(
+		private client: TypeScriptServiceClient,
+		private description: LanguageDescription
+	) {
 		this.extensions = Object.create(null);
 		description.extensions.forEach(extension => this.extensions[extension] = true);
 		this._validate = true;
@@ -146,7 +147,7 @@ class LanguageProvider {
 	}
 
 	private registerProviders(client: TypeScriptServiceClient): void {
-		let config = workspace.getConfiguration(this.id);
+		const config = workspace.getConfiguration(this.id);
 
 		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration();
@@ -172,7 +173,7 @@ class LanguageProvider {
 		}
 
 		this.description.modeIds.forEach(modeId => {
-			let selector: DocumentFilter = modeId;
+			const selector: DocumentFilter = modeId;
 			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
 			languages.registerHoverProvider(selector, hoverProvider);
 			languages.registerDefinitionProvider(selector, definitionProvider);
@@ -249,7 +250,7 @@ class LanguageProvider {
 	}
 
 	private configurationChanged(): void {
-		let config = workspace.getConfiguration(this.id);
+		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
 		if (this.completionItemProvider) {
 			this.completionItemProvider.updateConfiguration();
@@ -270,11 +271,11 @@ class LanguageProvider {
 	}
 
 	public handles(file: string): boolean {
-		let extension = path.extname(file);
+		const extension = path.extname(file);
 		if ((extension && this.extensions[extension]) || this.bufferSyncSupport.handles(file)) {
 			return true;
 		}
-		let basename = path.basename(file);
+		const basename = path.basename(file);
 		return !!basename && basename === this.description.configFile;
 	}
 
@@ -316,7 +317,7 @@ class LanguageProvider {
 	}
 
 	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		let syntaxMarkers = this.syntaxDiagnostics[file];
+		const syntaxMarkers = this.syntaxDiagnostics[file];
 		if (syntaxMarkers) {
 			delete this.syntaxDiagnostics[file];
 			diagnostics = syntaxMarkers.concat(diagnostics);
@@ -469,7 +470,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
-		let result: Diagnostic[] = [];
+		const result: Diagnostic[] = [];
 		for (let diagnostic of diagnostics) {
 			let { start, end, text } = diagnostic;
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);

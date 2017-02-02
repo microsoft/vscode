@@ -30,7 +30,8 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
-	public constructor(private client: ITypescriptServiceClient) { }
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
 		return this.onDidChangeCodeLensesEmitter.event;

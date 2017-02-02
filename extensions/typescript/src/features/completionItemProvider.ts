@@ -140,14 +140,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		private client: ITypescriptServiceClient,
 		private typingsStatus: TypingsStatus
 	) {
-		this.client = client;
-		this.typingsStatus = typingsStatus;
 		this.config = { useCodeSnippetsOnMethodSuggest: false };
 	}
 
 	public updateConfiguration(): void {
 		// Use shared setting for js and ts
-		let typeScriptConfig = workspace.getConfiguration('typescript');
+		const typeScriptConfig = workspace.getConfiguration('typescript');
 		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
 	}
 
@@ -203,8 +201,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				}
 
 				for (let i = 0; i < body.length; i++) {
-					let element = body[i];
-					let item = new MyCompletionItem(position, document, element, enableDotCompletions);
+					const element = body[i];
+					const item = new MyCompletionItem(position, document, element, enableDotCompletions);
 					completionItems.push(item);
 				}
 			}
@@ -225,7 +223,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		if (!filepath) {
 			return null;
 		}
-		let args: CompletionDetailsRequestArgs = {
+		const args: CompletionDetailsRequestArgs = {
 			file: filepath,
 			line: item.position.line + 1,
 			offset: item.position.character + 1,

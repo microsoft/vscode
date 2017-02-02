@@ -70,13 +70,12 @@ namespace Configuration {
 }
 
 export default class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
-
-	private client: ITypescriptServiceClient;
 	private config: Configuration;
 	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; };
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
+	public constructor(
+		private client: ITypescriptServiceClient
+	) {
 		this.config = Configuration.def();
 		this.formatOptions = Object.create(null);
 		Workspace.onDidCloseTextDocument((textDocument) => {
@@ -143,7 +142,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 		if (!absPath) {
 			return Promise.resolve([]);
 		}
-		let args: Proto.FormatRequestArgs = {
+		const args: Proto.FormatRequestArgs = {
 			file: absPath,
 			line: range.start.line + 1,
 			offset: range.start.character + 1,
