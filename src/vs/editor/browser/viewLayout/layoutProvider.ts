@@ -46,8 +46,6 @@ export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProv
 
 	dispose(): void;
 
-	getCenteredViewLineNumberInViewport(): number;
-
 	getCurrentViewport(): editorCommon.Viewport;
 
 	onMaxLineWidthChanged(width: number): void;
@@ -189,10 +187,6 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 			this.scrollManager.getWidth(),
 			this.scrollManager.getHeight()
 		);
-	}
-
-	public getCenteredViewLineNumberInViewport(): number {
-		return this.linesLayout.getCenteredLineInViewport(this.getCurrentViewport());
 	}
 
 	private _emitLayoutChangedEvent(): void {

@@ -15,6 +15,10 @@ export interface IPartialViewLinesViewportData {
 	startLineNumber: number;
 	endLineNumber: number;
 	relativeVerticalOffset: number[];
+	/**
+	 * The centered line in the viewport.
+	 */
+	centeredLineNumber: number;
 }
 
 /**

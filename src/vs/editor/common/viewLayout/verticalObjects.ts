@@ -195,38 +195,6 @@ export class VerticalObjects {
 	}
 
 	/**
-	 * Get the line that appears visually in the center between `verticalOffset1` and `verticalOffset2`.
-	 *
-	 * @param verticalOffset1 The beginning of the viewport
-	 * @param verticalOffset2 The end of the viewport.
-	 * @param deviceLineHeight The height, in pixels, for one rendered line.
-	 * @return The line number that is closest to the center between `verticalOffset1` and `verticalOffset2`.
-	 */
-	public getCenteredLineInViewport(verticalOffset1: number, verticalOffset2: number, deviceLineHeight: number): number {
-		verticalOffset1 = verticalOffset1 | 0;
-		verticalOffset2 = verticalOffset2 | 0;
-		deviceLineHeight = deviceLineHeight | 0;
-
-		let viewportData = this.getLinesViewportData(verticalOffset1, verticalOffset2, deviceLineHeight);
-
-		let verticalCenter = (verticalOffset2 - verticalOffset1) / 2;
-		let currentLineActualTop: number,
-			currentLineActualBottom: number;
-
-		for (let lineNumber = viewportData.startLineNumber; lineNumber <= viewportData.endLineNumber; lineNumber++) {
-
-			currentLineActualTop = viewportData.visibleRangesDeltaTop + viewportData.relativeVerticalOffset[lineNumber - viewportData.startLineNumber];
-			currentLineActualBottom = currentLineActualTop + deviceLineHeight;
-
-			if ((currentLineActualTop <= verticalCenter && verticalCenter < currentLineActualBottom) || currentLineActualTop > verticalCenter) {
-				return lineNumber;
-			}
-		}
-
-		return viewportData.endLineNumber;
-	}
-
-	/**
 	 * Get all the lines and their relative vertical offsets that are positioned between `verticalOffset1` and `verticalOffset2`.
 	 *
 	 * @param verticalOffset1 The beginning of the viewport.
@@ -277,12 +245,23 @@ export class VerticalObjects {
 
 		let linesOffsets: number[] = [];
 
+		let verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
+		let centeredLineNumber = -1;
+
 		// Figure out how far the lines go
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 
+			if (centeredLineNumber === -1) {
+				let currentLineTop = currentVerticalOffset;
+				let currentLineBottom = currentVerticalOffset + deviceLineHeight;
+				if ((currentLineTop <= verticalCenter && verticalCenter < currentLineBottom) || currentLineTop > verticalCenter) {
+					centeredLineNumber = lineNumber;
+				}
+			}
+
 			// Count current line height in the vertical offsets
 			currentVerticalOffset += deviceLineHeight;
-			linesOffsets.push(currentLineRelativeOffset);
+			linesOffsets[lineNumber - startLineNumber] = currentLineRelativeOffset;
 
 			// Next line starts immediately after this one
 			currentLineRelativeOffset += deviceLineHeight;
@@ -309,6 +288,10 @@ export class VerticalObjects {
 			}
 		}
 
+		if (centeredLineNumber === -1) {
+			centeredLineNumber = endLineNumber;
+		}
+
 		return {
 			viewportTop: verticalOffset1 - bigNumbersDelta,
 			viewportHeight: verticalOffset2 - verticalOffset1,
@@ -316,7 +299,8 @@ export class VerticalObjects {
 			startLineNumber: startLineNumber,
 			endLineNumber: endLineNumber,
 			visibleRangesDeltaTop: -(verticalOffset1 - bigNumbersDelta),
-			relativeVerticalOffset: linesOffsets
+			relativeVerticalOffset: linesOffsets,
+			centeredLineNumber: centeredLineNumber
 		};
 	}
 

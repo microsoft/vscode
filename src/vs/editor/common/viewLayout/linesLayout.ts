@@ -189,16 +189,6 @@ export class LinesLayout {
 	}
 
 	/**
-	 * Get the line that appears visually in the center of `viewport`.
-	 *
-	 * @param viewport The viewport.
-	 * @return The line number that is closest to the center of `viewport`.
-	 */
-	public getCenteredLineInViewport(visibleBox: editorCommon.Viewport): number {
-		return this.verticalObjects.getCenteredLineInViewport(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
-	}
-
-	/**
 	 * Returns the accumulated height of whitespaces before the given line number.
 	 *
 	 * @param lineNumber The line number

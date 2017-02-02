@@ -157,11 +157,42 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 	}
 
+	private static _containsModelContentChangeEvent(events: EmitterEvent[]): boolean {
+		for (let i = 0, len = events.length; i < len; i++) {
+			let eventType = events[i].getType();
+			if (eventType === editorCommon.EventType.ModelRawContentChanged) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static _containsWrappingRelatedEvents(events: EmitterEvent[]): boolean {
+		for (let i = 0, len = events.length; i < len; i++) {
+			let eventType = events[i].getType();
+			if (eventType === editorCommon.EventType.ModelOptionsChanged) {
+				return true;
+			}
+			if (eventType === editorCommon.EventType.ConfigurationChanged) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private _onEvents(events: EmitterEvent[]): void {
-		let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelRawContentChanged),
-			previousCenteredModelRange: Range;
-		if (!hasContentChange) {
-			// We can only convert the current centered view range to the current centered model range if the model has no changes.
+
+		// We might need to restore the current centered view range in the following circumstances:
+		// All of these changes might lead to a new line mapping:
+		// (a) model tabSize changed
+		// (b) wrappingIndent changed
+		// (c) wrappingColumn changed
+		// (d) fontInfo changed
+		// However, we cannot restore the current centered line if the model has changed its content
+		// because we cannot convert the view range to a model range.
+
+		let previousCenteredModelRange: Range = null;
+		if (!ViewModel._containsModelContentChangeEvent(events) && ViewModel._containsWrappingRelatedEvents(events)) {
 			previousCenteredModelRange = this.getCurrentCenteredModelRange();
 		}
 
