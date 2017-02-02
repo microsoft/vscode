@@ -328,8 +328,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		});
 		if (!configurationsPosition) {
-			this.commandService.executeCommand('editor.action.triggerSuggest');
-			return undefined;
+			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
 
 		const insertLineAfter = (lineNumber: number): TPromise<any> => {
