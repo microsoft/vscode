@@ -30,7 +30,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 
-		assert.equal(_actual.output, '<span><span class="">' + expected + '</span></span>');
+		assert.equal(_actual.html, '<span><span class="">' + expected + '</span></span>');
 		assertCharacterMapping(_actual.characterMapping, expectedCharOffsetInPart);
 		assertPartLengths(_actual.characterMapping, expectedPartLengts);
 	}
@@ -77,7 +77,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 
-		assert.equal(_actual.output, '<span>' + expected + '</span>');
+		assert.equal(_actual.html, '<span>' + expected + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedCharOffsetInPart);
 		assertPartLengths(_actual.characterMapping, expectedPartLengts);
 	}
@@ -136,7 +136,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="vs-whitespace">&hellip;</span>'
 		].join('');
 
-		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, [
 			[0],
 			[0],
@@ -211,7 +211,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 
-		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr);
 		assertPartLengths(_actual.characterMapping, [4, 4, 6, 1, 5, 1, 4, 1, 1, 1, 3, 15, 2, 3]);
 	});
@@ -270,7 +270,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 
-		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr);
 		assertPartLengths(_actual.characterMapping, [12, 12, 24, 1, 21, 2, 1, 20, 1, 1]);
 	});
@@ -329,7 +329,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 
-		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr);
 		assertPartLengths(_actual.characterMapping, [12, 12, 24, 1, 21, 2, 1, 20, 1, 1]);
 	});
@@ -365,7 +365,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 
-		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 		assert.equal(_actual.containsRTL, true);
 	});
 
@@ -390,7 +390,7 @@ suite('viewLineRenderer.renderLine', () => {
 				'none',
 				false
 			));
-			assert.equal(actual.output, '<span>' + expectedOutput.join('') + '</span>', message);
+			assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
 
 		// A token with 49 chars
@@ -484,7 +484,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false
 		));
-		assert.equal(actual.output, '<span>' + expectedOutput.join('') + '</span>');
+		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
 		assert.equal(actual.containsRTL, true);
 	});
 

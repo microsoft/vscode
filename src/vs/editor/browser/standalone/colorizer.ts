@@ -108,7 +108,7 @@ export class Colorizer {
 			'none',
 			false
 		));
-		return renderResult.output;
+		return renderResult.html;
 	}
 
 	public static colorizeModelLine(model: IModel, lineNumber: number, tabSize: number = 4): string {
@@ -143,7 +143,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 			false
 		));
 
-		html = html.concat(renderResult.output);
+		html = html.concat(renderResult.html);
 		html.push('<br/>');
 	}
 
@@ -173,7 +173,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			false
 		));
 
-		html = html.concat(renderResult.output);
+		html = html.concat(renderResult.html);
 		html.push('<br/>');
 
 		state = tokenizeResult.endState;

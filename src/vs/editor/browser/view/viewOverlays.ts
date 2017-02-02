@@ -67,6 +67,17 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
 	// ----- event handlers
 
+	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+		super.onConfigurationChanged(e);
+		let startLineNumber = this._linesCollection.getStartLineNumber();
+		let endLineNumber = this._linesCollection.getEndLineNumber();
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			let line = this._linesCollection.getLine(lineNumber);
+			line.onConfigurationChanged(e);
+		}
+		return true;
+	}
+
 	public onViewFocusChanged(isFocused: boolean): boolean {
 		this._isFocused = isFocused;
 		return true;
@@ -108,7 +119,7 @@ export class ViewOverlayLine implements IVisibleLine {
 	private _configuration: IConfiguration;
 	private _dynamicOverlays: DynamicViewOverlay[];
 	private _domNode: FastDomNode;
-	private _renderPieces: string;
+	private _renderedContent: string;
 	private _lineHeight: number;
 
 	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
@@ -117,7 +128,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
-		this._renderPieces = null;
+		this._renderedContent = null;
 	}
 
 	public getDomNode(): HTMLElement {
@@ -142,36 +153,29 @@ export class ViewOverlayLine implements IVisibleLine {
 		}
 	}
 
-	public shouldUpdateHTML(lineNumber: number, viewportData: ViewportData): boolean {
-		let newPieces = '';
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string {
+		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			let dynamicOverlay = this._dynamicOverlays[i];
-			newPieces += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
+			result += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
 		}
 
-		let piecesEqual = (this._renderPieces === newPieces);
-
-		if (!piecesEqual) {
-			this._renderPieces = newPieces;
+		if (this._renderedContent === result) {
+			// No rendering needed
+			return null;
 		}
 
-		return !piecesEqual;
-	}
+		this._renderedContent = result;
 
-	public getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void {
-		out.push(`<div lineNumber="${lineNumber}" style="position:absolute;top:${deltaTop}px;width:100%;height:${this._lineHeight}px;">`);
-		out.push(this.getLineInnerHTML(lineNumber));
-		out.push(`</div>`);
-	}
-
-	private getLineInnerHTML(lineNumber: number): string {
-		return this._renderPieces;
+		return `<div lineNumber="${lineNumber}" style="position:absolute;top:${deltaTop}px;width:100%;height:${this._lineHeight}px;">${result}</div>`;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number): void {
-		this._domNode.setLineNumber(String(lineNumber));
-		this._domNode.setTop(deltaTop);
-		this._domNode.setHeight(this._lineHeight);
+		if (this._domNode) {
+			this._domNode.setLineNumber(String(lineNumber));
+			this._domNode.setTop(deltaTop);
+			this._domNode.setHeight(this._lineHeight);
+		}
 	}
 }
 

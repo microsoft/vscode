@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewLayer } from 'vs/editor/browser/view/viewLayer';
-import { DomReadingContext, ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { ViewLineOptions, DomReadingContext, ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -66,6 +66,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
 	private _canUseTranslate3d: boolean;
+	private _viewLineOptions: ViewLineOptions;
 
 	// --- width
 	private _maxLineWidth: number;
@@ -79,7 +80,8 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
-		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
+		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
+		this._viewLineOptions = new ViewLineOptions(this._context.configuration);
 		this._layoutProvider = layoutProvider;
 
 		PartFingerprints.write(this.domNode.domNode, PartFingerprint.ViewLines);
@@ -112,7 +114,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		let shouldRender = super.onConfigurationChanged(e);
+		super.onConfigurationChanged(e);
 		if (e.wrappingInfo) {
 			this._maxLineWidth = 0;
 		}
@@ -133,7 +135,19 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 		}
 
-		return shouldRender;
+		let newViewLineOptions = new ViewLineOptions(this._context.configuration);
+		if (!this._viewLineOptions.equals(newViewLineOptions)) {
+			this._viewLineOptions = newViewLineOptions;
+
+			let startLineNumber = this._linesCollection.getStartLineNumber();
+			let endLineNumber = this._linesCollection.getEndLineNumber();
+			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+				let line = this._linesCollection.getLine(lineNumber);
+				line.onOptionsChanged(this._viewLineOptions);
+			}
+		}
+
+		return true;
 	}
 
 	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
@@ -350,8 +364,8 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 	// --- implementation
 
-	_createLine(): ViewLine {
-		return new ViewLine(this._context.configuration);
+	protected _createLine(): ViewLine {
+		return new ViewLine(this._viewLineOptions);
 	}
 
 	private _updateLineWidths(): void {

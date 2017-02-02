@@ -19,11 +19,16 @@ export interface IVisibleLine {
 
 	onContentChanged(): void;
 	onTokensChanged(): void;
-	onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void;
 
-	getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void;
+	/**
+	 * Return null if the HTML should not be touched.
+	 * Return the new HTML otherwise.
+	 */
+	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string;
 
-	shouldUpdateHTML(lineNumber: number, viewportData: ViewportData): boolean;
+	/**
+	 * Layout the line.
+	 */
 	layoutLine(lineNumber: number, deltaTop: number): void;
 }
 
@@ -267,16 +272,6 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		let startLineNumber = this._linesCollection.getStartLineNumber();
-		let endLineNumber = this._linesCollection.getEndLineNumber();
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let line = this._linesCollection.getLine(lineNumber);
-			line.onConfigurationChanged(e);
-		}
-		return true;
-	}
-
 	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
@@ -487,12 +482,12 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
+		const rendLineNumberStart = ctx.rendLineNumberStart;
+		const lines = ctx.lines;
+
 		for (let i = startIndex; i <= endIndex; i++) {
-			let lineNumber = ctx.rendLineNumberStart + i;
-			let lineDomNode = ctx.lines[i].getDomNode();
-			if (lineDomNode) {
-				ctx.lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
-			}
+			let lineNumber = rendLineNumberStart + i;
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
 		}
 	}
 
@@ -617,16 +612,22 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			let line = ctx.lines[i];
 			let lineNumber = i + ctx.rendLineNumberStart;
 
-			if (line.shouldUpdateHTML(lineNumber, ctx.viewportData)) {
+			wasNew[i] = false;
+			wasInvalid[i] = false;
+
+			let renderResult = line.renderLine(lineNumber, deltaTop[i], ctx.viewportData);
+
+			if (renderResult !== null) {
+				// Line needs rendering
 				let lineDomNode = line.getDomNode();
 				if (!lineDomNode) {
 					// Line is new
-					line.getLineOuterHTML(newLinesHTML, lineNumber, deltaTop[i]);
+					newLinesHTML.push(renderResult);
 					wasNew[i] = true;
 					hadNewLine = true;
 				} else {
 					// Line is invalid
-					line.getLineOuterHTML(invalidLinesHTML, lineNumber, deltaTop[i]);
+					invalidLinesHTML.push(renderResult);
 					wasInvalid[i] = true;
 					hadInvalidLine = true;
 				}
