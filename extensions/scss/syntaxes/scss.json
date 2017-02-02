@@ -1665,9 +1665,9 @@
 			]
 		},
 		"variables": {
-			"match": "\\$[A-Za-z0-9_-]+\\b",
+			"match": "(\\$|\\-\\-)[A-Za-z0-9_-]+\\b",
 			"name": "variable.scss"
 		}
 	},
-	"version": "https://github.com/atom/language-sass/commit/0c650090de8e0a72088232cb62aedd45df29a036"
+	"version": "https://github.com/atom/language-sass/commit/63b3aa0ed8f25b80a109c110bdfbd9950bd0df27"
 }
