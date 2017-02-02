@@ -51,7 +51,7 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 			return;
 		}
 
-		const configurationKeys = this.workspaceConfigurationService.getUntrustedConfigurations();
+		const configurationKeys = this.workspaceConfigurationService.getUnsupportedWorkspaceKeys();
 		this.isUntrusted = configurationKeys.length > 0;
 		if (this.isUntrusted && !this.hasShownWarning()) {
 			this.showWarning(configurationKeys);

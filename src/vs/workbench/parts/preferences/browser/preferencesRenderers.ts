@@ -169,7 +169,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
-	private untrustedSettingRenderer: UnTrustedWorkspaceSettingsRenderer;
+	private untrustedSettingRenderer: UnsupportedWorkspaceSettingsRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService preferencesService: IPreferencesService,
@@ -179,7 +179,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, configurationEditingService, messageService, instantiationService);
-		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnTrustedWorkspaceSettingsRenderer, editor, preferencesModel));
+		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnsupportedWorkspaceSettingsRenderer, editor, preferencesModel));
 	}
 
 	public render(): void {
@@ -854,7 +854,7 @@ class SettingHighlighter extends Disposable {
 	}
 }
 
-class UnTrustedWorkspaceSettingsRenderer extends Disposable {
+class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 
 	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
@@ -873,11 +873,11 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 	}
 
 	public render(): void {
-		const untrustedConfigurations = this.configurationService.getUntrustedConfigurations();
-		if (untrustedConfigurations.length) {
+		const unsupportedWorkspaceKeys = this.configurationService.getUnsupportedWorkspaceKeys();
+		if (unsupportedWorkspaceKeys.length) {
 			const markerData: IMarkerData[] = [];
-			for (const untrustedConfiguration of untrustedConfigurations) {
-				const setting = this.workspaceSettingsEditorModel.getPreference(untrustedConfiguration);
+			for (const unsupportedKey of unsupportedWorkspaceKeys) {
+				const setting = this.workspaceSettingsEditorModel.getPreference(unsupportedKey);
 				if (setting) {
 					markerData.push({
 						severity: Severity.Warning,
@@ -885,11 +885,13 @@ class UnTrustedWorkspaceSettingsRenderer extends Disposable {
 						startColumn: setting.keyRange.startColumn,
 						endLineNumber: setting.keyRange.endLineNumber,
 						endColumn: setting.keyRange.endColumn,
-						message: this.getMarkerMessage(untrustedConfiguration)
+						message: this.getMarkerMessage(unsupportedKey)
 					});
 				}
 			}
-			this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
+			if (markerData.length > 0) {
+				this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
+			}
 		}
 	}
 

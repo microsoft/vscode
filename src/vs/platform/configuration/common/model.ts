@@ -88,12 +88,10 @@ interface Overrides<T> extends IOverrides<T> {
 
 export class ConfigModel<T> implements IConfigModel<T> {
 
-	protected _contents: T;
+	protected _contents: T = <T>{};
 	protected _overrides: IOverrides<T>[] = [];
-
-	private _raw: any = {};
-	private _unfilteredRaw: any = {};
-	private _parseErrors: any[] = [];
+	protected _keys: string[] = [];
+	protected _parseErrors: any[] = [];
 
 	constructor(content: string, private name: string = '') {
 		if (content) {
@@ -102,7 +100,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	}
 
 	public get contents(): T {
-		return this._contents || <T>{};
+		return this._contents;
 	}
 
 	public get overrides(): IOverrides<T>[] {
@@ -110,15 +108,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	}
 
 	public get keys(): string[] {
-		return Object.keys(this._raw);
-	}
-
-	public get raw(): T {
-		return this._raw;
-	}
-
-	public get unfilteredRaw(): T {
-		return this._unfilteredRaw;
+		return this._keys;
 	}
 
 	public get errors(): any[] {
@@ -168,6 +158,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	}
 
 	public update(content: string): void {
+		let parsed: T = <T>{};
 		let overrides: Overrides<T>[] = [];
 		let currentProperty: string = null;
 		let currentParent: any = [];
@@ -224,15 +215,12 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		};
 		try {
 			json.visit(content, visitor);
-			this._raw = currentParent[0];
+			parsed = currentParent[0];
 		} catch (e) {
 			console.error(`Error while parsing settings file ${this.name}: ${e}`);
-			this._raw = <T>{};
 			this._parseErrors = [e];
 		}
-		this._unfilteredRaw = this._raw;
-		this._raw = this.filterRaw(this._unfilteredRaw);
-		this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
+		this.processRaw(parsed);
 
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		this._overrides = overrides.map<IOverrides<T>>(override => {
@@ -250,26 +238,13 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		});
 	}
 
-	/*
-	 * If filterRaw is not a no-op, the returned object needs to be a copy.
-	 * The input may not be modified in place. The default implementation
-	 * is a no op.
-	 */
-	protected filterRaw(raw: any): any {
-		return raw;
-	}
-
-	public refilter(): void {
-		if (this._unfilteredRaw) {
-			this._raw = this.filterRaw(this._unfilteredRaw);
-			this._contents = toValuesTree(this._raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
-		}
+	protected processRaw(raw: T): void {
+		this._contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
+		this._keys = Object.keys(raw);
 	}
 }
 
 export class DefaultConfigModel<T> extends ConfigModel<T> {
-
-	private _keys: string[];
 
 	constructor() {
 		super(null);
