@@ -499,19 +499,6 @@ export class MouseTargetFactory {
 			}
 		}
 
-		// Is it a cursor ?
-		if (request.target.getAttribute) {
-			// Target is an Element
-			const lineNumberAttribute = request.target.getAttribute('lineNumber');
-			if (lineNumberAttribute) {
-				const columnAttribute = request.target.getAttribute('column');
-				if (columnAttribute) {
-					const position = new Position(parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10));
-					return request.fulfill(MouseTargetType.CONTENT_TEXT, position);
-				}
-			}
-		}
-
 		return null;
 	}
 

@@ -200,7 +200,5 @@ export class ViewCursor {
 
 	private updatePosition(newPosition: Position): void {
 		this._position = newPosition;
-		this._domNode.domNode.setAttribute('lineNumber', this._position.lineNumber.toString());
-		this._domNode.domNode.setAttribute('column', this._position.column.toString());
 	}
 }

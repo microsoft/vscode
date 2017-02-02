@@ -207,10 +207,15 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	// ----------- HELPERS FOR OTHERS
 
 	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position {
-		let lineNumber = this._getLineNumberFromDOMInfo(spanNode);
+		let viewLineDomNode = this._getViewLineDomNode(spanNode);
+		if (viewLineDomNode === null) {
+			// Couldn't find view line node
+			return null;
+		}
+		let lineNumber = this._getLineNumberFor(viewLineDomNode);
 
 		if (lineNumber === -1) {
-			// Couldn't find span node
+			// Couldn't find view line node
 			return null;
 		}
 
@@ -239,12 +244,29 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return new Position(lineNumber, column);
 	}
 
-	private _getLineNumberFromDOMInfo(spanNode: HTMLElement): number {
-		while (spanNode && spanNode.nodeType === 1) {
-			if (spanNode.className === ClassNames.VIEW_LINE) {
-				return parseInt(spanNode.getAttribute('lineNumber'), 10);
+	private _getViewLineDomNode(node: HTMLElement): HTMLElement {
+		while (node && node.nodeType === 1) {
+			if (node.className === ClassNames.VIEW_LINE) {
+				return node;
 			}
-			spanNode = spanNode.parentElement;
+			node = node.parentElement;
+		}
+		return null;
+	}
+
+	/**
+	 * @returns the line number of this view line dom node.
+	 */
+	private _getLineNumberFor(domNode: HTMLElement): number {
+		const inp = this._linesCollection._get();
+		const rendLineNumberStart = inp.rendLineNumberStart;
+		const lines = inp.lines;
+
+		for (let i = 0; i < lines.length; i++) {
+			let lineDomNode = lines[i].getDomNode();
+			if (domNode === lineDomNode) {
+				return rendLineNumberStart + i;
+			}
 		}
 		return -1;
 	}

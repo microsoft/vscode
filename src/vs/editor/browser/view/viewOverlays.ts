@@ -167,12 +167,11 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		return `<div lineNumber="${lineNumber}" style="position:absolute;top:${deltaTop}px;width:100%;height:${this._lineHeight}px;">${result}</div>`;
+		return `<div style="position:absolute;top:${deltaTop}px;width:100%;height:${this._lineHeight}px;">${result}</div>`;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number): void {
 		if (this._domNode) {
-			this._domNode.setLineNumber(String(lineNumber));
 			this._domNode.setTop(deltaTop);
 			this._domNode.setHeight(this._lineHeight);
 		}
