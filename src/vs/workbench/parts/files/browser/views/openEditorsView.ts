@@ -19,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { AdaptiveCollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -49,6 +49,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private fullRefreshNeeded: boolean;
 
 	private openEditorsFocussedContext: IContextKey<boolean>;
+	private explorerFocussedContext: IContextKey<boolean>;
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -65,7 +66,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
+
 		this.openEditorsFocussedContext = OpenEditorsFocussedContext.bindTo(contextKeyService);
+		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
@@ -116,10 +119,18 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			});
 
 		// Update open editors focus context
-		const explorerFocusTracker = dom.trackFocus(this.tree.getHTMLElement());
-		explorerFocusTracker.addFocusListener(() => this.openEditorsFocussedContext.set(true));
-		explorerFocusTracker.addBlurListener(() => this.openEditorsFocussedContext.reset());
-		this.toDispose.push(explorerFocusTracker);
+		const viewerFocusTracker = dom.trackFocus(this.tree.getHTMLElement());
+		viewerFocusTracker.addFocusListener(() => {
+			setTimeout(() => {
+				this.openEditorsFocussedContext.set(true);
+				this.explorerFocussedContext.set(true);
+			}, 0 /* wait for any BLUR to happen */);
+		});
+		viewerFocusTracker.addBlurListener(() => {
+			this.openEditorsFocussedContext.reset();
+			this.explorerFocussedContext.reset();
+		});
+		this.toDispose.push(viewerFocusTracker);
 
 		this.fullRefreshNeeded = true;
 		this.structuralTreeUpdate();
