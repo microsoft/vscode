@@ -7,9 +7,7 @@
 import 'vs/css!./welcomeOverlay';
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -24,6 +22,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 interface Key {
 	id: string;
@@ -94,6 +93,8 @@ const keys: Key[] = [
 
 const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', false);
 
+let welcomeOverlay: WelcomeOverlay;
+
 export class WelcomeOverlayAction extends Action {
 
 	public static ID = 'workbench.action.showInterfaceOverview';
@@ -101,17 +102,17 @@ export class WelcomeOverlayAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<void> {
-		const welcomeOverlay = document.querySelector('.monaco-workbench > .welcomeOverlay') as HTMLDivElement;
-		const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
-		welcomeOverlay.style.display = 'block';
-		dom.addClass(welcomePage, 'blur-background');
-		WelcomeOverlayContribution._overlayVisible.set(true);
+		if (!welcomeOverlay) {
+			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
+		}
+		welcomeOverlay.show();
 		return null;
 	}
 }
@@ -129,21 +130,17 @@ export class HideWelcomeOverlayAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		const welcomeOverlay = document.querySelector('.monaco-workbench > .welcomeOverlay') as HTMLDivElement;
-		if (welcomeOverlay.style.display !== 'none') {
-			welcomeOverlay.style.display = 'none';
-			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
-			dom.removeClass(welcomePage, 'blur-background');
-			WelcomeOverlayContribution._overlayVisible.reset();
+		if (welcomeOverlay) {
+			welcomeOverlay.hide();
 		}
 		return null;
 	}
 }
 
-export class WelcomeOverlayContribution implements IWorkbenchContribution {
+class WelcomeOverlay {
 
 	private _toDispose: IDisposable[] = [];
-	/*private*/ static _overlayVisible: IContextKey<boolean>;
+	private _overlayVisible: IContextKey<boolean>;
 	private _overlay: Builder;
 
 	constructor(
@@ -153,14 +150,8 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		WelcomeOverlayContribution._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
-		this.partService.joinCreation().then(() => {
-			this.create();
-		}, errors.onUnexpectedError);
-	}
-
-	public getId() {
-		return 'vs.welcomeOverlay';
+		this._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
+		this.create();
 	}
 
 	private create(): void {
@@ -173,8 +164,8 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 			.style({ height: `calc(100% - ${offset}px)` })
 			.display('none');
 
-		this._overlay.on('click', () => this._hide(), this._toDispose);
-		this.commandService.onWillExecuteCommand(() => this._hide());
+		this._overlay.on('click', () => this.hide(), this._toDispose);
+		this.commandService.onWillExecuteCommand(() => this.hide());
 
 		const editorOpen = !!this.editorService.getVisibleEditors().length;
 		keys.filter(key => !('withEditor' in key) || key.withEditor === editorOpen)
@@ -199,12 +190,21 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 		$(this._overlay).div({ 'class': 'commandPalettePlaceholder' });
 	}
 
-	private _hide() {
+	public show() {
+		if (this._overlay.style('display') !== 'block') {
+			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
+			this._overlay.display('block');
+			dom.addClass(welcomePage, 'blur-background');
+			this._overlayVisible.set(true);
+		}
+	}
+
+	public hide() {
 		if (this._overlay.style('display') !== 'none') {
 			this._overlay.display('none');
 			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
 			dom.removeClass(welcomePage, 'blur-background');
-			WelcomeOverlayContribution._overlayVisible.reset();
+			this._overlayVisible.reset();
 		}
 	}
 
@@ -212,9 +212,6 @@ export class WelcomeOverlayContribution implements IWorkbenchContribution {
 		this._toDispose = dispose(this._toDispose);
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomeOverlayContribution);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(new SyncActionDescriptor(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: Show Interface Overview', localize('help', "Help"));
