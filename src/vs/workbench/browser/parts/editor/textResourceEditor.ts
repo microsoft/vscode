@@ -111,6 +111,7 @@ export class TextResourceEditor extends BaseTextEditor {
 			if (!optionsGotApplied) {
 				this.restoreViewState(input);
 			}
+			return undefined;
 		});
 	}
 

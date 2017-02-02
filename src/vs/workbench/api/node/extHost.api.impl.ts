@@ -146,7 +146,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
-						return;
+						return undefined;
 					}
 
 					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
@@ -185,6 +185,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 				if (desc) {
 					return new Extension(extensionService, desc);
 				}
+				return undefined;
 			},
 			get all(): Extension<any>[] {
 				return extensionService.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc));
@@ -523,7 +524,7 @@ function createExtensionPathIndex(extensionService: ExtHostExtensionService): TP
 	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
 	const extensions = extensionService.getAllExtensionDescriptions().map(ext => {
 		if (!ext.main) {
-			return;
+			return undefined;
 		}
 		return new TPromise((resolve, reject) => {
 			realpath(ext.extensionFolderPath, (err, path) => {

@@ -182,6 +182,7 @@ export class EditorAccessor implements emmet.Editor {
 		if (profile && typeof profile === 'string') {
 			return profile;
 		}
+		return undefined;
 	}
 
 	private checkParentMode(syntax: string): string {

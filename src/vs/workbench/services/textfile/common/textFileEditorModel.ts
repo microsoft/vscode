@@ -751,6 +751,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.dirty) {
 			return ModelState.DIRTY;
 		}
+		return undefined;
 	}
 
 	public getEncoding(): string {

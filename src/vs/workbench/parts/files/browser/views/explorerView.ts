@@ -296,6 +296,7 @@ export class ExplorerView extends CollapsibleViewletView {
 					this.openFocusedElement();
 				});
 			}
+			return undefined;
 		});
 	}
 

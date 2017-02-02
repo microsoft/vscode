@@ -100,6 +100,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 						workspaceValue: config.workspace
 					};
 				}
+				return undefined;
 			}
 		};
 

@@ -86,6 +86,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
 		}
+		return undefined;
 	}
 }
 

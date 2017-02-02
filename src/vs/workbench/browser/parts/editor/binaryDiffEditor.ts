@@ -123,6 +123,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 			// Render modified
 			const modified = <BinaryEditorModel>resolvedModel.modifiedModel;
 			this.renderInput(modified.getName(), modified.getResource(), modified.getSize(), modified.getETag(), false);
+			return undefined;
 		});
 	}
 

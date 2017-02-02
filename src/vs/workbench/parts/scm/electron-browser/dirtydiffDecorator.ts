@@ -87,7 +87,7 @@ class DirtyDiffModelDecorator {
 			.trigger(() => this.diff())
 			.then((diff: common.IChange[]) => {
 				if (!this.model || this.model.isDisposed() || !this.baselineModel || this.baselineModel.isDisposed()) {
-					return; // disposed
+					return undefined; // disposed
 				}
 
 				if (this.baselineModel.getValueLength() === 0) {

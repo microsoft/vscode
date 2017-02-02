@@ -183,6 +183,7 @@ export class WorkspaceStats {
 		} else if (filesToDiff && filesToDiff.length) {
 			return this.parentURI(filesToDiff[0].resource);
 		}
+		return undefined;
 	}
 
 	private parentURI(uri: URI): URI {

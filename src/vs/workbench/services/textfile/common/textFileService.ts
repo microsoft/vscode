@@ -168,6 +168,7 @@ export abstract class TextFileService implements ITextFileService {
 					// Otherwise just confirm from the user what to do with the dirty files
 					return this.confirmBeforeShutdown();
 				}
+				return undefined;
 			});
 		}
 
@@ -283,6 +284,8 @@ export abstract class TextFileService implements ITextFileService {
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+
+		return undefined;
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
@@ -671,6 +674,7 @@ export abstract class TextFileService implements ITextFileService {
 				else {
 					return TPromise.wrapError(error);
 				}
+				return undefined;
 			});
 		})).then(r => {
 			return {

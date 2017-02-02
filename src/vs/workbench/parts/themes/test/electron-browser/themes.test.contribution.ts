@@ -264,5 +264,6 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 	} else {
 		return process(resource);
 	}
+	return undefined;
 });
 

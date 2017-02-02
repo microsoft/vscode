@@ -194,6 +194,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
 			return this.hoverWidget.showAt(range, focus);
 		}
+		return undefined;
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
@@ -328,7 +329,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		});
 		if (!configurationsPosition) {
 			this.commandService.executeCommand('editor.action.triggerSuggest');
-			return;
+			return undefined;
 		}
 
 		const insertLineAfter = (lineNumber: number): TPromise<any> => {

@@ -131,6 +131,7 @@ export class GitViewlet
 				if (this.currentView) {
 					return this.currentView.setVisible(visible);
 				}
+				return undefined;
 			});
 		} else {
 			return (this.currentView ? this.currentView.setVisible(visible) : winjs.TPromise.as(null)).then(() => {

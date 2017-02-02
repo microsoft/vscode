@@ -672,6 +672,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 			return this.list.getFocusedElements()[0];
 		}
+		return undefined;
 	}
 
 	toggleDetails(): void {

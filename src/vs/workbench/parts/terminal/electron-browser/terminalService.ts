@@ -178,6 +178,7 @@ export class TerminalService implements ITerminalService {
 				}
 				complete(void 0);
 			}
+			return undefined;
 		});
 	}
 

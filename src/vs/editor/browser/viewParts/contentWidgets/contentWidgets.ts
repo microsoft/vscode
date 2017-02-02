@@ -386,6 +386,7 @@ export class ViewContentWidgets extends ViewPart {
 				}
 			}
 		}
+		return undefined;
 	}
 
 	public prepareRender(ctx: IRenderingContext): void {

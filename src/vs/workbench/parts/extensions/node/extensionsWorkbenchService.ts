@@ -470,7 +470,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	canInstall(extension: IExtension): boolean {
 		if (!(extension instanceof Extension)) {
-			return;
+			return false;
 		}
 
 		return !!(extension as Extension).gallery;
@@ -482,7 +482,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		if (!(extension instanceof Extension)) {
-			return;
+			return undefined;
 		}
 
 		const ext = extension as Extension;
@@ -507,7 +507,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	uninstall(extension: IExtension): TPromise<void> {
 		if (!(extension instanceof Extension)) {
-			return;
+			return undefined;
 		}
 
 		const ext = extension as Extension;
@@ -740,6 +740,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 						return this.setEnablement(keymap, false);
 					}));
 				}
+				return undefined;
 			}, error => TPromise.wrapError(canceled()));
 	}
 

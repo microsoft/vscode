@@ -1053,7 +1053,7 @@ export class ChangeEncodingAction extends Action {
 
 		return pickActionPromise.then(action => {
 			if (!action) {
-				return;
+				return undefined;
 			}
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {

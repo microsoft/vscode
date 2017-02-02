@@ -171,7 +171,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return promise.then(expression => {
 			if (!expression || (expression instanceof Expression && !expression.available)) {
 				this.hide();
-				return;
+				return undefined;
 			}
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{

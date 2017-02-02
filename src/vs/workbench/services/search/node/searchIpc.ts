@@ -26,6 +26,7 @@ export class SearchChannel implements ISearchChannel {
 			case 'textSearch': return this.service.textSearch(arg);
 			case 'clearCache': return this.service.clearCache(arg);
 		}
+		return undefined;
 	}
 }
 
