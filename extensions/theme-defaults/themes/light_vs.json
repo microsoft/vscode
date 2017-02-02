@@ -272,7 +272,10 @@
 			"scope": [
 				"support.type.vendored.property-name",
 				"support.type.property-name",
-				"variable.css"
+				"variable.css",
+				"variable.scss",
+				"variable.other.less"
+
 			],
 			"settings": {
 				"foreground": "#ff0000"
