@@ -23,8 +23,8 @@ import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
-	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, CONTEXT_DEFAULT_SETTINGS_EDITOR,
-	DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL, DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH, ISettingsEditorModel
+	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesEditorModel,
+	CONTEXT_DEFAULT_SETTINGS_EDITOR, DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL, DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH, ISettingsEditorModel
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -474,7 +474,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 class DefaultPreferencesCodeEditor extends CodeEditor {
 
-	private _settingsModel: SettingsEditorModel;
+	public settingsModel: IPreferencesEditorModel<ISetting>;
 
 	protected _getContributions(): IEditorContributionCtor[] {
 		let contributions = super._getContributions();
@@ -485,12 +485,12 @@ class DefaultPreferencesCodeEditor extends CodeEditor {
 	}
 
 	setModels(model: editorCommon.IModel, settingsModel: SettingsEditorModel): void {
-		this._settingsModel = settingsModel;
-		return super.setModel(model);
-	}
-
-	get settingsModel(): SettingsEditorModel {
-		return this._settingsModel;
+		this.settingsModel = settingsModel;
+		super.setModel(model);
+		const renderer = this.getContribution<DefaultSettingsEditorContribution>(DefaultSettingsEditorContribution.ID).getPreferencesRenderer();
+		if (renderer) {
+			renderer.associatedPreferencesModel = this.settingsModel;
+		}
 	}
 }
 
@@ -548,7 +548,7 @@ export class DefaultSettingsEditorContribution extends PreferencesEditorContribu
 		return this.preferencesService.resolvePreferencesEditorModel(this.editor.getModel().uri)
 			.then(editorModel => {
 				if (editorModel instanceof DefaultSettingsEditorModel) {
-					return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel, () => (<DefaultPreferencesCodeEditor>this.editor).settingsModel);
+					return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel, (<DefaultPreferencesCodeEditor>this.editor).settingsModel);
 				}
 				return null;
 			});

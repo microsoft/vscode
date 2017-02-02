@@ -34,11 +34,14 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
+	preferencesModel: IPreferencesEditorModel<T>;
+	associatedPreferencesModel: IPreferencesEditorModel<T>;
 	iterator: IIterator<T>;
+
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
 	onUpdatePreference: Event<{ key: string, value: any, source: T }>;
-	preferencesModel: IPreferencesEditorModel<T>;
+
 	render(): void;
 	updatePreference(key: string, value: any, source: T): void;
 	filterPreferences(filterResult: IFilterResult): void;
@@ -65,7 +68,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	private filterResult: IFilterResult;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, private defaultPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, public readonly associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
@@ -75,7 +78,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		super();
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightPreferencesRenderer = this._register(instantiationService.createInstance(HighlightPreferencesRenderer, editor));
-		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, () => this.defaultPreferencesModel, this.settingHighlighter));
+		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
 		this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
@@ -85,7 +88,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	public render(): void {
-		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
+		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this.associatedPreferencesModel);
 		if (this.filterResult) {
 			this.filterPreferences(this.filterResult);
 		}
@@ -134,7 +137,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.filterResult = filterResult;
 		this.highlightPreferencesRenderer.render([]);
 		this.settingHighlighter.clear(true);
-		if (this.defaultPreferencesModel && filterResult) {
+		if (this.associatedPreferencesModel && filterResult) {
 			const settings = distinct(filterResult.filteredGroups.reduce((settings: ISetting[], settingsGroup: ISettingsGroup) => {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
@@ -168,14 +171,14 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 
 	private untrustedSettingRenderer: UnTrustedWorkspaceSettingsRenderer;
 
-	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, defaultPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, defaultPreferencesModel, preferencesService, telemetryService, configurationEditingService, messageService, instantiationService);
+		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, configurationEditingService, messageService, instantiationService);
 		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnTrustedWorkspaceSettingsRenderer, editor, preferencesModel));
 	}
 
@@ -205,7 +208,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel, otherSettingsModel: () => IPreferencesEditorModel<ISetting>,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel, private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -217,7 +220,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.filteredSettingsNavigationRenderer = this._register(instantiationService.createInstance(FilteredSettingsNavigationRenderer, editor, this.settingHighlighter));
-		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, otherSettingsModel, this.settingHighlighter));
+		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
 		this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
 		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, preferencesModel.settingsGroups));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
@@ -229,10 +232,19 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		return this.filteredSettingsNavigationRenderer;
 	}
 
+	public get associatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
+		return this._associatedPreferencesModel;
+	}
+
+	public set associatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>) {
+		this._associatedPreferencesModel = associatedPreferencesModel;
+		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
+	}
+
 	public render() {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
-		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups);
+		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		this.hiddenAreasRenderer.render();
 		this.filteredSettingsNavigationRenderer.render([]);
 		this.settingsGroupTitleRenderer.showGroup(1);
@@ -245,10 +257,12 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.filteredMatchesRenderer.render(null);
 			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.showGroup(1);
+			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		} else {
 			this.filteredMatchesRenderer.render(filterResult);
 			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 			this.filteredSettingsNavigationRenderer.render(filterResult.filteredGroups);
+			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
 		}
 		this.hiddenAreasRenderer.render();
 	}
@@ -597,13 +611,13 @@ class EditSettingRenderer extends Disposable {
 	private editPreferenceWidgetForMouseMove: EditPreferenceWidget<ISetting>;
 
 	private settingsGroups: ISettingsGroup[];
+	public associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
 	private _onUpdateSetting: Emitter<{ key: string, value: any, source: ISetting }> = new Emitter<{ key: string, value: any, source: ISetting }>();
 	public readonly onUpdateSetting: Event<{ key: string, value: any, source: ISetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
-		private otherSettingsModel: () => ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -626,10 +640,11 @@ class EditSettingRenderer extends Disposable {
 		this._register(this.editor.onDidChangeConfiguration(() => this.onConfigurationChanged()));
 	}
 
-	public render(settingsGroups: ISettingsGroup[]): void {
+	public render(settingsGroups: ISettingsGroup[], associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
 		this.editPreferenceWidgetForCusorPosition.hide();
 		this.editPreferenceWidgetForMouseMove.hide();
 		this.settingsGroups = settingsGroups;
+		this.associatedPreferencesModel = associatedPreferencesModel;
 
 		const settings = this.getSettings(this.editor.getPosition().lineNumber);
 		if (settings.length) {
@@ -742,7 +757,7 @@ class EditSettingRenderer extends Disposable {
 	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<ISetting>): void {
 		const elementPosition = DOM.getDomNodePagePosition(editPreferenceWidget.getDomNode());
 		const anchor = { x: elementPosition.left + elementPosition.width, y: elementPosition.top + elementPosition.height + 10 };
-		const actions = this.getSettingsAtLineNumber(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
+		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
@@ -782,7 +797,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private getDefaultActions(setting: ISetting): IAction[] {
-		const settingInOtherModel = this.otherSettingsModel().getPreference(setting.key);
+		const settingInOtherModel = this.associatedPreferencesModel.getPreference(setting.key);
 		if (this.isDefaultSettings()) {
 			return [<IAction>{
 				id: 'setDefaultValue',
