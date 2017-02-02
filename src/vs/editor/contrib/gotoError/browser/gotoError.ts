@@ -139,6 +139,17 @@ class MarkerModel {
 		this.move(false);
 	}
 
+	public all(): void {
+		if (!this.canNavigate()) {
+			this._onCurrentMarkerChanged.fire(undefined);
+			return;
+		}
+
+		this._markers.forEach(marker => {
+			this._onCurrentMarkerChanged.fire(marker);
+		});
+	}
+
 	public findMarkerAtPosition(pos: editorCommon.IPosition): IMarker {
 		for (const marker of this._markers) {
 			if (Range.containsPosition(marker, pos)) {
@@ -440,6 +451,36 @@ class PrevMarkerAction extends MarkerNavigationAction {
 				primary: KeyMod.Shift | KeyCode.F8
 			}
 		});
+	}
+}
+
+@editorAction
+class ShowAllMarkersAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.marker.showAll',
+			label: nls.localize('markerAction.showAll.label', "Show all Errors And Warnings"),
+			alias: 'Show all Errors And Warnings',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.CtrlCmd | KeyCode.F8
+			}});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		const telemetryService = accessor.get(ITelemetryService);
+
+		const controller = MarkerController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		let model = controller.getOrCreateModel();
+		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
+		if (model) {
+			model.all();
+		}
 	}
 }
 
