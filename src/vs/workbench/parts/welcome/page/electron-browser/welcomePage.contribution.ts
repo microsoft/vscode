@@ -7,7 +7,7 @@
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
-import { WelcomePageContribution, WelcomePageAction } from 'vs/workbench/parts/welcomePage/electron-browser/welcomePage';
+import { WelcomePageContribution, WelcomePageAction } from 'vs/workbench/parts/welcome/page/electron-browser/welcomePage';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
