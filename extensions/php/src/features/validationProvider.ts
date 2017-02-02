@@ -184,7 +184,7 @@ export default class PHPValidationProvider {
 			let checkedExecutablePath = this.workspaceStore.get<string>(CheckedExecutablePath, undefined);
 			if (!checkedExecutablePath || checkedExecutablePath !== this.executable) {
 				vscode.window.showInformationMessage<MessageItem>(
-					localize('php.useExecutablePath', 'Do you allow {0} to be executed to lint PHP files?', this.executable),
+					localize('php.useExecutablePath', 'Do you allow {0} (defined as a workspace setting) to be executed to lint PHP files?', this.executable),
 					{
 						title: localize('php.yes', 'Yes'),
 						id: 'yes'
