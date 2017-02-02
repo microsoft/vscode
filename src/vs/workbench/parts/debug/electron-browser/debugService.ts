@@ -940,7 +940,7 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const data: { [id: string]: { line?: number, verified: boolean } } = {};
+				const data: { [id: string]: { line?: number, column?: number, verified: boolean } } = {};
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 				}
