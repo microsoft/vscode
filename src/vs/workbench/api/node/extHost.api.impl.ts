@@ -255,18 +255,6 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 		};
 
-		const emptyMessageOptions: vscode.MessageOptions = Object.create(null);
-
-		function parseMessageArguments(args: any[]): { options: vscode.MessageOptions; items: any[]; } {
-			const [first, ...rest] = args;
-
-			if (typeof first === 'string' || (first && first.title)) {
-				return { options: emptyMessageOptions, items: args };
-			} else {
-				return { options: first || emptyMessageOptions, items: rest };
-			}
-		}
-
 		// namespace: window
 		const window: typeof vscode.window = {
 			get activeTextEditor() {
@@ -299,17 +287,14 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			showInformationMessage(message, ...args) {
-				const { options, items } = parseMessageArguments(args);
-				return extHostMessageService.showMessage(Severity.Info, message, options, items);
+			showInformationMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Info, message, first, rest);
 			},
-			showWarningMessage(message, ...args) {
-				const { options, items } = parseMessageArguments(args);
-				return extHostMessageService.showMessage(Severity.Warning, message, options, items);
+			showWarningMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Warning, message, first, rest);
 			},
-			showErrorMessage(message, ...args) {
-				const { options, items } = parseMessageArguments(args);
-				return extHostMessageService.showMessage(Severity.Error, message, options, items);
+			showErrorMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
