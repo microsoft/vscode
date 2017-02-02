@@ -88,11 +88,13 @@ class VisibleIdentitySplitLine implements ISplitLine {
 	}
 
 	public getViewLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): OutputLineRenderingData {
+		let lineTokens = model.getLineTokens(modelLineNumber, true);
+		let lineContent = lineTokens.getLineContent();
 		return new OutputLineRenderingData(
-			model.getLineContent(modelLineNumber),
-			model.getLineMinColumn(modelLineNumber),
-			model.getLineMaxColumn(modelLineNumber),
-			model.getLineTokens(modelLineNumber, true).inflate()
+			lineContent,
+			1,
+			lineContent.length + 1,
+			lineTokens.inflate()
 		);
 	}
 
