@@ -52,13 +52,14 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
 				const manager = this.debugService.getConfigurationManager();
 				this.selectBox.select(manager.getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
-				manager.openConfigFile(false).then(editor => {
+				manager.openConfigFile(false).done(editor => {
 					if (editor) {
 						const codeEditor = <ICommonCodeEditor>editor.getControl();
 						if (codeEditor) {
 							return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 						}
 					}
+
 					return undefined;
 				});
 			} else {
