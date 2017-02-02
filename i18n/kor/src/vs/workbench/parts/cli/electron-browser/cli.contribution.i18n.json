@@ -16,6 +16,7 @@
 	"install": "PATH에 '{0}' 명령 설치",
 	"later": "나중에",
 	"laterInfo": "명령 팔레트에서 '{0}' 작업을 항상 실행할 수 있습니다.",
+	"not available": "이 명령은 사용할 수 없습니다.",
 	"ok": "확인",
 	"shellCommand": "셸 명령",
 	"successFrom": "셸 명령 '{0}'이(가) PATH에서 제거되었습니다.",
