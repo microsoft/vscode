@@ -861,6 +861,7 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
+		this._register(this.configurationService.onDidUpdateConfiguration(() => this.render()));
 	}
 
 	private getMarkerMessage(settingKey): string {
@@ -889,8 +890,10 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 					});
 				}
 			}
-			if (markerData.length > 0) {
+			if (markerData.length) {
 				this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
+			} else {
+				this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
 			}
 		}
 	}
