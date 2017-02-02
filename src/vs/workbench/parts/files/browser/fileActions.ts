@@ -135,7 +135,7 @@ export class BaseFileAction extends Action {
 
 export class TriggerRenameFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.triggerRename';
+	public static ID = 'workbench.files.action.filesExplorer.rename';
 
 	private tree: ITree;
 	private renameAction: BaseRenameAction;
@@ -748,7 +748,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 /* Move File/Folder to trash */
 export class MoveFileToTrashAction extends BaseDeleteFileAction {
-	public static ID = 'workbench.files.action.moveFileToTrash';
+	public static ID = 'workbench.files.action.filesExplorer.moveFileToTrash';
 
 	constructor(
 		tree: ITree,
@@ -1076,7 +1076,7 @@ export class DuplicateFileAction extends BaseFileAction {
 // Open to the side
 export class OpenToSideAction extends Action {
 
-	public static ID = 'workbench.files.action.openToSide';
+	public static ID = 'workbench.files.action.explorer.openToSide';
 	public static LABEL = nls.localize('openToSide', "Open to the Side");
 
 	private tree: ITree;
@@ -1825,7 +1825,7 @@ export class RevealInOSAction extends Action {
 		private resource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('workbench.action.files.revealInWindows', RevealInOSAction.LABEL);
+		super('workbench.files.action.explorer.revealInOS', RevealInOSAction.LABEL);
 
 		this.order = 45;
 	}
@@ -1872,7 +1872,7 @@ export class CopyPathAction extends Action {
 		private resource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('workbench.action.files.copyPath', CopyPathAction.LABEL);
+		super('workbench.files.action.explorer.copyPath', CopyPathAction.LABEL);
 
 		this.order = 140;
 	}
