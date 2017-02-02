@@ -70,15 +70,15 @@ It's easy to rename a symbol such as a function name or variable name.  Hit kb(e
 
 ```js
 // Reference the function
-Book("War of the Worlds", "H G Wells");
-Book("The Martian", "Andy Weir");
+new Book("War of the Worlds", "H G Wells");
+new Book("The Martian", "Andy Weir");
 
 /**
  * Represents a book.
- * @param {string} title - The title of the book.
- * @param {string} author - The author of the book.
  */
 function Book(title, author) {
+	this.title = title;
+	this.author = author;
 }
 ```
 
