@@ -233,7 +233,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 				let error = void 0;
 				const parseErrors: json.ParseError[] = [];
-				json.parse(content, parseErrors);
+				json.parse(content, parseErrors, { allowTrailingComma: true });
 				if (!options.writeToBuffer && parseErrors.length > 0) {
 					error = ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION;
 				}
