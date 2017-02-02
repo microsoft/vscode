@@ -17,7 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { readFile } from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
-import { ScopedConfigModel, WorkspaceConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/model';
+import { ScopedConfigModel, WorkspaceConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/configurationModels';
 import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
 import { ConfigModel } from 'vs/platform/configuration/common/model';
 import { ConfigurationService as BaseConfigurationService } from 'vs/platform/configuration/node/configurationService';

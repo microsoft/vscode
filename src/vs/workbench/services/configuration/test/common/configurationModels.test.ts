@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { WorkspaceConfigModel, ScopedConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/model';
+import { WorkspaceConfigModel, ScopedConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/configurationModels';
 
 suite('ConfigurationService - Model', () => {
 
