@@ -12,7 +12,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } f
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import { IAction } from 'vs/base/common/actions';
-import { asFileResource } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
@@ -63,7 +63,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 		let element = context.element;
 
 		// Contribute only on file resources
-		let fileResource = asFileResource(element);
+		let fileResource = explorerItemToFileResource(element);
 		if (!fileResource) {
 			return false;
 		}
@@ -75,7 +75,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 		let actions: IAction[] = [];
 
 		if (this.hasSecondaryActions(context)) {
-			let fileResource = asFileResource(context.element);
+			let fileResource = explorerItemToFileResource(context.element);
 
 			let action = this._instantiationService.createInstance(searchActions.FindInFolderAction, fileResource.resource);
 			action.order = 55;

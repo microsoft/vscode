@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
@@ -53,20 +53,30 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 
 export interface IFileResource {
 	resource: URI;
-	isDirectory: boolean;
+	isDirectory?: boolean;
 }
 
 /**
- * Helper to get a file resource from an object.
+ * Helper to get an explorer item from an object.
  */
-export function asFileResource(obj: any): IFileResource {
+export function explorerItemToFileResource(obj: any): IFileResource {
 	if (obj instanceof FileStat) {
-		const stat = <FileStat>obj;
+		const stat = obj as FileStat;
 
 		return {
 			resource: stat.resource,
 			isDirectory: stat.isDirectory
 		};
+	}
+
+	if (obj instanceof OpenEditor) {
+		const editor = obj as OpenEditor;
+		const resource = editor.getResource();
+		if (resource && resource.scheme === 'file') {
+			return {
+				resource: editor.getResource()
+			};
+		}
 	}
 
 	return null;
