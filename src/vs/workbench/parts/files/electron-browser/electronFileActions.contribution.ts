@@ -11,7 +11,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { asFileResource } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { copyPathCommand, GlobalCopyPathAction, CopyPathAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import { RevealInOSAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { revealInOSCommand, revealInExplorerCommand } from 'vs/workbench/parts/files/browser/fileCommands';
@@ -30,15 +30,15 @@ class FileViewerActionContributor extends ActionBarContributor {
 		const element = context.element;
 
 		// Contribute only on Files (File Explorer and Open Files Viewer)
-		return !!asFileResource(element) || (element && element.getResource && element.getResource());
+		return !!explorerItemToFileResource(element);
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
 		const actions: IAction[] = [];
 
 		if (this.hasSecondaryActions(context)) {
-			const fileResource = asFileResource(context.element);
-			const resource = fileResource ? fileResource.resource : context.element.getResource();
+			const fileResource = explorerItemToFileResource(context.element);
+			const resource = fileResource.resource;
 
 			// Reveal file in OS native explorer
 			actions.push(this.instantiationService.createInstance(RevealInOSAction, resource));

@@ -52,7 +52,8 @@ export class GlobalCopyPathAction extends Action {
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
@@ -61,7 +62,7 @@ export class GlobalCopyPathAction extends Action {
 		const activeEditor = this.editorService.getActiveEditor();
 		const fileResource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
 		if (fileResource) {
-			clipboard.writeText(labels.getPathLabel(fileResource));
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, fileResource]);
 			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
