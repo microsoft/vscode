@@ -12,7 +12,8 @@ import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
-	public constructor(private client: ITypescriptServiceClient) { }
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
 	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined | null> {
 		const filepath = this.client.normalizePath(document.uri);
@@ -24,9 +25,6 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve(null);
-		}
 		return this.client.execute('quickinfo', args, token).then((response): Hover | undefined => {
 			if (response && response.body) {
 				const data = response.body;

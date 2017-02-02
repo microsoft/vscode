@@ -22,7 +22,7 @@ import * as is from './utils/is';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
+const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
 	c: (value: any) => void;

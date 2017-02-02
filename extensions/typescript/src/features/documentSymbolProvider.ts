@@ -32,24 +32,17 @@ function textSpan2Range(value: Proto.TextSpan): Range {
 }
 
 export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolProvider {
-
-	private client: ITypescriptServiceClient;
-
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
 	public provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<SymbolInformation[]> {
 		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
-		let args: Proto.FileRequestArgs = {
+		const args: Proto.FileRequestArgs = {
 			file: filepath
 		};
-		if (!args.file) {
-			return Promise.resolve<SymbolInformation[]>([]);
-		}
 
 		function convertNavBar(indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
 			let realIndent = indent + item.indent;
