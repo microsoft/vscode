@@ -35,7 +35,6 @@ import 'vs/workbench/browser/parts/editor/editorPicker';
 import 'vs/workbench/parts/files/browser/explorerViewlet';
 import 'vs/workbench/parts/files/browser/fileActions.contribution';
 import 'vs/workbench/parts/files/browser/files.contribution';
-import 'vs/workbench/parts/files/electron-browser/electronFileActions.contribution';
 
 import 'vs/workbench/parts/backup/common/backup.contribution';
 

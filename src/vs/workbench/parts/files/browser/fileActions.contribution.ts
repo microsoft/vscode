@@ -11,9 +11,9 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ActionItem, BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import { IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { GlobalNewUntitledFileAction, SaveFileAsAction, OpenFileAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView } from 'vs/workbench/parts/files/browser/fileActions';
+import { GlobalNewUntitledFileAction, SaveFileAsAction, OpenFileAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView } from 'vs/workbench/parts/files/browser/fileActions';
 import { RevertLocalChangesAction, AcceptLocalChangesAction, CONFLICT_RESOLUTION_SCHEME } from 'vs/workbench/parts/files/browser/saveErrorHandler';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -23,10 +23,11 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerItemCommand, deleteFocussedExplorerItemCommand, moveFocussedExplorerItemToTrashCommand, openFocussedExplorerSideBySideItemCommand, renameFocussedExplorerItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerItemCommand, deleteFocussedExplorerItemCommand, moveFocussedExplorerItemToTrashCommand, openFocussedExplorerSideBySideItemCommand, renameFocussedExplorerItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -141,6 +142,37 @@ class FilesViewerActionContributor extends ActionBarContributor {
 	}
 }
 
+class ExplorerViewersActionContributor extends ActionBarContributor {
+
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+		super();
+	}
+
+	public hasSecondaryActions(context: any): boolean {
+		const element = context.element;
+
+		// Contribute only on Files (File Explorer and Open Files Viewer)
+		return !!explorerItemToFileResource(element);
+	}
+
+	public getSecondaryActions(context: any): IAction[] {
+		const actions: IAction[] = [];
+
+		if (this.hasSecondaryActions(context)) {
+			const fileResource = explorerItemToFileResource(context.element);
+			const resource = fileResource.resource;
+
+			// Reveal file in OS native explorer
+			actions.push(this.instantiationService.createInstance(RevealInOSAction, resource));
+
+			// Copy Path
+			actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
+		}
+
+		return actions;
+	}
+}
+
 class ConflictResolutionActionContributor extends EditorInputActionContributor {
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
@@ -168,6 +200,7 @@ class ConflictResolutionActionContributor extends EditorInputActionContributor {
 // Contribute to Viewers that show Files
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionContributor);
+actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewersActionContributor);
 
 // Contribute to Conflict Editor Inputs
 actionBarRegistry.registerActionBarContributor(Scope.EDITOR, ConflictResolutionActionContributor);
@@ -176,6 +209,7 @@ actionBarRegistry.registerActionBarContributor(Scope.EDITOR, ConflictResolutionA
 const category = nls.localize('filesCategory', "Files");
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalCopyPathAction, GlobalCopyPathAction.ID, GlobalCopyPathAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P) }), 'Files: Copy Path of Active File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_S }), 'Files: Save', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_S, win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S) } }), 'Files: Save All', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SaveFilesAction, SaveFilesAction.ID, null /* only for programmatic trigger */), null);
@@ -261,3 +295,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: deleteFocussedExplorerItemCommand
 });
+
+// Editor Title Context Menu
+appendEditorTitleContextMenuItem('_workbench.action.files.revealInOS', RevealInOSAction.LABEL, revealInOSCommand);
+appendEditorTitleContextMenuItem('_workbench.action.files.copyPath', CopyPathAction.LABEL, copyPathCommand);
+appendEditorTitleContextMenuItem('_workbench.action.files.revealInExplorer', nls.localize('revealInSideBar', "Reveal in Side Bar"), revealInExplorerCommand);
+
+function appendEditorTitleContextMenuItem(id: string, title: string, command: ICommandHandler): void {
+
+	// Command
+	CommandsRegistry.registerCommand(id, command);
+
+	// Menu
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: { id, title },
+		when: ContextKeyExpr.equals('resourceScheme', 'file'),
+		group: '2_files'
+	});
+}
