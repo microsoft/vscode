@@ -214,3 +214,12 @@ export const openFocussedExplorerItemSideBySideCommand = (accessor: ServicesAcce
 		}
 	});
 };
+
+export const revealInOSFocussedExplorerItem = (accessor: ServicesAccessor) => {
+	withFocussedExplorerItem(accessor).then(item => {
+		const file = explorerItemToFileResource(item);
+		if (file) {
+			revealInOSCommand(accessor, file.resource);
+		}
+	});
+};
