@@ -158,6 +158,9 @@ export class PrefixSumComputer {
 	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
 		accumulatedValue = Math.floor(accumulatedValue); //@perf
 
+		// Compute all sums (to get a fully valid prefixSum)
+		this.getTotalValue();
+
 		let low = 0;
 		let high = this.values.length - 1;
 		let mid: number;
@@ -167,7 +170,7 @@ export class PrefixSumComputer {
 		while (low <= high) {
 			mid = low + ((high - low) / 2) | 0;
 
-			midStop = this._getAccumulatedValue(mid);
+			midStop = this.prefixSum[mid];
 			midStart = midStop - this.values[mid];
 
 			if (accumulatedValue < midStart) {
