@@ -421,7 +421,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
 		// See https://github.com/Microsoft/TypeScript/issues/10384
 		const body = event.body;
-		if (!body || !body.diagnostics) {
+		if (!body || !body.diagnostics || !body.configFile) {
 			return;
 		}
 
