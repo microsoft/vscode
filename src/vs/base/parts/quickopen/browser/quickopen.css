@@ -83,10 +83,32 @@
 .quick-open-widget .quick-open-tree .quick-open-entry-description {
 	opacity: 0.7;
 	margin-left: 0.5em;
+	margin-right: 3.2em;
 	font-size: 0.9em;
 	overflow: hidden;
 	flex: 1;
 	text-overflow: ellipsis;
+}
+.quick-open-widget .quick-open-tree .quick-open-entry-description .monaco-highlighted-label > span {
+	display: none;
+}
+.quick-open-widget .quick-open-tree .quick-open-entry-description .monaco-highlighted-label:before,
+.quick-open-widget .quick-open-tree .quick-open-entry-description .monaco-highlighted-label:after {
+	display: inline-block;
+	max-width: 50%;
+	overflow: hidden;
+	white-space: pre;
+	vertical-align: middle;
+}
+.quick-open-widget .quick-open-tree .quick-open-entry-description .monaco-highlighted-label:before {
+	content: attr(data-content-start);
+	text-overflow: ellipsis;
+}
+.quick-open-widget .quick-open-tree .quick-open-entry-description .monaco-highlighted-label:after {
+	content: attr(data-content-end);
+	text-overflow: clip;
+	text-overflow: '';
+	direction: rtl;
 }
 
 .quick-open-widget .quick-open-tree .results-group {

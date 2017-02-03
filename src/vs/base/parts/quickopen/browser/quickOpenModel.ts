@@ -595,8 +595,17 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Description
-			data.description.set(entry.getDescription(), descriptionHighlights || []);
-			data.description.element.title = entry.getDescription();
+			const description = entry.getDescription();
+			let halfIndex = Math.floor(description.length / 2);
+			// direction is rtl on the string so we are trying not to split with a
+			// special char on the right
+			if (['-', '/'].indexOf(description[halfIndex]) > 0) {
+				halfIndex++;
+			}
+			data.description.set(description, descriptionHighlights || []);
+			data.description.element.title = description;
+			data.description.element.dataset.contentStart = description.substring(0, halfIndex);
+			data.description.element.dataset.contentEnd = description.substring(halfIndex);
 		}
 	}
 
