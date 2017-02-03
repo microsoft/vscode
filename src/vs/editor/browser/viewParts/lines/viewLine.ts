@@ -220,6 +220,8 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
+		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
 		return this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
 	}
 
@@ -440,6 +442,11 @@ class RenderedViewLine {
 	}
 
 	protected _readPixelOffset(column: number, context: DomReadingContext): number {
+		if (this._characterMapping.length === 0) {
+			// This line is empty
+			return 0;
+		}
+
 		if (this._pixelOffsetCache !== null) {
 			// the text is LTR
 
@@ -457,11 +464,6 @@ class RenderedViewLine {
 	}
 
 	private _actualReadPixelOffset(column: number, context: DomReadingContext): number {
-
-		if (this._characterMapping.length === 0) {
-			// This line is empty
-			return 0;
-		}
 
 		if (column === this._characterMapping.length && this._isWhitespaceOnly) {
 			// This branch helps in the case of whitespace only lines which have a width set
