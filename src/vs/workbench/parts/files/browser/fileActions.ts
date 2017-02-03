@@ -135,7 +135,7 @@ export class BaseFileAction extends Action {
 
 export class TriggerRenameFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.filesExplorer.rename';
+	public static ID = 'filesExplorer.rename';
 
 	private tree: ITree;
 	private renameAction: BaseRenameAction;
@@ -436,7 +436,7 @@ export class NewFileAction extends BaseNewAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('workbench.action.files.newFile', nls.localize('newFile', "New File"), tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFile', nls.localize('newFile', "New File"), tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
 
 		this.class = 'explorer-action new-file';
 		this._updateEnablement();
@@ -454,7 +454,7 @@ export class NewFolderAction extends BaseNewAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('workbench.action.files.newFolder', nls.localize('newFolder', "New Folder"), tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFolder', nls.localize('newFolder', "New Folder"), tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
 
 		this.class = 'explorer-action new-folder';
 		this._updateEnablement();
@@ -533,7 +533,7 @@ export class GlobalNewUntitledFileAction extends Action {
 
 /* Create new file from anywhere */
 export class GlobalNewFileAction extends BaseGlobalNewAction {
-	public static ID = 'workbench.action.files.newFile';
+	public static ID = 'explorer.newFile';
 	public static LABEL = nls.localize('newFile', "New File");
 
 	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
@@ -543,7 +543,7 @@ export class GlobalNewFileAction extends BaseGlobalNewAction {
 
 /* Create new folder from anywhere */
 export class GlobalNewFolderAction extends BaseGlobalNewAction {
-	public static ID = 'workbench.action.files.newFolder';
+	public static ID = 'explorer.newFolder';
 	public static LABEL = nls.localize('newFolder', "New Folder");
 
 	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
@@ -745,7 +745,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 /* Move File/Folder to trash */
 export class MoveFileToTrashAction extends BaseDeleteFileAction {
-	public static ID = 'workbench.files.action.filesExplorer.moveFileToTrash';
+	public static ID = 'filesExplorer.moveFileToTrash';
 
 	constructor(
 		tree: ITree,
@@ -1073,7 +1073,7 @@ export class DuplicateFileAction extends BaseFileAction {
 // Open to the side
 export class OpenToSideAction extends Action {
 
-	public static ID = 'workbench.files.action.explorer.openToSide';
+	public static ID = 'explorer.openToSide';
 	public static LABEL = nls.localize('openToSide', "Open to the Side");
 
 	private tree: ITree;
@@ -1822,7 +1822,7 @@ export class RevealInOSAction extends Action {
 		private resource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('workbench.files.action.explorer.revealInOS', RevealInOSAction.LABEL);
+		super('explorer.revealInOS', RevealInOSAction.LABEL);
 
 		this.order = 45;
 	}
@@ -1869,7 +1869,7 @@ export class CopyPathAction extends Action {
 		private resource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('workbench.files.action.explorer.copyPath', CopyPathAction.LABEL);
+		super('explorer.copyPath', CopyPathAction.LABEL);
 
 		this.order = 140;
 	}

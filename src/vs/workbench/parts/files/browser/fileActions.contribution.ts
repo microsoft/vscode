@@ -240,7 +240,7 @@ CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.openEditors.open',
+	id: 'openEditors.open',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: OpenedEditorsFocusCondition,
 	primary: KeyCode.Enter,
@@ -248,7 +248,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.filesExplorer.open',
+	id: 'filesExplorer.open',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: FilesExplorerFocusCondition,
 	primary: KeyCode.Enter,
@@ -259,7 +259,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.explorer.openToSide',
+	id: 'explorer.openToSide',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -270,7 +270,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.filesExplorer.rename',
+	id: 'filesExplorer.rename',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: FilesExplorerFocusCondition,
 	primary: KeyCode.F2,
@@ -281,7 +281,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.filesExplorer.moveFileToTrash',
+	id: 'filesExplorer.moveFileToTrash',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: FilesExplorerFocusCondition,
 	primary: KeyCode.Delete,
@@ -292,7 +292,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.filesExplorer.deleteFile',
+	id: 'filesExplorer.deleteFile',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: FilesExplorerFocusCondition,
 	primary: KeyMod.Shift | KeyCode.Delete,
@@ -303,7 +303,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.explorer.copyPath',
+	id: 'explorer.copyPath',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
@@ -314,7 +314,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.files.action.explorer.revealInOS',
+	id: 'explorer.revealInOS',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
