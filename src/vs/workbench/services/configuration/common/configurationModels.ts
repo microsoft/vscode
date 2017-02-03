@@ -50,7 +50,7 @@ export class WorkspaceSettingsConfigModel<T> extends ConfigModel<T> {
 	}
 
 	public get unsupportedKeys(): string[] {
-		return this._unsupportedKeys;
+		return this._unsupportedKeys || [];
 	}
 
 	private isWorkspaceScoped(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean {
