@@ -132,7 +132,13 @@ class WelcomePage {
 				const li = document.createElement('li');
 
 				const a = document.createElement('a');
-				const name = path.basename(folder);
+				let name = path.basename(folder);
+				let parentFolder = path.dirname(folder);
+				if (!name && parentFolder) {
+					const tmp = name;
+					name = parentFolder;
+					parentFolder = tmp;
+				}
 				a.innerText = name;
 				a.title = folder;
 				a.href = 'javascript:void(0)';
@@ -145,7 +151,6 @@ class WelcomePage {
 
 				const span = document.createElement('span');
 				span.classList.add('path');
-				let parentFolder = path.dirname(folder);
 				if ((platform.isMacintosh || platform.isLinux) && strings.startsWith(parentFolder, this.environmentService.userHome)) {
 					parentFolder = `~${parentFolder.substr(this.environmentService.userHome.length)}`;
 				}
