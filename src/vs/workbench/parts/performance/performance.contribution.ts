@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { writeFile } from 'vs/base/node/pfs';
@@ -13,6 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
+import product from 'vs/platform/node/product';
 
 class PerformanceContribution implements IWorkbenchContribution {
 
@@ -39,7 +41,8 @@ class PerformanceContribution implements IWorkbenchContribution {
 
 	private _dumpTimersAndQuit(path: string) {
 		const metrics = this._timerService.startupMetrics;
-		const raw = JSON.stringify(metrics);
+		const all = assign({ commit: product.commit }, metrics);
+		const raw = JSON.stringify(all);
 		return writeFile(path, raw).then(() => this._windowsService.quit());
 	}
 }
