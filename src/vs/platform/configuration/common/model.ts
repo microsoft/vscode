@@ -147,10 +147,8 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		source._overrides = overrides;
 	}
 
-	public config<V>(section: string): ConfigModel<V> {
-		const result = new ConfigModel<V>(null);
-		result._contents = objects.clone(this.contents[section]);
-		return result;
+	public config<V>(section: string): V {
+		return objects.clone(this.contents[section]);
 	}
 
 	public configWithOverrides<V>(identifier: string): ConfigModel<V> {

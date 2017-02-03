@@ -110,7 +110,7 @@ export interface IConfigModel<T> {
 	errors: any[];
 
 	merge(other: IConfigModel<T>, overwrite?: boolean): IConfigModel<T>;
-	config<V>(section: string): IConfigModel<V>;
+	config<V>(section: string): V;
 	configWithOverrides<V>(identifier: string, section?: string): IConfigModel<V>;
 	refilter(): void;
 }
