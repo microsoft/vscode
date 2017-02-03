@@ -604,6 +604,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private getTypeScriptVersion(serverPath: string): string | undefined {
+		if (!fs.existsSync(serverPath)) {
+			return undefined;
+		}
+
 		let p = serverPath.split(path.sep);
 		if (p.length <= 2) {
 			return undefined;
