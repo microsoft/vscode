@@ -74,6 +74,7 @@
 	font-weight: normal;
 	color: rgba(0,0,0,.8);
 	font-size: 3.6em;
+	white-space: nowrap;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage h1 {
