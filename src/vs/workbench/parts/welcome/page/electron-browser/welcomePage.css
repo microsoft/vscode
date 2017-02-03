@@ -261,7 +261,7 @@
 
 .file-icons-enabled .show-file-icons .vs_code_welcome_page\.html-name-file-icon.html-ext-file-icon.html-lang-file-icon.file-icon::before {
 	content: ' ';
-	background-image: url('../../../../../../../resources/code-icon.svg');
+	background-image: url('../../code-icon.svg');
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .mac-only,
