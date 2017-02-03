@@ -34,7 +34,7 @@ class MarkerModel {
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
-	private _onCurrentMarkerChanged: Emitter<IMarker>;
+	private _onCurrentMarkerChanged: Emitter<IMarker | IMarker[]>;
 	private _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
@@ -144,10 +144,7 @@ class MarkerModel {
 			this._onCurrentMarkerChanged.fire(undefined);
 			return;
 		}
-
-		this._markers.forEach(marker => {
-			this._onCurrentMarkerChanged.fire(marker);
-		});
+		this._onCurrentMarkerChanged.fire(this._markers);
 	}
 
 	public findMarkerAtPosition(pos: editorCommon.IPosition): IMarker {
@@ -312,17 +309,23 @@ class MarkerNavigationWidgetsController {
 	private _navigationWidget: MarkerNavigationWidget;
 	private _widgets: MarkerNavigationWidget[] = [];
 	private _callOnDispose: IDisposable[] = [];
+	private _showingAll: boolean = false;
 
 
-	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
+	constructor(private _editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
 		this._wireModelAndView();
-		this._navigationWidget = new MarkerNavigationWidget(editor, _model, _commandService);
+		this._navigationWidget = new MarkerNavigationWidget(_editor, _model, _commandService);
 	}
 
 	dispose(): void {
 		this._callOnDispose = dispose(this._callOnDispose);
 		this._widgets.forEach(widget => widget.dispose());
 		this._navigationWidget.dispose();
+	}
+
+	private _clear() {
+		this._widgets.forEach(widget => widget.dispose());
+		this._widgets = [];
 	}
 
 	private _wireModelAndView(): void {
@@ -332,12 +335,21 @@ class MarkerNavigationWidgetsController {
 	}
 
 	private _onMarkersChanged(): void {
-		this._widgets.forEach(widget => widget.onMarkersChanged())
+		this._widgets.forEach(widget => widget.onMarkersChanged());
 	}
 
-	private _show(marker: IMarker): void {
-		if(this._navigationWidget){
-			this._navigationWidget.showAtMarker(marker);
+	private _show(marker: IMarker | IMarker[]): void {
+		if (marker instanceof Array) {
+			this._clear();
+			this._showingAll = true;
+			(<IMarker[]>marker).forEach(m => {
+				let widget = new MarkerNavigationWidget(this._editor, this._model, this._commandService);
+				this._widgets.push(widget);
+				widget.showAtMarker(m);
+			});
+		}
+		else if(this._navigationWidget && !this._showingAll){
+			this._navigationWidget.showAtMarker(<IMarker>marker);
 		}
 	}
 
