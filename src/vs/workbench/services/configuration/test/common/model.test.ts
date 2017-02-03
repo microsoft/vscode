@@ -9,6 +9,16 @@ import { WorkspaceConfigModel, ScopedConfigModel, TrustedWorkspaceSettingsConfig
 
 suite('ConfigurationService - Model', () => {
 
+	test('Test scoped configs are undefined', () => {
+		const settingsConfig = new TrustedWorkspaceSettingsConfigModel(JSON.stringify({
+			awesome: true
+		}));
+
+		const testObject = new WorkspaceConfigModel(settingsConfig, []);
+
+		assert.equal(testObject.config('task').contents, undefined);
+	});
+
 	test('Test consolidate (settings and tasks)', () => {
 		const settingsConfig = new TrustedWorkspaceSettingsConfigModel(JSON.stringify({
 			awesome: true
