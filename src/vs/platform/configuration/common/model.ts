@@ -88,7 +88,7 @@ interface Overrides<T> extends IOverrides<T> {
 
 export class ConfigModel<T> implements IConfigModel<T> {
 
-	protected _contents: T;
+	protected _contents: T; // Default is undefined
 	protected _overrides: IOverrides<T>[] = [];
 
 	private _raw: any = {};
@@ -102,7 +102,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	}
 
 	public get contents(): T {
-		return this._contents || <T>{};
+		return this._contents;
 	}
 
 	public get overrides(): IOverrides<T>[] {
@@ -127,14 +127,16 @@ export class ConfigModel<T> implements IConfigModel<T> {
 
 	public merge(other: IConfigModel<T>, overwrite: boolean = true): ConfigModel<T> {
 		const mergedModel = new ConfigModel<T>(null);
+		mergedModel._contents = <T>{};
 		this.doMerge(mergedModel, this, overwrite);
 		this.doMerge(mergedModel, other, overwrite);
 		return mergedModel;
 	}
 
 	protected doMerge(source: ConfigModel<T>, target: IConfigModel<T>, overwrite: boolean = true) {
-		source._contents = objects.clone(this.contents);
-		merge(source.contents, target.contents, overwrite);
+		if (source.contents && target.contents) {
+			merge(source.contents, target.contents, overwrite);
+		}
 		const overrides = objects.clone(source.overrides);
 		for (const override of target.overrides) {
 			const [sourceOverride] = overrides.filter(o => arrays.equals(o.identifiers, override.identifiers));
@@ -149,14 +151,16 @@ export class ConfigModel<T> implements IConfigModel<T> {
 
 	public config<V>(section: string): ConfigModel<V> {
 		const result = new ConfigModel<V>(null);
-		result._contents = objects.clone(this.contents[section]);
+		if (this.contents) {
+			result._contents = objects.clone(this.contents[section]);
+		}
 		return result;
 	}
 
 	public configWithOverrides<V>(identifier: string): ConfigModel<V> {
 		const result = new ConfigModel<V>(null);
 		const contents = objects.clone<any>(this.contents);
-		if (this.overrides) {
+		if (this.overrides && contents) {
 			for (const override of this.overrides) {
 				if (override.identifiers.indexOf(identifier) !== -1) {
 					merge(contents, override.contents, true);
