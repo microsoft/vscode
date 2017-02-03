@@ -76,10 +76,10 @@ suite('ConfigurationService - Model', () => {
 
 	test('Test contents while getting an existing property', () => {
 		let testObject = new model.ConfigModel(JSON.stringify({ 'a': 1 }));
-		assert.deepEqual(testObject.config('a').contents, 1);
+		assert.deepEqual(testObject.getContentsFor('a'), 1);
 
 		testObject = new model.ConfigModel(JSON.stringify({ 'a': { 'b': 1 } }));
-		assert.deepEqual(testObject.config('a').contents, { 'b': 1 });
+		assert.deepEqual(testObject.getContentsFor('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
@@ -87,13 +87,13 @@ suite('ConfigurationService - Model', () => {
 			awesome: true
 		}));
 
-		assert.deepEqual(testObject.config('unknownproperty').contents, undefined);
+		assert.deepEqual(testObject.getContentsFor('unknownproperty'), undefined);
 	});
 
 	test('Test contents are undefined for undefined config', () => {
 		const testObject = new model.ConfigModel(null);
 
-		assert.deepEqual(testObject.config('unknownproperty').contents, undefined);
+		assert.deepEqual(testObject.getContentsFor('unknownproperty'), undefined);
 	});
 
 	test('Test configWithOverrides gives all content merged with overrides', () => {
@@ -102,10 +102,10 @@ suite('ConfigurationService - Model', () => {
 		assert.deepEqual(testObject.configWithOverrides('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
 	});
 
-	test('Test configWithOverrides gives undefined contents', () => {
+	test('Test configWithOverrides gives empty contents', () => {
 		const testObject = new model.ConfigModel(null);
 
-		assert.deepEqual(testObject.configWithOverrides('b').contents, undefined);
+		assert.deepEqual(testObject.configWithOverrides('b').contents, {});
 	});
 
 });
