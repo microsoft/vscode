@@ -32,6 +32,7 @@ export interface ParsedArgs {
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
 	'open-url'?: string | string[];
+	'prof-startup-timers': string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

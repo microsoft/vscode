@@ -21,7 +21,8 @@ const options: minimist.Opts = {
 		'uninstall-extension',
 		'debugBrkPluginHost',
 		'debugPluginHost',
-		'open-url'
+		'open-url',
+		'prof-startup-timers'
 	],
 	boolean: [
 		'help',
