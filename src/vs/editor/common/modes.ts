@@ -208,8 +208,8 @@ export interface ISuggestion {
 	label: string;
 	insertText: string;
 	type: SuggestionType;
-	detail?: string;
-	documentation?: string;
+	detail?: string | MarkedString[];
+	documentation?: string | MarkedString[];
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;

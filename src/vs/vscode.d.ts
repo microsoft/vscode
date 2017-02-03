@@ -2410,12 +2410,12 @@ declare module 'vscode' {
 		 * A human-readable string with additional information
 		 * about this item, like type or symbol information.
 		 */
-		detail?: string;
+		detail?: string | MarkedString[];
 
 		/**
 		 * A human-readable string that represents a doc-comment.
 		 */
-		documentation?: string;
+		documentation?: string | MarkedString[];
 
 		/**
 		 * A string that should be used when comparing this item

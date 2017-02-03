@@ -848,8 +848,8 @@ export class CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind;
-	detail: string;
-	documentation: string;
+	detail: string | vscode.MarkedString[];
+	documentation: string | vscode.MarkedString[];
 	sortText: string;
 	filterText: string;
 	insertText: string | SnippetString;
