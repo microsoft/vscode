@@ -97,9 +97,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 
 		// update cached config when base config changes
-		const configModel = new ConfigModel<any>(null)
-			.merge(this.baseConfigurationService.getCache().consolidated)		// global/default values (do NOT modify)
-			.merge(this.cachedWorkspaceConfig);									// workspace configured values
+		const configModel = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+			.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
 		// emit this as update to listeners if changed
 		if (!objects.equals(this.cachedConfig.contents, configModel.contents)) {
@@ -121,7 +120,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	public getConfiguration<C>(arg?: any): C {
 		const options = this.toOptions(arg);
 		const configModel = options.overrideIdentifier ? this.cachedConfig.configWithOverrides<C>(options.overrideIdentifier) : this.cachedConfig;
-		return options.section ? configModel.config<C>(options.section).contents : configModel.contents;
+		return options.section ? configModel.getContentsFor<C>(options.section) : configModel.contents;
 	}
 
 	public lookup<C>(key: string, overrideIdentifier?: string): IWorkspaceConfigurationValue<C> {
@@ -195,9 +194,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.cachedWorkspaceConfig = new WorkspaceConfigModel<T>(workspaceSettingsConfig, otherConfigModels);
 
 			// Override base (global < user) with workspace locals (global < user < workspace)
-			this.cachedConfig = new ConfigModel(null)
-				.merge(this.baseConfigurationService.getCache().consolidated)		// global/default values (do NOT modify)
-				.merge(this.cachedWorkspaceConfig);										// workspace configured values
+			this.cachedConfig = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+				.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
 			return {
 				consolidated: this.cachedConfig.contents,

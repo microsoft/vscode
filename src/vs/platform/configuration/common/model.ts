@@ -88,7 +88,7 @@ interface Overrides<T> extends IOverrides<T> {
 
 export class ConfigModel<T> implements IConfigModel<T> {
 
-	protected _contents: T; // Default is undefined
+	protected _contents: T = <T>{};
 	protected _overrides: IOverrides<T>[] = [];
 	protected _keys: string[] = [];
 	protected _parseErrors: any[] = [];
@@ -117,16 +117,13 @@ export class ConfigModel<T> implements IConfigModel<T> {
 
 	public merge(other: IConfigModel<T>, overwrite: boolean = true): ConfigModel<T> {
 		const mergedModel = new ConfigModel<T>(null);
-		mergedModel._contents = <T>{};
 		this.doMerge(mergedModel, this, overwrite);
 		this.doMerge(mergedModel, other, overwrite);
 		return mergedModel;
 	}
 
 	protected doMerge(source: ConfigModel<T>, target: IConfigModel<T>, overwrite: boolean = true) {
-		if (source.contents && target.contents) {
-			merge(source.contents, target.contents, overwrite);
-		}
+		merge(source.contents, objects.clone(target.contents), overwrite);
 		const overrides = objects.clone(source.overrides);
 		for (const override of target.overrides) {
 			const [sourceOverride] = overrides.filter(o => arrays.equals(o.identifiers, override.identifiers));
@@ -139,18 +136,14 @@ export class ConfigModel<T> implements IConfigModel<T> {
 		source._overrides = overrides;
 	}
 
-	public config<V>(section: string): ConfigModel<V> {
-		const result = new ConfigModel<V>(null);
-		if (this.contents) {
-			result._contents = objects.clone(this.contents[section]);
-		}
-		return result;
+	public getContentsFor<V>(section: string): V {
+		return objects.clone(this.contents[section]);
 	}
 
 	public configWithOverrides<V>(identifier: string): ConfigModel<V> {
 		const result = new ConfigModel<V>(null);
 		const contents = objects.clone<any>(this.contents);
-		if (this.overrides && contents) {
+		if (this.overrides) {
 			for (const override of this.overrides) {
 				if (override.identifiers.indexOf(identifier) !== -1) {
 					merge(contents, override.contents, true);

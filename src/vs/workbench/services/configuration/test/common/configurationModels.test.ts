@@ -16,7 +16,7 @@ suite('ConfigurationService - Model', () => {
 
 		const testObject = new WorkspaceConfigModel(settingsConfig, []);
 
-		assert.equal(testObject.config('task').contents, undefined);
+		assert.equal(testObject.getContentsFor('task'), undefined);
 	});
 
 	test('Test consolidate (settings and tasks)', () => {
