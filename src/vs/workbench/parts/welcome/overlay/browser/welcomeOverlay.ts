@@ -167,6 +167,8 @@ class WelcomeOverlay {
 		this._overlay.on('click', () => this.hide(), this._toDispose);
 		this.commandService.onWillExecuteCommand(() => this.hide());
 
+		$(this._overlay).div({ 'class': 'commandPalettePlaceholder' });
+
 		const editorOpen = !!this.editorService.getVisibleEditors().length;
 		keys.filter(key => !('withEditor' in key) || key.withEditor === editorOpen)
 			.forEach(({ id, arrow, label, command, arrowLast }) => {
@@ -187,7 +189,6 @@ class WelcomeOverlay {
 					$(div).span({ 'class': 'arrow' }).innerHtml(arrow);
 				}
 			});
-		$(this._overlay).div({ 'class': 'commandPalettePlaceholder' });
 	}
 
 	public show() {
