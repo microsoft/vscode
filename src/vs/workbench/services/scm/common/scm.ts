@@ -10,6 +10,7 @@ import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IModel } from 'vs/editor/common/editorCommon';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): TPromise<URI>;
@@ -53,6 +54,7 @@ export interface ISCMService {
 	readonly onDidChangeProvider: Event<ISCMProvider>;
 	readonly providers: ISCMProvider[];
 	activeProvider: ISCMProvider | undefined;
+	readonly inputBoxModel: IModel;
 
 	registerSCMProvider(provider: ISCMProvider): IDisposable;
 }

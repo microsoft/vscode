@@ -259,6 +259,7 @@ export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
 	$unregister(id: string): void { throw ni(); }
 	$onChange(id: string, resources: SCMRawResourceGroup[], count: number | undefined): void { throw ni(); }
+	$setInputBoxValue(value: string): void { throw ni(); }
 }
 
 // -- extension host
@@ -394,6 +395,7 @@ export abstract class ExtHostSCMShape {
 	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
 	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 }
 
 // --- proxy identifiers

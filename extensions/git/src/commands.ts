@@ -8,7 +8,6 @@
 import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
 import { IRef, RefType } from './git';
 import { Model, Resource, Status } from './model';
-import { CommitController } from './commit';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -128,7 +127,6 @@ export class CommandCenter {
 
 	constructor(
 		private model: Model,
-		private commitController: CommitController,
 		private outputChannel: OutputChannel
 	) {
 		this.disposables = CommandCenter.Commands
@@ -331,7 +329,7 @@ export class CommandCenter {
 	@CommandCenter.Command('git.commit')
 	@CommandCenter.CatchErrors
 	async commit(): Promise<void> {
-		const message = this.commitController.message;
+		const message = scm.inputBox.value;
 
 		const didCommit = await this._commit(async () => {
 			if (message) {
@@ -345,17 +343,17 @@ export class CommandCenter {
 		});
 
 		if (message && didCommit) {
-			this.commitController.message = '';
+			scm.inputBox.value = '';
 		}
 	}
 
 	@CommandCenter.Command('git.commitWithInput')
 	@CommandCenter.CatchErrors
 	async commitWithInput(): Promise<void> {
-		const didCommit = await this._commit(async () => this.commitController.message);
+		const didCommit = await this._commit(async () => scm.inputBox.value);
 
 		if (didCommit) {
-			this.commitController.message = '';
+			scm.inputBox.value = '';
 		}
 	}
 

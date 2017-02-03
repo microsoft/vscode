@@ -43,7 +43,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
 	const commitHandler = new CommitController(model);
-	const commandCenter = new CommandCenter(model, commitHandler, outputChannel);
+	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
 	const contentProvider = new GitContentProvider(git, rootPath, onGitChange);
 	const checkoutStatusBar = new CheckoutStatusBar(model);

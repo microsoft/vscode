@@ -190,8 +190,9 @@ export class SCMViewlet extends Viewlet {
 		const editorContainer = append(root, $('.scm-editor'));
 
 		this.editor = this.instantiationService.createInstance(SCMEditor, editorContainer);
-		this.editor.onDidChangeContent(() => this.layout(), null, this.disposables);
 		this.disposables.push(this.editor);
+
+		this.disposables.push(this.scmService.inputBoxModel.onDidChangeContent(() => this.layout()));
 
 		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
 		// 	placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
