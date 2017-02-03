@@ -20,15 +20,10 @@ declare interface WebviewElement extends HTMLElement {
 	src: string;
 	autoSize: 'on';
 	nodeintegration: 'on';
-	disablewebsecurity: 'on';
 	preload: string;
 
-	getURL(): string;
-	getTitle(): string;
-	executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => any);
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
-	closeDevTools(): any;
 }
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
@@ -125,10 +120,6 @@ export default class Webview {
 		if (this._webview.parentElement) {
 			this._webview.parentElement.removeChild(this._webview);
 		}
-	}
-
-	get domNode(): HTMLElement {
-		return this._webview;
 	}
 
 	get onDidClickLink(): Event<URI> {
