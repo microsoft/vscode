@@ -291,14 +291,14 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			showInformationMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Info, message, items);
+			showInformationMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Info, message, first, rest);
 			},
-			showWarningMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Warning, message, items);
+			showWarningMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Warning, message, first, rest);
 			},
-			showErrorMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Error, message, items);
+			showErrorMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -329,7 +329,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', []);
+				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
 			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
 				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);
