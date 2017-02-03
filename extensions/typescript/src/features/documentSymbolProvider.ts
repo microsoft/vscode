@@ -74,10 +74,11 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		}
 
 	}
+
 	private static convertNavBar(resource: Uri, indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
 		let realIndent = indent + item.indent;
 		let key = `${realIndent}|${item.text}`;
-		if (realIndent !== 0 && !foldingMap[key]) {
+		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item.text)) {
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind] || SymbolKind.Variable,
 				containerLabel ? containerLabel : '',
@@ -103,6 +104,13 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 				TypeScriptDocumentSymbolProvider.convertNavTree(resource, bucket, child, result.name);
 			}
 		}
-		bucket.push(result);
+
+		if (TypeScriptDocumentSymbolProvider.shouldInclueEntry(result.name)) {
+			bucket.push(result);
+		}
+	}
+
+	private static shouldInclueEntry(name: string): boolean {
+		return !!(name && name !== '<function>' && name !== '<class>');
 	}
 }
