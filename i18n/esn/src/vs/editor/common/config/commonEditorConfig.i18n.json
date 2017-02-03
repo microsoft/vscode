@@ -18,7 +18,7 @@
 	"fontLigatures": "Habilita las ligaduras tipográficas.",
 	"fontSize": "Controla el tamaño de fuente en píxeles.",
 	"fontWeight": "Controla el grosor de la fuente.",
-	"formatOnPaste": "Controla si el editor debe aplicar formato automáticamente al contenido pegado",
+	"formatOnPaste": "Controla si el editor debe formatear automáticamente el contenido pegado. Debe haber disponible un formateador capaz de aplicar formato a un intervalo dentro de un documento.",
 	"formatOnType": "Controla si el editor debe dar formato automáticamente a la línea después de escribirla",
 	"glyphMargin": "Controla si el editor debe representar el margen de glifo vertical. El margen de glifo se usa, principalmente, para depuración.",
 	"hideCursorInOverviewRuler": "Controla si el cursor debe ocultarse en la regla de visión general.",
