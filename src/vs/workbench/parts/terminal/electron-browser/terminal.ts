@@ -20,9 +20,10 @@ const powerShellPath = `${process.env.windir}\\${is64BitWindows ? 'Sysnative' : 
 export const TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell();
 
 // Terminal flow control is disabled if the shell is zsh since the popular oh-my-zsh configuration
-// overrides the ^S and ^Q keybindings which are used for flow control.
-// TODO: This should check if ~/.oh-my-zsh exists as well
-export const TERMINAL_DEFAULT_FLOW_CONTROL = !(typeof process.env.SHELL === 'string' && path.basename(process.env.SHELL) === 'zsh');
+// overrides the ^S and ^Q keybindings which are used for flow control. fish also overrides the
+// keybindings.
+// TODO #19474: This should be enabled for zsh when ~/.oh-my-zsh does not exist as well
+export const TERMINAL_DEFAULT_FLOW_CONTROL = (typeof process.env.SHELL === 'string' && path.basename(process.env.SHELL) === 'bash');
 
 export interface ITerminalProcessFactory {
 	create(env: { [key: string]: string }): cp.ChildProcess;
