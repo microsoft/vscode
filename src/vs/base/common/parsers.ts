@@ -141,7 +141,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	}
 
 	resolveAny<T>(value: T): T;
-	resolveAny<T>(value: any): any {
+	resolveAny(value: any): any {
 		if (Types.isString(value)) {
 			return this.resolveString(value);
 		} else if (Types.isArray(value)) {
@@ -175,7 +175,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	}
 
 	private __resolveAnyLiteral<T>(values: T): T;
-	private __resolveAnyLiteral<T>(values: any): any {
+	private __resolveAnyLiteral(values: any): any {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];

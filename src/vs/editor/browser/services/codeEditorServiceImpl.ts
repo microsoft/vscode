@@ -442,10 +442,6 @@ class CSSNameHelper {
 }
 
 // ---- Normalize decoration render options per theme
-interface IResolvedDecorationRenderOptions {
-	light: IThemeDecorationRenderOptions;
-	dark: IThemeDecorationRenderOptions;
-}
 function getThemedRenderOptions<T>(opts: { light?: T, dark?: T }): { light?: T, dark?: T } {
 	// TODO@alex,joh - not really how/what deep clone is being used
 	// for here but it will break the URI TODO@martin

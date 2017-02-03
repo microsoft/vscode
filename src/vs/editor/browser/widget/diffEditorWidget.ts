@@ -39,11 +39,6 @@ interface IEditorDiffDecorationsWithZones extends IEditorDiffDecorations {
 	zones: editorBrowser.IViewZone[];
 }
 
-interface IEditorsDiffDecorations {
-	original: IEditorDiffDecorations;
-	modified: IEditorDiffDecorations;
-}
-
 interface IEditorsDiffDecorationsWithZones {
 	original: IEditorDiffDecorationsWithZones;
 	modified: IEditorDiffDecorationsWithZones;

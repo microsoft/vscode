@@ -64,7 +64,7 @@ export function forEach<T>(from: any, callback: (entry: { key: any; value: T; },
  */
 export function remove<T>(from: IStringDictionary<T>, key: string): boolean;
 export function remove<T>(from: INumberDictionary<T>, key: string): boolean;
-export function remove<T>(from: any, key: string): boolean {
+export function remove(from: any, key: string): boolean {
 	if (!hasOwnProperty.call(from, key)) {
 		return false;
 	}
