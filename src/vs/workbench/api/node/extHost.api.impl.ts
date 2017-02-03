@@ -425,6 +425,11 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 
 			@proposed(extension)
+			get inputBox() {
+				return extHostSCM.inputBox;
+			}
+
+			@proposed(extension)
 			getResourceFromURI(uri) {
 				return extHostSCM.getResourceFromURI(uri);
 			}

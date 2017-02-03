@@ -33,6 +33,39 @@ export interface Cache {
 	};
 }
 
+class ExtHostSCMInputBox {
+
+	private _value: string = '';
+
+	get value(): string {
+		return this._value;
+	}
+
+	set value(value: string) {
+		this._proxy.$setInputBoxValue(value);
+		this.updateValue(value);
+	}
+
+	private _onDidChange = new Emitter<string>();
+
+	get onDidChange(): Event<string> {
+		return this._onDidChange.event;
+	}
+
+	constructor(private _proxy: MainThreadSCMShape) {
+		// noop
+	}
+
+	$onInputBoxValueChange(value: string): void {
+		this.updateValue(value);
+	}
+
+	private updateValue(value: string): void {
+		this._value = value;
+		this._onDidChange.fire(value);
+	}
+}
+
 export class ExtHostSCM {
 
 	private _proxy: MainThreadSCMShape;
@@ -44,10 +77,14 @@ export class ExtHostSCM {
 	private _activeProvider: vscode.SCMProvider;
 	get activeProvider(): vscode.SCMProvider | undefined { return this._activeProvider; }
 
+	private _inputBox: ExtHostSCMInputBox;
+	get inputBox(): vscode.SCMInputBox { return this._inputBox; }
+
 	private cache: Cache = Object.create(null);
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
+		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 	}
 
 	getResourceFromURI(uri: vscode.Uri): vscode.SCMResource | vscode.SCMResourceGroup | undefined {
@@ -208,5 +245,10 @@ export class ExtHostSCM {
 		}
 
 		return asWinJsPromise(token => provider.getOriginalResource(uri, token));
+	}
+
+	$onInputBoxValueChange(value: string): TPromise<void> {
+		this._inputBox.$onInputBoxValueChange(value);
+		return TPromise.as(null);
 	}
 }

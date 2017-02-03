@@ -110,13 +110,19 @@ export class MainThreadSCM extends MainThreadSCMShape {
 
 	private proxy: ExtHostSCMShape;
 	private providers: { [id: string]: MainThreadSCMProvider; } = Object.create(null);
+	private inputBoxListener: IDisposable;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ISCMService private scmService: ISCMService
 	) {
 		super();
 		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
+
+		this.inputBoxListener = this.scmService.inputBoxModel.onDidChangeContent(e => {
+			this.proxy.$onInputBoxValueChange(this.scmService.inputBoxModel.getValue());
+		});
 	}
 
 	$register(id: string, features: SCMProviderFeatures): void {
@@ -144,10 +150,15 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		provider.$onChange(rawResourceGroups, count);
 	}
 
+	$setInputBoxValue(value: string): void {
+		this.scmService.inputBoxModel.setValue(value);
+	}
+
 	dispose(): void {
 		Object.keys(this.providers)
 			.forEach(id => this.providers[id].dispose());
 
 		this.providers = Object.create(null);
+		this.inputBoxListener = dispose(this.inputBoxListener);
 	}
 }

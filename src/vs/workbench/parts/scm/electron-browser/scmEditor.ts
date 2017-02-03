@@ -5,9 +5,7 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel, IEditorOptions, IDimension } from 'vs/editor/common/editorCommon';
-import { memoize } from 'vs/base/common/decorators';
+import { IEditorOptions, IDimension } from 'vs/editor/common/editorCommon';
 import { EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
@@ -24,11 +22,10 @@ import { TabCompletionController } from 'vs/editor/contrib/suggest/browser/tabCo
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 
 class SCMCodeEditorWidget extends CodeEditorWidget {
 
@@ -62,22 +59,10 @@ class SCMCodeEditorWidget extends CodeEditorWidget {
 
 export const InSCMInputContextKey = new RawContextKey<boolean>('inSCMInput', false);
 
-export class SCMEditor implements ITextModelContentProvider {
+export class SCMEditor {
 
 	private editor: SCMCodeEditorWidget;
-	private model: IModel;
 	private disposables: IDisposable[] = [];
-
-	@memoize
-	get onDidChangeContent(): Event<void> {
-		let listener: IDisposable;
-		const emitter = new Emitter<void>({
-			onFirstListenerAdd: () => listener = this.model.onDidChangeContent(() => emitter.fire()),
-			onLastListenerRemove: () => dispose(listener)
-		});
-
-		return emitter.event;
-	}
 
 	private get editorOptions(): IEditorOptions {
 		return {
@@ -105,12 +90,11 @@ export class SCMEditor implements ITextModelContentProvider {
 		container: HTMLElement,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ISCMService private scmService: ISCMService
 	) {
-		textModelResolverService.registerTextModelContentProvider('scm', this);
-
 		const scopedContextKeyService = this.contextKeyService.createScoped(container);
 		InSCMInputContextKey.bindTo(scopedContextKeyService).set(true);
 		this.disposables.push(scopedContextKeyService);
@@ -122,10 +106,7 @@ export class SCMEditor implements ITextModelContentProvider {
 		this.editor = scopedInstantiationService.createInstance(SCMCodeEditorWidget, container, this.editorOptions);
 		this.themeService.onDidColorThemeChange(e => this.editor.updateOptions(this.editorOptions), null, this.disposables);
 
-		textModelResolverService.createModelReference(URI.parse('scm:input')).done(ref => {
-			this.model = ref.object.textEditorModel;
-			this.editor.setModel(this.model);
-		});
+		this.editor.setModel(this.scmService.inputBoxModel);
 	}
 
 	get lineHeight(): number {
@@ -134,12 +115,9 @@ export class SCMEditor implements ITextModelContentProvider {
 
 	// TODO@joao TODO@alex isn't there a better way to get the number of lines?
 	get lineCount(): number {
-		if (!this.model) {
-			return 0;
-		}
-
-		const modelLength = this.model.getValueLength();
-		const lastPosition = this.model.getPositionAt(modelLength);
+		const model = this.scmService.inputBoxModel;
+		const modelLength = model.getValueLength();
+		const lastPosition = model.getPositionAt(modelLength);
 		const lastLineTop = this.editor.getTopForPosition(lastPosition.lineNumber, lastPosition.column);
 		const viewHeight = lastLineTop + this.lineHeight;
 
@@ -152,14 +130,6 @@ export class SCMEditor implements ITextModelContentProvider {
 
 	focus(): void {
 		this.editor.focus();
-	}
-
-	provideTextContent(resource: URI): TPromise<IModel> {
-		if (resource.toString() !== 'scm:input') {
-			return TPromise.as(null);
-		}
-
-		return TPromise.as(this.modelService.createModel('', null, resource));
 	}
 
 	dispose(): void {

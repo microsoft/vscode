@@ -140,9 +140,16 @@ declare module 'vscode' {
 		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
 	}
 
+	export interface SCMInputBox {
+		value: string;
+		readonly onDidChange: Event<string>;
+	}
+
 	export namespace scm {
 		export const onDidChangeActiveProvider: Event<SCMProvider>;
 		export let activeProvider: SCMProvider | undefined;
+		export const inputBox: SCMInputBox;
+
 		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
 		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
 	}
