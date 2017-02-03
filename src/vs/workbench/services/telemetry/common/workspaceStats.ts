@@ -199,7 +199,8 @@ export class WorkspaceStats {
 	}
 
 	private reportRemotes(workspaceUri: URI): void {
-		let uri = workspaceUri.with({ path: `${workspaceUri.path}/.git/config` });
+		let path = workspaceUri.path;
+		let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 		this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => {
 				let domains = getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist);
@@ -213,7 +214,8 @@ export class WorkspaceStats {
 
 	private reportAzureNode(workspaceUri: URI, tags: Tags): winjs.TPromise<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
-		let uri = workspaceUri.with({ path: `${workspaceUri.path}/node_modules` });
+		let path = workspaceUri.path;
+		let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		return this.fileService.resolveFile(uri).then(
 			stats => {
 				let names = (stats.children || []).map(c => c.name);
@@ -229,7 +231,8 @@ export class WorkspaceStats {
 	}
 
 	private reportAzureJava(workspaceUri: URI, tags: Tags): winjs.TPromise<Tags> {
-		let uri = workspaceUri.with({ path: `${workspaceUri.path}/pom.xml` });
+		let path = workspaceUri.path;
+		let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
 		return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => {
 				let referencesAzure = content.value.match(/azure/i) !== null;
