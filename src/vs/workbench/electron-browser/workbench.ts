@@ -403,7 +403,9 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
-		else if (!this.contextService.hasWorkspace() && this.telemetryService.getExperiments().openUntitledFile) {
+		else if (!this.contextService.hasWorkspace() &&
+			this.telemetryService.getExperiments().openUntitledFile &&
+			!this.configurationService.lookup('workbench.welcome.enabled').value) {
 			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
