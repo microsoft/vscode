@@ -192,8 +192,8 @@ function registerDiffEditorCommands(): void {
 
 function handleCommandDeprecations(): void {
 	const mapDeprecatedCommands = {
-		// Add in here a map from old command to new command like this:
-		// 'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
+		'workbench.action.files.newFile': 'explorer.newFile',
+		'workbench.action.files.newFolder': 'explorer.newFolder'
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
