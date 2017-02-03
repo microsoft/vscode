@@ -12,7 +12,6 @@ import { GitErrorCodes, IRawGitService } from 'vs/workbench/parts/git/common/git
 import gitlib = require('vs/workbench/parts/git/node/git.lib');
 import { RawGitService } from 'vs/workbench/parts/git/node/rawGitService';
 import { join, normalize } from 'path';
-import { tmpdir } from 'os';
 import { realpath } from 'vs/base/node/pfs';
 
 export function createRawGitService(gitPath: string, workspaceRoot: string, defaultEncoding: string, exePath: string, version: string): TPromise<IRawGitService> {
@@ -21,7 +20,7 @@ export function createRawGitService(gitPath: string, workspaceRoot: string, defa
 	}
 
 	const gitRootPath = uri.parse(require.toUrl('vs/workbench/parts/git/node')).fsPath;
-	const bootstrapPath = `${ uri.parse(require.toUrl('bootstrap')).fsPath }.js`;
+	const bootstrapPath = `${uri.parse(require.toUrl('bootstrap')).fsPath}.js`;
 	workspaceRoot = normalize(workspaceRoot);
 
 	const env = objects.assign({}, process.env, {
@@ -33,7 +32,6 @@ export function createRawGitService(gitPath: string, workspaceRoot: string, defa
 
 	const git = new gitlib.Git({
 		gitPath, version,
-		tmpPath: tmpdir(),
 		defaultEncoding: defaultEncoding,
 		env: env
 	});

@@ -6,7 +6,9 @@
 {
 	"extension": "擴充功能",
 	"extensions": "擴充功能",
+	"extensionsAutoUpdate": "自動更新擴充功能",
 	"extensionsCommands": "管理擴充功能",
+	"extensionsConfigurationTitle": "擴充功能",
 	"galleryExtensionsCommands": "安裝資源庫擴充功能",
 	"view": "檢視"
 }

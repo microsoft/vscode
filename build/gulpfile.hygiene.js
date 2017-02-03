@@ -9,7 +9,17 @@ const gulp = require('gulp');
 const filter = require('gulp-filter');
 const es = require('event-stream');
 const gulptslint = require('gulp-tslint');
+const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
+
+/**
+ * Hygiene works by creating cascading subsets of all our files and
+ * passing them through a sequence of checks. Here are the current subsets,
+ * named according to the checks performed on them. Each subset contains
+ * the following one, as described in mathematical notation:
+ *
+ * all ⊃ eol ⊇ indentation ⊃ copyright ⊃ typescript
+ */
 
 const all = [
 	'*',
@@ -42,14 +52,10 @@ const indentationFilter = [
 	'!**/lib/**',
 	'!**/*.d.ts',
 	'!**/*.d.ts.recipe',
-	'!extensions/typescript/server/**',
 	'!test/assert.js',
 	'!**/package.json',
 	'!**/npm-shrinkwrap.json',
 	'!**/octicons/**',
-	'!**/vs/languages/sass/test/common/example.scss',
-	'!**/vs/languages/less/common/parser/less.grammar.txt',
-	'!**/vs/languages/css/common/buildscripts/css-schema.xml',
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
@@ -69,26 +75,29 @@ const copyrightFilter = [
 	'!**/*.json',
 	'!**/*.html',
 	'!**/*.template',
-	'!**/test/**',
 	'!**/*.md',
 	'!**/*.bat',
 	'!**/*.cmd',
-	'!resources/win32/bin/code.js',
 	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
-	'!extensions/markdown/media/tomorrow.css'
+	'!**/*.opts',
+	'!**/*.disabled',
+	'!resources/win32/bin/code.js',
+	'!extensions/markdown/media/tomorrow.css',
+	'!extensions/html/server/src/modes/typescript/*'
 ];
 
 const tslintFilter = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/*.d.ts',
+	'!**/fixtures/**',
 	'!**/typings/**',
-	'!src/vs/base/**/*.test.ts',
-	'!src/vs/languages/**/*.test.ts',
-	'!src/vs/workbench/**/*.test.ts',
+	'!**/node_modules/**',
+	'!extensions/typescript/test/colorize-fixtures/**',
+	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/**/*.test.ts'
 ];
 
@@ -106,7 +115,7 @@ function reportFailures(failures) {
 		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
 		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
 
-		console.error(`${ name }:${ line + 1}:${ character + 1 }:${ failure.failure }`);
+		console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
 	});
 }
 
@@ -161,12 +170,31 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
-	const tsl = es.through(function(file) {
-		const configuration = tslint.findConfiguration(null, '.');
-		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+	const formatting = es.map(function (file, cb) {
+
+		tsfmt.processString(file.path, file.contents.toString('utf8'), {
+			verify: true,
+			tsfmt: true,
+			// verbose: true
+		}).then(result => {
+			if (result.error) {
+				console.error(result.message);
+				errorCount++;
+			}
+			cb(null, file);
+
+		}, err => {
+			cb(err);
+		});
+	});
+
+	const tsl = es.through(function (file) {
+		const configuration = tslint.Configuration.findConfiguration(null, '.');
+		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint(file.relative, contents, options);
-		const result = linter.lint();
+		const linter = new tslint.Linter(options);
+		linter.lint(file.relative, contents, configuration.results);
+		const result = linter.getResult();
 
 		if (result.failureCount > 0) {
 			reportFailures(result.failures);
@@ -185,6 +213,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights)
 		.pipe(filter(tslintFilter))
+		.pipe(formatting)
 		.pipe(tsl)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
@@ -200,6 +229,11 @@ gulp.task('hygiene', () => hygiene());
 // this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {
 	const cp = require('child_process');
+
+	process.on('unhandledRejection', (reason, p) => {
+		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+		process.exit(1);
+	});
 
 	cp.exec('git config core.autocrlf', (err, out) => {
 		const skipEOL = out.trim() === 'true';

@@ -9,14 +9,14 @@ import 'vs/css!./inputBox';
 import nls = require('vs/nls');
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import aria = require('vs/base/browser/ui/aria/aria');
-import {IAction} from 'vs/base/common/actions';
-import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IContextViewProvider, AnchorAlignment} from 'vs/base/browser/ui/contextview/contextview';
-import Event, {Emitter} from 'vs/base/common/event';
-import {Widget} from 'vs/base/browser/ui/widget';
+import { IAction } from 'vs/base/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;
 
@@ -125,15 +125,11 @@ export class InputBox extends Widget {
 		this.onfocus(this.input, () => this.onFocus());
 
 		// Add placeholder shim for IE because IE decides to hide the placeholder on focus (we dont want that!)
-		if (this.placeholder && Bal.isIE11orEarlier) {
+		if (this.placeholder && Bal.isIE) {
 			this.onclick(this.input, (e) => {
 				dom.EventHelper.stop(e, true);
 				this.input.focus();
 			});
-
-			if (Bal.isIE9) {
-				this.onkeyup(this.input, () => this.onValueChange());
-			}
 		}
 
 		setTimeout(() => this.updateMirror(), 0);

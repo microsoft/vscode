@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ShallowCancelThenPromise} from 'vs/base/common/async';
+import { ShallowCancelThenPromise } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {EditorWorkerClient} from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerServiceImpl';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T>(modelService: IModelService, opts:IWebWorkerOptions): MonacoWebWorker<T> {
+export function createWebWorker<T>(modelService: IModelService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
 	return new MonacoWebWorkerImpl<T>(modelService, opts);
 }
 
@@ -59,7 +59,7 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 	private _foreignModuleCreateData: any;
 	private _foreignProxy: TPromise<T>;
 
-	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
+	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
 		super(modelService, opts.label);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
@@ -73,11 +73,11 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 					this._foreignModuleId = null;
 					this._foreignModuleCreateData = null;
 
-					let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
+					let proxyMethodRequest = (method: string, args: any[]): TPromise<any> => {
 						return proxy.fmr(method, args);
 					};
 
-					let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
+					let createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => TPromise<any>): Function => {
 						return function () {
 							let args = Array.prototype.slice.call(arguments, 0);
 							return proxyMethodRequest(method, args);

@@ -10,10 +10,10 @@ import nls = require('vs/nls');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {BoundedLinkedMap} from 'vs/base/common/map';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { BoundedLinkedMap } from 'vs/base/common/map';
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes = {
@@ -99,9 +99,14 @@ function imageSrc(descriptor: IResourceDescriptor): string {
  */
 export class ResourceViewer {
 
-	private static MAX_IMAGE_SIZE = 1024 * 1024; // showing images inline is memory intense, so we have a limit
+	private static KB = 1024;
+	private static MB = ResourceViewer.KB * ResourceViewer.KB;
+	private static GB = ResourceViewer.MB * ResourceViewer.KB;
+	private static TB = ResourceViewer.GB * ResourceViewer.KB;
 
-	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement): void {
+	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
+
+	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement, metadataClb?: (meta: string) => void): void {
 
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
@@ -135,8 +140,9 @@ export class ResourceViewer {
 						});
 					}
 
-					// Update title when we know the image bounds
-					img.title(nls.localize('imgTitle', "{0} ({1}x{2})", paths.basename(descriptor.resource.fsPath), imgElement.naturalWidth, imgElement.naturalHeight));
+					if (metadataClb) {
+						metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
+					}
 
 					scrollbar.scanDomNode();
 				});
@@ -150,7 +156,31 @@ export class ResourceViewer {
 					text: nls.localize('nativeBinaryError', "The file will not be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
+			if (metadataClb) {
+				metadataClb(ResourceViewer.formatSize(descriptor.size));
+			}
+
 			scrollbar.scanDomNode();
 		}
+	}
+
+	private static formatSize(size: number): string {
+		if (size < ResourceViewer.KB) {
+			return nls.localize('sizeB', "{0}B", size);
+		}
+
+		if (size < ResourceViewer.MB) {
+			return nls.localize('sizeKB', "{0}KB", (size / ResourceViewer.KB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.GB) {
+			return nls.localize('sizeMB', "{0}MB", (size / ResourceViewer.MB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.TB) {
+			return nls.localize('sizeGB', "{0}GB", (size / ResourceViewer.GB).toFixed(2));
+		}
+
+		return nls.localize('sizeTB', "{0}TB", (size / ResourceViewer.TB).toFixed(2));
 	}
 }

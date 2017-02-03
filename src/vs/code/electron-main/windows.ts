@@ -13,37 +13,61 @@ import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
-import { EventEmitter } from 'events';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { trim } from 'vs/base/common/strings';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
-import { ICommandLineArguments, IProcessEnvironment, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, ReadyState, WindowMode } from 'vs/code/electron-main/window';
+import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
+import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
+import { ILifecycleService, UnloadReason } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
-const EventTypes = {
-	OPEN: 'open',
-	CLOSE: 'close',
-	READY: 'ready'
-};
+import { getPathLabel } from 'vs/base/common/labels';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import CommonEvent, { Emitter } from 'vs/base/common/event';
+import product from 'vs/platform/node/product';
 
 enum WindowError {
 	UNRESPONSIVE,
 	CRASHED
 }
 
+export enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// any other way of opening
+	OTHER
+}
+
 export interface IOpenConfiguration {
-	cli: ICommandLineArguments;
-	userEnv?: IProcessEnvironment;
+	context: OpenContext;
+	cli: ParsedArgs;
+	userEnv?: platform.IProcessEnvironment;
 	pathsToOpen?: string[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
+	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
+	initialStartup?: boolean;
+}
+
+interface INewWindowState extends ISingleWindowState {
+	hasDefaultState?: boolean;
 }
 
 interface IWindowState {
@@ -62,16 +86,12 @@ export interface IRecentPathsList {
 	files: string[];
 }
 
-interface ILogEntry {
-	severity: string;
-	arguments: any;
-}
-
 interface INativeOpenDialogOptions {
 	pickFolders?: boolean;
 	pickFiles?: boolean;
 	path?: string;
 	forceNewWindow?: boolean;
+	window?: VSCodeWindow;
 }
 
 const ReopenFoldersSetting = {
@@ -80,41 +100,46 @@ const ReopenFoldersSetting = {
 	NONE: 'none'
 };
 
-export const IWindowsService = createDecorator<IWindowsService>('windowsService');
+export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
-export interface IWindowsService {
+export interface IWindowsMainService {
 	_serviceBrand: any;
 
-	// TODO make proper events
 	// events
-	onOpen(clb: (path: IPath) => void): () => void;
-	onReady(clb: (win: VSCodeWindow) => void): () => void;
-	onClose(clb: (id: number) => void): () => void;
+	onWindowReady: CommonEvent<VSCodeWindow>;
+	onWindowClose: CommonEvent<number>;
+	onWindowReload: CommonEvent<number>;
+	onPathsOpen: CommonEvent<IPath[]>;
+	onRecentPathsChange: CommonEvent<void>;
 
 	// methods
-	ready(initialUserEnv: IProcessEnvironment): void;
-	reload(win: VSCodeWindow, cli?: ICommandLineArguments): void;
+	ready(initialUserEnv: platform.IProcessEnvironment): void;
+	reload(win: VSCodeWindow, cli?: ParsedArgs): void;
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
-	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
+	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
-	openFilePicker(forceNewWindow?: boolean): void;
-	openFolderPicker(forceNewWindow?: boolean): void;
-	focusLastActive(cli: ICommandLineArguments): VSCodeWindow;
+	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void;
+	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void;
+	openAccessibilityOptions(): void;
+	focusLastActive(cli: ParsedArgs, context: OpenContext): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
-	openNewWindow(): void;
+	openNewWindow(context: OpenContext): void;
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
 	getFocusedWindow(): VSCodeWindow;
 	getWindowById(windowId: number): VSCodeWindow;
 	getWindows(): VSCodeWindow[];
 	getWindowCount(): number;
-	getRecentPathsList(): IRecentPathsList;
-	removeFromRecentPathsList(path: string);
+	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
+	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
+	removeFromRecentPathsList(path: string): void;
+	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
+	quit(): void;
 }
 
-export class WindowsManager implements IWindowsService {
+export class WindowsManager implements IWindowsMainService {
 
 	_serviceBrand: any;
 
@@ -126,43 +151,40 @@ export class WindowsManager implements IWindowsService {
 
 	private static WINDOWS: VSCodeWindow[] = [];
 
-	private eventEmitter = new EventEmitter();
-	private initialUserEnv: IProcessEnvironment;
+	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
 
+	private _onRecentPathsChange = new Emitter<void>();
+	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
+
+	private _onWindowReady = new Emitter<VSCodeWindow>();
+	onWindowReady: CommonEvent<VSCodeWindow> = this._onWindowReady.event;
+
+	private _onWindowClose = new Emitter<number>();
+	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+
+	private _onWindowReload = new Emitter<number>();
+	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
+
+	private _onPathsOpen = new Emitter<IPath[]>();
+	onPathsOpen: CommonEvent<IPath> = this._onPathsOpen.event;
+
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IUpdateService private updateService: IUpdateService,
+		@IBackupMainService private backupService: IBackupMainService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
-	onOpen(clb: (path: IPath) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.OPEN, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.OPEN, clb);
-	}
-
-	onReady(clb: (win: VSCodeWindow) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.READY, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.READY, clb);
-	}
-
-	onClose(clb: (id: number) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.CLOSE, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.CLOSE, clb);
-	}
-
-	public ready(initialUserEnv: IProcessEnvironment): void {
+	public ready(initialUserEnv: platform.IProcessEnvironment): void {
 		this.registerListeners();
 
 		this.initialUserEnv = initialUserEnv;
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
+
+		this.updateWindowsJumpList();
 	}
 
 	private registerListeners(): void {
@@ -171,7 +193,7 @@ export class WindowsManager implements IWindowsService {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				this.openNewWindow();
+				this.openNewWindow(OpenContext.DOCK);
 			}
 		});
 
@@ -192,24 +214,15 @@ export class WindowsManager implements IWindowsService {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
+				this.open({
+					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
+					cli: this.environmentService.args,
+					pathsToOpen: macOpenFiles,
+					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+				});
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
-		});
-
-		ipc.on('vscode:startCrashReporter', (event: any, config: any) => {
-			this.logService.log('IPC#vscode:startCrashReporter');
-
-			crashReporter.start(config);
-		});
-
-		ipc.on('vscode:windowOpen', (event, paths: string[], forceNewWindow?: boolean) => {
-			this.logService.log('IPC#vscode-windowOpen: ', paths);
-
-			if (paths && paths.length) {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow: forceNewWindow });
-			}
 		});
 
 		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
@@ -220,171 +233,7 @@ export class WindowsManager implements IWindowsService {
 				win.setReady();
 
 				// Event
-				this.eventEmitter.emit(EventTypes.READY, win);
-			}
-		});
-
-		ipc.on('vscode:openFilePicker', (event, forceNewWindow?: boolean, path?: string) => {
-			this.logService.log('IPC#vscode-openFilePicker');
-
-			this.openFilePicker(forceNewWindow, path);
-		});
-
-		ipc.on('vscode:openFolderPicker', (event, forceNewWindow?: boolean) => {
-			this.logService.log('IPC#vscode-openFolderPicker');
-
-			this.openFolderPicker(forceNewWindow);
-		});
-
-		ipc.on('vscode:openFileFolderPicker', (event, forceNewWindow?: boolean) => {
-			this.logService.log('IPC#vscode-openFileFolderPicker');
-
-			this.openFileFolderPicker(forceNewWindow);
-		});
-
-		ipc.on('vscode:closeFolder', (event, windowId: number) => {
-			this.logService.log('IPC#vscode-closeFolder');
-
-			const win = this.getWindowById(windowId);
-			if (win) {
-				this.open({ cli: this.envService.cliArgs, forceEmpty: true, windowToUse: win });
-			}
-		});
-
-		ipc.on('vscode:openNewWindow', () => {
-			this.logService.log('IPC#vscode-openNewWindow');
-
-			this.openNewWindow();
-		});
-
-		ipc.on('vscode:reloadWindow', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:reloadWindow');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				this.reload(vscodeWindow);
-			}
-		});
-
-		ipc.on('vscode:toggleFullScreen', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:toggleFullScreen');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.toggleFullScreen();
-			}
-		});
-
-		ipc.on('vscode:setFullScreen', (event, windowId: number, fullscreen: boolean) => {
-			this.logService.log('IPC#vscode:setFullScreen');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.setFullScreen(fullscreen);
-			}
-		});
-
-		ipc.on('vscode:toggleDevTools', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:toggleDevTools');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.webContents.toggleDevTools();
-			}
-		});
-
-		ipc.on('vscode:openDevTools', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:openDevTools');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.webContents.openDevTools();
-				vscodeWindow.win.show();
-			}
-		});
-
-		ipc.on('vscode:setRepresentedFilename', (event, windowId: number, fileName: string) => {
-			this.logService.log('IPC#vscode:setRepresentedFilename');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.setRepresentedFilename(fileName);
-			}
-		});
-
-		ipc.on('vscode:setMenuBarVisibility', (event, windowId: number, visibility: boolean) => {
-			this.logService.log('IPC#vscode:setMenuBarVisibility');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.setMenuBarVisibility(visibility);
-			}
-		});
-
-		ipc.on('vscode:flashFrame', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:flashFrame');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.flashFrame(!vscodeWindow.win.isFocused());
-			}
-		});
-
-		ipc.on('vscode:openRecent', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:openRecent');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				const recents = this.getRecentPathsList(vscodeWindow.config.workspacePath, vscodeWindow.config.filesToOpen);
-
-				vscodeWindow.send('vscode:openRecent', recents.files, recents.folders);
-			}
-		});
-
-		ipc.on('vscode:focusWindow', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:focusWindow');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.focus();
-			}
-		});
-
-		ipc.on('vscode:showWindow', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:showWindow');
-
-			let vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.show();
-			}
-		});
-
-		ipc.on('vscode:setDocumentEdited', (event, windowId: number, edited: boolean) => {
-			this.logService.log('IPC#vscode:setDocumentEdited');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow && vscodeWindow.win.isDocumentEdited() !== edited) {
-				vscodeWindow.win.setDocumentEdited(edited);
-			}
-		});
-
-		ipc.on('vscode:toggleMenuBar', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:toggleMenuBar');
-
-			// Update in settings
-			const menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
-			const newMenuBarHidden = !menuBarHidden;
-			this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
-
-			// Update across windows
-			WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
-
-			// Inform user if menu bar is now hidden
-			if (newMenuBarHidden) {
-				const vscodeWindow = this.getWindowById(windowId);
-				if (vscodeWindow) {
-					vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
-				}
+				this._onWindowReady.fire(win);
 			}
 		});
 
@@ -411,67 +260,6 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
-		ipc.on('vscode:log', (event, logEntry: ILogEntry) => {
-			const args = [];
-			try {
-				const parsed = JSON.parse(logEntry.arguments);
-				args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-			} catch (error) {
-				args.push(logEntry.arguments);
-			}
-
-			console[logEntry.severity].apply(console, args);
-		});
-
-		ipc.on('vscode:closeExtensionHostWindow', (event, extensionDevelopmentPath: string) => {
-			this.logService.log('IPC#vscode:closeExtensionHostWindow', extensionDevelopmentPath);
-
-			const windowOnExtension = this.findWindow(null, null, extensionDevelopmentPath);
-			if (windowOnExtension) {
-				windowOnExtension.win.close();
-			}
-		});
-
-		ipc.on('vscode:switchWindow', (event, windowId: number) => {
-			const windows = this.getWindows();
-			const window = this.getWindowById(windowId);
-			window.send('vscode:switchWindow', windows.map(w => {
-				return {path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id};
-			}));
-		});
-
-		this.updateService.on('update-downloaded', (update: IUpdate) => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
-
-			this.sendToAll('vscode:update-downloaded', JSON.stringify({
-				releaseNotes: update.releaseNotes,
-				version: update.version,
-				date: update.date
-			}));
-		});
-
-		ipc.on('vscode:update-apply', () => {
-			this.logService.log('IPC#vscode:update-apply');
-
-			if (this.updateService.availableUpdate) {
-				this.updateService.availableUpdate.quitAndUpdate();
-			}
-		});
-
-		this.updateService.on('update-not-available', (explicit: boolean) => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
-
-			if (explicit) {
-				this.sendToFocused('vscode:update-not-available', '');
-			}
-		});
-
-		this.updateService.on('update-available', (url: string) => {
-			if (url) {
-				this.sendToFocused('vscode:update-available', url);
-			}
-		});
-
 		this.lifecycleService.onBeforeQuit(() => {
 
 			// 0-1 window open: Do not keep the list but just rely on the active window to be stored
@@ -481,7 +269,7 @@ export class WindowsManager implements IWindowsService {
 			}
 
 			// 2-N windows open: Keep a list of windows that are opened on a specific folder to restore it in the next session as needed
-			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isPluginDevelopmentHost).map(w => {
+			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isExtensionDevelopmentHost).map(w => {
 				return <IWindowState>{
 					workspacePath: w.openedWorkspacePath,
 					uiState: w.serializeWindowState()
@@ -493,16 +281,8 @@ export class WindowsManager implements IWindowsService {
 			this.storageService.setItem(WindowsManager.windowsStateStorageKey, this.windowsState);
 		});
 
-		let loggedStartupTimes = false;
-		this.onReady(window => {
-			if (loggedStartupTimes) {
-				return; // only for the first window
-			}
-
-			loggedStartupTimes = true;
-
-			window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart } });
-		});
+		// Update jump list when recent paths change
+		this.onRecentPathsChange(() => this.updateWindowsJumpList());
 	}
 
 	private onBroadcast(event: string, payload: any): void {
@@ -513,17 +293,22 @@ export class WindowsManager implements IWindowsService {
 		}
 	}
 
-	public reload(win: VSCodeWindow, cli?: ICommandLineArguments): void {
+	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
-		this.lifecycleService.unload(win).done(veto => {
+		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
 			if (!veto) {
 				win.reload(cli);
+
+				// Emit
+				this._onWindowReload.fire(win.id);
 			}
 		});
 	}
 
 	public open(openConfig: IOpenConfiguration): VSCodeWindow[] {
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
 		let iPathsToOpen: IPath[];
 		const usedWindows: VSCodeWindow[] = [];
 
@@ -535,7 +320,7 @@ export class WindowsManager implements IWindowsService {
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
 					const options: Electron.ShowMessageBoxOptions = {
-						title: this.envService.product.nameLong,
+						title: product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
 						message: nls.localize('pathNotExistTitle', "Path does not exist"),
@@ -569,19 +354,20 @@ export class WindowsManager implements IWindowsService {
 
 		// Otherwise infer from command line arguments
 		else {
-			const ignoreFileNotFound = openConfig.cli.paths.length > 0; // we assume the user wants to create this file from command line
+			const ignoreFileNotFound = openConfig.cli._.length > 0; // we assume the user wants to create this file from command line
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
+		let foldersToOpen = arrays.distinct(iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => platform.isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		let foldersToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getWorkspaceBackupPaths() : [];
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
-		let foldersToOpen = iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
-		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
-		let extensionsToInstall = iPathsToOpen.filter(iPath => iPath.installExtensionPath).map(ipath => ipath.filePath);
-		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath && !iPath.installExtensionPath);
+		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
+		let emptyToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
+		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 
 		// Diff mode needs special care
-		const candidates = iPathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
+		const candidates = iPathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
 		if (openConfig.diffMode) {
 			if (candidates.length === 2) {
 				filesToDiff = candidates;
@@ -589,28 +375,33 @@ export class WindowsManager implements IWindowsService {
 				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
 			}
 
-			foldersToOpen = []; // diff is always in empty workspace
-			filesToCreate = []; // diff ignores other files that do not exist
+			foldersToOpen = []; 	// diff is always in empty workspace
+			foldersToRestore = [];	// diff is always in empty workspace
+			filesToCreate = []; 	// diff ignores other files that do not exist
 		} else {
 			filesToOpen = candidates;
 		}
 
-		let configuration: IWindowConfiguration;
+		// let the user settings override how folders are open in a new window or same window unless we are forced
+		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
+		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && windowConfig && (windowConfig.openFoldersInNewWindow === 'on' || windowConfig.openFoldersInNewWindow === 'off')) {
+			openFolderInNewWindow = (windowConfig.openFoldersInNewWindow === 'on');
+		}
 
 		// Handle files to open/diff or to create when we dont open a folder
-		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0 || extensionsToInstall.length > 0)) {
+		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
-			// const the user settings override how files are open in a new window or same window unless we are forced
+			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
 			let openFilesInNewWindow: boolean;
-			if (openConfig.forceNewWindow) {
-				openFilesInNewWindow = true;
+			if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
+				openFilesInNewWindow = openConfig.forceNewWindow && !openConfig.forceReuseWindow;
 			} else {
-				openFilesInNewWindow = openConfig.preferNewWindow;
-				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
-					const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-					if (windowConfig && !windowConfig.openFilesInNewWindow) {
-						openFilesInNewWindow = false; // do not open in new window if user configured this explicitly
-					}
+				if (openConfig.context === OpenContext.DOCK) {
+					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
+				}
+
+				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off' || <any>windowConfig.openFilesInNewWindow === false /* TODO@Ben migration */)) {
+					openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
 				}
 			}
 
@@ -618,12 +409,9 @@ export class WindowsManager implements IWindowsService {
 			const lastActiveWindow = this.getLastActiveWindow();
 			if (!openFilesInNewWindow && lastActiveWindow) {
 				lastActiveWindow.focus();
+				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
 				lastActiveWindow.ready().then(readyWindow => {
-					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
-
-					if (extensionsToInstall.length) {
-						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
-					}
+					readyWindow.send('vscode:openFiles', files);
 				});
 
 				usedWindows.push(lastActiveWindow);
@@ -631,29 +419,31 @@ export class WindowsManager implements IWindowsService {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
+				const configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
-				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
+
+			// Reset these because we handled them
+			filesToOpen = [];
+			filesToCreate = [];
+			filesToDiff = [];
 		}
 
-		// Handle folders to open
-		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
-		if (foldersToOpen.length > 0) {
+		// Handle folders to open (instructed and to restore)
+		let allFoldersToOpen = arrays.distinct([...foldersToOpen, ...foldersToRestore], folder => platform.isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
-			const windowsOnWorkspacePath = arrays.coalesce(foldersToOpen.map(iPath => this.findWindow(iPath.workspacePath)));
+			const windowsOnWorkspacePath = arrays.coalesce(allFoldersToOpen.map(folderToOpen => this.findWindow(folderToOpen)));
 			if (windowsOnWorkspacePath.length > 0) {
 				const browserWindow = windowsOnWorkspacePath[0];
 				browserWindow.focus(); // just focus one of them
+				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
 				browserWindow.ready().then(readyWindow => {
-					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
-
-					if (extensionsToInstall.length) {
-						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
-					}
+					readyWindow.send('vscode:openFiles', files);
 				});
 
 				usedWindows.push(browserWindow);
@@ -662,98 +452,139 @@ export class WindowsManager implements IWindowsService {
 				filesToOpen = [];
 				filesToCreate = [];
 				filesToDiff = [];
-				extensionsToInstall = [];
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
 
 			// Open remaining ones
-			foldersToOpen.forEach(folderToOpen => {
-				if (windowsOnWorkspacePath.some(win => this.isPathEqual(win.openedWorkspacePath, folderToOpen.workspacePath))) {
+			allFoldersToOpen.forEach(folderToOpen => {
+				if (windowsOnWorkspacePath.some(win => this.isPathEqual(win.openedWorkspacePath, folderToOpen))) {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
-				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				const configuration = this.toConfiguration(openConfig, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
+				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
 				// Reset these because we handled them
 				filesToOpen = [];
 				filesToCreate = [];
 				filesToDiff = [];
-				extensionsToInstall = [];
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
 
 		// Handle empty
-		if (emptyToOpen.length > 0) {
-			emptyToOpen.forEach(() => {
-				const configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli);
-				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+		if (emptyToRestore.length > 0) {
+			emptyToRestore.forEach(emptyWorkspaceBackupFolder => {
+				const configuration = this.toConfiguration(openConfig);
+				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */, null, emptyWorkspaceBackupFolder);
 				usedWindows.push(browserWindow);
 
-				openInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
+			});
+		}
+
+		// Only open empty if no empty workspaces were restored
+		else if (emptyToOpen.length > 0) {
+			emptyToOpen.forEach(() => {
+				const configuration = this.toConfiguration(openConfig);
+				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse);
+				usedWindows.push(browserWindow);
+
+				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
 
 		// Remember in recent document list (unless this opens for extension development)
-		if (!openConfig.cli.extensionDevelopmentPath) {
+		// Also do not add paths when files are opened for diffing, only if opened individually
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
+			const recentPaths: { path: string; isFile?: boolean; }[] = [];
+
 			iPathsToOpen.forEach(iPath => {
 				if (iPath.filePath || iPath.workspacePath) {
 					app.addRecentDocument(iPath.filePath || iPath.workspacePath);
-					this.addToRecentPathsList(iPath.filePath || iPath.workspacePath, !!iPath.filePath);
+					recentPaths.push({ path: iPath.filePath || iPath.workspacePath, isFile: !!iPath.filePath });
 				}
 			});
+
+			if (recentPaths.length) {
+				this.addToRecentPathsList(recentPaths);
+			}
 		}
 
 		// Emit events
-		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
+		this._onPathsOpen.fire(iPathsToOpen);
 
 		return arrays.distinct(usedWindows);
 	}
 
-	private addToRecentPathsList(path?: string, isFile?: boolean): void {
-		if (!path) {
+	public addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void {
+		if (!paths || !paths.length) {
 			return;
 		}
 
 		const mru = this.getRecentPathsList();
-		if (isFile) {
-			mru.files.unshift(path);
-			mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
-		} else {
-			mru.folders.unshift(path);
-			mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
-		}
+		paths.forEach(p => {
+			const {path, isFile} = p;
 
-		// Make sure its bounded
-		mru.folders = mru.folders.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
-		mru.files = mru.files.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
+			if (isFile) {
+				mru.files.unshift(path);
+				mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
+			} else {
+				mru.folders.unshift(path);
+				mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
+			}
+
+			// Make sure its bounded
+			mru.folders = mru.folders.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
+			mru.files = mru.files.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
+		});
 
 		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
+		this._onRecentPathsChange.fire();
 	}
 
-	public removeFromRecentPathsList(path: string): void {
+	public removeFromRecentPathsList(path: string): void;
+	public removeFromRecentPathsList(paths: string[]): void;
+	public removeFromRecentPathsList(arg1: any): void {
+		let paths: string[];
+		if (Array.isArray(arg1)) {
+			paths = arg1;
+		} else {
+			paths = [arg1];
+		}
+
 		const mru = this.getRecentPathsList();
+		let update = false;
 
-		let index = mru.files.indexOf(path);
-		if (index >= 0) {
-			mru.files.splice(index, 1);
+		paths.forEach(path => {
+			let index = mru.files.indexOf(path);
+			if (index >= 0) {
+				mru.files.splice(index, 1);
+				update = true;
+			}
+
+			index = mru.folders.indexOf(path);
+			if (index >= 0) {
+				mru.folders.splice(index, 1);
+				update = true;
+			}
+		});
+
+		if (update) {
+			this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
+			this._onRecentPathsChange.fire();
 		}
-
-		index = mru.folders.indexOf(path);
-		if (index >= 0) {
-			mru.folders.splice(index, 1);
-		}
-
-		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
 	}
 
 	public clearRecentPathsList(): void {
 		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, { folders: [], files: [] });
 		app.clearRecentDocuments();
+
+		// Event
+		this._onRecentPathsChange.fire();
 	}
 
 	public getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList {
@@ -787,15 +618,15 @@ export class WindowsManager implements IWindowsService {
 		return { files, folders };
 	}
 
-	private getWindowUserEnv(openConfig: IOpenConfiguration): IProcessEnvironment {
+	private getWindowUserEnv(openConfig: IOpenConfiguration): platform.IProcessEnvironment {
 		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
 	}
 
-	public openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
+	public openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
 
-		// Reload an existing plugin development host window on the same path
+		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
-		// on the same plugin path.
+		// on the same extension path.
 		let res = WindowsManager.WINDOWS.filter(w => w.config && this.isPathEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
@@ -805,35 +636,36 @@ export class WindowsManager implements IWindowsService {
 		}
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
-		if (openConfig.cli.paths.length === 0 && !openConfig.cli.extensionTestsPath) {
+		if (openConfig.cli._.length === 0 && !openConfig.cli.extensionTestsPath) {
 			const workspaceToOpen = this.windowsState.lastPluginDevelopmentHostWindow && this.windowsState.lastPluginDevelopmentHostWindow.workspacePath;
 			if (workspaceToOpen) {
-				openConfig.cli.paths = [workspaceToOpen];
+				openConfig.cli._ = [workspaceToOpen];
 			}
 		}
 
 		// Make sure we are not asked to open a path that is already opened
-		if (openConfig.cli.paths.length > 0) {
-			res = WindowsManager.WINDOWS.filter(w => w.openedWorkspacePath && openConfig.cli.paths.indexOf(w.openedWorkspacePath) >= 0);
+		if (openConfig.cli._.length > 0) {
+			res = WindowsManager.WINDOWS.filter(w => w.openedWorkspacePath && openConfig.cli._.indexOf(w.openedWorkspacePath) >= 0);
 			if (res.length) {
-				openConfig.cli.paths = [];
+				openConfig.cli._ = [];
 			}
 		}
 
 		// Open it
-		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.paths.length === 0 });
+		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
-		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
-		configuration.appRoot = this.envService.appRoot;
+	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
+		const configuration: IWindowConfiguration = mixin({}, config.cli); // inherit all properties from CLI
+		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
-		configuration.userEnv = userEnv;
+		configuration.userEnv = this.getWindowUserEnv(config);
+		configuration.isInitialStartup = config.initialStartup;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
-		configuration.extensionsToInstall = extensionsToInstall;
+		configuration.nodeCachedDataDir = this.environmentService.isBuilt && this.environmentService.nodeCachedDataDir;
 
 		return configuration;
 	}
@@ -843,7 +675,7 @@ export class WindowsManager implements IWindowsService {
 			return null;
 		}
 
-		let parsedPath: IParsedPath;
+		let parsedPath: IPathWithLineAndColumn;
 		if (gotoLineMode) {
 			parsedPath = parseLineAndColumnAware(anyPath);
 			anyPath = parsedPath.path;
@@ -857,12 +689,13 @@ export class WindowsManager implements IWindowsService {
 					{
 						filePath: candidate,
 						lineNumber: gotoLineMode ? parsedPath.line : void 0,
-						columnNumber: gotoLineMode ? parsedPath.column : void 0,
-						installExtensionPath: /\.vsix$/i.test(candidate)
+						columnNumber: gotoLineMode ? parsedPath.column : void 0
 					} :
 					{ workspacePath: candidate };
 			}
 		} catch (error) {
+			this.removeFromRecentPathsList(candidate); // since file does not seem to exist anymore, remove from recent
+
 			if (ignoreFileNotFound) {
 				return { filePath: candidate, createFilePath: true }; // assume this is a file that does not yet exist
 			}
@@ -871,12 +704,12 @@ export class WindowsManager implements IWindowsService {
 		return null;
 	}
 
-	private cliToPaths(cli: ICommandLineArguments, ignoreFileNotFound?: boolean): IPath[] {
+	private cliToPaths(cli: ParsedArgs, ignoreFileNotFound?: boolean): IPath[] {
 
 		// Check for pass in candidate or last opened path
 		let candidates: string[] = [];
-		if (cli.paths.length > 0) {
-			candidates = cli.paths;
+		if (cli._.length > 0) {
+			candidates = cli._;
 		}
 
 		// No path argument, check settings for what to do now
@@ -919,7 +752,7 @@ export class WindowsManager implements IWindowsService {
 		return [Object.create(null)];
 	}
 
-	private openInBrowserWindow(configuration: IWindowConfiguration, forceNewWindow?: boolean, windowToUse?: VSCodeWindow): VSCodeWindow {
+	private openInBrowserWindow(configuration: IWindowConfiguration, forceNewWindow?: boolean, windowToUse?: VSCodeWindow, emptyWorkspaceBackupFolder?: string): VSCodeWindow {
 		let vscodeWindow: VSCodeWindow;
 
 		if (!forceNewWindow) {
@@ -933,12 +766,34 @@ export class WindowsManager implements IWindowsService {
 		// New window
 		if (!vscodeWindow) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const state = this.getNewWindowState(configuration);
 
-			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
-				state: this.getNewWindowState(configuration),
+			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+			let allowFullscreen: boolean;
+			if (state.hasDefaultState) {
+				allowFullscreen = (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0);
+			}
+
+			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
+			else {
+				allowFullscreen = this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen);
+			}
+
+			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
+				state.mode = WindowMode.Normal;
+			}
+
+			vscodeWindow = new VSCodeWindow({
+				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen)
-			});
+				isExtensionTestHost: !!configuration.extensionTestsPath,
+				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
+			},
+				this.logService,
+				this.environmentService,
+				this.configurationService,
+				this.storageService
+			);
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
@@ -958,20 +813,25 @@ export class WindowsManager implements IWindowsService {
 		else {
 
 			// Some configuration things get inherited if the window is being reused and we are
-			// in plugin development host mode. These options are all development related.
+			// in extension development host mode. These options are all development related.
 			const currentWindowConfig = vscodeWindow.config;
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
 				configuration.verbose = currentWindowConfig.verbose;
 				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
 				configuration.debugPluginHost = currentWindowConfig.debugPluginHost;
-				configuration.extensionHomePath = currentWindowConfig.extensionHomePath;
+				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 			}
 		}
 
 		// Only load when the window has not vetoed this
-		this.lifecycleService.unload(vscodeWindow).done(veto => {
+		this.lifecycleService.unload(vscodeWindow, UnloadReason.LOAD).done(veto => {
 			if (!veto) {
+
+				// Register window for backups
+				if (!configuration.extensionDevelopmentPath) {
+					this.backupService.registerWindowForBackupsSync(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
+				}
 
 				// Load it
 				vscodeWindow.load(configuration);
@@ -981,9 +841,9 @@ export class WindowsManager implements IWindowsService {
 		return vscodeWindow;
 	}
 
-	private getNewWindowState(configuration: IWindowConfiguration): ISingleWindowState {
+	private getNewWindowState(configuration: IWindowConfiguration): INewWindowState {
 
-		// plugin development host Window - load from stored settings if any
+		// extension development host Window - load from stored settings if any
 		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
 			return this.windowsState.lastPluginDevelopmentHostWindow.uiState;
 		}
@@ -1035,11 +895,39 @@ export class WindowsManager implements IWindowsService {
 			}
 		}
 
-		const defaultState = defaultWindowState();
-		defaultState.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (defaultState.width / 2);
-		defaultState.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (defaultState.height / 2);
+		let state = defaultWindowState() as INewWindowState;
+		state.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2);
+		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
 
-		return this.ensureNoOverlap(defaultState);
+		// Check for newWindowDimensions setting and adjust accordingly
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		let ensureNoOverlap = true;
+		if (windowConfig && windowConfig.newWindowDimensions) {
+			if (windowConfig.newWindowDimensions === 'maximized') {
+				state.mode = WindowMode.Maximized;
+				ensureNoOverlap = false;
+			} else if (windowConfig.newWindowDimensions === 'fullscreen') {
+				state.mode = WindowMode.Fullscreen;
+				ensureNoOverlap = false;
+			} else if (windowConfig.newWindowDimensions === 'inherit' && lastActive) {
+				const lastActiveState = lastActive.serializeWindowState();
+				if (lastActiveState.mode === WindowMode.Fullscreen) {
+					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/Microsoft/vscode/issues/19331)
+				} else {
+					state = lastActiveState;
+				}
+
+				ensureNoOverlap = false;
+			}
+		}
+
+		if (ensureNoOverlap) {
+			state = this.ensureNoOverlap(state);
+		}
+
+		state.hasDefaultState = true; // flag as default state
+
+		return state;
 	}
 
 	private ensureNoOverlap(state: ISingleWindowState): ISingleWindowState {
@@ -1060,25 +948,41 @@ export class WindowsManager implements IWindowsService {
 		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow });
 	}
 
-	public openFilePicker(forceNewWindow?: boolean, path?: string): void {
-		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path });
+	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void {
+		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path, window });
 	}
 
-	public openFolderPicker(forceNewWindow?: boolean): void {
-		this.doPickAndOpen({ pickFolders: true, forceNewWindow });
+	public openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void {
+		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window });
+	}
+
+	public openAccessibilityOptions(): void {
+		let win = new BrowserWindow({
+			alwaysOnTop: true,
+			skipTaskbar: true,
+			resizable: false,
+			width: 450,
+			height: 300,
+			show: true,
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
+		});
+
+		win.setMenuBarVisibility(false);
+
+		win.loadURL('chrome://accessibility');
 	}
 
 	private doPickAndOpen(options: INativeOpenDialogOptions): void {
 		this.getFileOrFolderPaths(options, (paths: string[]) => {
 			if (paths && paths.length) {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
+				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
 			}
 		});
 	}
 
 	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 		const workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
-		const focussedWindow = this.getFocusedWindow();
+		const focussedWindow = options.window || this.getFocusedWindow();
 
 		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
 		if (options.pickFiles && options.pickFolders) {
@@ -1104,7 +1008,7 @@ export class WindowsManager implements IWindowsService {
 		});
 	}
 
-	public focusLastActive(cli: ICommandLineArguments): VSCodeWindow {
+	public focusLastActive(cli: ParsedArgs, context: OpenContext): VSCodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
@@ -1114,7 +1018,7 @@ export class WindowsManager implements IWindowsService {
 
 		// No window - open new one
 		this.windowsState.openedFolders = []; // make sure we do not open too much
-		const res = this.open({ cli: cli });
+		const res = this.open({ context, cli });
 
 		return res && res[0];
 	}
@@ -1176,8 +1080,8 @@ export class WindowsManager implements IWindowsService {
 		return null;
 	}
 
-	public openNewWindow(): void {
-		this.open({ cli: this.envService.cliArgs, forceNewWindow: true, forceEmpty: true });
+	public openNewWindow(context: OpenContext): void {
+		this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
 	public sendToFocused(channel: string, ...args: any[]): void {
@@ -1230,7 +1134,7 @@ export class WindowsManager implements IWindowsService {
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: this.envService.product.nameLong,
+				title: product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
 				message: nls.localize('appStalled', "The window is no longer responding"),
@@ -1249,7 +1153,7 @@ export class WindowsManager implements IWindowsService {
 		// Crashed
 		else {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: this.envService.product.nameLong,
+				title: product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('close', "Close")],
 				message: nls.localize('appCrashed', "The window has crashed"),
@@ -1273,8 +1177,10 @@ export class WindowsManager implements IWindowsService {
 
 		// On Window close, update our stored state of this window
 		const state: IWindowState = { workspacePath: win.openedWorkspacePath, uiState: win.serializeWindowState() };
-		if (win.isPluginDevelopmentHost) {
-			this.windowsState.lastPluginDevelopmentHostWindow = state;
+		if (win.isExtensionDevelopmentHost) {
+			if (!win.isExtensionTestHost) {
+				this.windowsState.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
+			}
 		} else {
 			this.windowsState.lastActiveWindow = state;
 
@@ -1296,7 +1202,7 @@ export class WindowsManager implements IWindowsService {
 		WindowsManager.WINDOWS.splice(index, 1);
 
 		// Emit
-		this.eventEmitter.emit(EventTypes.CLOSE, win.id);
+		this._onWindowClose.fire(win.id);
 	}
 
 	private isPathEqual(pathA: string, pathB: string): boolean {
@@ -1321,5 +1227,84 @@ export class WindowsManager implements IWindowsService {
 		}
 
 		return pathA === pathB;
+	}
+
+	private updateWindowsJumpList(): void {
+		if (!platform.isWindows) {
+			return; // only on windows
+		}
+
+		const jumpList: Electron.JumpListCategory[] = [];
+
+		// Tasks
+		jumpList.push({
+			type: 'tasks',
+			items: [
+				{
+					type: 'task',
+					title: nls.localize('newWindow', "New Window"),
+					description: nls.localize('newWindowDesc', "Opens a new window"),
+					program: process.execPath,
+					args: '-n', // force new window
+					iconPath: process.execPath,
+					iconIndex: 0
+				}
+			]
+		});
+
+		// Recent Folders
+		if (this.getRecentPathsList().folders.length > 0) {
+
+			// The user might have meanwhile removed items from the jump list and we have to respect that
+			// so we need to update our list of recent paths with the choice of the user to not add them again
+			// Also: Windows will not show our custom category at all if there is any entry which was removed
+			// by the user! See https://github.com/Microsoft/vscode/issues/15052
+			this.removeFromRecentPathsList(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
+
+			// Add entries
+			jumpList.push({
+				type: 'custom',
+				name: nls.localize('recentFolders', "Recent Folders"),
+				items: this.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+					return <Electron.JumpListItem>{
+						type: 'task',
+						title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
+						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
+						program: process.execPath,
+						args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces)
+						iconPath: 'explorer.exe', // simulate folder icon
+						iconIndex: 0
+					};
+				}).filter(i => !!i)
+			});
+		}
+
+		// Recent
+		jumpList.push({
+			type: 'recent' // this enables to show files in the "recent" category
+		});
+
+		try {
+			app.setJumpList(jumpList);
+		} catch (error) {
+			this.logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+		}
+	}
+
+	public quit(): void {
+
+		// If the user selected to exit from an extension development host window, do not quit, but just
+		// close the window unless this is the last window that is opened.
+		const vscodeWindow = this.getFocusedWindow();
+		if (vscodeWindow && vscodeWindow.isExtensionDevelopmentHost && this.getWindowCount() > 1) {
+			vscodeWindow.win.close();
+		}
+
+		// Otherwise: normal quit
+		else {
+			setTimeout(() => {
+				app.quit();
+			}, 10 /* delay to unwind callback stack (IPC) */);
+		}
 	}
 }

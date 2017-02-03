@@ -4,63 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Arrays} from 'vs/editor/common/core/arrays';
-import * as modes from 'vs/editor/common/modes';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { StandardTokenType, MetadataConsts } from 'vs/editor/common/modes';
 
 export interface TokenText {
 	text: string;
-	type: string;
+	type: StandardTokenType;
 }
 
-export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {
+export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTokens {
+	let tokens = new Uint32Array(rawTokens.length << 1);
 	let line = '';
-	let processedTokens: Token[] = [];
 
-	let indexSoFar = 0;
-	for (let i = 0; i < tokens.length; ++i){
-		processedTokens.push(new Token(indexSoFar, tokens[i].type));
-		line += tokens[i].text;
-		indexSoFar += tokens[i].text.length;
+	for (let i = 0, len = rawTokens.length; i < len; i++) {
+		let rawToken = rawTokens[i];
+
+		let startOffset = line.length;
+		let metadata = (
+			(rawToken.type << MetadataConsts.TOKEN_TYPE_OFFSET)
+		) >>> 0;
+
+		tokens[(i << 1)] = startOffset;
+		tokens[(i << 1) + 1] = metadata;
+		line += rawToken.text;
 	}
 
-	return new TestLineContext(line, processedTokens, null);
-}
-
-export function createMockLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
-	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
-}
-
-class TestLineContext implements modes.ILineContext {
-
-	public modeTransitions: ModeTransition[];
-	private _line:string;
-	private _tokens: Token[];
-
-	constructor(line:string, tokens: Token[], modeTransitions:ModeTransition[]) {
-		this.modeTransitions = modeTransitions;
-		this._line = line;
-		this._tokens = tokens;
-	}
-
-	public getLineContent(): string {
-		return this._line;
-	}
-
-	public getTokenCount(): number {
-		return this._tokens.length;
-	}
-
-	public getTokenStartIndex(tokenIndex:number): number {
-		return this._tokens[tokenIndex].startIndex;
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return this._tokens[tokenIndex].type;
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return Arrays.findIndexInSegmentsArray(this._tokens, offset);
-	}
+	return createScopedLineTokens(new LineTokens([], tokens, line), 0);
 }

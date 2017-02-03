@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Selection} from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 
 export class InPlaceReplaceCommand implements editorCommon.ICommand {
 
 	private _editRange: Range;
 	private _originalSelection: Selection;
-	private _text:string;
+	private _text: string;
 
-	constructor(editRange: Range, originalSelection: Selection, text:string) {
+	constructor(editRange: Range, originalSelection: Selection, text: string) {
 		this._editRange = editRange;
 		this._originalSelection = originalSelection;
 		this._text = text;
 	}
 
-	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder):void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		builder.addEditOperation(this._editRange, this._text);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):Selection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 

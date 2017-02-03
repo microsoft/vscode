@@ -5,9 +5,19 @@
 'use strict';
 
 import * as assert from 'assert';
-import {KeyCode as StandaloneKeyCode} from 'vs/editor/common/standalone/standaloneBase';
-import {KeyCode as RuntimeKeyCode} from 'vs/base/common/keyCodes';
-import {/*KeyCode, KeyMod, BinaryKeybindings,*/ Keybinding} from 'vs/base/common/keyCodes';
+import { KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity } from 'vs/editor/common/standalone/standaloneBase';
+import { KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/base/common/keybinding';
+import RuntimeSeverity from 'vs/base/common/severity';
+
+suite('StandaloneBase', () => {
+	test('exports enums correctly', () => {
+		assert.equal(StandaloneSeverity.Ignore, RuntimeSeverity.Ignore);
+		assert.equal(StandaloneSeverity.Info, RuntimeSeverity.Info);
+		assert.equal(StandaloneSeverity.Warning, RuntimeSeverity.Warning);
+		assert.equal(StandaloneSeverity.Error, RuntimeSeverity.Error);
+	});
+});
 
 suite('KeyCode', () => {
 	test('is exported correctly in standalone editor', () => {
@@ -129,9 +139,9 @@ suite('KeyCode', () => {
 	});
 
 	test('getUserSettingsKeybindingRegex', () => {
-		let regex = new RegExp(Keybinding.getUserSettingsKeybindingRegex());
+		let regex = new RegExp(KeybindingLabels.getUserSettingsKeybindingRegex());
 
-		function testIsGood(userSettingsLabel:string, message:string = userSettingsLabel): void {
+		function testIsGood(userSettingsLabel: string, message: string = userSettingsLabel): void {
 			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
 			let isGood = regex.test(userSettings);
 			assert.ok(isGood, message);
@@ -147,7 +157,7 @@ suite('KeyCode', () => {
 			if (ignore[keyCode]) {
 				continue;
 			}
-			let userSettings = Keybinding.toUserSettingsLabel(keyCode);
+			let userSettings = KeybindingLabels.toUserSettingsLabel(keyCode);
 			testIsGood(userSettings, keyCode + ' - ' + StandaloneKeyCode[keyCode] + ' - ' + userSettings);
 		}
 

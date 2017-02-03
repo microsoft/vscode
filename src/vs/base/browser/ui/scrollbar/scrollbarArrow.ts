@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
-import {Widget} from 'vs/base/browser/ui/widget';
-import {TimeoutTimer, IntervalTimer} from 'vs/base/common/async';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 
 /**
  * The arrow image size.
@@ -36,7 +36,7 @@ export class ScrollbarArrow extends Widget {
 	private _mousedownScheduleRepeatTimer: TimeoutTimer;
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
-	constructor(opts:ScrollbarArrowOptions) {
+	constructor(opts: ScrollbarArrowOptions) {
 		super();
 		this._onActivate = opts.onActivate;
 

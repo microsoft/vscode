@@ -5,46 +5,18 @@
 
 'use strict';
 
-import { DefinitionProvider, TextDocument, Position, Range, CancellationToken, Location } from 'vscode';
+import { DefinitionProvider, TextDocument, Position, CancellationToken, Definition } from 'vscode';
 
-import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import DefinitionProviderBase from './definitionProviderBase';
 
-export default class TypeScriptDefinitionProvider implements DefinitionProvider {
-
-	private client: ITypescriptServiceClient;
-
-	public tokens: string[] = [];
+export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements DefinitionProvider {
 
 	constructor(client: ITypescriptServiceClient) {
-		this.client = client;
+		super(client);
 	}
 
-	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken): Promise<Location> {
-		let args: Proto.FileLocationRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
-			line: position.line + 1,
-			offset: position.character + 1
-		};
-		if (!args.file) {
-			return Promise.resolve<Location>(null);
-		}
-		return this.client.execute('definition', args, token).then(response => {
-			let locations: Proto.FileSpan[] = response.body;
-			if (!locations || locations.length === 0) {
-				return null;
-			}
-			return locations.map(location => {
-				let resource = this.client.asUrl(location.file);
-				if (resource === null) {
-					return null;
-				} else {
-					return new Location(resource, new Range(location.start.line - 1, location.start.offset - 1, location.end.line - 1, location.end.offset - 1));
-				}
-			});
-		}, (error) => {
-			this.client.error(`'definition' request failed with error.`, error);
-			return null;
-		});
+	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | null> {
+		return this.getSymbolLocations('definition', document, position, token);
 	}
 }

@@ -8,6 +8,7 @@
 	"dupe.command": "功能表項目參考了與預設相同的命令和替代命令",
 	"menuId.invalid": "`{0}` 不是有效的功能表識別碼",
 	"menus.editorContext": "編輯器操作功能表",
+	"menus.editorTabContext": "編輯器索引標籤操作功能表",
 	"menus.editorTitle": "編輯器標題功能表",
 	"menus.explorerContext": "檔案總管操作功能表",
 	"missing.altCommand": "功能表項目參考了 'commands' 區段中未定義的替代命令 `{0}`。",

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'storageService';
 
@@ -84,5 +84,5 @@ export const NullStorageService: IStorageService = {
 	remove() { return undefined; },
 	get(a, b, defaultValue) { return defaultValue; },
 	getInteger(a, b, defaultValue) { return defaultValue; },
-	getBoolean(a, b, defaultValue) { return defaultValue; },
+	getBoolean(a, b, defaultValue) { return defaultValue; }
 };

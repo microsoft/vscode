@@ -1,0 +1,269 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.preferences-editor > .preferences-header {
+	border-bottom: 1px solid #efeff2;
+	display: flex;
+	flex-wrap: wrap;
+	padding-left: 27px;
+	padding-right: 32px;
+	padding-bottom: 11px;
+	padding-top: 11px;
+}
+
+.preferences-editor > .preferences-header.vertical-layout {
+	flex-direction: column;
+	align-items: flex-end;
+	padding-bottom: 5px;
+}
+
+.vs-dark .preferences-editor > .preferences-header {
+	border-bottom: 1px solid #2d2d2d;
+}
+
+.settings-tabs-widget {
+	display: flex;
+	flex-wrap: wrap;
+	line-height: 28px;
+}
+
+.settings-tabs-widget > .monaco-action-bar > .actions-container {
+	flex-wrap: wrap;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	text-transform: uppercase;
+	font-size: 11px;
+	margin-left: 33px;
+	margin-right: 0px;
+	padding-top: 6px;
+	cursor: pointer;
+	padding-bottom: 4px; /* puts the bottom border down */
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.disabled {
+	cursor: default;
+}
+
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
+	color: #424242;
+	opacity: 0.75;
+}
+
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
+	color: #e7e7e7;
+	opacity: 0.5;
+}
+
+.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
+	color: #fff;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label:not(.disabled),
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(.disabled) {
+	opacity: 1;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 1px solid;
+}
+
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #ccceda;
+}
+
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #404047;
+}
+
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid #007ACC;
+	outline: none !important;
+}
+
+.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid #f38518;
+	outline: none !important;
+}
+
+.preferences-header > .settings-header-widget {
+	flex: 1;
+	display: flex;
+	position: relative;
+	align-self: stretch;
+}
+
+.settings-header-widget > .settings-header-container {
+	padding-top: 8px;
+	padding-left: 27px;
+	padding-right: 32px;
+}
+
+.settings-header-widget > .settings-count-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	position: absolute;
+	right: 10px;
+	border-radius: 2px;
+	background-color: #EFEFF2;
+}
+
+.settings-header-widget > .settings-count-widget.hide {
+	display: none;
+}
+
+.hc-black .settings-header-widget > .settings-count-widget,
+.vs-dark .settings-header-widget > .settings-count-widget {
+	background-color: #2D2D30;
+}
+
+.settings-header-widget > .settings-count-widget.no-results {
+	color: #A1260D;
+}
+
+.hc-black .settings-header-widget > .settings-count-widget.no-results,
+.vs-dark .settings-header-widget > .settings-count-widget.no-results {
+	color: #F48771
+}
+
+.settings-header-widget > .settings-search-container {
+	flex: 1;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input {
+	vertical-align: middle;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	height: 30px;
+}
+
+.vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	border: 1px solid #ddd;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+	font-size: 14px;
+	padding-left:30px;
+	background-image: url('search.svg');
+	background-repeat: no-repeat;
+	background-position: 8px 50%;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+	background-image: url('search_inverse.svg');
+}
+
+.vs-dark .preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
+	box-shadow: -6px 0 5px -5px black;
+}
+
+.preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
+	box-shadow: -6px 0 5px -5px #DDD;
+}
+
+.monaco-editor .settings-group-title-widget {
+	z-index: 1;
+}
+
+.monaco-editor .settings-group-title-widget .title-container {
+	width: 100%;
+	cursor: pointer;
+	font-weight: bold;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.vs .monaco-editor .settings-group-title-widget .title-container {
+	color: #6f6f6f;
+}
+.vs-dark .monaco-editor .settings-group-title-widget .title-container {
+	color: #bbbbbb;
+}
+.hc-black .monaco-editor .settings-group-title-widget .title-container {
+	color: white;
+}
+
+.monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
+.monaco-editor.vs .settings-group-title-widget .title-container.focused {
+	outline: none !important;
+}
+
+.monaco-editor.vs .settings-group-title-widget .title-container.focused,
+.monaco-editor.vs .settings-group-title-widget .title-container:hover {
+	background-color: #e2e2e2;
+}
+
+.monaco-editor.hc-black .settings-group-title-widget .title-container:hover,
+.monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
+.monaco-editor.vs-dark .settings-group-title-widget .title-container:hover {
+	background-color: #323232;
+}
+
+.monaco-editor.hc-black .settings-group-title-widget .title-container.focused {
+	outline: 1px dotted #f38518;
+}
+
+.monaco-editor .settings-group-title-widget .title-container .expand-collapse-icon {
+	background: url(expanded.svg) 50% 50% no-repeat;
+	width: 16px;
+	height: 16px;
+}
+
+.monaco-editor .settings-group-title-widget .title-container > div {
+	vertical-align: middle;
+	display: inline-block;
+}
+
+.monaco-editor.vs-dark .settings-group-title-widget .title-container .expand-collapse-icon,
+.monaco-editor.hc-black .settings-group-title-widget .title-container .expand-collapse-icon {
+	background: url(expanded-dark.svg) 50% 50% no-repeat;
+}
+
+.monaco-editor .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
+	background: url(collapsed.svg) 50% 50% no-repeat;
+}
+
+.monaco-editor.vs-dark .settings-group-title-widget .title-container.collapsed .expand-collapse-icon,
+.monaco-editor.hc-black .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
+	background: url(collapsed-dark.svg) 50% 50% no-repeat;
+}
+
+.monaco-editor .edit-preferences-widget {
+	background: url('edit.svg') center center no-repeat;
+	transform: rotate(-90deg);
+	width:16px;
+	height: 16px;
+	cursor: pointer;
+}
+
+.monaco-editor .edit-preferences-widget.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.monaco-editor.hc-black .edit-preferences-widget,
+.monaco-editor.vs-dark .edit-preferences-widget {
+	background: url('edit_inverse.svg') center center no-repeat;
+}
+
+.monaco-editor .floating-click-widget {
+	background: #007ACC;
+	color: white;
+	padding: 10px;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.title-actions .action-item .icon.collapseAll,
+.editor-actions .action-item .icon.collapseAll {
+	background: url('collapseAll.svg') center center no-repeat;
+}
+
+.vs-dark .title-actions .action-item .icon.collapseAll,
+.vs-dark .editor-actions .action-item .icon.collapseAll {
+	background: url('collapseAll_inverse.svg') center center no-repeat;
+}

@@ -4,23 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IModelDecoration, IRange} from 'vs/editor/common/editorCommon';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {HoverOperation, IHoverComputer} from './hoverOperation';
-import {GlyphHoverWidget} from './hoverWidgets';
-import {$} from 'vs/base/browser/dom';
-import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
-import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverOperation, IHoverComputer } from './hoverOperation';
+import { GlyphHoverWidget } from './hoverWidgets';
+import { $ } from 'vs/base/browser/dom';
+import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { MarkedString } from 'vs/base/common/htmlContent';
 
 export interface IHoverMessage {
-	value?: string;
-	range?: IRange;
-	className?: string;
+	value: MarkedString;
 }
 
 class MarginComputer implements IHoverComputer<IHoverMessage[]> {
@@ -29,7 +27,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	private _lineNumber: number;
 	private _result: IHoverMessage[];
 
-	constructor(editor:ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._lineNumber = -1;
 	}
@@ -44,19 +42,35 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	}
 
 	public computeSync(): IHoverMessage[] {
-		var result: IHoverMessage[] = [],
-			lineDecorations = this._editor.getLineDecorations(this._lineNumber),
-			i: number,
-			len: number,
-			d: IModelDecoration;
+		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
+			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
+		};
+		const toHoverMessage = (contents: MarkedString): IHoverMessage => {
+			return {
+				value: contents
+			};
+		};
 
-		for (i = 0, len = lineDecorations.length; i < len; i++) {
-			d = lineDecorations[i];
+		let lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
-			if (d.options.glyphMarginClassName && d.options.glyphMarginHoverMessage) {
-				result.push({
-					value: d.options.glyphMarginHoverMessage
-				});
+		let result: IHoverMessage[] = [];
+		for (let i = 0, len = lineDecorations.length; i < len; i++) {
+			let d = lineDecorations[i];
+
+			if (!d.options.glyphMarginClassName) {
+				continue;
+			}
+
+			let hoverMessage = d.options.glyphMarginHoverMessage;
+
+			if (!hasHoverContent(hoverMessage)) {
+				continue;
+			}
+
+			if (Array.isArray(hoverMessage)) {
+				result = result.concat(hoverMessage.map(toHoverMessage));
+			} else {
+				result.push(toHoverMessage(hoverMessage));
 			}
 		}
 
@@ -96,9 +110,9 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result:IHoverMessage[]) => this._withResult(result),
+			(result: IHoverMessage[]) => this._withResult(result),
 			null,
-			(result:any) => this._withResult(result)
+			(result: any) => this._withResult(result)
 		);
 
 	}
@@ -139,7 +153,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		super.hide();
 	}
 
-	public _withResult(result:IHoverMessage[]): void {
+	public _withResult(result: IHoverMessage[]): void {
 		this._messages = result;
 
 		if (this._messages.length > 0) {
@@ -156,13 +170,12 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		messages.forEach((msg) => {
 			const renderedContents = renderMarkedString(msg.value, {
 				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
-				codeBlockRenderer: (modeId, value): string | TPromise<string> => {
-					const mode = this.modeService.getMode(modeId || this._editor.getModel().getModeId());
-					const getMode = mode => mode ? TPromise.as(mode) : this.modeService.getOrCreateMode(modeId);
-
-					return getMode(mode)
-						.then(null, err => null)
-						.then(mode => `<div class="code">${ tokenizeToString(value, mode) }</div>`);
+				codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
+					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
+					return this.modeService.getOrCreateMode(modeId).then(_ => {
+						return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
+					});
 				}
 			});
 

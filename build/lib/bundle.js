@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-var fs = require('fs');
-var path = require('path');
-var vm = require('vm');
+var fs = require("fs");
+var path = require("path");
+var vm = require("vm");
 /**
  * Bundle `entryPoints` given config `config`.
  */
@@ -31,6 +31,24 @@ function bundle(entryPoints, config, callback) {
     var loader = loaderModule.exports;
     config.isBuild = true;
     loader.config(config);
+    loader(['require'], function (localRequire) {
+        var resolvePath = function (path) {
+            var r = localRequire.toUrl(path);
+            if (!/\.js/.test(r)) {
+                return r + '.js';
+            }
+            return r;
+        };
+        for (var moduleId in entryPointsMap) {
+            var entryPoint = entryPointsMap[moduleId];
+            if (entryPoint.append) {
+                entryPoint.append = entryPoint.append.map(resolvePath);
+            }
+            if (entryPoint.prepend) {
+                entryPoint.prepend = entryPoint.prepend.map(resolvePath);
+            }
+        }
+    });
     loader(Object.keys(allMentionedModulesMap), function () {
         var modules = loader.getBuildInfo();
         var partialResult = emitEntryPoints(modules, entryPointsMap);
@@ -74,7 +92,7 @@ function emitEntryPoints(modules, entryPoints) {
             return allDependencies[module];
         });
         bundleData.bundles[moduleToBundle] = includedModules;
-        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules);
+        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend, info.append, info.dest);
         result = result.concat(res.files);
         for (var pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
@@ -168,7 +186,7 @@ function extractStrings(destFiles) {
             path: null,
             contents: [
                 '(function() {',
-                ("var __m = " + JSON.stringify(sortedByUseModules) + ";"),
+                "var __m = " + JSON.stringify(sortedByUseModules) + ";",
                 "var __M = function(deps) {",
                 "  var result = [];",
                 "  for (var i = 0, len = deps.length; i < len; i++) {",
@@ -235,10 +253,13 @@ function removeDuplicateTSBoilerplate(destFiles) {
     });
     return destFiles;
 }
-function emitEntryPoint(modulesMap, deps, entryPoint, includedModules) {
+function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, append, dest) {
+    if (!dest) {
+        dest = entryPoint + '.js';
+    }
     var mainResult = {
         sources: [],
-        dest: entryPoint + '.js'
+        dest: dest
     }, results = [mainResult];
     var usedPlugins = {};
     var getLoaderPlugin = function (pluginName) {
@@ -286,6 +307,16 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules) {
             plugin.writeFile(pluginName, entryPoint, req, write, {});
         }
     });
+    var toIFile = function (path) {
+        var contents = readFileAndRemoveBOM(path);
+        return {
+            path: path,
+            contents: contents
+        };
+    };
+    var toPrepend = (prepend || []).map(toIFile);
+    var toAppend = (append || []).map(toIFile);
+    mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
     return {
         files: results,
         usedPlugins: usedPlugins

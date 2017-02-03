@@ -5,16 +5,21 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import arrays = require('vs/base/common/arrays');
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import Event, {Emitter, once} from 'vs/base/common/event';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import Event, { Emitter, once } from 'vs/base/common/event';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
 export interface IUntitledEditorService {
 
 	_serviceBrand: any;
+
+	/**
+	 * Events for when untitled editors content changes (e.g. any keystroke).
+	 */
+	onDidChangeContent: Event<URI>;
 
 	/**
 	 * Events for when untitled editors change (e.g. getting dirty, saved or reverted).
@@ -25,6 +30,11 @@ export interface IUntitledEditorService {
 	 * Events for when untitled editor encodings change.
 	 */
 	onDidChangeEncoding: Event<URI>;
+
+	/**
+	 * Events for when untitled editors are disposed.
+	 */
+	onDidDisposeModel: Event<URI>;
 
 	/**
 	 * Returns the untitled editor input matching the provided resource.
@@ -73,12 +83,26 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
+	private _onDidChangeContent: Emitter<URI>;
 	private _onDidChangeDirty: Emitter<URI>;
 	private _onDidChangeEncoding: Emitter<URI>;
+	private _onDidDisposeModel: Emitter<URI>;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		this._onDidChangeContent = new Emitter<URI>();
 		this._onDidChangeDirty = new Emitter<URI>();
 		this._onDidChangeEncoding = new Emitter<URI>();
+		this._onDidDisposeModel = new Emitter<URI>();
+	}
+
+	public get onDidDisposeModel(): Event<URI> {
+		return this._onDidDisposeModel.event;
+	}
+
+	public get onDidChangeContent(): Event<URI> {
+		return this._onDidChangeContent.event;
 	}
 
 	public get onDidChangeDirty(): Event<URI> {
@@ -156,12 +180,16 @@ export class UntitledEditorService implements IUntitledEditorService {
 			// Create new taking a resource URI that is not already taken
 			let counter = Object.keys(UntitledEditorService.CACHE).length + 1;
 			do {
-				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: 'Untitled-' + counter });
+				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: `Untitled-${counter}` });
 				counter++;
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
+
+		const contentListener = input.onDidModelChangeContent(() => {
+			this._onDidChangeContent.fire(resource);
+		});
 
 		const dirtyListener = input.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire(resource);
@@ -171,13 +199,19 @@ export class UntitledEditorService implements IUntitledEditorService {
 			this._onDidChangeEncoding.fire(resource);
 		});
 
+		const disposeListener = input.onDispose(() => {
+			this._onDidDisposeModel.fire(resource);
+		});
+
 		// Remove from cache on dispose
 		const onceDispose = once(input.onDispose);
 		onceDispose(() => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
+			contentListener.dispose();
 			dirtyListener.dispose();
 			encodingListener.dispose();
+			disposeListener.dispose();
 		});
 
 		// Add to cache
@@ -199,7 +233,9 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public dispose(): void {
+		this._onDidChangeContent.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
+		this._onDidDisposeModel.dispose();
 	}
 }

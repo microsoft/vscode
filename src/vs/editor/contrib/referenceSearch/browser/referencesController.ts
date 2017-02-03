@@ -5,26 +5,27 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorService} from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorService } from 'vs/platform/editor/common/editor';
 import { fromPromise, stopwatch } from 'vs/base/common/event';
-import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
-import {IContextKey, IContextKeyService, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {ReferencesModel, OneReference} from './referencesModel';
-import {ReferenceWidget, LayoutData} from './referencesWidget';
-import {Range} from 'vs/editor/common/core/range';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import { ReferencesModel, OneReference } from './referencesModel';
+import { ReferenceWidget, LayoutData } from './referencesWidget';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -47,7 +48,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private _referenceSearchVisible: IContextKey<boolean>;
 
-	public static get(editor:editorCommon.ICommonCodeEditor): ReferencesController {
+	public static get(editor: editorCommon.ICommonCodeEditor): ReferencesController {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
@@ -55,6 +56,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
+		@ITextModelResolverService private _textModelResolverService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -79,7 +81,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._editor = null;
 	}
 
-	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions) : void {
+	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: editorCommon.IPosition;
@@ -87,22 +89,22 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			widgetPosition = this._widget.position;
 		}
 		this.closeWidget();
-		if(!!widgetPosition && range.containsPosition(widgetPosition)) {
+		if (!!widgetPosition && range.containsPosition(widgetPosition)) {
 			return null;
 		}
 
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.onDidChangeModelMode(() => { this.closeWidget(); }));
+		this._disposables.push(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
 		this._disposables.push(this._editor.onDidChangeModel(() => {
-			if(!this._ignoreModelChangeEvent) {
+			if (!this._ignoreModelChangeEvent) {
 				this.closeWidget();
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = <LayoutData> JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._editorService, this._contextService, this._instantiationService);
+		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
+		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._instantiationService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -143,8 +145,13 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
-				return;
+				return undefined;
 			}
+
+			if (this._model) {
+				this._model.dispose();
+			}
+
 			this._model = model;
 
 			// measure time it stays open
@@ -171,6 +178,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				if (selection) {
 					return this._widget.setSelection(selection);
 				}
+				return undefined;
 			});
 
 		}, error => {
@@ -181,7 +189,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
-			mode: this._editor.getModel().getMode().getId()
+			mode: this._editor.getModel().getLanguageIdentifier().language
 		}));
 	}
 
@@ -192,12 +200,17 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 		this._referenceSearchVisible.reset();
 		this._disposables = dispose(this._disposables);
-		this._model = null;
+		if (this._model) {
+			this._model.dispose();
+			this._model = null;
+		}
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
 	private _gotoReference(ref: OneReference): void {
+		this._widget.hide();
+
 		this._ignoreModelChangeEvent = true;
 		const {uri, range} = ref;
 

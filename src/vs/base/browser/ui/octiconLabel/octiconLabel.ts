@@ -6,7 +6,7 @@
 
 
 import 'vs/css!./octicons/octicons';
-import {escape} from 'vs/base/common/strings';
+import { escape } from 'vs/base/common/strings';
 
 export function expand(text: string): string {
 	return text.replace(/\$\(([^)]+)\)/g, (match, g1) => {

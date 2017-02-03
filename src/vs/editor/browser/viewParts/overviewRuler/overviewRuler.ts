@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IConfigurationChangedEvent, OverviewRulerPosition, OverviewRulerZone, IScrollEvent} from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IOverviewRuler} from 'vs/editor/browser/editorBrowser';
-import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
+import { IConfigurationChangedEvent, OverviewRulerPosition, OverviewRulerZone, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
+import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
-	private _context:ViewContext;
-	private _overviewRuler:OverviewRulerImpl;
+	private _context: ViewContext;
+	private _overviewRuler: OverviewRulerImpl;
 
-	constructor(context:ViewContext, cssClassName:string, scrollHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(context: ViewContext, cssClassName: string, scrollHeight: number, minimumHeight: number, maximumHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
 		super();
 		this._context = context;
 		this._overviewRuler = new OverviewRulerImpl(0, cssClassName, scrollHeight, this._context.configuration.editor.lineHeight,
-					this._context.configuration.editor.viewInfo.canUseTranslate3d, minimumHeight, maximumHeight, getVerticalOffsetForLine);
+			this._context.configuration.editor.viewInfo.canUseTranslate3d, minimumHeight, maximumHeight, getVerticalOffsetForLine);
 
 		this._context.addEventHandler(this);
 	}
@@ -29,7 +29,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._overviewRuler.dispose();
 	}
 
-	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
 			return true;
@@ -51,7 +51,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return true;
 	}
 
-	public onScrollChanged(e:IScrollEvent): boolean {
+	public onScrollChanged(e: IScrollEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, true);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
@@ -60,11 +60,11 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return this._overviewRuler.getDomNode();
 	}
 
-	public setLayout(position:OverviewRulerPosition): void {
+	public setLayout(position: OverviewRulerPosition): void {
 		this._overviewRuler.setLayout(position, true);
 	}
 
-	public setZones(zones:OverviewRulerZone[]): void {
+	public setZones(zones: OverviewRulerZone[]): void {
 		this._overviewRuler.setZones(zones, true);
 	}
 }

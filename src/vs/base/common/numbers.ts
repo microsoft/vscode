@@ -7,7 +7,7 @@
 
 import types = require('vs/base/common/types');
 
-export type NumberCallback = (index: number)=>void;
+export type NumberCallback = (index: number) => void;
 
 export function count(to: number, callback: NumberCallback): void;
 export function count(from: number, to: number, callback: NumberCallback): void;
@@ -16,11 +16,11 @@ export function count(fromOrTo: number, toOrCallback?: NumberCallback | number, 
 
 	if (types.isNumber(toOrCallback)) {
 		from = fromOrTo;
-		to = <number> toOrCallback;
+		to = <number>toOrCallback;
 	} else {
 		from = 0;
 		to = fromOrTo;
-		callback = <NumberCallback> toOrCallback;
+		callback = <NumberCallback>toOrCallback;
 	}
 
 	var op = from <= to ? (i: number) => i + 1 : (i: number) => i - 1;

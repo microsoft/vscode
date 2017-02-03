@@ -3,47 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, {Emitter} from 'vs/base/common/event';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import Event, { Emitter } from 'vs/base/common/event';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 
 export class ViewModel implements debug.IViewModel {
 
-	private focusedStackFrame: debug.IStackFrame;
-	private focusedThread: debug.IThread;
+	private _focusedStackFrame: debug.IStackFrame;
+	private _focusedProcess: debug.IProcess;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
+	private _onDidSelectConfigurationName: Emitter<string>;
+	private multiProcessView: boolean;
 	public changedWorkbenchViewState: boolean;
 
-	constructor() {
+	constructor(private _selectedConfigurationName: string) {
 		this._onDidFocusStackFrame = new Emitter<debug.IStackFrame>();
 		this._onDidSelectExpression = new Emitter<debug.IExpression>();
 		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
+		this._onDidSelectConfigurationName = new Emitter<string>();
 		this.changedWorkbenchViewState = false;
+		this.multiProcessView = false;
 	}
 
 	public getId(): string {
 		return 'root';
 	}
 
-	public getFocusedStackFrame(): debug.IStackFrame {
-		return this.focusedStackFrame;
+	public get focusedProcess(): debug.IProcess {
+		return this._focusedProcess;
 	}
 
-	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame, focusedThread: debug.IThread): void {
-		this.focusedStackFrame = focusedStackFrame;
-		this.focusedThread = focusedThread;
-		this._onDidFocusStackFrame.fire(focusedStackFrame);
+	public get focusedThread(): debug.IThread {
+		return this._focusedStackFrame ? this._focusedStackFrame.thread : (this._focusedProcess ? this._focusedProcess.getAllThreads().pop() : null);
+	}
+
+	public get focusedStackFrame(): debug.IStackFrame {
+		return this._focusedStackFrame;
+	}
+
+	public setFocusedStackFrame(stackFrame: debug.IStackFrame, process: debug.IProcess): void {
+		this._focusedStackFrame = stackFrame;
+		this._focusedProcess = process;
+		this._onDidFocusStackFrame.fire(stackFrame);
 	}
 
 	public get onDidFocusStackFrame(): Event<debug.IStackFrame> {
 		return this._onDidFocusStackFrame.event;
-	}
-
-	public getFocusedThreadId(): number {
-		return this.focusedThread ? this.focusedThread.threadId : 0;
 	}
 
 	public getSelectedExpression(): debug.IExpression {
@@ -70,5 +78,26 @@ export class ViewModel implements debug.IViewModel {
 
 	public get onDidSelectFunctionBreakpoint(): Event<debug.IFunctionBreakpoint> {
 		return this._onDidSelectFunctionBreakpoint.event;
+	}
+
+	public get selectedConfigurationName(): string {
+		return this._selectedConfigurationName;
+	}
+
+	public setSelectedConfigurationName(configurationName: string): void {
+		this._selectedConfigurationName = configurationName;
+		this._onDidSelectConfigurationName.fire(configurationName);
+	}
+
+	public isMultiProcessView(): boolean {
+		return this.multiProcessView;
+	}
+
+	public setMultiProcessView(isMultiProcessView: boolean): void {
+		this.multiProcessView = isMultiProcessView;
+	}
+
+	public get onDidSelectConfiguration(): Event<string> {
+		return this._onDidSelectConfigurationName.event;
 	}
 }

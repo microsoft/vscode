@@ -16,8 +16,7 @@ const $ = builder.$;
 
 export class NotRootView
 	extends ee.EventEmitter
-	implements view.IView
-{
+	implements view.IView {
 	public ID = 'notroot';
 	private _element: HTMLElement;
 
@@ -46,7 +45,7 @@ export class NotRootView
 		return;
 	}
 
-	public setVisible(visible:boolean): winjs.TPromise<void> {
+	public setVisible(visible: boolean): winjs.TPromise<void> {
 		return winjs.TPromise.as(null);
 	}
 

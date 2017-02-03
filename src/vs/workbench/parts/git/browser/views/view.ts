@@ -12,8 +12,8 @@ export interface IView extends Lifecycle.IDisposable {
 	ID: string;
 	element: HTMLElement;
 	focus(): void;
-	layout(dimension:Builder.Dimension): void;
-	setVisible(visible:boolean): WinJS.Promise;
+	layout(dimension: Builder.Dimension): void;
+	setVisible(visible: boolean): WinJS.Promise;
 	getControl(): EventEmitter.IEventEmitter;
 	getActions(): Actions.IAction[];
 	getSecondaryActions(): Actions.IAction[];

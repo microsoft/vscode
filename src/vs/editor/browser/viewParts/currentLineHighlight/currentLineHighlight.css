@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .current-line {
+.monaco-editor .view-overlays .current-line {
 	display: block;
 	position: absolute;
 	left: 0;
@@ -11,14 +11,14 @@
 	box-sizing: border-box;
 }
 
-.monaco-editor.vs .current-line {
+.monaco-editor.vs .view-overlays .current-line {
 	border: 2px solid #eee;
 }
 
-.monaco-editor.vs-dark .current-line {
+.monaco-editor.vs-dark .view-overlays .current-line {
 	border: 2px solid #282828;
 }
 
-.monaco-editor.hc-black .current-line {
+.monaco-editor.hc-black .view-overlays .current-line {
 	border: 2px solid #f38518;
 }

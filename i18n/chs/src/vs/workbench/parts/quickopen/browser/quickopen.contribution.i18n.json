@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "转到行",
 	"gotoSymbolDescription": "转到“文件”中的“符号”",
 	"gotoSymbolDescriptionScoped": "按类别转到“文件”中的“符号”",
-	"helpDescription": "显示帮助"
+	"helpDescription": "显示帮助",
+	"viewPickerDescription": "打开视图"
 }

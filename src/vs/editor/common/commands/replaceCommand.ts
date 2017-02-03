@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Selection} from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 
 export class ReplaceCommand implements editorCommon.ICommand {
 
@@ -18,15 +18,15 @@ export class ReplaceCommand implements editorCommon.ICommand {
 		this._text = text;
 	}
 
-	public getText():string {
+	public getText(): string {
 		return this._text;
 	}
 
-	public getRange():Range {
+	public getRange(): Range {
 		return this._range;
 	}
 
-	public setRange(newRange:Range): void {
+	public setRange(newRange: Range): void {
 		this._range = newRange;
 	}
 
@@ -35,8 +35,8 @@ export class ReplaceCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[0].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,
@@ -53,8 +53,8 @@ export class ReplaceCommandWithoutChangingPosition extends ReplaceCommand {
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[0].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
 			srcRange.startLineNumber,
 			srcRange.startColumn,
@@ -76,8 +76,8 @@ export class ReplaceCommandWithOffsetCursorState extends ReplaceCommand {
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[0].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
 			srcRange.endLineNumber + this._lineNumberDeltaOffset,
 			srcRange.endColumn + this._columnDeltaOffset,

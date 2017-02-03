@@ -6,13 +6,13 @@
 'use strict';
 
 import 'vs/css!./renameInputField';
-import {localize} from 'vs/nls';
-import {canceled} from 'vs/base/common/errors';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Range} from 'vs/editor/common/core/range';
-import {IPosition, IRange} from 'vs/editor/common/editorCommon';
-import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
+import { localize } from 'vs/nls';
+import { canceled } from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Range } from 'vs/editor/common/core/range';
+import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 
 export default class RenameInputField implements IContentWidget, IDisposable {
 
@@ -70,7 +70,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		const fontInfo = this._editor.getConfiguration().fontInfo;
 		this._inputField.style.fontFamily = fontInfo.fontFamily;
 		this._inputField.style.fontWeight = fontInfo.fontWeight;
-		this._inputField.style.fontSize = `${ fontInfo.fontSize }px`;
+		this._inputField.style.fontSize = `${fontInfo.fontSize}px`;
 	}
 
 	public getPosition(): IContentWidgetPosition {

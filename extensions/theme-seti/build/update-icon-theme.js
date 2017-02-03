@@ -33,7 +33,7 @@ function download(urlString) {
 		var _url = url.parse(urlString);
 		var options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' }};
 		var content = '';
-		var request = https.get(options, function (response) {
+		https.get(options, function (response) {
 			response.on('data', function (data) {
 				content += data.toString();
 			}).on('end', function () {
@@ -45,8 +45,38 @@ function download(urlString) {
 	});
 }
 
+function downloadBinary(urlString, dest) {
+	return new Promise((c, e) => {
+		https.get(urlString, function (response) {
+			switch(response.statusCode) {
+				case 200:
+					var file = fs.createWriteStream(dest);
+					response.on('data', function(chunk){
+						file.write(chunk);
+					}).on('end', function(){
+						file.end();
+						c(null);
+					}).on('error', function (err) {
+						fs.unlink(dest);
+						e(err.message);
+					});
+					break;
+				case 301:
+				case 302:
+				case 303:
+				case 307:
+					console.log('redirect to ' + response.headers.location);
+					downloadBinary(response.headers.location, dest).then(c, e);
+					break;
+				default:
+					e(new Error('Server responded with status code ' + response.statusCode));
+			}
+		});
+	});
+}
+
 function invertColor(color) {
-	var res = '#'
+	var res = '#';
 	for (var i = 1; i < 7; i+=2) {
 		var newVal = 255 - parseInt('0x' + color.substr(i, 2), 16);
 		res += newVal.toString(16);
@@ -62,19 +92,17 @@ function getLanguageMappings() {
 	var allExtensions = fs.readdirSync('..');
 	for (var i= 0; i < allExtensions.length; i++) {
 		let dirPath = path.join('..', allExtensions[i], 'package.json');
-		if (!fs.lstatSync(path.join('..', allExtensions[i])).isDirectory() ||  !fs.lstatSync(dirPath).isFile()) {
-			continue;
-		}
-
-		let content = fs.readFileSync(dirPath).toString();
-		let jsonContent = JSON.parse(content);
-		let languages = jsonContent.contributes && jsonContent.contributes.languages;
-		if (Array.isArray(languages)) {
-			for (var k = 0; k < languages.length; k++) {
-				var extensions = languages[k].extensions;
-				var languageId = languages[k].id;
-				if (Array.isArray(extensions) && languageId) {
-					langToExt[languageId] = extensions.map(function (e) { return e.substr(1); });
+		if (fs.existsSync(dirPath)) {
+			let content = fs.readFileSync(dirPath).toString();
+			let jsonContent = JSON.parse(content);
+			let languages = jsonContent.contributes && jsonContent.contributes.languages;
+			if (Array.isArray(languages)) {
+				for (var k = 0; k < languages.length; k++) {
+					var extensions = languages[k].extensions;
+					var languageId = languages[k].id;
+					if (Array.isArray(extensions) && languageId) {
+						langToExt[languageId] = extensions.map(function (e) { return e.substr(1); });
+					}
 				}
 			}
 		}
@@ -83,6 +111,10 @@ function getLanguageMappings() {
 	return langToExt;
 }
 
+exports.copyFont = function() {
+	var fontURI = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
+	return downloadBinary(fontURI, './icons/seti.woff');
+};
 
 exports.update = function () {
 	var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
@@ -115,7 +147,7 @@ exports.update = function () {
 		function getInvertSet(input) {
 			var result = {};
 			for (var assoc in input) {
-				let invertDef = input[assoc] + '_light';;
+				let invertDef = input[assoc] + '_light';
 				if (iconDefinitions[invertDef]) {
 					result[assoc] = invertDef;
 				}
@@ -145,8 +177,10 @@ exports.update = function () {
 			},
 			version: 'https://github.com/jesseweed/seti-ui/commit/' + info.commitSha,
 		};
-		fs.writeFileSync('./icons/vs-seti-icon-theme.json', JSON.stringify(res, null, '\t'));
 
+		var path = './icons/vs-seti-icon-theme.json';
+		fs.writeFileSync(path, JSON.stringify(res, null, '\t'));
+		console.log('written ' + path);
 	}
 
 
@@ -166,9 +200,9 @@ exports.update = function () {
 				let def = '_' + match[2];
 				let colorId = match[3];
 				if (pattern[0] === '.') {
-					ext2Def[pattern.substr(1)] = def;
+					ext2Def[pattern.substr(1).toLowerCase()] = def;
 				} else {
-					fileName2Def[pattern] = def;
+					fileName2Def[pattern.toLowerCase()] = def;
 				}
 				def2ColorId[def] = colorId;
 			}
@@ -183,10 +217,10 @@ exports.update = function () {
 				}
 				if (preferredDef) {
 					lang2Def[lang] = preferredDef;
-					for (var i1 = 0; i1 < exts.length; i1++) {
+					for (var i2 = 0; i2 < exts.length; i2++) {
 						// remove the extention association, unless it is different from the preferred
-						if (ext2Def[exts[i1]] === preferredDef) {
-							delete ext2Def[exts[i1]];
+						if (ext2Def[exts[i2]] === preferredDef) {
+							delete ext2Def[exts[i2]];
 						}
 					}
 				}
@@ -204,6 +238,7 @@ exports.update = function () {
 						if (info) {
 							console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
 						}
+
 					} catch (e) {
 						console.error(e);
 					}
@@ -211,10 +246,10 @@ exports.update = function () {
 			});
 		});
 	}, console.error);
-}
+};
 
 if (path.basename(process.argv[1]) === 'update-icon-theme.js') {
-	exports.update();
+	exports.copyFont().then(() => exports.update());
 }
 
 

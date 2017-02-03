@@ -7,114 +7,188 @@
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
-import { Server as IPCServer, Client as IPCClient, IMessagePassingProtocol, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import Event, { Emitter, once, mapEvent } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
+import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { randomBytes } from 'crypto';
 
-function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
-	while (start < buffer.length && buffer[start] !== value) {
-		start++;
+export function generateRandomPipeName(): string {
+	const randomSuffix = randomBytes(21).toString('hex');
+	if (process.platform === 'win32') {
+		return `\\\\.\\pipe\\vscode-${randomSuffix}-sock`;
+	} else {
+		// Mac/Unix: use socket file
+		return join(tmpdir(), `vscode-${randomSuffix}.sock`);
 	}
-
-	return start;
 }
 
-class Protocol implements IMessagePassingProtocol {
+export class Protocol implements IMessagePassingProtocol {
 
-	private static Boundary = new Buffer([0]);
-	private buffer: Buffer;
+	private static _headerLen = 17;
 
-	constructor(private socket: Socket) {
-		this.buffer = null;
+	private _onMessage = new Emitter<any>();
+
+	readonly onMessage: Event<any> = this._onMessage.event;
+
+	constructor(private _socket: Socket) {
+
+		let chunks = [];
+		let totalLength = 0;
+
+		const state = {
+			readHead: true,
+			bodyIsJson: false,
+			bodyLen: -1,
+		};
+
+		_socket.on('data', (data: Buffer) => {
+
+			chunks.push(data);
+			totalLength += data.length;
+
+			while (totalLength > 0) {
+
+				if (state.readHead) {
+					// expecting header -> read 17bytes for header
+					// information: `bodyIsJson` and `bodyLen`
+					if (totalLength >= Protocol._headerLen) {
+						const all = Buffer.concat(chunks);
+
+						state.bodyIsJson = all.readInt8(0) === 1;
+						state.bodyLen = all.readInt32BE(1);
+						state.readHead = false;
+
+						const rest = all.slice(Protocol._headerLen);
+						totalLength = rest.length;
+						chunks = [rest];
+
+					} else {
+						break;
+					}
+				}
+
+				if (!state.readHead) {
+					// expecting body -> read bodyLen-bytes for
+					// the actual message or wait for more data
+					if (totalLength >= state.bodyLen) {
+
+						const all = Buffer.concat(chunks);
+						let message = all.toString('utf8', 0, state.bodyLen);
+						if (state.bodyIsJson) {
+							message = JSON.parse(message);
+						}
+						this._onMessage.fire(message);
+
+						const rest = all.slice(state.bodyLen);
+						totalLength = rest.length;
+						chunks = [rest];
+
+						state.bodyIsJson = false;
+						state.bodyLen = -1;
+						state.readHead = true;
+
+					} else {
+						break;
+					}
+				}
+			}
+		});
 	}
 
 	public send(message: any): void {
-		try {
-			this.socket.write(JSON.stringify(message));
-			this.socket.write(Protocol.Boundary);
-		} catch (e) {
-			// noop
+
+		// [bodyIsJson|bodyLen|message]
+		// |^header^^^^^^^^^^^|^data^^]
+
+		const header = Buffer.alloc(Protocol._headerLen);
+
+		// ensure string
+		if (typeof message !== 'string') {
+			message = JSON.stringify(message);
+			header.writeInt8(1, 0);
 		}
+		const data = Buffer.from(message);
+		header.writeInt32BE(data.length, 1);
+
+		this._writeSoon(header, data);
 	}
 
-	public onMessage(callback: (message: any) => void): void {
-		this.socket.on('data', (data: Buffer) => {
-			let lastIndex = 0;
-			let index = 0;
+	private _writeBuffer = new class {
 
-			while ((index = bufferIndexOf(data, 0, lastIndex)) < data.length) {
-				const dataToParse = data.slice(lastIndex, index);
+		private _data: Buffer[] = [];
+		private _totalLength = 0;
 
-				if (this.buffer) {
-					callback(JSON.parse(Buffer.concat([this.buffer, dataToParse]).toString('utf8')));
-					this.buffer = null;
-				} else {
-					callback(JSON.parse(dataToParse.toString('utf8')));
+		add(head: Buffer, body: Buffer): boolean {
+			const wasEmpty = this._totalLength === 0;
+			this._data.push(head, body);
+			this._totalLength += head.length + body.length;
+			return wasEmpty;
+		}
+
+		take(): Buffer {
+			const ret = Buffer.concat(this._data, this._totalLength);
+			this._data.length = 0;
+			this._totalLength = 0;
+			return ret;
+		}
+	};
+
+	private _writeSoon(header: Buffer, data: Buffer): void {
+		if (this._writeBuffer.add(header, data)) {
+			setImmediate(() => {
+				// return early if socket has been destroyed in the meantime
+				if (this._socket.destroyed) {
+					return;
 				}
-
-				lastIndex = index + 1;
-			}
-
-			if (index - lastIndex > 0) {
-				const dataToBuffer = data.slice(lastIndex, index);
-
-				if (this.buffer) {
-					this.buffer = Buffer.concat([this.buffer, dataToBuffer]);
-				} else {
-					this.buffer = dataToBuffer;
-				}
-			}
-		});
+				// we ignore the returned value from `write` because we would have to cached the data
+				// anyways and nodejs is already doing that for us:
+				// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
+				// > However, the false return value is only advisory and the writable stream will unconditionally
+				// > accept and buffer chunk even if it has not not been allowed to drain.
+				this._socket.write(this._writeBuffer.take());
+			});
+		}
 	}
 }
 
-export class Server implements IServer, IDisposable {
+export class Server extends IPCServer {
 
-	private channels: { [name: string]: IChannel };
+	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
+		const onConnection = fromEventEmitter<Socket>(server, 'connection');
 
-	constructor(private server: NetServer) {
-		this.channels = Object.create(null);
-
-		this.server.on('connection', (socket: Socket) => {
-			const ipcServer = new IPCServer(new Protocol(socket));
-
-			Object.keys(this.channels)
-				.forEach(name => ipcServer.registerChannel(name, this.channels[name]));
-
-			socket.once('close', () => ipcServer.dispose());
-		});
+		return mapEvent(onConnection, socket => ({
+			protocol: new Protocol(socket),
+			onDidClientDisconnect: once(fromEventEmitter<void>(socket, 'close'))
+		}));
 	}
 
-	registerChannel(channelName: string, channel: IChannel): void {
-		this.channels[channelName] = channel;
+	constructor(private server: NetServer) {
+		super(Server.toClientConnectionEvent(server));
 	}
 
 	dispose(): void {
-		this.channels = null;
+		super.dispose();
 		this.server.close();
 		this.server = null;
 	}
 }
 
-export class Client implements IClient, IDisposable {
+export class Client extends IPCClient {
 
-	private ipcClient: IPCClient;
 	private _onClose = new Emitter<void>();
 	get onClose(): Event<void> { return this._onClose.event; }
 
-	constructor(private socket: Socket) {
-		this.ipcClient = new IPCClient(new Protocol(socket));
+	constructor(private socket: Socket, id: string) {
+		super(new Protocol(socket), id);
 		socket.once('close', () => this._onClose.fire());
 	}
 
-	getChannel<T extends IChannel>(channelName: string): T {
-		return this.ipcClient.getChannel(channelName) as T;
-	}
-
 	dispose(): void {
+		super.dispose();
 		this.socket.end();
 		this.socket = null;
-		this.ipcClient = null;
 	}
 }
 
@@ -132,13 +206,13 @@ export function serve(hook: any): TPromise<Server> {
 	});
 }
 
-export function connect(port: number): TPromise<Client>;
-export function connect(namedPipe: string): TPromise<Client>;
-export function connect(hook: any): TPromise<Client> {
+export function connect(port: number, clientId: string): TPromise<Client>;
+export function connect(namedPipe: string, clientId: string): TPromise<Client>;
+export function connect(hook: any, clientId: string): TPromise<Client> {
 	return new TPromise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(new Client(socket));
+			c(new Client(socket, clientId));
 		});
 
 		socket.once('error', e);

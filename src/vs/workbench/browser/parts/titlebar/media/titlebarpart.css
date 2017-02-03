@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .part.titlebar {
+	box-sizing: border-box;
+	width: 100%;
+	font-size: 12px;
+	padding: 0 70px;
+	overflow: hidden;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	-webkit-user-select: none;
+	-webkit-app-region: drag;
+	zoom: 1; /* prevent zooming */
+	line-height: 22px;
+	height: 22px;
+	display: flex;
+}
+
+.monaco-workbench > .part.titlebar > .window-title {
+	flex: 0 1 auto;
+	overflow: hidden;
+	white-space: nowrap;
+	line-height: 22px;
+	text-overflow: ellipsis;
+	-webkit-app-region: drag;
+	zoom: 1; /* prevent zooming */
+}
+
+/* Theming */
+
+.vs .monaco-workbench > .part.titlebar {
+	background: #ddd;
+	color: #333333;
+}
+
+.vs .monaco-workbench > .part.titlebar.blurred {
+	opacity: 0.6;
+}
+
+.vs-dark .monaco-workbench > .part.titlebar {
+	background: #3c3c3c;
+	color: #ccc;
+}
+
+.vs-dark .monaco-workbench > .part.titlebar.blurred > .window-title {
+	opacity: 0.6;
+}
+
+.hc-black .monaco-workbench > .part.titlebar {
+	background: #000;
+	color: white;
+}

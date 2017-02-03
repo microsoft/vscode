@@ -5,7 +5,6 @@ import { Stream } from 'stream';
 import File = require('vinyl');
 import * as sm from 'source-map';
 import assign = require('object-assign');
-import clone = require('clone');
 import path = require('path');
 
 declare class FileSourceMap extends File {
@@ -38,6 +37,14 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 	return result;
 }
 
+function clone<T>(object:T): T {
+	var result = <T>{};
+	for (var id in object) {
+		result[id] = object[id];
+	}
+	return result;
+}
+
 function template(lines: string[]): string {
 	let indent = '', wrap = '';
 
@@ -55,7 +62,7 @@ define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap }]);`;
 /**
  * Returns a stream containing the patched JavaScript and source maps.
  */
-function nls(): Stream {
+function nls(): NodeJS.ReadWriteStream {
 	var input = through();
 	var output = input.pipe(through(function (f: FileSourceMap) {
 		if (!f.sourceMap) {

@@ -7,24 +7,25 @@
 
 import 'vs/css!./media/statusbarpart';
 import dom = require('vs/base/browser/dom');
-import types = require('vs/base/common/types');
 import nls = require('vs/nls');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {Builder, $} from 'vs/base/browser/builder';
-import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import {Registry} from 'vs/platform/platform';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IAction} from 'vs/base/common/actions';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Part} from 'vs/workbench/browser/part';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IStatusbarService, IStatusbarEntry} from 'vs/platform/statusbar/common/statusbar';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { Registry } from 'vs/platform/platform';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Part } from 'vs/workbench/browser/part';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Action } from 'vs/base/common/actions';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -41,7 +42,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(id);
+		super(id, { hasTitle: false });
 
 		this.toDispose = [];
 	}
@@ -49,17 +50,17 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
 
 		// Render entry in status bar
-		let el = this.doCreateStatusItem(alignment, priority);
-		let item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
-		let toDispose = item.render(el);
+		const el = this.doCreateStatusItem(alignment, priority);
+		const item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
+		const toDispose = item.render(el);
 
 		// Insert according to priority
-		let container = this.statusItemsContainer.getHTMLElement();
-		let neighbours = this.getEntries(alignment);
+		const container = this.statusItemsContainer.getHTMLElement();
+		const neighbours = this.getEntries(alignment);
 		let inserted = false;
 		for (let i = 0; i < neighbours.length; i++) {
-			let neighbour = neighbours[i];
-			let nPriority = $(neighbour).getProperty(StatusbarPart.PRIORITY_PROP);
+			const neighbour = neighbours[i];
+			const nPriority = $(neighbour).getProperty(StatusbarPart.PRIORITY_PROP);
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||
 				alignment === StatusbarAlignment.RIGHT && nPriority > priority
@@ -86,12 +87,12 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private getEntries(alignment: StatusbarAlignment): HTMLElement[] {
-		let entries: HTMLElement[] = [];
+		const entries: HTMLElement[] = [];
 
-		let container = this.statusItemsContainer.getHTMLElement();
-		let children = container.children;
+		const container = this.statusItemsContainer.getHTMLElement();
+		const children = container.children;
 		for (let i = 0; i < children.length; i++) {
-			let childElement = <HTMLElement>children.item(i);
+			const childElement = <HTMLElement>children.item(i);
 			if ($(childElement).getProperty(StatusbarPart.ALIGNMENT_PROP) === alignment) {
 				entries.push(childElement);
 			}
@@ -104,18 +105,18 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.statusItemsContainer = $(parent);
 
 		// Fill in initial items that were contributed from the registry
-		let registry = (<IStatusbarRegistry>Registry.as(Extensions.Statusbar));
+		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
 
-		let leftDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.LEFT).sort((a, b) => b.priority - a.priority);
-		let rightDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.RIGHT).sort((a, b) => a.priority - b.priority);
+		const leftDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.LEFT).sort((a, b) => b.priority - a.priority);
+		const rightDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.RIGHT).sort((a, b) => a.priority - b.priority);
 
-		let descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
+		const descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
 
 		this.toDispose.push(...descriptors.map(descriptor => {
-			let item = this.instantiationService.createInstance(descriptor.syncDescriptor);
-			let el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
+			const item = this.instantiationService.createInstance(descriptor.syncDescriptor);
+			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
-			let dispose = item.render(el);
+			const dispose = item.render(el);
 			this.statusItemsContainer.append(el);
 
 			return dispose;
@@ -125,7 +126,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
-		let el = document.createElement('div');
+		const el = document.createElement('div');
 		dom.addClass(el, 'statusbar-item');
 
 		if (alignment === StatusbarAlignment.RIGHT) {
@@ -185,6 +186,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 }
 
+let manageExtensionAction: ManageExtensionAction;
 class StatusBarEntryItem implements IStatusbarItem {
 	private entry: IStatusbarEntry;
 
@@ -194,9 +196,14 @@ class StatusBarEntryItem implements IStatusbarItem {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		this.entry = entry;
+
+		if (!manageExtensionAction) {
+			manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+		}
 	}
 
 	public render(el: HTMLElement): IDisposable {
@@ -226,6 +233,19 @@ class StatusBarEntryItem implements IStatusbarItem {
 			$(textContainer).color(this.entry.color);
 		}
 
+		// Context Menu
+		if (this.entry.extensionId) {
+			$(textContainer).on('contextmenu', e => {
+				dom.EventHelper.stop(e, true);
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => el,
+					getActionsContext: () => this.entry.extensionId,
+					getActions: () => TPromise.as([manageExtensionAction])
+				});
+			}, toDispose);
+		}
+
 		el.appendChild(textContainer);
 
 		return {
@@ -236,43 +256,45 @@ class StatusBarEntryItem implements IStatusbarItem {
 	}
 
 	private executeCommand(id: string) {
-		let action: IAction;
-		let activeEditor = this.editorService.getActiveEditor();
 
 		// Lookup built in commands
-		let builtInActionDescriptor = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).getWorkbenchAction(id);
+		const builtInActionDescriptor = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchAction(id);
 		if (builtInActionDescriptor) {
-			action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
-		}
+			const action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
 
-		// Lookup editor commands
-		if (!action) {
-			let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
-			if (activeEditorControl && types.isFunction(activeEditorControl.getAction)) {
-				action = activeEditorControl.getAction(id);
-			}
-		}
-
-		// Some actions or commands might only be enabled for an active editor, so focus it first
-		if (activeEditor) {
-			activeEditor.focus();
-		}
-
-		// Run it if enabled
-		if (action) {
 			if (action.enabled) {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
 				(action.run() || TPromise.as(null)).done(() => {
 					action.dispose();
 				}, (err) => this.messageService.show(Severity.Error, toErrorMessage(err)));
 			} else {
-				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' can not be run from here.", action.label || id));
+				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' is currently not enabled and can not be run.", action.label || id));
 			}
+
+			return;
 		}
 
-		// Fallback to the keybinding service for any other case
-		else {
-			this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+		// Maintain old behaviour of always focusing the editor here
+		const activeEditor = this.editorService.getActiveEditor();
+		const codeEditor = getCodeEditor(activeEditor);
+		if (codeEditor) {
+			codeEditor.focus();
 		}
+
+		// Fallback to the command service for any other case
+		this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+	}
+}
+
+class ManageExtensionAction extends Action {
+
+	constructor(
+		@ICommandService private commandService: ICommandService
+	) {
+		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
+	}
+
+	public run(extensionId: string): TPromise<any> {
+		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }

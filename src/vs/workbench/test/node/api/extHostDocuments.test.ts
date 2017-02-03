@@ -7,9 +7,9 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
-import {Position} from 'vs/workbench/api/node/extHostTypes';
-import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
+import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
+import { Position } from 'vs/workbench/api/node/extHostTypes';
+import { Range as CodeEditorRange } from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 
@@ -29,7 +29,7 @@ suite('ExtHostDocument', () => {
 		assert.equal(actual, offset);
 	}
 
-	setup(function() {
+	setup(function () {
 		data = new ExtHostDocumentData(undefined, URI.file(''), [
 			'This is line one', //16
 			'and this is line number two', //27
@@ -38,20 +38,18 @@ suite('ExtHostDocument', () => {
 		], '\n', 'text', 1, false);
 	});
 
-	test('readonly-ness', function() {
-
-		assert.throws(() => data.document.uri = null);
-		assert.throws(() => data.document.fileName = 'foofile');
-		assert.throws(() => data.document.isDirty = false);
-		assert.throws(() => data.document.isUntitled = false);
-		assert.throws(() => data.document.languageId = 'dddd');
-		assert.throws(() => data.document.lineCount = 9);
+	test('readonly-ness', function () {
+		assert.throws(() => (<any>data).document.uri = null);
+		assert.throws(() => (<any>data).document.fileName = 'foofile');
+		assert.throws(() => (<any>data).document.isDirty = false);
+		assert.throws(() => (<any>data).document.isUntitled = false);
+		assert.throws(() => (<any>data).document.languageId = 'dddd');
+		assert.throws(() => (<any>data).document.lineCount = 9);
 	});
 
-	test('lines', function() {
+	test('lines', function () {
 
 		assert.equal(data.document.lineCount, 4);
-		assert.throws(() => data.document.lineCount = 9);
 
 		assert.throws(() => data.lineAt(-1));
 		assert.throws(() => data.lineAt(data.document.lineCount));
@@ -105,7 +103,7 @@ suite('ExtHostDocument', () => {
 
 	});
 
-	test('offsetAt', function() {
+	test('offsetAt', function () {
 		assertOffsetAt(0, 0, 0);
 		assertOffsetAt(0, 1, 1);
 		assertOffsetAt(0, 16, 16);
@@ -120,7 +118,7 @@ suite('ExtHostDocument', () => {
 		assertOffsetAt(Number.MAX_VALUE, Number.MAX_VALUE, 95);
 	});
 
-	test('offsetAt, after remove', function() {
+	test('offsetAt, after remove', function () {
 
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
@@ -137,7 +135,7 @@ suite('ExtHostDocument', () => {
 		assertOffsetAt(1, 0, 14);
 	});
 
-	test('offsetAt, after replace', function() {
+	test('offsetAt, after replace', function () {
 
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
@@ -154,7 +152,7 @@ suite('ExtHostDocument', () => {
 		assertOffsetAt(1, 0, 25);
 	});
 
-	test('offsetAt, after insert line', function() {
+	test('offsetAt, after insert line', function () {
 
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
@@ -174,7 +172,7 @@ suite('ExtHostDocument', () => {
 		assertOffsetAt(2, 0, 13 + 1 + 29 + 1);
 	});
 
-	test('offsetAt, after remove line', function() {
+	test('offsetAt, after remove line', function () {
 
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
@@ -191,7 +189,7 @@ suite('ExtHostDocument', () => {
 		assertOffsetAt(1, 0, 25);
 	});
 
-	test('positionAt', function() {
+	test('positionAt', function () {
 		assertPositionAt(0, 0, 0);
 		assertPositionAt(Number.MIN_VALUE, 0, 0);
 		assertPositionAt(1, 0, 1);
@@ -204,6 +202,40 @@ suite('ExtHostDocument', () => {
 		assertPositionAt(99, 3, 29);
 		assertPositionAt(Number.MAX_VALUE, 3, 29);
 	});
+
+	test('getWordRangeAtPosition', function () {
+		data = new ExtHostDocumentData(undefined, URI.file(''), [
+			'aaaa bbbb+cccc abc'
+		], '\n', 'text', 1, false);
+
+		let range = data.getWordRangeAtPosition(new Position(0, 2));
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 0);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 4);
+
+		// ignore bad regular expresson /.*/
+		range = data.getWordRangeAtPosition(new Position(0, 2), /.*/);
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 0);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 4);
+
+		range = data.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/);
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 5);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 14);
+
+		range = data.getWordRangeAtPosition(new Position(0, 17), /[a-z+]+/);
+		assert.equal(range.start.line, 0);
+		assert.equal(range.start.character, 15);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.end.character, 18);
+
+		range = data.getWordRangeAtPosition(new Position(0, 11), /yy/);
+		assert.equal(range, undefined);
+	});
 });
 
 enum AssertDocumentLineMappingDirection {
@@ -213,17 +245,17 @@ enum AssertDocumentLineMappingDirection {
 
 suite('ExtHostDocument updates line mapping', () => {
 
-	function positionToStr(position: { line: number; character: number;}): string {
+	function positionToStr(position: { line: number; character: number; }): string {
 		return '(' + position.line + ',' + position.character + ')';
 	}
 
-	function assertDocumentLineMapping(doc:ExtHostDocumentData, direction:AssertDocumentLineMappingDirection): void {
+	function assertDocumentLineMapping(doc: ExtHostDocumentData, direction: AssertDocumentLineMappingDirection): void {
 		let allText = doc.getText();
 
 		let line = 0, character = 0, previousIsCarriageReturn = false;
 		for (let offset = 0; offset <= allText.length; offset++) {
 			// The position coordinate system cannot express the position between \r and \n
-			let	position = new Position(line, character + (previousIsCarriageReturn ? -1 : 0));
+			let position = new Position(line, character + (previousIsCarriageReturn ? -1 : 0));
 
 			if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
 				let actualPosition = doc.positionAt(offset);
@@ -246,7 +278,7 @@ suite('ExtHostDocument updates line mapping', () => {
 		}
 	}
 
-	function createChangeEvent(range:CodeEditorRange, text:string, eol?:string): EditorCommon.IModelContentChangedEvent2 {
+	function createChangeEvent(range: CodeEditorRange, text: string, eol?: string): EditorCommon.IModelContentChangedEvent2 {
 		return {
 			range: range,
 			text: text,
@@ -258,7 +290,7 @@ suite('ExtHostDocument updates line mapping', () => {
 		};
 	}
 
-	function testLineMappingDirectionAfterEvents(lines:string[], eol: string, direction:AssertDocumentLineMappingDirection, events:EditorCommon.IModelContentChangedEvent2[]): void {
+	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, events: EditorCommon.IModelContentChangedEvent2[]): void {
 		let myDocument = new ExtHostDocumentData(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
 		assertDocumentLineMapping(myDocument, direction);
 
@@ -266,7 +298,7 @@ suite('ExtHostDocument updates line mapping', () => {
 		assertDocumentLineMapping(myDocument, direction);
 	}
 
-	function testLineMappingAfterEvents(lines:string[], events:EditorCommon.IModelContentChangedEvent2[]): void {
+	function testLineMappingAfterEvents(lines: string[], events: EditorCommon.IModelContentChangedEvent2[]): void {
 		testLineMappingDirectionAfterEvents(lines, '\n', AssertDocumentLineMappingDirection.PositionToOffset, events);
 		testLineMappingDirectionAfterEvents(lines, '\n', AssertDocumentLineMappingDirection.OffsetToPosition, events);
 

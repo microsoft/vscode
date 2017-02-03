@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "첫 번째 텍스트 파일을 열어서 줄로 이동합니다.",
 	"gotoLine": "줄 이동...",
-	"gotoLineColumnLabel": "줄 {0} 및 열 {1}(으)로 이동",
+	"gotoLineColumnLabel": "줄 {0} 및 문자 {1}(으)로 이동",
 	"gotoLineHandlerAriaLabel": "이동할 줄 번호를 입력합니다.",
 	"gotoLineLabel": "줄 {0}(으)로 이동",
 	"gotoLineLabelEmpty": "이동할 줄 번호 입력",

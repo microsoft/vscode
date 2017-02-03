@@ -15,7 +15,7 @@ export interface IMarcoPoloEvent {
 export interface ITestService {
 	onMarco: Event<IMarcoPoloEvent>;
 	marco(): TPromise<string>;
-	pong(ping:string): TPromise<{ incoming:string, outgoing:string }>;
+	pong(ping: string): TPromise<{ incoming: string, outgoing: string }>;
 	cancelMe(): TPromise<boolean>;
 	batchPerf(batches: number, size: number, dataSize: number): PPromise<any, any[]>;
 }
@@ -32,7 +32,7 @@ export class TestService implements ITestService {
 		return TPromise.as('polo');
 	}
 
-	pong(ping:string): TPromise<{ incoming:string, outgoing:string }> {
+	pong(ping: string): TPromise<{ incoming: string, outgoing: string }> {
 		return TPromise.as({ incoming: ping, outgoing: 'pong' });
 	}
 
@@ -41,7 +41,7 @@ export class TestService implements ITestService {
 	}
 
 	batchPerf(batches: number, size: number, dataSize: number): PPromise<any, any[]> {
-		while(this._data.length < dataSize) {
+		while (this._data.length < dataSize) {
 			this._data += this._data;
 		}
 		const self = this;
@@ -104,7 +104,7 @@ export class TestServiceClient implements ITestService {
 		return this.channel.call('marco');
 	}
 
-	pong(ping:string): TPromise<{ incoming:string, outgoing:string }> {
+	pong(ping: string): TPromise<{ incoming: string, outgoing: string }> {
 		return this.channel.call('pong', ping);
 	}
 

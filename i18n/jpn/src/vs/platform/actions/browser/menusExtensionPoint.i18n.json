@@ -8,6 +8,7 @@
 	"dupe.command": "メニュー項目において、既定と alt コマンドが同じコマンドを参照しています",
 	"menuId.invalid": "`{0}` は有効なメニュー識別子ではありません",
 	"menus.editorContext": "エディターのコンテキスト メニュー",
+	"menus.editorTabContext": "エディターのタブのコンテキスト メニュー",
 	"menus.editorTitle": "エディターのタイトル メニュー",
 	"menus.explorerContext": "エクスプローラーのコンテキスト メニュー",
 	"missing.altCommand": "メニュー項目が、'commands' セクションで定義されていない alt コマンド `{0}` を参照しています。",

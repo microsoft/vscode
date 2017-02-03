@@ -78,7 +78,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Pr
 }
 
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): Promise {
-	const sourcePathRegex = new RegExp(options.sourcePath ? `^${ options.sourcePath }` : '');
+	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = nfcall<ZipFile>(openZip, zipPath);
 
@@ -106,7 +106,7 @@ function read(zipPath: string, filePath: string): TPromise<Readable> {
 export function buffer(zipPath: string, filePath: string): TPromise<Buffer> {
 	return read(zipPath, filePath).then(stream => {
 		return new TPromise<Buffer>((c, e) => {
-			const buffers = [];
+			const buffers: Buffer[] = [];
 			stream.once('error', e);
 			stream.on('data', b => buffers.push(b));
 			stream.on('end', () => c(Buffer.concat(buffers)));

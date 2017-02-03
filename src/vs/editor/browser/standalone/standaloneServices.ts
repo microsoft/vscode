@@ -4,49 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Disposable} from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ContextMenuService} from 'vs/platform/contextview/browser/contextMenuService';
-import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
-import {IEventService} from 'vs/platform/event/common/event';
-import {EventService} from 'vs/platform/event/common/eventService';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {createDecorator, IInstantiationService, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IProgressService} from 'vs/platform/progress/common/progress';
-import {IStorageService, NullStorageService} from 'vs/platform/storage/common/storage';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {
-	SimpleConfigurationService, SimpleMessageService, SimpleExtensionService,
-	StandaloneKeybindingService, StandaloneCommandService, SimpleProgressService
+	SimpleConfigurationService, SimpleMenuService, SimpleMessageService,
+	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
+	StandaloneTelemetryService
 } from 'vs/editor/browser/standalone/simpleServices';
-import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
-import {IMenuService} from 'vs/platform/actions/common/actions';
-import {MenuService} from 'vs/platform/actions/common/menuService';
-import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
-import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { StandaloneColorServiceImpl } from 'vs/editor/browser/services/standaloneColorServiceImpl';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
-	setContainer(domNode:HTMLElement): void;
+	setContainer(domNode: HTMLElement): void;
 }
 
 export interface IEditorOverrideServices {
@@ -63,7 +60,7 @@ export module StaticServices {
 
 		public get id() { return this._serviceId; }
 
-		constructor(serviceId:ServiceIdentifier<T>, factory:(overrides: IEditorOverrideServices) => T) {
+		constructor(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices) => T) {
 			this._serviceId = serviceId;
 			this._factory = factory;
 			this._value = null;
@@ -88,7 +85,7 @@ export module StaticServices {
 
 	let _all: LazyStaticService<any>[] = [];
 
-	function define<T>(serviceId:ServiceIdentifier<T>, factory:(overrides: IEditorOverrideServices) => T): LazyStaticService<T> {
+	function define<T>(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices) => T): LazyStaticService<T> {
 		let r = new LazyStaticService(serviceId, factory);
 		_all.push(r);
 		return r;
@@ -121,31 +118,27 @@ export module StaticServices {
 		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
 	}));
 
-	export const telemetryService = define(ITelemetryService, () => NullTelemetryService);
-
-	export const eventService = define(IEventService, () => new EventService());
+	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 
 	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
 
 	export const messageService = define(IMessageService, () => new SimpleMessageService());
 
-	export const extensionService = define(IExtensionService, () => new SimpleExtensionService());
-
 	export const markerService = define(IMarkerService, () => new MarkerService());
 
-	export const modeService = define(IModeService, (o) => new MainThreadModeServiceImpl(instantiationService.get(o), extensionService.get(o), configurationService.get(o)));
+	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), messageService.get(o)));
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o)));
 
-	export const compatWorkerService = define(ICompatWorkerService, (o) => new MainThreadCompatWorkerService(modelService.get(o)));
-
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o)));
 
 	export const codeEditorService = define(ICodeEditorService, () => new CodeEditorServiceImpl());
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
 	export const storageService = define(IStorageService, () => NullStorageService);
+
+	export const standaloneColorService = define(IStandaloneColorService, () => new StandaloneColorServiceImpl());
 }
 
 export class DynamicStandaloneServices extends Disposable {
@@ -153,7 +146,7 @@ export class DynamicStandaloneServices extends Disposable {
 	private _serviceCollection: ServiceCollection;
 	private _instantiationService: IInstantiationService;
 
-	constructor(domElement:HTMLElement, overrides: IEditorOverrideServices) {
+	constructor(domElement: HTMLElement, overrides: IEditorOverrideServices) {
 		super();
 
 		const [_serviceCollection, _instantiationService] = StaticServices.init(overrides);
@@ -161,12 +154,11 @@ export class DynamicStandaloneServices extends Disposable {
 		this._instantiationService = _instantiationService;
 
 		const configurationService = this.get(IConfigurationService);
-		const extensionService = this.get(IExtensionService);
 		const messageService = this.get(IMessageService);
 		const telemetryService = this.get(ITelemetryService);
 
-		let ensure = <T>(serviceId:ServiceIdentifier<T>, factory:() => T): T => {
-			let value:T = null;
+		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
+			let value: T = null;
 			if (overrides) {
 				value = overrides[serviceId.toString()];
 			}
@@ -179,7 +171,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
-		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService, extensionService));
+		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 
 		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, messageService, domElement)));
 
@@ -187,10 +179,10 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, messageService, contextViewService)));
 
-		ensure(IMenuService, () => new MenuService(extensionService, commandService));
+		ensure(IMenuService, () => new SimpleMenuService(commandService));
 	}
 
-	public get<T>(serviceId:ServiceIdentifier<T>): T {
+	public get<T>(serviceId: ServiceIdentifier<T>): T {
 		let r = <T>this._serviceCollection.get(serviceId);
 		if (!r) {
 			throw new Error('Missing service ' + serviceId);
@@ -198,11 +190,11 @@ export class DynamicStandaloneServices extends Disposable {
 		return r;
 	}
 
-	public set<T>(serviceId:ServiceIdentifier<T>, instance: T): void {
+	public set<T>(serviceId: ServiceIdentifier<T>, instance: T): void {
 		this._serviceCollection.set(serviceId, instance);
 	}
 
-	public has<T>(serviceId:ServiceIdentifier<T>): boolean {
+	public has<T>(serviceId: ServiceIdentifier<T>): boolean {
 		return this._serviceCollection.has(serviceId);
 	}
 }

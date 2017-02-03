@@ -31,9 +31,17 @@ export interface IRequestOptions {
 }
 
 export interface IRequestContext {
-	req: http.ClientRequest;
-	res: http.ClientResponse;
+	// req: http.ClientRequest;
+	// res: http.ClientResponse;
+	res: {
+		headers: { [n: string]: string };
+		statusCode?: number;
+	};
 	stream: Stream;
+}
+
+export interface IRequestFunction {
+	(options: IRequestOptions): TPromise<IRequestContext>;
 }
 
 export function request(options: IRequestOptions): TPromise<IRequestContext> {
@@ -41,7 +49,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 	return new TPromise<IRequestContext>((c, e) => {
 		const endpoint = parseUrl(options.url);
-		const protocol = endpoint.protocol === 'https:' ? https : http;
+		const rawRequest = endpoint.protocol === 'https:' ? https.request : http.request;
 		const opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
@@ -56,14 +64,14 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 			opts.auth = options.user + ':' + options.password;
 		}
 
-		req = protocol.request(opts, (res: http.ClientResponse) => {
+		req = rawRequest(opts, (res: http.ClientResponse) => {
 			const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : 3;
 
 			if (res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
-				c(<any> request(assign({}, options, {
+				request(assign({}, options, {
 					url: res.headers['location'],
 					followRedirects: followRedirects - 1
-				})));
+				})).done(c, e);
 			} else {
 				let stream: Stream = res;
 
@@ -71,7 +79,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 					stream = stream.pipe(createGunzip());
 				}
 
-				c({ req, res, stream });
+				c({ res, stream });
 			}
 		});
 
@@ -87,7 +95,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 		req.end();
 	},
-	() => req && req.abort());
+		() => req && req.abort());
 }
 
 function isSuccess(context: IRequestContext): boolean {

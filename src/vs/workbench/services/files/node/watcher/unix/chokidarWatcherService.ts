@@ -11,9 +11,9 @@ import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {FileChangeType} from 'vs/platform/files/common/files';
-import {ThrottledDelayer} from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
 import watcher = require('vs/workbench/services/files/node/watcher/common');
 import { IWatcherRequest, IWatcherService } from './watcher';
@@ -23,8 +23,8 @@ export class ChokidarWatcherService implements IWatcherService {
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
-	private spamCheckStartTime:number;
-	private spamWarningLogged:boolean;
+	private spamCheckStartTime: number;
+	private spamWarningLogged: boolean;
 
 	public watch(request: IWatcherRequest): TPromise<void> {
 		const watcherOpts: chokidar.IOptions = {
@@ -56,26 +56,17 @@ export class ChokidarWatcherService implements IWatcherService {
 
 				// Change
 				if (type === 'change') {
-					event = {
-						type: 0,
-						path: path
-					};
+					event = { type: 0, path };
 				}
 
 				// Add
 				else if (type === 'add' || type === 'addDir') {
-					event = {
-						type: 1,
-						path: path
-					};
+					event = { type: 1, path };
 				}
 
 				// Delete
 				else if (type === 'unlink' || type === 'unlinkDir') {
-					event = {
-						type: 2,
-						path: path
-					};
+					event = { type: 2, path };
 				}
 
 				if (event) {

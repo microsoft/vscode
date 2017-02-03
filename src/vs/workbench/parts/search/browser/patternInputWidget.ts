@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
 import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
-import {IExpression, splitGlobAware} from 'vs/base/common/glob';
+import { IExpression, splitGlobAware } from 'vs/base/common/glob';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { MessageType, InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';

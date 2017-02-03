@@ -6,7 +6,7 @@
 
 import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
-import {IAction} from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -27,7 +27,7 @@ export class ErrorHandler {
 
 		this.listeners = [];
 
-		this.unexpectedErrorHandler = function(e: any) {
+		this.unexpectedErrorHandler = function (e: any) {
 			platform.setTimeout(() => {
 				if (e.stack) {
 					throw new Error(e.message + '\n\n' + e.stack);
@@ -68,6 +68,11 @@ export class ErrorHandler {
 		this.unexpectedErrorHandler(e);
 		this.emit(e);
 	}
+
+	// For external errors, we don't want the listeners to be called
+	public onUnexpectedExternalError(e: any): void {
+		this.unexpectedErrorHandler(e);
+	}
 }
 
 export let errorHandler = new ErrorHandler();
@@ -81,6 +86,14 @@ export function onUnexpectedError(e: any): void {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedError(e);
+	}
+}
+
+export function onUnexpectedExternalError(e: any): void {
+
+	// ignore errors from cancelled promises
+	if (!isPromiseCanceledError(e)) {
+		errorHandler.onUnexpectedExternalError(e);
 	}
 }
 
@@ -168,4 +181,20 @@ export function create(message: string, options: IErrorOptions = {}): Error {
 	}
 
 	return result;
+}
+
+export function getErrorMessage(err: any): string {
+	if (!err) {
+		return 'Error';
+	}
+
+	if (err.message) {
+		return err.message;
+	}
+
+	if (err.stack) {
+		return err.stack.split('\n')[0];
+	}
+
+	return String(err);
 }

@@ -11,7 +11,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IGitService, ServiceState, IBranch, ServiceOperations, IRemote } from 'vs/workbench/parts/git/common/git';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SyncAction, PublishAction } from './gitActions';

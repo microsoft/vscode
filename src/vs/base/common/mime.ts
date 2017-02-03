@@ -7,13 +7,14 @@
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {match} from 'vs/base/common/glob';
+import { match } from 'vs/base/common/glob';
 
 export let MIME_TEXT = 'text/plain';
 export let MIME_BINARY = 'application/octet-stream';
 export let MIME_UNKNOWN = 'application/unknown';
 
 export interface ITextMimeAssociation {
+	id: string;
 	mime: string;
 	filename?: string;
 	extension?: string;
@@ -75,6 +76,7 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 
 function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMimeAssociationItem {
 	return {
+		id: association.id,
 		mime: association.mime,
 		filename: association.filename,
 		extension: association.extension,
@@ -141,7 +143,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let patternMatch: ITextMimeAssociationItem;
 	let extensionMatch: ITextMimeAssociationItem;
 
-	for (var i = 0; i < associations.length; i++) {
+	for (let i = 0; i < associations.length; i++) {
 		let association = associations[i];
 
 		// First exact name match
@@ -240,14 +242,14 @@ export function isUnspecific(mime: string[] | string): boolean {
 	return mime.length === 1 && isUnspecific(mime[0]);
 }
 
-export function suggestFilename(theMime: string, prefix: string): string {
-	for (var i = 0; i < registeredAssociations.length; i++) {
+export function suggestFilename(langId: string, prefix: string): string {
+	for (let i = 0; i < registeredAssociations.length; i++) {
 		let association = registeredAssociations[i];
 		if (association.userConfigured) {
 			continue; // only support registered ones
 		}
 
-		if (association.mime === theMime && association.extension) {
+		if (association.id === langId && association.extension) {
 			return prefix + association.extension;
 		}
 	}

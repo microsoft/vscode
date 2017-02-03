@@ -56,7 +56,7 @@ export function relativeComplement(one: IRange, other: IRange): IRange[] {
 	return result;
 }
 
-export function each(range: IRange, fn: (index : number) => void): void {
+export function each(range: IRange, fn: (index: number) => void): void {
 	for (let i = range.start; i < range.end; i++) {
 		fn(i);
 	}

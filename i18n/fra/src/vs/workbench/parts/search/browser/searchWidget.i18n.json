@@ -7,8 +7,8 @@
 	"label.Replace": "Remplacer : tapez le terme de remplacement, puis appuyez sur Entrée pour avoir un aperçu, ou sur Échap pour l'annuler",
 	"label.Search": "Rechercher : tapez le terme de recherche, puis appuyez sur Entrée pour lancer la recherche, ou sur Échap pour l'annuler",
 	"regexp.validationFailure": "L'expression correspond à tout",
-	"search.action.replaceAll.disabled.label": "Remplacer tout (soumettre la recherche pour activer)",
-	"search.action.replaceAll.enabled.label": "Remplacer tout",
+	"search.action.replaceAll.disabled.label": "Tout remplacer (soumettre la recherche pour activer)",
+	"search.action.replaceAll.enabled.label": "Tout remplacer",
 	"search.placeHolder": "Rechercher",
 	"search.replace.placeHolder": "Remplacer",
 	"search.replace.toggle.button.title": "Activer/désactiver le remplacement"

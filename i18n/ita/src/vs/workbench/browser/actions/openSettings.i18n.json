@@ -7,6 +7,7 @@
 	"defaultKeybindings": "Tasti di scelta rapida predefiniti",
 	"defaultKeybindingsHeader": "Per sovrascrivere i tasti di scelta rapida, inserirli nel file dei tasti di scelta rapida.",
 	"defaultName": "Impostazioni predefinite",
+	"defaultSettingsEditor": "Editor impostazioni predefinite",
 	"defaultSettingsHeader": "Per sovrascrivere le impostazioni, inserirli nel file delle impostazioni.",
 	"defaultSettingsHeader2": "Per le impostazioni più usate, vedere http://go.microsoft.com/fwlink/?LinkId=808995.",
 	"emptyKeybindingsHeader": "Inserire i tasti di scelta rapida in questo file per sovrascrivere i valori predefiniti",

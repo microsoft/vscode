@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {MarkedString, CompletionItemKind, CompletionItem, DocumentSelector} from 'vscode';
-import {IJSONContribution, ISuggestionsCollector} from './jsonContributions';
-import {XHRRequest} from 'request-light';
-import {Location} from 'jsonc-parser';
-import {textToMarkedString} from './markedTextUtil';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
+import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
+import { XHRRequest } from 'request-light';
+import { Location } from 'jsonc-parser';
+import { textToMarkedString } from './markedTextUtil';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -17,15 +17,15 @@ let LIMIT = 40;
 
 export class PackageJSONContribution implements IJSONContribution {
 
-	private mostDependedOn = [ 'lodash', 'async', 'underscore', 'request', 'commander', 'express', 'debug', 'chalk', 'colors', 'q', 'coffee-script',
-		'mkdirp', 'optimist', 'through2', 'yeoman-generator', 'moment', 'bluebird', 'glob', 'gulp-util', 'minimist', 'cheerio', 'jade', 'redis', 'node-uuid',
+	private mostDependedOn = ['lodash', 'async', 'underscore', 'request', 'commander', 'express', 'debug', 'chalk', 'colors', 'q', 'coffee-script',
+		'mkdirp', 'optimist', 'through2', 'yeoman-generator', 'moment', 'bluebird', 'glob', 'gulp-util', 'minimist', 'cheerio', 'pug', 'redis', 'node-uuid',
 		'socket', 'io', 'uglify-js', 'winston', 'through', 'fs-extra', 'handlebars', 'body-parser', 'rimraf', 'mime', 'semver', 'mongodb', 'jquery',
 		'grunt', 'connect', 'yosay', 'underscore', 'string', 'xml2js', 'ejs', 'mongoose', 'marked', 'extend', 'mocha', 'superagent', 'js-yaml', 'xtend',
 		'shelljs', 'gulp', 'yargs', 'browserify', 'minimatch', 'react', 'less', 'prompt', 'inquirer', 'ws', 'event-stream', 'inherits', 'mysql', 'esprima',
 		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
 
 	public getDocumentSelector(): DocumentSelector {
-		return  [{ language: 'json', pattern: '**/package.json' }];
+		return [{ language: 'json', pattern: '**/package.json' }];
 	}
 
 	public constructor(private xhr: XHRRequest) {
@@ -33,43 +33,43 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any> {
 		let defaultValue = {
-			'name': '{{name}}',
-			'description': '{{description}}',
-			'author': '{{author}}',
-			'version': '{{1.0.0}}',
-			'main': '{{pathToMain}}',
+			'name': '${1:name}',
+			'description': '${2:description}',
+			'authors': '${3:author}',
+			'version': '${4:1.0.0}',
+			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
 		let proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
 		proposal.kind = CompletionItemKind.Module;
-		proposal.insertText = JSON.stringify(defaultValue, null, '\t');
+		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		result.add(proposal);
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast:boolean, collector: ISuggestionsCollector) : Thenable<any> {
+	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
-			let queryUrl : string;
+			let queryUrl: string;
 			if (currentWord.length > 0) {
-				queryUrl = 'https://skimdb.npmjs.com/registry/_design/app/_view/browseAll?group_level=1&limit=' + LIMIT + '&start_key=%5B%22' + encodeURIComponent(currentWord) + '%22%5D&end_key=%5B%22'+ encodeURIComponent(currentWord + 'z') + '%22,%7B%7D%5D';
+				queryUrl = 'https://skimdb.npmjs.com/registry/_design/app/_view/browseAll?group_level=1&limit=' + LIMIT + '&start_key=%5B%22' + encodeURIComponent(currentWord) + '%22%5D&end_key=%5B%22' + encodeURIComponent(currentWord + 'z') + '%22,%7B%7D%5D';
 
 				return this.xhr({
-					url : queryUrl
+					url: queryUrl
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
 							let obj = JSON.parse(success.responseText);
 							if (obj && Array.isArray(obj.rows)) {
-								let results = <{ key: string[]; }[]> obj.rows;
+								let results = <{ key: string[]; }[]>obj.rows;
 								for (let i = 0; i < results.length; i++) {
 									let keys = results[i].key;
 									if (Array.isArray(keys) && keys.length > 0) {
 										let name = keys[0];
-										let insertText = JSON.stringify(name);
+										let insertText = new SnippetString().appendText(JSON.stringify(name));
 										if (addValue) {
-											insertText += ': "{{*}}"';
+											insertText.appendText(': "').appendPlaceholder('').appendText('"');
 											if (!isLast) {
-												insertText += ',';
+												insertText.appendText(',');
 											}
 										}
 										let proposal = new CompletionItem(name);
@@ -97,11 +97,11 @@ export class PackageJSONContribution implements IJSONContribution {
 				});
 			} else {
 				this.mostDependedOn.forEach((name) => {
-					let insertText = JSON.stringify(name);
+					let insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
-						insertText += ': "{{*}}"';
+						insertText.appendText(': "').appendPlaceholder('').appendText('"');
 						if (!isLast) {
-							insertText += ',';
+							insertText.appendText(',');
 						}
 					}
 					let proposal = new CompletionItem(name);
@@ -124,7 +124,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			if (typeof currentKey === 'string') {
 				let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey).replace('%40', '@');
 				return this.xhr({
-					url : queryUrl
+					url: queryUrl
 				}).then((success) => {
 					try {
 						let obj = JSON.parse(success.responseText);
@@ -163,7 +163,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public resolveSuggestion(item: CompletionItem) : Thenable<CompletionItem> {
+	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem> {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
 			return this.getInfo(item.label).then(infos => {
 				if (infos.length > 0) {
@@ -183,12 +183,12 @@ export class PackageJSONContribution implements IJSONContribution {
 
 		let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
 		return this.xhr({
-			url : queryUrl
+			url: queryUrl
 		}).then((success) => {
 			try {
 				let obj = JSON.parse(success.responseText);
 				if (obj) {
-					let result : string[] = [];
+					let result: string[] = [];
 					if (obj.description) {
 						result.push(obj.description);
 					}
@@ -211,13 +211,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			let pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				let htmlContent : MarkedString[] = [];
-				htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(infos => {
-					infos.forEach(info => {
-						htmlContent.push(textToMarkedString(info));
-					});
-					return htmlContent;
+					if (infos.length) {
+						return [infos.map(textToMarkedString).join('\n\n')];
+					}
+					return null;
 				});
 			}
 		}

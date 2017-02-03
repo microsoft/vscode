@@ -1,0 +1,100 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.editor.empty {
+	background-position-y: calc(50% - 100px);
+}
+
+.monaco-workbench > .part.editor > .content > .watermark {
+	display: none; /* only visible when no editors are opened */
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark {
+	display: block;
+	position: absolute;
+	width: 100%;
+	top: calc(50% + 55px);
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark > .watermark-box {
+	display: inline-table;
+	border-collapse: separate;
+	border-spacing: 13px 17px;
+}
+
+@media (min-height: 501px) {
+	.monaco-workbench > .part.editor.empty > .content > .watermark {
+		display: block;
+	}
+}
+
+@media (max-height: 500px) {
+	.monaco-workbench > .part.editor.empty > .content > .watermark {
+		display: none;
+	}
+	.monaco-workbench .part.editor.empty {
+		background-position-y: 50%;
+	}
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark dl {
+	display: table-row;
+	opacity: .8;
+	cursor: default;
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark dt {
+	text-align: right;
+	letter-spacing: 0.04em
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark dd {
+	text-align: left;
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark dd > .shortcuts {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+}
+
+.monaco-workbench.mac > .part.editor.empty > .content > .watermark dd > .shortcuts {
+	letter-spacing: 0.15em;
+	font-family: "Lucida Grande", sans-serif;
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark dd > .unbound {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+}
+
+.monaco-workbench.mac > .part.editor.empty > .content > .watermark dd > .unbound {
+	font-family: "Lucida Grande", sans-serif;
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark dt,
+.monaco-workbench > .part.editor.empty > .content > .watermark dd {
+	display: table-cell;
+}
+
+.monaco-workbench > .part.editor.empty > .content > .watermark dt,
+.monaco-workbench > .part.editor.empty > .content > .watermark dl {
+	color: rgba(0,0,0,.68);
+}
+
+.vs-dark .monaco-workbench > .part.editor.empty > .content > .watermark dt,
+.vs-dark .monaco-workbench > .part.editor.empty > .content > .watermark dl {
+	color: rgba(255,255,255,.6);
+}
+
+.hc-black .monaco-workbench > .part.editor.empty > .content > .watermark dt {
+	color: #FFF;
+}
+.hc-black .monaco-workbench > .part.editor.empty > .content > .watermark dl {
+	color: #FFF;
+	opacity: 1;
+}

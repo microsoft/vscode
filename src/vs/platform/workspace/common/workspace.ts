@@ -5,13 +5,18 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import paths = require('vs/base/common/paths');
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService {
 	_serviceBrand: any;
+
+	/**
+	 * Returns iff the application was opened with a workspace or not.
+	 */
+	hasWorkspace(): boolean;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
@@ -70,6 +75,10 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
+	}
+
+	public hasWorkspace(): boolean {
+		return !!this.workspace;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {

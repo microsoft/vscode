@@ -1,4 +1,4 @@
-// Type definitions for Electron v1.3.4
+// Type definitions for Electron v1.4.4
 // Project: http://electron.atom.io/
 // Definitions by: jedmao <https://github.com/jedmao/>, rhysd <https://rhysd.github.io>, Milan Burda <https://github.com/miniak/>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -23,6 +23,10 @@ declare namespace Electron {
 	interface Event {
 		preventDefault: Function;
 		sender: EventEmitter;
+		shiftKey?: boolean;
+		ctrlKey?: boolean;
+		altKey?: boolean;
+		metaKey?: boolean;
 	}
 
 	type Point = {
@@ -40,6 +44,17 @@ declare namespace Electron {
 		y: number;
 		width: number;
 		height: number;
+	}
+
+	interface Destroyable {
+		/**
+		 * Destroys the object.
+		 */
+		destroy(): void;
+		/**
+		 * @returns Whether the object is destroyed.
+		 */
+		isDestroyed(): boolean;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/app.md
@@ -62,7 +77,7 @@ declare namespace Electron {
 		/**
 		 * Emitted when Electron has finished initialization.
 		 */
-		on(event: 'ready', listener: Function): this;
+		on(event: 'ready', listener: (event: Event, launchInfo: Object) => void): this;
 		/**
 		 * Emitted when all windows have been closed.
 		 *
@@ -176,7 +191,7 @@ declare namespace Electron {
 		/**
 		 * Emitted when the gpu process crashes.
 		 */
-		on(event: 'gpu-process-crashed', listener: Function): this;
+		on(event: 'gpu-process-crashed', listener: (event: Event, killed: boolean) => void): this;
 		/**
 		 * Emitted when Chrome's accessibility support changes.
 		 *
@@ -199,7 +214,7 @@ declare namespace Electron {
 		 * All windows will be closed immediately without asking user
 		 * and the before-quit and will-quit events will not be emitted.
 		 */
-		exit(exitCode: number): void;
+		exit(exitCode?: number): void;
 		/**
 		 * Relaunches the app when current instance exits.
 		 *
@@ -218,6 +233,10 @@ declare namespace Electron {
 			args?: string[],
 			execPath?: string
 		}): void;
+		/**
+		 * @returns Whether Electron has finished initializing.
+		 */
+		isReady(): boolean;
 		/**
 		 * On Linux, focuses on the first visible window.
 		 * On macOS, makes the application the active app.
@@ -334,6 +353,19 @@ declare namespace Electron {
 		 */
 		setUserTasks(tasks: Task[]): boolean;
 		/**
+		 * Note: This API is only available on Windows.
+		 */
+		getJumpListSettings(): JumpListSettings;
+		/**
+		 * Sets or removes a custom Jump List for the application.
+		 *
+		 * If categories is null the previously set custom Jump List (if any) will be replaced
+		 * by the standard Jump List for the app (managed by Windows).
+		 *
+		 * Note: This API is only available on Windows.
+		 */
+		setJumpList(categories: JumpListCategory[]): SetJumpListResult;
+		/**
 		 * This method makes your application a Single Instance Application instead of allowing
 		 * multiple instances of your app to run, this will ensure that only a single instance
 		 * of your app is running, and other instances signal this instance and exit.
@@ -408,6 +440,13 @@ declare namespace Electron {
 		 * Note: This API is only available on macOS and Windows.
 		 */
 		setLoginItemSettings(settings: LoginItemSettings): void;
+		/**
+		 * Set the about panel options. This will override the values defined in the app's .plist file.
+		 * See the Apple docs for more details.
+		 *
+		 * Note: This API is only available on macOS.
+		 */
+		setAboutPanelOptions(options: AboutPanelOptions): void;
 		commandLine: CommandLine;
 		/**
 		 * Note: This API is only available on macOS.
@@ -560,6 +599,89 @@ declare namespace Electron {
 		iconIndex?: number;
 	}
 
+	/**
+	 * ok - Nothing went wrong.
+	 * error - One or more errors occured, enable runtime logging to figure out the likely cause.
+	 * invalidSeparatorError - An attempt was made to add a separator to a custom category in the Jump List.
+	 *                         Separators are only allowed in the standard Tasks category.
+	 * fileTypeRegistrationError - An attempt was made to add a file link to the Jump List
+	 *                             for a file type the app isn't registered to handle.
+	 * customCategoryAccessDeniedError - Custom categories can't be added to the Jump List
+	 *                                   due to user privacy or group policy settings.
+	 */
+	type SetJumpListResult = 'ok' | 'error' | 'invalidSeparatorError' | 'fileTypeRegistrationError' | 'customCategoryAccessDeniedError';
+
+	interface JumpListSettings {
+		/**
+		 * The minimum number of items that will be shown in the Jump List.
+		 */
+		minItems: number;
+		/**
+		 * Items that the user has explicitly removed from custom categories in the Jump List.
+		 */
+		removedItems: JumpListItem[];
+	}
+
+	interface JumpListCategory {
+		/**
+		 * tasks - Items in this category will be placed into the standard Tasks category.
+		 * frequent - Displays a list of files frequently opened by the app, the name of the category and its items are set by Windows.
+		 * recent - Displays a list of files recently opened by the app, the name of the category and its items are set by Windows.
+		 * custom - Displays tasks or file links, name must be set by the app.
+		 */
+		type?: 'tasks' | 'frequent' | 'recent' | 'custom';
+		/**
+		 * Must be set if type is custom, otherwise it should be omitted.
+		 */
+		name?: string;
+		/**
+		 * Array of JumpListItem objects if type is tasks or custom, otherwise it should be omitted.
+		 */
+		items?: JumpListItem[];
+	}
+
+	interface JumpListItem {
+		/**
+		 * task - A task will launch an app with specific arguments.
+		 * separator - Can be used to separate items in the standard Tasks category.
+		 * file - A file link will open a file using the app that created the Jump List.
+		 */
+		type: 'task' | 'separator' | 'file';
+		/**
+		 * Path of the file to open, should only be set if type is file.
+		 */
+		path?: string;
+		/**
+		 * Path of the program to execute, usually you should specify process.execPath which opens the current program.
+		 * Should only be set if type is task.
+		 */
+		program?: string;
+		/**
+		 * The command line arguments when program is executed. Should only be set if type is task.
+		 */
+		args?: string;
+		/**
+		 * The text to be displayed for the item in the Jump List. Should only be set if type is task.
+		 */
+		title?: string;
+		/**
+		 * Description of the task (displayed in a tooltip). Should only be set if type is task.
+		 */
+		description?: string;
+		/**
+		 * The absolute path to an icon to be displayed in a Jump List, which can be an arbitrary
+		 * resource file that contains an icon (e.g. .ico, .exe, .dll).
+		 * You can usually specify process.execPath to show the program icon.
+		 */
+		iconPath?: string;
+		/**
+		 * The index of the icon in the resource file. If a resource file contains multiple icons
+		 * this value can be used to specify the zero-based index of the icon that should be displayed
+		 * for this task. If a resource file contains only one icon, this property should be set to zero.
+		 */
+		iconIndex?: number;
+	}
+
 	interface LoginItemSettings {
 		/**
 		 * True if the app is set to open at login.
@@ -586,12 +708,35 @@ declare namespace Electron {
 		restoreState?: boolean;
 	}
 
+	interface AboutPanelOptions {
+		/**
+		 * The app's name.
+		 */
+		applicationName?: string;
+		/**
+		 * The app's version.
+		 */
+		applicationVersion?: string;
+		/**
+		 * Copyright information.
+		 */
+		copyright?: string;
+		/**
+		 * Credit information.
+		 */
+		credits?: string;
+		/**
+		 * The app's build version number.
+		 */
+		version?: string;
+	}
+
 	// https://github.com/electron/electron/blob/master/docs/api/auto-updater.md
 
 	/**
 	 * This module provides an interface for the Squirrel auto-updater framework.
 	 */
-	interface AutoUpdater extends NodeJS.EventEmitter {
+	interface AutoUpdater extends EventEmitter {
 		/**
 		 * Emitted when there is an error while updating.
 		 */
@@ -640,7 +785,7 @@ declare namespace Electron {
 	 * The BrowserWindow class gives you ability to create a browser window.
 	 * You can also create a window without chrome by using Frameless Window API.
 	 */
-	class BrowserWindow extends EventEmitter {
+	class BrowserWindow extends EventEmitter implements Destroyable {
 		/**
 		 * Emitted when the document changed its title,
 		 * calling event.preventDefault() would prevent the native window’s title to change.
@@ -741,6 +886,11 @@ declare namespace Electron {
 		 * Note: This is only implemented on macOS.
 		 */
 		on(event: 'scroll-touch-end', listener: Function): this;
+		/**
+		 * Emitted when scroll wheel event phase filed upon reaching the edge of element.
+		 * Note: This is only implemented on macOS.
+		 */
+		on(event: 'scroll-touch-edge', listener: Function): this;
 		/**
 		 * Emitted on 3-finger swipe.
 		 * Note: This is only implemented on macOS.
@@ -999,7 +1149,7 @@ declare namespace Electron {
 		 * setting this, the window is still a normal window, not a toolbox window
 		 * which can not be focused on.
 		 */
-		setAlwaysOnTop(flag: boolean): void;
+		setAlwaysOnTop(flag: boolean, level?: WindowLevel): void;
 		/**
 		 * @returns Whether the window is always on top of other windows.
 		 */
@@ -1252,8 +1402,8 @@ declare namespace Electron {
 		getChildWindows(): BrowserWindow[];
 	}
 
+	type WindowLevel = 'normal' | 'floating' | 'torn-off-menu' | 'modal-panel' | 'main-menu' | 'status' | 'pop-up-menu' | 'screen-saver' | 'dock';
 	type SwipeDirection = 'up' | 'right' | 'down' | 'left';
-
 	type ThumbarButtonFlags = 'enabled' | 'disabled' | 'dismissonclick' | 'nobackground' | 'hidden' | 'noninteractive';
 
 	interface ThumbarButton {
@@ -1271,6 +1421,12 @@ declare namespace Electron {
 	}
 
 	interface WebPreferences {
+		/**
+		 * Whether to enable DevTools.
+		 * If it is set to false, can not use BrowserWindow.webContents.openDevTools() to open DevTools.
+		 * Default: true.
+		 */
+		devTools?: boolean;
 		/**
 		 * Whether node integration is enabled.
 		 * Default: true.
@@ -1427,6 +1583,11 @@ declare namespace Electron {
 		 * Default: false.
 		 */
 		offscreen?: boolean;
+		/**
+		 * Whether to enable Chromium OS-level sandbox.
+		 * Default: false.
+		 */
+		sandbox?: boolean;
 	}
 
 	interface BrowserWindowOptions {
@@ -1861,7 +2022,7 @@ declare namespace Electron {
 
 	interface CrashReporterStartOptions {
 		/**
-		 * Default: Electron
+		 * Default: app.getName()
 		 */
 		productName?: string;
 		companyName: string;
@@ -2318,7 +2479,7 @@ declare namespace Electron {
 		/**
 		 * Callback when the menu item is clicked.
 		 */
-		click?: (menuItem: MenuItem, browserWindow: BrowserWindow) => void;
+		click?: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void;
 		/**
 		 * Can be normal, separator, submenu, checkbox or radio.
 		 */
@@ -2483,6 +2644,7 @@ declare namespace Electron {
 		static createEmpty(): NativeImage;
 		/**
 		 * Creates a new NativeImage instance from file located at path.
+		 * This method returns an empty image if the path does not exist, cannot be read, or is not a valid image.
 		 */
 		static createFromPath(path: string): NativeImage;
 		/**
@@ -2515,7 +2677,7 @@ declare namespace Electron {
 		 */
 		getBitmap(): Buffer;
 		/**
-		 * @returns string The data URL of the image.
+		 * @returns The data URL of the image.
 		 */
 		toDataURL(): string;
 		/**
@@ -2525,11 +2687,11 @@ declare namespace Electron {
 		 */
 		getNativeHandle(): Buffer;
 		/**
-		 * @returns boolean Whether the image is empty.
+		 * @returns Whether the image is empty.
 		 */
 		isEmpty(): boolean;
 		/**
-		 * @returns {} The size of the image.
+		 * @returns The size of the image.
 		 */
 		getSize(): Size;
 		/**
@@ -2540,6 +2702,28 @@ declare namespace Electron {
 		 * Returns a boolean whether the image is a template image.
 		 */
 		isTemplateImage(): boolean;
+		/**
+		 * @param rect The area of the image to crop
+		 * @returns The cropped image.
+		 */
+		crop(rect: Rectangle): NativeImage;
+		/**
+		 * @returns The resized image.
+		 * If only the height or the width are specified then the current aspect ratio will be preserved in the resized image.
+		 */
+		resize(options: {
+			width?: number;
+			height?: number;
+			/**
+			 * The desired quality of the resized image.
+			 * Default: best.
+			 */
+			quality?: 'good' | 'better' | 'best';
+		}): NativeImage;
+		/**
+		 * @returns The image's aspect ratio.
+		 */
+		getAspectRatio(): number;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/power-monitor.md
@@ -2577,7 +2761,7 @@ declare namespace Electron {
 	interface PowerSaveBlocker {
 		/**
 		 * Starts preventing the system from entering lower-power mode.
-		 * @returns an integer identifying the power save blocker.
+		 * @returns The blocker ID that is assigned to this power blocker.
 		 * Note: prevent-display-sleep has higher has precedence over prevent-app-suspension.
 		 */
 		start(type: 'prevent-app-suspension' | 'prevent-display-sleep'): number;
@@ -2588,7 +2772,7 @@ declare namespace Electron {
 		stop(id: number): void;
 		/**
 		 * @param id The power save blocker id returned by powerSaveBlocker.start.
-		 * @returns a boolean whether the corresponding powerSaveBlocker has started.
+		 * @returns Whether the corresponding powerSaveBlocker has started.
 		 */
 		isStarted(id: number): boolean;
 	}
@@ -2663,8 +2847,18 @@ declare namespace Electron {
 		referrer: string;
 		method: string;
 		uploadData?: {
+			/**
+			 * Content being sent.
+			 */
 			bytes: Buffer,
-			file: string
+			/**
+			 * Path of file being uploaded.
+			 */
+			file: string,
+			/**
+			 * UUID of blob data. Use session.getBlobData method to retrieve the data.
+			 */
+			blobUUID: string;
 		}[];
 	}
 
@@ -2911,6 +3105,10 @@ declare namespace Electron {
 		 */
 		getUserAgent(): string;
 		/**
+		 * Returns the blob data associated with the identifier.
+		 */
+		getBlobData(identifier: string, callback: (result: Buffer) => void): void;
+		/**
 		 * The webRequest API set allows to intercept and modify contents of a request at various stages of its lifetime.
 		 */
 		webRequest: WebRequest;
@@ -3011,6 +3209,11 @@ declare namespace Electron {
 
 	interface Cookie {
 		/**
+		 * Emitted when a cookie is changed because it was added, edited, removed, or expired.
+		 */
+		on(event: 'changed', listener: (event: Event, cookie: Cookie, cause: CookieChangedCause) => void): this;
+		on(event: string, listener: Function): this;
+		/**
 		 * The name of the cookie.
 		 */
 		name: string;
@@ -3048,6 +3251,8 @@ declare namespace Electron {
 		 */
 		expirationDate?: number;
 	}
+
+	type CookieChangedCause = 'explicit' | 'overwrite' | 'expired' | 'evicted' | 'expired-overwrite';
 
 	interface CookieDetails {
 		/**
@@ -3211,6 +3416,10 @@ declare namespace Electron {
 			 * Path of file being uploaded.
 			 */
 			file: string;
+			/**
+			 * UUID of blob data. Use session.getBlobData method to retrieve the data.
+			 */
+			blobUUID: string;
 		}
 
 		interface BeforeRequestDetails extends Details {
@@ -3296,16 +3505,18 @@ declare namespace Electron {
 	interface Shell {
 		/**
 		 * Show the given file in a file manager. If possible, select the file.
+		 * @returns Whether the item was successfully shown.
 		 */
-		showItemInFolder(fullPath: string): void;
+		showItemInFolder(fullPath: string): boolean;
 		/**
 		 * Open the given file in the desktop's default manner.
+		 * @returns Whether the item was successfully shown.
 		 */
-		openItem(fullPath: string): void;
+		openItem(fullPath: string): boolean;
 		/**
 		 * Open the given external protocol URL in the desktop's default manner
 		 * (e.g., mailto: URLs in the default mail user agent).
-		 * @returns true if an application was available to open the URL, false otherwise.
+		 * @returns Whether an application was available to open the URL.
 		 */
 		openExternal(url: string, options?: {
 			/**
@@ -3316,7 +3527,7 @@ declare namespace Electron {
 		}): boolean;
 		/**
 		 * Move the given file to trash.
-		 * @returns boolean status for the operation.
+		 * @returns Whether the item was successfully moved to the trash.
 		 */
 		moveItemToTrash(fullPath: string): boolean;
 		/**
@@ -3383,18 +3594,69 @@ declare namespace Electron {
 
 	// https://github.com/electron/electron/blob/master/docs/api/system-preferences.md
 
+	type SystemColor =
+		'3d-dark-shadow' |            // Dark shadow for three-dimensional display elements.
+		'3d-face' |                   // Face color for three-dimensional display elements and for dialog box backgrounds.
+		'3d-highlight' |              // Highlight color for three-dimensional display elements.
+		'3d-light' |                  // Light color for three-dimensional display elements.
+		'3d-shadow' |                 // Shadow color for three-dimensional display elements.
+		'active-border' |             // Active window border.
+		'active-caption' |            // Active window title bar. Specifies the left side color in the color gradient of an active window's title bar if the gradient effect is enabled.
+		'active-caption-gradient' |   // Right side color in the color gradient of an active window's title bar.
+		'app-workspace' |             // Background color of multiple document interface (MDI) applications.
+		'button-text' |               // Text on push buttons.
+		'caption-text' |              // Text in caption, size box, and scroll bar arrow box.
+		'desktop' |                   // Desktop background color.
+		'disabled-text' |             // Grayed (disabled) text.
+		'highlight' |                 // Item(s) selected in a control.
+		'highlight-text' |            // Text of item(s) selected in a control.
+		'hotlight' |                  // Color for a hyperlink or hot-tracked item.
+		'inactive-border' |           // Inactive window border.
+		'inactive-caption' |          // Inactive window caption. Specifies the left side color in the color gradient of an inactive window's title bar if the gradient effect is enabled.
+		'inactive-caption-gradient' | // Right side color in the color gradient of an inactive window's title bar.
+		'inactive-caption-text' |     // Color of text in an inactive caption.
+		'info-background' |           // Background color for tooltip controls.
+		'info-text' |                 // Text color for tooltip controls.
+		'menu' |                      // Menu background.
+		'menu-highlight' |            // The color used to highlight menu items when the menu appears as a flat menu.
+		'menubar' |                   // The background color for the menu bar when menus appear as flat menus.
+		'menu-text' |                 // Text in menus.
+		'scrollbar' |                 // Scroll bar gray area.
+		'window' |                    // Window background.
+		'window-frame' |              // Window frame.
+		'window-text';                // Text in windows.
+
 	/**
 	 * Get system preferences.
 	 */
 	interface SystemPreferences {
 		/**
-		 * @returns If the system is in Dark Mode.
+		 * Note: This is only implemented on Windows.
+		 */
+		on(event: 'accent-color-changed', listener: (event: Event, newColor: string) => void): this;
+		/**
+		 * Note: This is only implemented on Windows.
+		 */
+		on(event: 'color-changed', listener: (event: Event) => void): this;
+		/**
+		 * Note: This is only implemented on Windows.
+		 */
+		on(event: 'inverted-color-scheme-changed', listener: (
+			event: Event,
+			/**
+			 * @param invertedColorScheme true if an inverted color scheme, such as a high contrast theme, is being used, false otherwise.
+			 */
+			invertedColorScheme: boolean
+		) => void): this;
+		on(event: string, listener: Function): this;
+		/**
+		 * @returns Whether the system is in Dark Mode.
 		 *
 		 * Note: This is only implemented on macOS.
 		 */
 		isDarkMode(): boolean;
 		/**
-		 * @returns If the Swipe between pages setting is on.
+		 * @returns Whether the Swipe between pages setting is on.
 		 *
 		 * Note: This is only implemented on macOS.
 		 */
@@ -3441,13 +3703,29 @@ declare namespace Electron {
 		 */
 		getUserDefault(key: string, type: 'string' | 'boolean' | 'integer' | 'float' | 'double' | 'url' | 'array' | 'dictionary'): any;
 		/**
-		 * This method returns true if DWM composition (Aero Glass) is enabled,
-		 * and false otherwise. You can use it to determine if you should create
-		 * a transparent window or not (transparent windows won’t work correctly when DWM composition is disabled).
+		 * @returns Whether DWM composition (Aero Glass) is enabled.
 		 *
 		 * Note: This is only implemented on Windows.
 		 */
 		isAeroGlassEnabled(): boolean;
+		/**
+		 * @returns The users current system wide color preference in the form of an RGBA hexadecimal string.
+		 *
+		 * Note: This is only implemented on Windows.
+		 */
+		getAccentColor(): string;
+		/**
+		 * @returns true if an inverted color scheme, such as a high contrast theme, is active, false otherwise.
+		 *
+		 * Note: This is only implemented on Windows.
+		 */
+		isInvertedColorScheme(): boolean;
+		/**
+		 * @returns The system color setting in RGB hexadecimal form (#ABCDEF). See the Windows docs for more details.
+		 *
+		 * Note: This is only implemented on Windows.
+		 */
+		getColor(color: SystemColor): string;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/tray.md
@@ -3455,7 +3733,7 @@ declare namespace Electron {
 	/**
 	 * A Tray represents an icon in an operating system's notification area.
 	 */
-	interface Tray extends NodeJS.EventEmitter {
+	class Tray extends EventEmitter implements Destroyable {
 		/**
 		 * Emitted when the tray icon is clicked.
 		 * Note: The bounds payload is only implemented on macOS and Windows.
@@ -3520,7 +3798,7 @@ declare namespace Electron {
 		/**
 		 * Creates a new tray icon associated with the image.
 		 */
-		new(image: NativeImage|string): Tray;
+		constructor(image: NativeImage|string);
 		/**
 		 * Destroys the tray icon immediately.
 		 */
@@ -3571,6 +3849,10 @@ declare namespace Electron {
 		 * @returns The bounds of this tray icon.
 		 */
 		getBounds(): Rectangle;
+		/**
+		 * @returns Whether the tray icon is destroyed.
+		 */
+		isDestroyed(): boolean;
 	}
 
 	interface Modifiers {
@@ -3595,7 +3877,7 @@ declare namespace Electron {
 
 	interface WebContentsStatic {
 		/**
-		 * @returns An array of all web contents. This will contain web contents for all windows,
+		 * @returns An array of all WebContents instances. This will contain web contents for all windows,
 		 * webviews, opened devtools, and devtools extension background pages.
 		 */
 		getAllWebContents(): WebContents[];
@@ -3603,6 +3885,10 @@ declare namespace Electron {
 		 * @returns The web contents that is focused in this application, otherwise returns null.
 		 */
 		getFocusedWebContents(): WebContents;
+		/**
+		 * Find a WebContents instance according to its ID.
+		 */
+		fromId(id: number): WebContents;
 	}
 
 	/**
@@ -3672,12 +3958,21 @@ declare namespace Electron {
 		 * By default a new BrowserWindow will be created for the url.
 		 *
 		 * Calling event.preventDefault() will prevent creating new windows.
+		 * In such case, the event.newGuest may be set with a reference
+		 * to a BrowserWindow instance to make it used by the Electron's runtime.
 		 */
-		on(event: 'new-window', listener: (event: Event,
+		on(event: 'new-window', listener: (event: WebContents.NewWindowEvent,
 			url: string,
 			frameName: string,
 			disposition: NewWindowDisposition,
-			options: BrowserWindowOptions
+			/**
+			 * The options which will be used for creating the new BrowserWindow.
+			 */
+			options: BrowserWindowOptions,
+			/**
+			 * The non-standard features (features not handled by Chromium or Electron) given to window.open().
+			 */
+			additionalFeatures: string[]
 		) => void): this;
 		/**
 		 * Emitted when a user or the page wants to start navigation.
@@ -3710,7 +4005,7 @@ declare namespace Electron {
 		/**
 		 * Emitted when the renderer process has crashed.
 		 */
-		on(event: 'crashed', listener: Function): this;
+		on(event: 'crashed', listener: (event: Event, killed: boolean) => void): this;
 		/**
 		 * Emitted when a plugin process has crashed.
 		 */
@@ -4126,6 +4421,10 @@ declare namespace Electron {
 		 */
 		getFrameRate(): number;
 		/**
+		 * If offscreen rendering is enabled invalidates the frame and generates a new one through the 'paint' event.
+		 */
+		invalidate(): void;
+		/**
 		 * Sets the item as dragging item for current drag-drop operation.
 		 */
 		startDrag(item: DragItem): void;
@@ -4159,6 +4458,12 @@ declare namespace Electron {
 		 * @returns Debugger API
 		 */
 		debugger: Debugger;
+	}
+
+	namespace WebContents {
+		interface NewWindowEvent extends Event {
+			newGuest?: BrowserWindow;
+		}
 	}
 
 	interface BeginFrameSubscriptionCallback {
@@ -4326,7 +4631,7 @@ declare namespace Electron {
 		[key: string]: string;
 	}
 
-	type NewWindowDisposition = 'default' | 'foreground-tab' | 'background-tab' | 'new-window' | 'other';
+	type NewWindowDisposition = 'default' | 'foreground-tab' | 'background-tab' | 'new-window' | 'save-to-disk' | 'other';
 
 	/**
 	 * Specifies the action to take place when ending webContents.findInPage request.
@@ -4770,6 +5075,15 @@ declare namespace Electron {
 		 */
 		disableblinkfeatures: string;
 		/**
+		 * A value that links the webview to a specific webContents.
+		 * When a webview first loads a new webContents is created and this attribute is set
+		 * to its instance identifier. Setting this attribute on a new or existing webview connects
+		 * it to the existing webContents that currently renders in a different webview.
+		 *
+		 * The existing webview will see the destroy event and will then create a new webContents when a new url is loaded.
+		 */
+		guestinstance: string;
+		/**
 		 * Loads the url in the webview, the url must contain the protocol prefix, e.g. the http:// or file://.
 		 */
 		loadURL(url: string, options?: LoadURLOptions): void;
@@ -4972,6 +5286,17 @@ declare namespace Electron {
 		 */
 		sendInputEvent(event: SendInputEvent): void
 		/**
+		 * Changes the zoom factor to the specified factor.
+		 * Zoom factor is zoom percent divided by 100, so 300% = 3.0.
+		 */
+		setZoomFactor(factor: number): void;
+		/**
+		 * Changes the zoom level to the specified level.
+		 * The original size is 0 and each increment above or below represents
+		 * zooming 20% larger or smaller to default limits of 300% and 50% of original size, respectively.
+		 */
+		setZoomLevel(level: number): void;
+		/**
 		 * Shows pop-up dictionary that searches the selected word on the page.
 		 * Note: This API is available only on macOS.
 		 */
@@ -5141,23 +5466,23 @@ declare namespace Electron {
 	namespace WebViewElement {
 		type Event = ElectronPrivate.GlobalEvent;
 
-		interface LoadCommitEvent extends Event  {
+		interface LoadCommitEvent extends Event {
 			url: string;
 			isMainFrame: boolean;
 		}
 
-		interface DidFailLoadEvent extends Event  {
+		interface DidFailLoadEvent extends Event {
 			errorCode: number;
 			errorDescription: string;
 			validatedURL: string;
 			isMainFrame: boolean;
 		}
 
-		interface DidFrameFinishLoadEvent extends Event  {
+		interface DidFrameFinishLoadEvent extends Event {
 			isMainFrame: boolean;
 		}
 
-		interface DidGetResponseDetails extends Event  {
+		interface DidGetResponseDetails extends Event {
 			status: boolean;
 			newURL: string;
 			originalURL: string;
@@ -5296,7 +5621,7 @@ declare namespace Electron {
 		screen: Electron.Screen;
 		session: typeof Electron.Session;
 		systemPreferences: Electron.SystemPreferences;
-		Tray: Electron.Tray;
+		Tray: typeof Electron.Tray;
 		webContents: Electron.WebContentsStatic;
 	}
 

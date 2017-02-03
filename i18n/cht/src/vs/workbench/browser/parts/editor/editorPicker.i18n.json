@@ -6,7 +6,8 @@
 {
 	"entryAriaLabel": "{0}，編輯器群組選擇器",
 	"groupLabel": "群組: {0}",
-	"noOpenedEditors": "已開啟編輯器的清單目前為空白",
+	"noOpenedEditors": "開啟的編輯器清單在群組中目前為空白",
+	"noOpenedEditorsAllGroups": "開啟的編輯器清單目前為空白",
 	"noResultsFound": "找不到任何相符的已開啟編輯器",
 	"noResultsFoundInGroup": "在群組中找不到任何相符的已開啟編輯器"
 }

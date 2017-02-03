@@ -5,13 +5,14 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {relative, isEqualOrParent} from 'vs/base/common/paths';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
-import {Uri, CancellationToken} from 'vscode';
-import {MainContext, MainThreadWorkspaceShape} from './extHost.protocol';
+import { normalize } from 'vs/base/common/paths';
+import { relative } from 'path';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
+import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import * as vscode from 'vscode';
 
 export class ExtHostWorkspace {
 
@@ -20,7 +21,7 @@ export class ExtHostWorkspace {
 	private _proxy: MainThreadWorkspaceShape;
 	private _workspacePath: string;
 
-	constructor(threadService: IThreadService, workspacePath:string) {
+	constructor(threadService: IThreadService, workspacePath: string) {
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
 		this._workspacePath = workspacePath;
 	}
@@ -29,23 +30,32 @@ export class ExtHostWorkspace {
 		return this._workspacePath;
 	}
 
-	getRelativePath(pathOrUri: string | Uri): string {
+	getRelativePath(pathOrUri: string | vscode.Uri): string {
 
 		let path: string;
 		if (typeof pathOrUri === 'string') {
 			path = pathOrUri;
-		} else {
+		} else if (typeof pathOrUri !== 'undefined') {
 			path = pathOrUri.fsPath;
 		}
 
-		if (isEqualOrParent(path, this._workspacePath)) {
-			return relative(this._workspacePath, path) || path;
+		if (!path) {
+			return path;
 		}
 
-		return path;
+		if (!this._workspacePath) {
+			return normalize(path);
+		}
+
+		let result = relative(this._workspacePath, path);
+		if (!result || result.indexOf('..') === 0) {
+			return normalize(path);
+		}
+
+		return normalize(result);
 	}
 
-	findFiles(include: string, exclude: string, maxResults?: number, token?: CancellationToken): Thenable<Uri[]> {
+	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
 		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
 		if (token) {

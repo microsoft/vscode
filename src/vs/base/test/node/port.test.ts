@@ -18,7 +18,7 @@ suite('Ports', () => {
 
 			// create a server to block this port
 			const server = net.createServer();
-			server.listen(initialPort, null, null, () =>  {
+			server.listen(initialPort, null, null, () => {
 
 				// once listening, find another free port and assert that the port is different from the opened one
 				ports.findFreePort(7000, 50, 300000, (freePort) => {

@@ -16,17 +16,17 @@ export enum ValidationState {
 }
 
 export class ValidationStatus {
-	private _state:ValidationState;
+	private _state: ValidationState;
 
 	constructor() {
 		this._state = ValidationState.OK;
 	}
 
-	public get state():ValidationState {
+	public get state(): ValidationState {
 		return this._state;
 	}
 
-	public set state(value:ValidationState) {
+	public set state(value: ValidationState) {
 		if (value > this._state) {
 			this._state = value;
 		}
@@ -42,7 +42,7 @@ export class ValidationStatus {
 }
 
 export interface ILogger {
-	log(value:string):void;
+	log(value: string): void;
 }
 
 export abstract class Parser {
@@ -67,7 +67,7 @@ export abstract class Parser {
 		this._logger.log(message);
 	}
 
-	protected is(value: any, func: (value:any) => boolean, wrongTypeState?: ValidationState, wrongTypeMessage?: string, undefinedState?: ValidationState, undefinedMessage?: string): boolean {
+	protected is(value: any, func: (value: any) => boolean, wrongTypeState?: ValidationState, wrongTypeMessage?: string, undefinedState?: ValidationState, undefinedMessage?: string): boolean {
 		if (Types.isUndefined(value)) {
 			if (undefinedState) {
 				this.validationStatus.state = undefinedState;

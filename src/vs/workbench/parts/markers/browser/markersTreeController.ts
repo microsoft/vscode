@@ -5,21 +5,38 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import mouse = require('vs/base/browser/mouseEvent');
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as mouse from 'vs/base/browser/mouseEvent';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMarker } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IAction } from 'vs/base/common/actions';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 export class Controller extends treedefaults.DefaultController {
 
-	constructor(private rangeHighlightDecorations: RangeHighlightDecorations, @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	private contextMenu: IMenu;
+
+	constructor(private rangeHighlightDecorations: RangeHighlightDecorations, private actionProvider: IActionProvider, @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 		super();
+
+		this.contextMenu = menuService.createMenu(MenuId.ProblemsPanelContext, contextKeyService);
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
@@ -58,26 +75,57 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onSpace(tree, event);
 	}
 
+	public onContextMenu(tree: tree.ITree, element: any, event: tree.ContextMenuEvent): boolean {
+		tree.setFocus(element);
+		const actions = this._getMenuActions();
+		if (!actions.length) {
+			return true;
+		}
+		const anchor = { x: event.posx + 1, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+
+			getActions: () => {
+				return TPromise.as(actions);
+			},
+
+			getActionItem: (action) => {
+				const keybinding = this._keybindingFor(action);
+				if (keybinding) {
+					return new ActionItem(action, action, { label: true, keybinding: this._keybindingService.getLabelFor(keybinding) });
+				}
+				return null;
+			},
+
+			getKeyBinding: (action): Keybinding => {
+				return this._keybindingFor(action);
+			},
+
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					tree.DOMFocus();
+				}
+			}
+		});
+
+		return true;
+	}
+
 	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
-			this.telemetryService.publicLog('problems.marker.opened', { source: element.source });
-			let marker = <IMarker>element.marker;
+			const marker: Marker = element;
+			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
 			this.editorService.openEditor({
 				resource: marker.resource,
 				options: {
-					selection: {
-						startLineNumber: marker.startLineNumber,
-						startColumn: marker.startColumn,
-						endLineNumber: marker.endLineNumber,
-						endColumn: marker.endColumn
-					},
+					selection: marker.range,
 					preserveFocus,
 					pinned,
 					revealIfVisible: true
 				},
 			}, sideByside).done((editor) => {
 				if (preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange(element, editor);
+					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
 				}
@@ -87,5 +135,26 @@ export class Controller extends treedefaults.DefaultController {
 			this.rangeHighlightDecorations.removeHighlightRange();
 		}
 		return false;
+	}
+
+	private _getMenuActions(): IAction[] {
+		const result: IAction[] = [];
+		const groups = this.contextMenu.getActions();
+
+		for (let group of groups) {
+			const [, actions] = group;
+			result.push(...actions);
+			result.push(new Separator());
+		}
+		result.pop(); // remove last separator
+		return result;
+	}
+
+	private _keybindingFor(action: IAction): Keybinding {
+		var opts = this._keybindingService.lookupKeybindings(action.id);
+		if (opts.length > 0) {
+			return opts[0]; // only take the first one
+		}
+		return null;
 	}
 }

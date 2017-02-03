@@ -67,7 +67,7 @@ export default class URI {
 	private _formatted: string;
 	private _fsPath: string;
 
-	constructor() {
+	protected constructor() {
 		this._scheme = URI._empty;
 		this._authority = URI._empty;
 		this._path = URI._empty;
@@ -155,27 +155,27 @@ export default class URI {
 		let {scheme, authority, path, query, fragment} = change;
 		if (scheme === void 0) {
 			scheme = this.scheme;
-		} else if(scheme === null){
+		} else if (scheme === null) {
 			scheme = '';
 		}
 		if (authority === void 0) {
 			authority = this.authority;
-		} else if(authority === null){
+		} else if (authority === null) {
 			authority = '';
 		}
 		if (path === void 0) {
 			path = this.path;
-		} else if(path === null){
+		} else if (path === null) {
 			path = '';
 		}
 		if (query === void 0) {
 			query = this.query;
-		} else if(query === null){
+		} else if (query === null) {
 			query = '';
 		}
 		if (fragment === void 0) {
 			fragment = this.fragment;
-		} else if(fragment === null){
+		} else if (fragment === null) {
 			fragment = '';
 		}
 
@@ -357,7 +357,7 @@ export default class URI {
 			// when occurring in paths - otherwise the result
 			// cannot be parsed back again
 			let lastIdx = 0;
-			while(true) {
+			while (true) {
 				let idx = path.indexOf(URI._slash, lastIdx);
 				if (idx === -1) {
 					parts.push(encoder(path.substring(lastIdx)).replace(/[#?]/, _encode));
@@ -378,26 +378,43 @@ export default class URI {
 	}
 
 	public toJSON(): any {
-		return <UriState> {
-			scheme: this.scheme,
-			authority: this.authority,
-			path: this.path,
+		const res = <UriState>{
 			fsPath: this.fsPath,
-			query: this.query,
-			fragment: this.fragment,
 			external: this.toString(),
 			$mid: 1
 		};
+
+		if (this.path) {
+			res.path = this.path;
+		}
+
+		if (this.scheme) {
+			res.scheme = this.scheme;
+		}
+
+		if (this.authority) {
+			res.authority = this.authority;
+		}
+
+		if (this.query) {
+			res.query = this.query;
+		}
+
+		if (this.fragment) {
+			res.fragment = this.fragment;
+		}
+
+		return res;
 	}
 
 	static revive(data: any): URI {
 		let result = new URI();
-		result._scheme = (<UriState> data).scheme;
-		result._authority = (<UriState> data).authority;
-		result._path = (<UriState> data).path;
-		result._query = (<UriState> data).query;
-		result._fragment = (<UriState> data).fragment;
-		result._fsPath = (<UriState> data).fsPath;
+		result._scheme = (<UriState>data).scheme || URI._empty;
+		result._authority = (<UriState>data).authority || URI._empty;
+		result._path = (<UriState>data).path || URI._empty;
+		result._query = (<UriState>data).query || URI._empty;
+		result._fragment = (<UriState>data).fragment || URI._empty;
+		result._fsPath = (<UriState>data).fsPath;
 		result._formatted = (<UriState>data).external;
 		URI._validate(result);
 		return result;

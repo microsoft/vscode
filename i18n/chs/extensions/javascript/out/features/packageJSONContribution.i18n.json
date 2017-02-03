@@ -8,7 +8,6 @@
 	"json.npm.latestversion": "当前最新版本的包",
 	"json.npm.majorversion": "与最新主要版本(1.x.x)匹配",
 	"json.npm.minorversion": "与最新次要版本(1.2.x)匹配",
-	"json.npm.package.hover": "{0}",
 	"json.npm.version.hover": "最新版本: {0}",
 	"json.package.default": "默认 package.json"
 }

@@ -28,5 +28,6 @@
 	"searchMaxResultsWarning": "结果集仅包含所有匹配项的子集。请使你的搜索更加具体，减少结果。",
 	"searchScope.excludes": "要排除的文件",
 	"searchScope.includes": "要包含的文件",
+	"searchWithoutFolder": "尚未打开文件夹。当前仅可搜索打开的文件夹 - ",
 	"treeAriaLabel": "搜索结果"
 }

@@ -14,7 +14,7 @@
 			}
 		},
 		{
-			"scope": "header",
+			"scope": "meta.diff.header",
 			"settings": {
 				"foreground": "#000080"
 			}
@@ -34,7 +34,9 @@
 			}
 		},
 		{
-			"scope": "constant.numeric",
+			"scope": [
+				"constant.numeric"
+			],
 			"settings": {
 				"foreground": "#09885a"
 			}
@@ -43,12 +45,6 @@
 			"scope": "constant.regexp",
 			"settings": {
 				"foreground": "#811f3f"
-			}
-		},
-		{
-			"scope": "constant.rgb-value",
-			"settings": {
-				"foreground": "#0451a5"
 			}
 		},
 		{
@@ -71,7 +67,19 @@
 			}
 		},
 		{
-			"scope": ["entity.other.attribute-name.css", "entity.other.attribute-name.scss"],
+			"scope": [
+				"entity.other.attribute-name.class.css",
+				"entity.other.attribute-name.class.mixin.css",
+				"entity.other.attribute-name.id.css",
+				"entity.other.attribute-name.parent-selector.css",
+				"entity.other.attribute-name.pseudo-class.css",
+				"entity.other.attribute-name.pseudo-element.css",
+
+				"source.css.less entity.other.attribute-name.id",
+
+				"entity.other.attribute-name.attribute.scss",
+				"entity.other.attribute-name.scss"
+			],
 			"settings": {
 				"foreground": "#800000"
 			}
@@ -106,8 +114,7 @@
 		{
 			"scope": "markup.italic",
 			"settings": {
-				"fontStyle": "italic",
-				"foreground": "#000080"
+				"fontStyle": "italic"
 			}
 		},
 		{
@@ -129,15 +136,12 @@
 			}
 		},
 		{
-			"scope": ["markup.punctuation.quote", "markup.punctuation.list"],
+			"scope": [
+				"beginning.punctuation.definition.quote.markdown",
+				"beginning.punctuation.definition.list.markdown"
+			],
 			"settings": {
 				"foreground": "#0451a5"
-			}
-		},
-		{
-			"scope": ["markup.quote", "markup.list"],
-			"settings": {
-				"foreground": "#000000"
 			}
 		},
 		{
@@ -153,7 +157,8 @@
 			}
 		},
 		{
-			"scope": "meta.tag",
+			"name": "brackets of XML/HTML tags",
+			"scope": "punctuation.definition.tag",
 			"settings": {
 				"foreground": "#800000"
 			}
@@ -207,7 +212,28 @@
 			}
 		},
 		{
-			"scope": ["string.xml", "string.jade", "string.yaml", "string.html"],
+			"scope": [
+
+				"string.comment.buffered.block.jade",
+				"string.quoted.jade",
+				"string.interpolated.jade",
+
+				"string.unquoted.plain.in.yaml",
+				"string.unquoted.plain.out.yaml",
+				"string.unquoted.block.yaml",
+				"string.quoted.single.yaml",
+
+				"string.quoted.double.xml",
+				"string.quoted.single.xml",
+				"string.unquoted.cdata.xml",
+
+				"string.quoted.double.html",
+				"string.quoted.single.html",
+				"string.unquoted.html",
+
+				"string.quoted.single.handlebars",
+				"string.quoted.double.handlebars"
+			],
 			"settings": {
 				"foreground": "#0000ff"
 			}
@@ -219,19 +245,44 @@
 			}
 		},
 		{
-			"scope": "support.property-value",
+			"name": "JavaScript string interpolation ${}",
+			"scope": [
+				"punctuation.definition.template-expression.begin.ts",
+				"punctuation.definition.template-expression.end.ts"
+			],
+			"settings": {
+				"foreground": "#0000ff"
+			}
+		},
+		{
+			"scope": [
+				"support.constant.property-value",
+				"support.constant.font-name",
+				"support.constant.media-type",
+				"support.constant.media",
+				"constant.other.color.rgb-value",
+				"constant.other.rgb-value",
+				"support.constant.color"
+			],
 			"settings": {
 				"foreground": "#0451a5"
 			}
 		},
 		{
-			"scope": ["support.type.property-name.css", "support.type.property-name.less", "support.type.property-name.scss"],
+			"scope": [
+				"support.type.vendored.property-name",
+				"support.type.property-name",
+				"variable.css",
+				"variable.scss",
+				"variable.other.less"
+
+			],
 			"settings": {
 				"foreground": "#ff0000"
 			}
 		},
 		{
-			"scope": "support.type.property-name",
+			"scope": "support.type.property-name.json",
 			"settings": {
 				"foreground": "#0451a5"
 			}
@@ -255,7 +306,7 @@
 			}
 		},
 		{
-			"scope": "keyword.operator.new",
+			"scope": ["keyword.operator.new", "keyword.operator.expression"],
 			"settings": {
 				"foreground": "#0000ff"
 			}
@@ -267,13 +318,10 @@
 			}
 		},
 		{
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#800000"
-			}
-		},
-		{
-			"scope": "metatag.php",
+			"scope": [
+				"punctuation.section.embedded.begin.metatag.php",
+				"punctuation.section.embedded.end.metatag.php"
+			],
 			"settings": {
 				"foreground": "#800000"
 			}
@@ -295,6 +343,13 @@
 			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
 			"settings": {
 				"foreground": "#000000"
+			}
+		},
+		{
+			"name": "this.self",
+			"scope": "variable.language",
+			"settings": {
+				"foreground": "#0000ff"
 			}
 		}
 	]

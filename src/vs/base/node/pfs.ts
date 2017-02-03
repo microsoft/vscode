@@ -6,15 +6,14 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import extfs = require('vs/base/node/extfs');
-import paths = require('vs/base/common/paths');
+import * as extfs from 'vs/base/node/extfs';
+import * as paths from 'vs/base/common/paths';
 import { dirname, join } from 'path';
-import { nfcall } from 'vs/base/common/async';
-import fs = require('fs');
-
-export function isRoot(path: string): boolean {
-	return path === dirname(path);
-}
+import { nfcall, Queue } from 'vs/base/common/async';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as platform from 'vs/base/common/platform';
+import { once } from 'vs/base/common/event';
 
 export function readdir(path: string): TPromise<string[]> {
 	return nfcall(extfs.readdir, path);
@@ -33,15 +32,16 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 		.then(null, (err: NodeJS.ErrnoException) => {
 			if (err.code === 'EEXIST') {
 				return nfcall(fs.stat, path)
-					.then((stat:fs.Stats) => stat.isDirectory
+					.then((stat: fs.Stats) => stat.isDirectory
 						? null
-						: Promise.wrapError(new Error(`'${ path }' exists and is not a directory.`)));
+						: Promise.wrapError(new Error(`'${path}' exists and is not a directory.`)));
 			}
 
 			return TPromise.wrapError<boolean>(err);
 		});
 
-	if (isRoot(path)) {
+	// is root?
+	if (path === dirname(path)) {
 		return TPromise.as(true);
 	}
 
@@ -65,7 +65,7 @@ export function rimraf(path: string): TPromise<void> {
 		}
 	}, (err: NodeJS.ErrnoException) => {
 		if (err.code === 'ENOENT') {
-			return;
+			return void 0;
 		}
 
 		return TPromise.wrapError<void>(err);
@@ -82,10 +82,6 @@ export function stat(path: string): TPromise<fs.Stats> {
 
 export function lstat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.lstat, path);
-}
-
-export function mstat(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
-	return doStatMultiple(paths.slice(0));
 }
 
 export function rename(oldPath: string, newPath: string): Promise {
@@ -108,19 +104,10 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-function doStatMultiple(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
-	let path = paths.shift();
-	return stat(path).then((value) => {
-		return {
-			path: path,
-			stats: value
-		};
-	}, (err) => {
-		if (paths.length === 0) {
-			return err;
-		}
-		return mstat(paths);
-	});
+export function touch(path: string): TPromise<void> {
+	const now = Date.now() / 1000; // the value should be a Unix timestamp in seconds
+
+	return nfcall(fs.utimes, path, now, now);
 }
 
 export function readFile(path: string): TPromise<Buffer>;
@@ -129,34 +116,52 @@ export function readFile(path: string, encoding?: string): TPromise<Buffer | str
 	return nfcall(fs.readFile, path, encoding);
 }
 
-export function writeFile(path: string, data: string, encoding?: string): Promise;
-export function writeFile(path: string, data: NodeBuffer, encoding?: string): Promise;
-export function writeFile(path: string, data: any, encoding: string = 'utf8'): Promise {
-	return nfcall(fs.writeFile, path, data, encoding);
+// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
+// Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
+const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
+
+export function writeFile(path: string, data: string, encoding?: string): TPromise<void>;
+export function writeFile(path: string, data: NodeBuffer, encoding?: string): TPromise<void>;
+export function writeFile(path: string, data: any, encoding: string = 'utf8'): TPromise<void> {
+	let queueKey = toQueueKey(path);
+
+	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, encoding));
 }
 
-export function writeFileAndFlush(path: string, data: string, encoding?: string): Promise;
-export function writeFileAndFlush(path: string, data: NodeBuffer, encoding?: string): Promise;
-export function writeFileAndFlush(path: string, data: any, encoding: string = 'utf8'): Promise {
-	return nfcall(extfs.writeFileAndFlush, path, data, encoding);
+function toQueueKey(path: string): string {
+	let queueKey = path;
+	if (platform.isWindows || platform.isMacintosh) {
+		queueKey = queueKey.toLowerCase(); // accomodate for case insensitive file systems
+	}
+
+	return queueKey;
+}
+
+function ensureWriteFileQueue(queueKey: string): Queue<void> {
+	let writeFileQueue = writeFilePathQueue[queueKey];
+	if (!writeFileQueue) {
+		writeFileQueue = new Queue<void>();
+		writeFilePathQueue[queueKey] = writeFileQueue;
+
+		const onFinish = once(writeFileQueue.onFinished);
+		onFinish(() => {
+			delete writeFilePathQueue[queueKey];
+			writeFileQueue.dispose();
+		});
+	}
+
+	return writeFileQueue;
 }
 
 /**
 * Read a dir and return only subfolders
 */
 export function readDirsInDir(dirPath: string): TPromise<string[]> {
-	return readdir(dirPath).then((children) => {
-		return TPromise.join(
-			children.map((child) => dirExistsWithResult(paths.join(dirPath, child), child))
-		).then((subdirs) => {
-			return removeNull(subdirs);
+	return readdir(dirPath).then(children => {
+		return TPromise.join(children.map(c => dirExists(paths.join(dirPath, c)))).then(exists => {
+			return children.filter((_, i) => exists[i]);
 		});
-	});
-}
-
-function dirExistsWithResult<T>(path: string, successResult: T): TPromise<T> {
-	return dirExists(path).then((exists) => {
-		return exists ? successResult : null;
 	});
 }
 
@@ -175,38 +180,9 @@ export function fileExists(path: string): TPromise<boolean> {
 }
 
 /**
-* Read dir at `path` and return only files matching `pattern`
-*/
-export function readFiles(path: string, pattern: RegExp): TPromise<string[]> {
-	return readdir(path).then((children) => {
-		children = children.filter((child) => {
-			return pattern.test(child);
-		});
-		let fileChildren = children.map((child) => {
-			return fileExistsWithResult(paths.join(path, child), child);
-		});
-		return TPromise.join(fileChildren).then((subdirs) => {
-			return removeNull(subdirs);
-		});
-	});
-}
-
-export function fileExistsWithResult<T>(path: string, successResult: T): TPromise<T> {
-	return fileExists(path).then((exists) => {
-		return exists ? successResult : null;
-	}, (err) => {
-		return TPromise.wrapError(err);
-	});
-}
-
-export function existsWithResult<T>(path: string, successResult: T): TPromise<T> {
-	return exists(path).then((exists) => {
-		return exists ? successResult : null;
-	}, (err) => {
-		return TPromise.wrapError(err);
-	});
-}
-
-function removeNull<T>(arr: T[]): T[] {
-	return arr.filter(item => (item !== null));
+ * Deletes a path from disk.
+ */
+const tmpDir = os.tmpdir();
+export function del(path: string, tmp = tmpDir): TPromise<void> {
+	return nfcall(extfs.del, path, tmp);
 }

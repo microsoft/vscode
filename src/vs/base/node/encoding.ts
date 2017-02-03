@@ -13,6 +13,18 @@ export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
 
+export function bomLength(encoding: string): number {
+	switch (encoding) {
+		case UTF8:
+			return 3;
+		case UTF16be:
+		case UTF16le:
+			return 2;
+	}
+
+	return 0;
+}
+
 export function decode(buffer: NodeBuffer, encoding: string, options?: any): string {
 	return iconv.decode(buffer, toNodeEncoding(encoding), options);
 }

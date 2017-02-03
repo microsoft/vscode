@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IWatcherRequest {
 	basePath: string;

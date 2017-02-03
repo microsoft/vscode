@@ -5,10 +5,8 @@
 
 var gulp = require('gulp');
 var path = require('path');
-var _ = require('underscore');
-var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
-var common = require('./gulpfile.common');
+var common = require('./lib/optimize');
 var es = require('event-stream');
 var File = require('vinyl');
 
@@ -19,12 +17,21 @@ var headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
-var editorEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/editor/editor.main'),
-	buildfile.base,
-	buildfile.editor,
-	buildfile.languages
-]);
+var editorEntryPoints = [
+	{
+		name: 'vs/editor/editor.main',
+		include: [],
+		exclude: [],
+		prepend: [ 'vs/css.js', 'vs/nls.js' ],
+	},
+	{
+		name: 'vs/base/common/worker/simpleWorker',
+		include: [ 'vs/editor/common/services/editorSimpleWorker' ],
+		prepend: [ 'vs/loader.js' ],
+		append: [ 'vs/base/worker/workerMain' ],
+		dest: 'vs/base/worker/workerMain.js'
+	}
+];
 
 var editorResources = [
 	'out-build/vs/{base,editor}/**/*.{svg,png}',
@@ -32,15 +39,11 @@ var editorResources = [
 	'!out-build/vs/base/browser/ui/toolbar/**/*',
 	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
 	'!out-build/vs/editor/contrib/defineKeybinding/**/*',
-	'out-build/vs/base/worker/workerMainCompatibility.html',
-	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
 ];
 
 var editorOtherSources = [
-	'out-build/vs/css.js',
-	'out-build/vs/nls.js'
 ];
 
 var BUNDLED_FILE_HEADER = [
@@ -60,17 +63,21 @@ function editorLoaderConfig() {
 	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
 
 	// force css inlining to use base64 -- see https://github.com/Microsoft/monaco-editor/issues/148
-	result['vs/css'] = { inlineResources: 'base64' };
+	result['vs/css'] = {
+		inlineResources: 'base64',
+		inlineResourcesLimit: 3000 // see https://github.com/Microsoft/monaco-editor/issues/336
+	};
 
 	return result;
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
 	loaderConfig: editorLoaderConfig(),
+	bundleLoader: false,
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
 	out: 'out-editor'

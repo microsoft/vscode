@@ -7,6 +7,8 @@
 	"invalid.properties": "configuration.properties должно быть объектом",
 	"invalid.title": "configuration.title должно быть строкой",
 	"invalid.type": "Если тип configuration.type задан, то он должен иметь значение object",
+	"overrideSettings.description": "Настройка переопределяемых параметров для набора идентификаторов языков.",
+	"overrideSettings.title": "Переопределить параметры",
 	"vscode.extension.contributes.configuration": "Добавляет параметры конфигурации.",
 	"vscode.extension.contributes.configuration.properties": "Описание свойств конфигурации.",
 	"vscode.extension.contributes.configuration.title": "Краткая сводка параметров. Эта метка будет использоваться в файле параметров в качестве разделяющего комментария."

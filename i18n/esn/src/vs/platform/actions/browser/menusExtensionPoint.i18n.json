@@ -8,6 +8,7 @@
 	"dupe.command": "El elemento de menú hace referencia al mismo comando que el comando predeterminado y el comando alternativo",
 	"menuId.invalid": "`{0}` no es un identificador de menú válido",
 	"menus.editorContext": "El menú conextual del editor",
+	"menus.editorTabContext": "Menú contextual de pestañas del editor",
 	"menus.editorTitle": "El menú de título del editor",
 	"menus.explorerContext": "El menú contextual del explorador de archivos",
 	"missing.altCommand": "El elemento de menú hace referencia a un comando alternativo `{0}` que no está definido en la sección 'commands'.",

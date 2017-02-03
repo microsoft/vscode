@@ -6,13 +6,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {Position} from 'vs/editor/common/core/position';
+import { SmartSnippetInserter } from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { Position } from 'vs/editor/common/core/position';
 
 suite('SmartSnippetInserter', () => {
 
-	function testSmartSnippetInserter(text:string[], runner:(assert:(desiredPos:Position, pos:Position, prepend:string, append:string)=>void)=>void): void {
+	function testSmartSnippetInserter(text: string[], runner: (assert: (desiredPos: Position, pos: Position, prepend: string, append: string) => void) => void): void {
 		let model = new TextModel([], TextModel.toRawText(text.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS));
 		runner((desiredPos, pos, prepend, append) => {
 			let actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
@@ -29,30 +29,30 @@ suite('SmartSnippetInserter', () => {
 	test('empty text', () => {
 		testSmartSnippetInserter([
 		], (assert) => {
-			assert(new Position(1,1), new Position(1,1), '\n[', ']');
+			assert(new Position(1, 1), new Position(1, 1), '\n[', ']');
 		});
 
 		testSmartSnippetInserter([
 			' '
 		], (assert) => {
-			assert(new Position(1,1), new Position(1,2), '\n[', ']');
-			assert(new Position(1,2), new Position(1,2), '\n[', ']');
+			assert(new Position(1, 1), new Position(1, 2), '\n[', ']');
+			assert(new Position(1, 2), new Position(1, 2), '\n[', ']');
 		});
 
 		testSmartSnippetInserter([
 			'// just some text'
 		], (assert) => {
-			assert(new Position(1,1), new Position(1,18), '\n[', ']');
-			assert(new Position(1,18), new Position(1,18), '\n[', ']');
+			assert(new Position(1, 1), new Position(1, 18), '\n[', ']');
+			assert(new Position(1, 18), new Position(1, 18), '\n[', ']');
 		});
 
 		testSmartSnippetInserter([
 			'// just some text',
 			''
 		], (assert) => {
-			assert(new Position(1,1), new Position(2,1), '\n[', ']');
-			assert(new Position(1,18), new Position(2,1), '\n[', ']');
-			assert(new Position(2,1), new Position(2,1), '\n[', ']');
+			assert(new Position(1, 1), new Position(2, 1), '\n[', ']');
+			assert(new Position(1, 18), new Position(2, 1), '\n[', ']');
+			assert(new Position(2, 1), new Position(2, 1), '\n[', ']');
 		});
 	});
 
@@ -61,10 +61,10 @@ suite('SmartSnippetInserter', () => {
 			'// just some text',
 			'[]'
 		], (assert) => {
-			assert(new Position(1,1), new Position(2,2), '', '');
-			assert(new Position(2,1), new Position(2,2), '', '');
-			assert(new Position(2,2), new Position(2,2), '', '');
-			assert(new Position(2,3), new Position(2,2), '', '');
+			assert(new Position(1, 1), new Position(2, 2), '', '');
+			assert(new Position(2, 1), new Position(2, 2), '', '');
+			assert(new Position(2, 2), new Position(2, 2), '', '');
+			assert(new Position(2, 3), new Position(2, 2), '', '');
 		});
 	});
 
@@ -74,11 +74,11 @@ suite('SmartSnippetInserter', () => {
 			'[',
 			']'
 		], (assert) => {
-			assert(new Position(1,1), new Position(2,2), '', '');
-			assert(new Position(2,1), new Position(2,2), '', '');
-			assert(new Position(2,2), new Position(2,2), '', '');
-			assert(new Position(3,1), new Position(3,1), '', '');
-			assert(new Position(3,2), new Position(3,1), '', '');
+			assert(new Position(1, 1), new Position(2, 2), '', '');
+			assert(new Position(2, 1), new Position(2, 2), '', '');
+			assert(new Position(2, 2), new Position(2, 2), '', '');
+			assert(new Position(3, 1), new Position(3, 1), '', '');
+			assert(new Position(3, 2), new Position(3, 1), '', '');
 		});
 	});
 
@@ -89,13 +89,13 @@ suite('SmartSnippetInserter', () => {
 			'// just some text',
 			']'
 		], (assert) => {
-			assert(new Position(1,1), new Position(2,2), '', '');
-			assert(new Position(2,1), new Position(2,2), '', '');
-			assert(new Position(2,2), new Position(2,2), '', '');
-			assert(new Position(3,1), new Position(3,1), '', '');
-			assert(new Position(3,2), new Position(3,1), '', '');
-			assert(new Position(4,1), new Position(4,1), '', '');
-			assert(new Position(4,2), new Position(4,1), '', '');
+			assert(new Position(1, 1), new Position(2, 2), '', '');
+			assert(new Position(2, 1), new Position(2, 2), '', '');
+			assert(new Position(2, 2), new Position(2, 2), '', '');
+			assert(new Position(3, 1), new Position(3, 1), '', '');
+			assert(new Position(3, 2), new Position(3, 1), '', '');
+			assert(new Position(4, 1), new Position(4, 1), '', '');
+			assert(new Position(4, 2), new Position(4, 1), '', '');
 		});
 	});
 
@@ -106,14 +106,14 @@ suite('SmartSnippetInserter', () => {
 			'{}',
 			']'
 		], (assert) => {
-			assert(new Position(1,1), new Position(2,2), '', ',');
-			assert(new Position(2,1), new Position(2,2), '', ',');
-			assert(new Position(2,2), new Position(2,2), '', ',');
-			assert(new Position(3,1), new Position(3,1), '', ',');
-			assert(new Position(3,2), new Position(3,1), '', ',');
-			assert(new Position(3,3), new Position(3,3), ',', '');
-			assert(new Position(4,1), new Position(4,1), ',', '');
-			assert(new Position(4,2), new Position(4,1), ',', '');
+			assert(new Position(1, 1), new Position(2, 2), '', ',');
+			assert(new Position(2, 1), new Position(2, 2), '', ',');
+			assert(new Position(2, 2), new Position(2, 2), '', ',');
+			assert(new Position(3, 1), new Position(3, 1), '', ',');
+			assert(new Position(3, 2), new Position(3, 1), '', ',');
+			assert(new Position(3, 3), new Position(3, 3), ',', '');
+			assert(new Position(4, 1), new Position(4, 1), ',', '');
+			assert(new Position(4, 2), new Position(4, 1), ',', '');
 		});
 	});
 
@@ -125,18 +125,18 @@ suite('SmartSnippetInserter', () => {
 			'{}',
 			']'
 		], (assert) => {
-			assert(new Position(1,1), new Position(2,2), '', ',');
-			assert(new Position(2,1), new Position(2,2), '', ',');
-			assert(new Position(2,2), new Position(2,2), '', ',');
-			assert(new Position(3,1), new Position(3,1), '', ',');
-			assert(new Position(3,2), new Position(3,1), '', ',');
-			assert(new Position(3,3), new Position(3,3), ',', '');
-			assert(new Position(3,4), new Position(3,4), '', ',');
-			assert(new Position(4,1), new Position(4,1), '', ',');
-			assert(new Position(4,2), new Position(4,1), '', ',');
-			assert(new Position(4,3), new Position(4,3), ',', '');
-			assert(new Position(5,1), new Position(5,1), ',', '');
-			assert(new Position(5,2), new Position(5,1), ',', '');
+			assert(new Position(1, 1), new Position(2, 2), '', ',');
+			assert(new Position(2, 1), new Position(2, 2), '', ',');
+			assert(new Position(2, 2), new Position(2, 2), '', ',');
+			assert(new Position(3, 1), new Position(3, 1), '', ',');
+			assert(new Position(3, 2), new Position(3, 1), '', ',');
+			assert(new Position(3, 3), new Position(3, 3), ',', '');
+			assert(new Position(3, 4), new Position(3, 4), '', ',');
+			assert(new Position(4, 1), new Position(4, 1), '', ',');
+			assert(new Position(4, 2), new Position(4, 1), '', ',');
+			assert(new Position(4, 3), new Position(4, 3), ',', '');
+			assert(new Position(5, 1), new Position(5, 1), ',', '');
+			assert(new Position(5, 2), new Position(5, 1), ',', '');
 		});
 	});
 
@@ -147,17 +147,17 @@ suite('SmartSnippetInserter', () => {
 			'{},{}',
 			']'
 		], (assert) => {
-			assert(new Position(1,1), new Position(2,2), '', ',');
-			assert(new Position(2,1), new Position(2,2), '', ',');
-			assert(new Position(2,2), new Position(2,2), '', ',');
-			assert(new Position(3,1), new Position(3,1), '', ',');
-			assert(new Position(3,2), new Position(3,1), '', ',');
-			assert(new Position(3,3), new Position(3,3), ',', '');
-			assert(new Position(3,4), new Position(3,4), '', ',');
-			assert(new Position(3,5), new Position(3,4), '', ',');
-			assert(new Position(3,6), new Position(3,6), ',', '');
-			assert(new Position(4,1), new Position(4,1), ',', '');
-			assert(new Position(4,2), new Position(4,1), ',', '');
+			assert(new Position(1, 1), new Position(2, 2), '', ',');
+			assert(new Position(2, 1), new Position(2, 2), '', ',');
+			assert(new Position(2, 2), new Position(2, 2), '', ',');
+			assert(new Position(3, 1), new Position(3, 1), '', ',');
+			assert(new Position(3, 2), new Position(3, 1), '', ',');
+			assert(new Position(3, 3), new Position(3, 3), ',', '');
+			assert(new Position(3, 4), new Position(3, 4), '', ',');
+			assert(new Position(3, 5), new Position(3, 4), '', ',');
+			assert(new Position(3, 6), new Position(3, 6), ',', '');
+			assert(new Position(4, 1), new Position(4, 1), ',', '');
+			assert(new Position(4, 2), new Position(4, 1), ',', '');
 		});
 	});
 

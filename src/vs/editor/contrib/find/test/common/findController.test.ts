@@ -5,24 +5,25 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Selection} from 'vs/editor/common/core/selection';
-import {Range} from 'vs/editor/common/core/range';
-import {IRange} from 'vs/editor/common/editorCommon';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
-	NextMatchFindAction, StartFindAction, SelectHighlightsAction
+	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
+	AddSelectionToNextFindMatchAction
 } from 'vs/editor/contrib/find/common/findController';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {HistoryNavigator} from 'vs/base/common/history';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
 
-	protected _start(opts:IFindStartOptions): void {
+	protected _start(opts: IFindStartOptions): void {
 		super._start(opts);
 
 		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
@@ -41,7 +42,7 @@ class TestFindController extends CommonFindController {
 
 suite('FindController', () => {
 
-	function fromRange(rng:IRange): number[] {
+	function fromRange(rng: IRange): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
@@ -236,7 +237,7 @@ suite('FindController', () => {
 			findController.getState().change({ searchString: '2' }, false);
 			findController.getState().change({ searchString: '3' }, false);
 
-			setTimeout(function() {
+			setTimeout(function () {
 				assert.deepEqual(['3'], toArray(findController.getHistory()));
 				done();
 			}, 500);
@@ -314,6 +315,63 @@ suite('FindController', () => {
 			findController.showPreviousFindTerm();
 			findController.showNextFindTerm();
 			assert.deepEqual(['1', '2', '3', '4'], toArray(findController.getHistory()));
+		});
+	});
+
+	test('AddSelectionToNextFindMatchAction can work with multiline', () => {
+		withMockCodeEditor([
+			'',
+			'qwe',
+			'rty',
+			'',
+			'qwe',
+			'',
+			'rty',
+			'qwe',
+			'rty'
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(2, 1, 3, 4));
+
+			addSelectionToNextFindMatch.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[2, 1, 3, 4],
+				[8, 1, 9, 4]
+			]);
+
+			editor.trigger('test', 'removeSecondaryCursors', null);
+
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #18111: Regex replace with single space replaces with no space', () => {
+		withMockCodeEditor([
+			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			let startFindAction = new StartFindAction();
+			startFindAction.run(null, editor);
+
+			findController.getState().change({ searchString: '\\b\\s{3}\\b', replaceString: ' ', isRegex: true }, false);
+			findController.moveToNextMatch();
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[1, 39, 1, 42]
+			]);
+
+			findController.replace();
+
+			assert.deepEqual(editor.getValue(), 'HRESULT OnAmbientPropertyChange(DISPID dispid);');
+
+			findController.dispose();
 		});
 	});
 

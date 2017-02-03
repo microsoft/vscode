@@ -6,7 +6,7 @@
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
-var ptyJs = require('pty.js');
+var ptyJs = require('node-pty');
 
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38
@@ -51,6 +51,7 @@ process.on('message', function (message) {
 	}
 });
 
+sendProcessId();
 setupTitlePolling();
 
 function getArgs() {
@@ -89,6 +90,13 @@ function setupPlanB(parentPid) {
 			process.exit();
 		}
 	}, 5000);
+}
+
+function sendProcessId() {
+	process.send({
+		type: 'pid',
+		content: ptyProcess.pid
+	});
 }
 
 function setupTitlePolling() {

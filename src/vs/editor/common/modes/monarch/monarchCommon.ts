@@ -133,7 +133,7 @@ export function throwError(lexer: ILexerMin, msg: string) {
 export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string) {
 	var re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
 	var stateMatches: string[] = null;
-	return str.replace(re, function(full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
+	return str.replace(re, function (full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
 		if (!empty(dollar)) {
 			return '$'; // $$
 		}

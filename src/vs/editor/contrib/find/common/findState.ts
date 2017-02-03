@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {Range} from 'vs/editor/common/core/range';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface FindReplaceStateChangedEvent {
 	moveCursor: boolean;
@@ -84,12 +84,12 @@ export class FindReplaceState implements IDisposable {
 		this._eventEmitter.dispose();
 	}
 
-	public addChangeListener(listener:(e:FindReplaceStateChangedEvent)=>void): IDisposable {
+	public addChangeListener(listener: (e: FindReplaceStateChangedEvent) => void): IDisposable {
 		return this._eventEmitter.addListener2(FindReplaceState._CHANGED_EVENT, listener);
 	}
 
-	public changeMatchInfo(matchesPosition:number, matchesCount:number, currentMatch:Range): void {
-		let changeEvent:FindReplaceStateChangedEvent = {
+	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range): void {
+		let changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: false,
 			updateHistory: false,
 			searchString: false,
@@ -137,8 +137,8 @@ export class FindReplaceState implements IDisposable {
 		}
 	}
 
-	public change(newState:INewFindReplaceState, moveCursor:boolean, updateHistory: boolean = true): void {
-		let changeEvent:FindReplaceStateChangedEvent = {
+	public change(newState: INewFindReplaceState, moveCursor: boolean, updateHistory: boolean = true): void {
+		let changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: moveCursor,
 			updateHistory: updateHistory,
 			searchString: false,

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IThemeDocument, IThemeSetting, IThemeSettingStyle} from 'vs/workbench/services/themes/common/themeService';
-import {Color} from 'vs/base/common/color';
-import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
+import { IThemeSetting } from 'vs/workbench/services/themes/common/themeService';
+import { Color } from 'vs/base/common/color';
+import { getBaseThemeId, getSyntaxThemeId } from 'vs/platform/theme/common/themes';
 
 interface ThemeGlobalSettings {
 	background?: string;
@@ -33,7 +33,25 @@ interface ThemeGlobalSettings {
 
 	referenceHighlight?: string;
 
+	linkForeground?: string;
 	activeLinkForeground?: string;
+
+	ansiBlack?: string;
+	ansiRed?: string;
+	ansiGreen?: string;
+	ansiYellow?: string;
+	ansiBlue?: string;
+	ansiMagenta?: string;
+	ansiCyan?: string;
+	ansiWhite?: string;
+	ansiBrightBlack?: string;
+	ansiBrightRed?: string;
+	ansiBrightGreen?: string;
+	ansiBrightYellow?: string;
+	ansiBrightBlue?: string;
+	ansiBrightMagenta?: string;
+	ansiBrightCyan?: string;
+	ansiBrightWhite?: string;
 }
 
 class Theme {
@@ -42,12 +60,12 @@ class Theme {
 	private settings: IThemeSetting[];
 	private globalSettings: ThemeGlobalSettings = null;
 
-	constructor(private themeId: string, themeDocument: IThemeDocument) {
+	constructor(private themeId: string, themeSettings: IThemeSetting[]) {
 		this.selector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
-		this.settings = themeDocument.settings;
-		let settings = this.settings[0];
-		if (!settings.scope) {
-			this.globalSettings = settings.settings;
+		this.settings = themeSettings;
+		let globalSettings = this.settings.filter(s => !s.scope);
+		if (globalSettings.length > 0) {
+			this.globalSettings = globalSettings[0].settings;
 		}
 	}
 
@@ -73,67 +91,11 @@ abstract class StyleRules {
 	public abstract getCssRules(theme: Theme, cssRules: string[]): void;
 }
 
-export class TokenStylesContribution {
-
-	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
-		let theme = new Theme(themeId, themeDocument);
-		theme.getSettings().forEach((s: IThemeSetting, index, arr) => {
-			let scope: string | string[] = s.scope;
-			let settings = s.settings;
-			if (scope && settings) {
-				let rules = Array.isArray(scope) ? <string[]>scope : scope.split(',');
-				let statements = this._settingsToStatements(settings);
-				rules.forEach(rule => {
-					rule = rule.trim().replace(/ /g, '.'); // until we have scope hierarchy in the editor dom: replace spaces with .
-
-					cssRules.push(`.monaco-editor.${theme.getSelector()} .token.${rule} { ${statements} }`);
-				});
-			}
-		});
-	}
-
-	private _settingsToStatements(settings: IThemeSettingStyle): string {
-		let statements: string[] = [];
-
-		for (let settingName in settings) {
-			const value = settings[settingName];
-			switch (settingName) {
-				case 'foreground':
-					let foreground = new Color(value);
-					statements.push(`color: ${foreground};`);
-					break;
-				case 'background':
-					// do not support background color for now, see bug 18924
-					//let background = new Color(value);
-					//statements.push(`background-color: ${background};`);
-					break;
-				case 'fontStyle':
-					let segments = value.split(' ');
-					segments.forEach(s => {
-						switch (s) {
-							case 'italic':
-								statements.push(`font-style: italic;`);
-								break;
-							case 'bold':
-								statements.push(`font-weight: bold;`);
-								break;
-							case 'underline':
-								statements.push(`text-decoration: underline;`);
-								break;
-						}
-					});
-			}
-		}
-		return statements.join(' ');
-	}
-}
-
 export class EditorStylesContribution {
 
-	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]) {
+	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]) {
 		let editorStyleRules = [
 			new EditorBackgroundStyleRules(),
-			new EditorForegroundStyleRules(),
 			new EditorCursorStyleRules(),
 			new EditorWhiteSpaceStyleRules(),
 			new EditorIndentGuidesStyleRules(),
@@ -145,7 +107,7 @@ export class EditorStylesContribution {
 			new EditorHoverHighlightStyleRules(),
 			new EditorLinkStyleRules()
 		];
-		let theme = new Theme(themeId, themeDocument);
+		let theme = new Theme(themeId, themeSettings);
 		if (theme.hasGlobalSettings()) {
 			editorStyleRules.forEach((editorStyleRule => {
 				editorStyleRule.getCssRules(theme, cssRules);
@@ -156,8 +118,8 @@ export class EditorStylesContribution {
 
 export class SearchViewStylesContribution {
 
-	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
-		let theme = new Theme(themeId, themeDocument);
+	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]): void {
+		let theme = new Theme(themeId, themeSettings);
 		if (theme.hasGlobalSettings()) {
 			if (theme.getGlobalSettings().findMatchHighlight) {
 				let color = new Color(theme.getGlobalSettings().findMatchHighlight);
@@ -167,6 +129,57 @@ export class SearchViewStylesContribution {
 		}
 	}
 }
+
+export class TerminalStylesContribution {
+
+	private static ansiColorMap = {
+		ansiBlack: 0,
+		ansiRed: 1,
+		ansiGreen: 2,
+		ansiYellow: 3,
+		ansiBlue: 4,
+		ansiMagenta: 5,
+		ansiCyan: 6,
+		ansiWhite: 7,
+		ansiBrightBlack: 8,
+		ansiBrightRed: 9,
+		ansiBrightGreen: 10,
+		ansiBrightYellow: 11,
+		ansiBrightBlue: 12,
+		ansiBrightMagenta: 13,
+		ansiBrightCyan: 14,
+		ansiBrightWhite: 15
+	};
+
+	/**
+	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
+	 */
+	private _convertHexCssColorToRgba(hex: string, alpha: number): string {
+		const r = parseInt(hex.substr(1, 2), 16);
+		const g = parseInt(hex.substr(3, 2), 16);
+		const b = parseInt(hex.substr(5, 2), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+
+	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]): void {
+		const theme = new Theme(themeId, themeSettings);
+		if (theme.hasGlobalSettings()) {
+			const keys = Object.keys(theme.getGlobalSettings());
+			keys.filter(key => key.indexOf('ansi') === 0).forEach(key => {
+				if (key in TerminalStylesContribution.ansiColorMap) {
+					const color = theme.getGlobalSettings()[key];
+					const index = TerminalStylesContribution.ansiColorMap[key];
+					const rgba = this._convertHexCssColorToRgba(color, 0.996);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`);
+				}
+			});
+		}
+	}
+}
+
 
 abstract class EditorStyleRules extends StyleRules {
 
@@ -191,16 +204,6 @@ class EditorBackgroundStyleRules extends EditorStyleRules {
 	}
 }
 
-class EditorForegroundStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		let themeSelector = theme.getSelector();
-		if (theme.getGlobalSettings().foreground) {
-			let foreground = new Color(theme.getGlobalSettings().foreground);
-			cssRules.push(`.monaco-editor.${themeSelector} .token { color: ${foreground}; }`);
-		}
-	}
-}
-
 class EditorHoverHighlightStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme, cssRules: string[]): void {
 		this.addBackgroundColorRule(theme, '.hoverHighlight', theme.getGlobalSettings().hoverHighlight, cssRules);
@@ -212,6 +215,9 @@ class EditorLinkStyleRules extends EditorStyleRules {
 		if (theme.getGlobalSettings().activeLinkForeground) {
 			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link-active { color: ${new Color(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
 			cssRules.push(`.monaco-editor.${theme.getSelector()} .goto-definition-link { color: ${new Color(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
+		}
+		if (theme.getGlobalSettings().linkForeground) {
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link { color: ${new Color(theme.getGlobalSettings().linkForeground)} !important; }`);
 		}
 	}
 }
@@ -276,7 +282,8 @@ class EditorReferenceSearchStyleRules extends EditorStyleRules {
 class EditorLineHighlightStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme, cssRules: string[]): void {
 		if (theme.getGlobalSettings().lineHighlight) {
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .current-line { background-color: ${new Color(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .view-overlays .current-line { background-color: ${new Color(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .margin-view-overlays .current-line-margin { background-color: ${new Color(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
 		}
 		this.addBackgroundColorRule(theme, '.rangeHighlight', theme.getGlobalSettings().rangeHighlight, cssRules);
 	}
@@ -295,10 +302,9 @@ class EditorCursorStyleRules extends EditorStyleRules {
 
 class EditorWhiteSpaceStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme, cssRules: string[]): void {
-		let themeSelector = theme.getSelector();
 		if (theme.getGlobalSettings().invisibles) {
 			let invisibles = new Color(theme.getGlobalSettings().invisibles);
-			cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
+			cssRules.push(`.vs-whitespace { color: ${invisibles} !important; }`);
 		}
 	}
 }

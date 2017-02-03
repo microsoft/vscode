@@ -7,25 +7,25 @@
 
 import 'vs/css!./peekViewWidget';
 import * as nls from 'vs/nls';
-import {Action} from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import * as strings from 'vs/base/common/strings';
-import {$} from 'vs/base/browser/builder';
-import Event, {Emitter} from 'vs/base/common/event';
+import { $ } from 'vs/base/browser/builder';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
-import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {IOptions, ZoneWidget} from './zoneWidget';
-import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IOptions, ZoneWidget } from './zoneWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
-	export const notInPeekEditor:ContextKeyExpr = inPeekEditor.toNegated();
+	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
 }
 
 export const NOT_INNER_EDITOR_CONTEXT_KEY = new RawContextKey<boolean>('inReferenceSearchEditor', true);

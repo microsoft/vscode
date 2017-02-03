@@ -4,17 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { isLinux } from 'vs/base/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
+	 * (if any) as well as all files that have been watched explicitly using the #watchFileChanges() API.
+	 */
+	onFileChanges: Event<FileChangesEvent>;
+
+	/**
+	 * An event that is fired upon successful completion of a certain file operation.
+	 */
+	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -93,6 +106,12 @@ export interface IFileService {
 	rename(resource: URI, newName: string): TPromise<IFileStat>;
 
 	/**
+	 * Creates a new empty file if the given path does not exist and otherwise
+	 * will set the mtime and atime of the file to the current date.
+	 */
+	touchFile(resource: URI): TPromise<IFileStat>;
+
+	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
@@ -120,11 +139,41 @@ export interface IFileService {
 	updateOptions(options: any): void;
 
 	/**
+	 * Returns the preferred encoding to use for a given resource.
+	 */
+	getEncoding(resource: URI): string;
+
+	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
 }
 
+export enum FileOperation {
+	CREATE,
+	DELETE,
+	MOVE,
+	COPY,
+	IMPORT
+}
+
+export class FileOperationEvent {
+
+	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
+	}
+
+	public get resource(): URI {
+		return this._resource;
+	}
+
+	public get target(): IFileStat {
+		return this._target;
+	}
+
+	public get operation(): FileOperation {
+		return this._operation;
+	}
+}
 
 /**
  * Possible changes that can occur to a file.
@@ -134,17 +183,6 @@ export enum FileChangeType {
 	ADDED = 1,
 	DELETED = 2
 }
-
-/**
- * Possible events to subscribe to
- */
-export const EventType = {
-
-	/**
-	* Send on file changes.
-	*/
-	FILE_CHANGES: 'files:fileChanges'
-};
 
 /**
  * Identifies a single change in a file.
@@ -185,42 +223,17 @@ export class FileChangesEvent extends events.Event {
 			return false;
 		}
 
-		return this.containsAny([resource], type);
-	}
-
-	/**
-	 * Returns true if this change event contains any of the provided files with the given change type. In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of any of the
-	 * provided file paths.
-	 */
-	public containsAny(resources: URI[], type: FileChangeType): boolean {
-		if (!resources || !resources.length) {
-			return false;
-		}
-
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			if (change.type !== type) {
 				return false;
 			}
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return resources.some((a: URI) => {
-					if (!a) {
-						return false;
-					}
-
-					return paths.isEqualOrParent(a.fsPath, change.resource.fsPath);
-				});
+				return isEqual(resource.fsPath, change.resource.fsPath) || isParent(resource.fsPath, change.resource.fsPath);
 			}
 
-			return resources.some((a: URI) => {
-				if (!a) {
-					return false;
-				}
-
-				return a.fsPath === change.resource.fsPath;
-			});
+			return isEqual(resource.fsPath, change.resource.fsPath);
 		});
 	}
 
@@ -267,14 +280,32 @@ export class FileChangesEvent extends events.Event {
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this._changes.filter((change) => change.type === type);
+		return this._changes.filter(change => change.type === type);
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			return change.type === type;
 		});
 	}
+}
+
+export function isEqual(path1: string, path2: string) {
+	const identityEquals = (path1 === path2);
+	if (isLinux || identityEquals) {
+		return identityEquals;
+	}
+
+	return path1.toLowerCase() === path2.toLowerCase();
+}
+
+export function isParent(path: string, candidate: string): boolean {
+	if (!isLinux) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
+	return path.indexOf(candidate + paths.nativeSep) === 0;
 }
 
 export interface IBaseStat {
@@ -301,12 +332,6 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
-
-	/**
-	 * The mime type string. Applicate for files
-	 * only.
-	 */
-	mime: string;
 }
 
 /**
@@ -316,7 +341,7 @@ export interface IFileStat extends IBaseStat {
 
 	/**
 	 * The resource is a directory. Iff {{true}}
-	 * {{mime}} and {{encoding}} have no meaning.
+	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
 
@@ -465,6 +490,14 @@ export const AutoSaveConfiguration = {
 	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
+export const HotExitConfiguration = {
+	OFF: 'off',
+	ON_EXIT: 'onExit',
+	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
+};
+
+export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
+
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
@@ -475,7 +508,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
-		iconTheme: string;
+		hotExit: string;
 	};
 }
 

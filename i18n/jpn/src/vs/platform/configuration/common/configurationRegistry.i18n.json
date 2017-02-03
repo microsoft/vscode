@@ -7,6 +7,8 @@
 	"invalid.properties": "'configuration.properties' は、オブジェクトである必要があります",
 	"invalid.title": "'configuration.title' は、文字列である必要があります",
 	"invalid.type": "設定すると、'configuration.type' は 'オブジェクトに設定されなければなりません",
+	"overrideSettings.description": "上書きされる言語識別子セットの設定を構成します。",
+	"overrideSettings.title": "上書き設定",
 	"vscode.extension.contributes.configuration": "構成の設定を提供します。",
 	"vscode.extension.contributes.configuration.properties": "構成のプロパティの説明です。",
 	"vscode.extension.contributes.configuration.title": "設定の概要です。このラベルは、設定ファイルでコメントの区切り文字として使用します。"

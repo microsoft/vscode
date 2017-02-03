@@ -5,14 +5,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IRawGitService, RawServiceState, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
-import { NoOpGitService } from 'vs/workbench/parts/git/common/noopGitService';
+import { UnscopedGitService } from 'vs/workbench/parts/git/node/unscopedGitService';
 import { GitService } from 'vs/workbench/parts/git/browser/gitServices';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { ITextFileService } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -26,6 +25,7 @@ import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { readdir } from 'vs/base/node/pfs';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IGit {
 	path: string;
@@ -66,7 +66,7 @@ function findGitDarwin(): TPromise<IGit> {
 				});
 			}
 
-			if (path !== '/usr/bin/git')	{
+			if (path !== '/usr/bin/git') {
 				return getVersion(path);
 			}
 
@@ -127,16 +127,6 @@ function findGit(hint: string): TPromise<IGit> {
 	});
 }
 
-class UnavailableRawGitService extends RawGitService {
-	constructor() {
-		super(null);
-	}
-
-	serviceState(): TPromise<RawServiceState> {
-		return TPromise.as(RawServiceState.GitNotFound);
-	}
-}
-
 class DisabledRawGitService extends RawGitService {
 	constructor() {
 		super(null);
@@ -179,13 +169,23 @@ interface IRawGitServiceBootstrap {
 }
 
 function createRawGitService(gitPath: string, execPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
-	const promise = new TPromise<IRawGitService>((c, e) => {
-		require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], ({ createRawGitService }: IRawGitServiceBootstrap) => {
-			findGit(gitPath)
-				.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, execPath, version))
-				.done(c, e);
-		}, e);
+	const requirePromise = new TPromise<IRawGitServiceBootstrap>((c, e) => {
+		return require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], c, e);
 	});
+
+	const servicePromise = requirePromise.then(({ createRawGitService }) => {
+		return findGit(gitPath)
+			.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, execPath, version))
+			.then(null, () => new RawGitService(null));
+	});
+
+	return new DelayedRawGitService(servicePromise);
+}
+
+function createUnscopedRawGitService(gitPath: string, execPath: string, encoding: string): IRawGitService {
+	const promise = findGit(gitPath)
+		.then(({ path, version }) => new UnscopedGitService(path, version, encoding, execPath))
+		.then(null, () => new RawGitService(null));
 
 	return new DelayedRawGitService(promise);
 }
@@ -196,7 +196,7 @@ export class ElectronGitService extends GitService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEventService eventService: IEventService,
+		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
@@ -210,18 +210,18 @@ export class ElectronGitService extends GitService {
 		const conf = configurationService.getConfiguration<IGitConfiguration>('git');
 		const filesConf = configurationService.getConfiguration<any>('files');
 		const workspace = contextService.getWorkspace();
+		const gitPath = conf.path || null;
+		const encoding = (filesConf && filesConf.encoding) || 'utf8';
+		const verbose = !environmentService.isBuilt || environmentService.verbose;
 
 		let raw: IRawGitService;
 
 		if (!conf.enabled) {
 			raw = new DisabledRawGitService();
 		} else if (!workspace) {
-			raw = new NoOpGitService();
+			raw = createUnscopedRawGitService(gitPath, environmentService.execPath, encoding);
 		} else {
-			const gitPath = conf.path || null;
-			const encoding = (filesConf && filesConf.encoding) || 'utf8';
 			const workspaceRoot = workspace.resource.fsPath;
-			const verbose = !environmentService.isBuilt || environmentService.verbose;
 
 			if (ElectronGitService.USE_REMOTE_PROCESS_SERVICE) {
 				raw = createRemoteRawGitService(gitPath, environmentService.execPath, workspaceRoot, encoding, verbose);
@@ -230,6 +230,6 @@ export class ElectronGitService extends GitService {
 			}
 		}
 
-		super(raw, instantiationService, eventService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
+		super(raw, instantiationService, fileService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
 	}
 }

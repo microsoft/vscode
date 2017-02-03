@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import Event, {Emitter} from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter, once } from 'vs/base/common/event';
+import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import {IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Event as BaseEvent} from 'vs/base/common/events';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
-import {IModel} from 'vs/editor/common/editorCommon';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
 export enum ConfirmResult {
 	SAVE,
@@ -35,6 +38,16 @@ export interface IEditorDescriptor {
 export const Extensions = {
 	Editors: 'workbench.contributions.editors'
 };
+
+/**
+ * Text diff editor id.
+ */
+export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
+
+/**
+ * Binary diff editor id.
+ */
+export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
 export interface IEditorRegistry {
 
@@ -191,12 +204,21 @@ export abstract class EditorInput implements IEditorInput {
 	}
 
 	/**
+	 * Returns a descriptor suitable for telemetry events or null if none is available.
+	 *
+	 * Subclasses should extend if they can contribute.
+	 */
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		return { typeId: this.getTypeId() };
+	}
+
+	/**
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
 	 * override to provide a meaningful model. The optional second argument allows to specify
 	 * if the EditorModel should be refreshed before returning it. Depending on the implementation
 	 * this could mean to refresh the editor model contents with the version from disk.
 	 */
-	public abstract resolve(refresh?: boolean): TPromise<EditorModel>;
+	public abstract resolve(refresh?: boolean): TPromise<IEditorModel>;
 
 	/**
 	 * An editor that is dirty will be asked to be saved once it closes.
@@ -268,29 +290,6 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
-export class EditorInputEvent extends BaseEvent {
-	private _editorInput: IEditorInput;
-	private prevented: boolean;
-
-	constructor(editorInput: IEditorInput) {
-		super(null);
-
-		this._editorInput = editorInput;
-	}
-
-	public get editorInput(): IEditorInput {
-		return this._editorInput;
-	}
-
-	public prevent(): void {
-		this.prevented = true;
-	}
-
-	public isPrevented(): boolean {
-		return this.prevented;
-	}
-}
-
 export enum EncodingMode {
 
 	/**
@@ -324,16 +323,6 @@ export interface IEncodingSupport {
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 
 	/**
-	 * Gets the mime type of the file this input is about.
-	 */
-	getMime(): string;
-
-	/**
-	 * Sets the mime type of the file this input is about.
-	 */
-	setMime(mime: string): void;
-
-	/**
 	 * Gets the absolute file resource URI this input is about.
 	 */
 	getResource(): URI;
@@ -350,59 +339,115 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 }
 
 /**
- * The base class of untitled editor inputs in the workbench.
+ * Side by side editor inputs that have a master and details side.
  */
-export abstract class UntitledEditorInput extends EditorInput implements IEncodingSupport {
+export class SideBySideEditorInput extends EditorInput {
 
-	abstract getResource(): URI;
+	public static ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
-	abstract isDirty(): boolean;
+	private _toUnbind: IDisposable[];
 
-	abstract suggestFileName(): string;
-
-	abstract getMime(): string;
-
-	abstract getEncoding(): string;
-
-	abstract setEncoding(encoding: string, mode: EncodingMode): void;
-}
-
-/**
- * The base class of editor inputs that have an original and modified side.
- */
-export abstract class BaseDiffEditorInput extends EditorInput {
-	private _originalInput: EditorInput;
-	private _modifiedInput: EditorInput;
-
-	constructor(originalInput: EditorInput, modifiedInput: EditorInput) {
+	constructor(private name: string, private description: string, private _details: EditorInput, private _master: EditorInput) {
 		super();
-
-		this._originalInput = originalInput;
-		this._modifiedInput = modifiedInput;
+		this._toUnbind = [];
+		this.registerListeners();
 	}
 
-	public get originalInput(): EditorInput {
-		return this._originalInput;
+	get master(): EditorInput {
+		return this._master;
 	}
 
-	public get modifiedInput(): EditorInput {
-		return this._modifiedInput;
+	get details(): EditorInput {
+		return this._details;
 	}
 
 	public isDirty(): boolean {
-		return this._modifiedInput.isDirty();
+		return this.master.isDirty();
 	}
 
 	public confirmSave(): ConfirmResult {
-		return this._modifiedInput.confirmSave();
+		return this.master.confirmSave();
 	}
 
 	public save(): TPromise<boolean> {
-		return this._modifiedInput.save();
+		return this.master.save();
 	}
 
 	public revert(): TPromise<boolean> {
-		return this._modifiedInput.revert();
+		return this.master.revert();
+	}
+
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		const descriptor = this.master.getTelemetryDescriptor();
+		return objects.assign(descriptor, super.getTelemetryDescriptor());
+	}
+
+	private registerListeners(): void {
+
+		// When the details or master input gets disposed, dispose this diff editor input
+		const onceDetailsDisposed = once(this.details.onDispose);
+		this._toUnbind.push(onceDetailsDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		const onceMasterDisposed = once(this.master.onDispose);
+		this._toUnbind.push(onceMasterDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		// Reemit some events from the master side to the outside
+		this._toUnbind.push(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._toUnbind.push(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+	}
+
+	public get toUnbind() {
+		return this._toUnbind;
+	}
+
+	public resolve(refresh?: boolean): TPromise<EditorModel> {
+		return TPromise.as(null);
+	}
+
+	getTypeId(): string {
+		return SideBySideEditorInput.ID;
+	}
+
+	public getName(): string {
+		return this.name;
+	}
+
+	public getDescription(): string {
+		return this.description;
+	}
+
+	public supportsSplitEditor(): boolean {
+		return false;
+	}
+
+	public matches(otherInput: any): boolean {
+		if (super.matches(otherInput) === true) {
+			return true;
+		}
+
+		if (otherInput) {
+			if (!(otherInput instanceof SideBySideEditorInput)) {
+				return false;
+			}
+
+			const otherDiffInput = <SideBySideEditorInput>otherInput;
+			return this.details.matches(otherDiffInput.details) && this.master.matches(otherDiffInput.master);
+		}
+
+		return false;
+	}
+
+	public dispose(): void {
+		this._toUnbind = dispose(this._toUnbind);
+		super.dispose();
 	}
 }
 
@@ -461,7 +506,7 @@ export class EditorOptions implements IEditorOptions {
 	 * Helper to create EditorOptions inline.
 	 */
 	public static create(settings: IEditorOptions): EditorOptions {
-		let options = new EditorOptions();
+		const options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
@@ -475,12 +520,15 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Inherit all options from other EditorOptions instance.
 	 */
-	public mixin(other: EditorOptions): void {
-		this.preserveFocus = other.preserveFocus;
-		this.forceOpen = other.forceOpen;
-		this.revealIfVisible = other.revealIfVisible;
-		this.pinned = other.pinned;
-		this.index = other.index;
+	public mixin(other: IEditorOptions): void {
+		if (other) {
+			this.preserveFocus = other.preserveFocus;
+			this.forceOpen = other.forceOpen;
+			this.revealIfVisible = other.revealIfVisible;
+			this.pinned = other.pinned;
+			this.index = other.index;
+			this.inactive = other.inactive;
+		}
 	}
 
 	/**
@@ -528,18 +576,19 @@ export class TextEditorOptions extends EditorOptions {
 	protected endLineNumber: number;
 	protected endColumn: number;
 
+	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState;
 	private editorOptions: ICodeEditorOptions;
 
-	public static from(input: IResourceInput): TextEditorOptions {
+	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
 			if (input.options.selection) {
-				let selection = input.options.selection;
+				const selection = input.options.selection;
 				options.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 			}
 
@@ -563,6 +612,14 @@ export class TextEditorOptions extends EditorOptions {
 				options.inactive = true;
 			}
 
+			if (input.options.revealInCenterIfOutsideViewport) {
+				options.revealInCenterIfOutsideViewport = true;
+			}
+
+			if (input.options.viewState) {
+				options.editorViewState = input.options.viewState;
+			}
+
 			if (typeof input.options.index === 'number') {
 				options.index = input.options.index;
 			}
@@ -575,7 +632,7 @@ export class TextEditorOptions extends EditorOptions {
 	 * Helper to create TextEditorOptions inline.
 	 */
 	public static create(settings: ITextEditorOptions): TextEditorOptions {
-		let options = new TextEditorOptions();
+		const options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
@@ -662,24 +719,32 @@ export class TextEditorOptions extends EditorOptions {
 
 			// Select
 			if (!types.isUndefinedOrNull(this.endLineNumber) && !types.isUndefinedOrNull(this.endColumn)) {
-				let range = {
+				const range = {
 					startLineNumber: this.startLineNumber,
 					startColumn: this.startColumn,
 					endLineNumber: this.endLineNumber,
 					endColumn: this.endColumn
 				};
 				editor.setSelection(range);
-				editor.revealRangeInCenter(range);
+				if (this.revealInCenterIfOutsideViewport) {
+					editor.revealRangeInCenterIfOutsideViewport(range);
+				} else {
+					editor.revealRangeInCenter(range);
+				}
 			}
 
 			// Reveal
 			else {
-				let pos = {
+				const pos = {
 					lineNumber: this.startLineNumber,
 					column: this.startColumn
 				};
 				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos);
+				if (this.revealInCenterIfOutsideViewport) {
+					editor.revealPositionInCenterIfOutsideViewport(pos);
+				} else {
+					editor.revealPositionInCenter(pos);
+				}
 			}
 
 			gotApplied = true;
@@ -707,7 +772,7 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	 * Helper to create TextDiffEditorOptions inline.
 	 */
 	public static create(settings: ITextDiffEditorOptions): TextDiffEditorOptions {
-		let options = new TextDiffEditorOptions();
+		const options = new TextDiffEditorOptions();
 
 		options.autoRevealFirstChange = settings.autoRevealFirstChange;
 
@@ -735,37 +800,6 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 }
 
 /**
- * Given an input, tries to get the associated URI for it (either file or untitled scheme).
- */
-export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boolean): URI {
-	if (!input) {
-		return null;
-	}
-
-	// Untitled
-	if (input instanceof UntitledEditorInput) {
-		return input.getResource();
-	}
-
-	// File
-	let fileInput = asFileEditorInput(input, supportDiff);
-
-	return fileInput && fileInput.getResource();
-}
-
-// TODO@Ben every editor should have an associated resource
-export function getResource(input: IEditorInput): URI {
-	if (input instanceof EditorInput && typeof (<any>input).getResource === 'function') {
-		let candidate = (<any>input).getResource();
-		if (candidate instanceof URI) {
-			return candidate;
-		}
-	}
-
-	return getUntitledOrFileResource(input, true);
-}
-
-/**
  * Helper to return all opened editors with resources not belonging to the currently opened workspace.
  */
 export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
@@ -774,32 +808,14 @@ export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGrou
 	editorGroupService.getStacksModel().groups.forEach(group => {
 		const editors = group.getEditors();
 		editors.forEach(editor => {
-			const fileInput = asFileEditorInput(editor, true);
-			if (fileInput && !contextService.isInsideWorkspace(fileInput.getResource())) {
-				resources.push(fileInput.getResource());
+			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
+			if (fileResource && !contextService.isInsideWorkspace(fileResource)) {
+				resources.push(fileResource);
 			}
 		});
 	});
 
 	return resources;
-}
-
-/**
- * Returns the object as IFileEditorInput only if it matches the signature.
- */
-export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorInput {
-	if (!obj) {
-		return null;
-	}
-
-	// Check for diff if we are asked to
-	if (supportDiff && obj instanceof BaseDiffEditorInput) {
-		obj = (<BaseDiffEditorInput>obj).modifiedInput;
-	}
-
-	let i = <IFileEditorInput>obj;
-
-	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
 }
 
 export interface IStacksModelChangeEvent {
@@ -815,15 +831,15 @@ export interface IEditorStacksModel {
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
-	isActive(IEditorGroup): boolean;
+	isActive(group: IEditorGroup): boolean;
 
 	getGroup(id: GroupIdentifier): IEditorGroup;
 
 	positionOfGroup(group: IEditorGroup): Position;
 	groupAt(position: Position): IEditorGroup;
 
-	next(): IEditorIdentifier;
-	previous(): IEditorIdentifier;
+	next(jumpGroups: boolean): IEditorIdentifier;
+	previous(jumpGroups: boolean): IEditorIdentifier;
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
@@ -849,6 +865,7 @@ export interface IEditorGroup {
 	getEditors(mru?: boolean): IEditorInput[];
 	isActive(editor: IEditorInput): boolean;
 	isPreview(editor: IEditorInput): boolean;
+	isPinned(index: number): boolean;
 	isPinned(editor: IEditorInput): boolean;
 }
 
@@ -880,9 +897,11 @@ export interface IWorkbenchEditorConfiguration {
 	workbench: {
 		editor: {
 			showTabs: boolean;
+			tabCloseButton: 'left' | 'right' | 'off';
+			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
-			openPositioning: string;
+			openPositioning: 'left' | 'right' | 'first' | 'last';
 		}
 	};
 }
@@ -907,6 +926,67 @@ export interface ActiveEditorMoveArguments {
 	value?: number;
 }
 
-export var EditorCommands = {
+export const EditorCommands = {
 	MoveActiveEditor: 'moveActiveEditor'
 };
+
+export interface IResourceOptions {
+	supportSideBySide?: boolean;
+	filter?: 'file' | 'untitled' | ['file', 'untitled'] | ['untitled', 'file'];
+}
+
+export function hasResource(editor: IEditorInput, options?: IResourceOptions): boolean {
+	return !!toResource(editor, options);
+}
+
+export function toResource(editor: IEditorInput, options?: IResourceOptions): URI {
+	if (!editor) {
+		return null;
+	}
+
+	// Check for side by side if we are asked to
+	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
+		editor = editor.master;
+	}
+
+	const resource = doGetEditorResource(editor);
+	if (!options || !options.filter) {
+		return resource; // return early if no filter is specified
+	}
+
+	if (!resource) {
+		return null;
+	}
+
+	let includeFiles: boolean;
+	let includeUntitled: boolean;
+	if (Array.isArray(options.filter)) {
+		includeFiles = (options.filter.indexOf('file') >= 0);
+		includeUntitled = (options.filter.indexOf('untitled') >= 0);
+	} else {
+		includeFiles = (options.filter === 'file');
+		includeUntitled = (options.filter === 'untitled');
+	}
+
+	if (includeFiles && resource.scheme === 'file') {
+		return resource;
+	}
+
+	if (includeUntitled && resource.scheme === 'untitled') {
+		return resource;
+	}
+
+	return null;
+}
+
+// TODO@Ben every editor should have an associated resource
+function doGetEditorResource(editor: IEditorInput): URI {
+	if (editor instanceof EditorInput && typeof (<any>editor).getResource === 'function') {
+		const candidate = (<any>editor).getResource();
+		if (candidate instanceof URI) {
+			return candidate;
+		}
+	}
+
+	return null;
+}

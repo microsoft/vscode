@@ -6,11 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {commands, Uri} from 'vscode';
-import {join, basename, normalize, dirname} from 'path';
+import { commands, Uri } from 'vscode';
+import { join, basename, normalize, dirname } from 'path';
 import * as fs from 'fs';
 
-function assertUnchangedTokens(testFixurePath:string, done) {
+function assertUnchangedTokens(testFixurePath: string, done) {
 	let fileName = basename(testFixurePath);
 
 	return commands.executeCommand('_workbench.captureSyntaxTokens', Uri.file(testFixurePath)).then(data => {
@@ -47,7 +47,7 @@ suite("colorization", () => {
 			let fixturesFiles = fs.readdirSync(extensionColorizeFixturePath);
 			fixturesFiles.forEach(fixturesFile => {
 				// define a test for each fixture
-				test(extension + '-' + fixturesFile, function(done) {
+				test(extension + '-' + fixturesFile, function (done) {
 					assertUnchangedTokens(join(extensionColorizeFixturePath, fixturesFile), done);
 				});
 			});

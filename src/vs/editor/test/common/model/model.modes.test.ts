@@ -5,186 +5,227 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {Model} from 'vs/editor/common/model/model';
-import {ModelMode1, ModelMode2, NMode} from 'vs/editor/test/common/testModes';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Model } from 'vs/editor/common/model/model';
+import * as modes from 'vs/editor/common/modes';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 // --------- utils
 
-function checkAndClear(highlighter, arr) {
-	assert.deepEqual(highlighter.calledFor, arr);
-	highlighter.calledFor = [];
-}
-
-function invalidEqual(model, indexArray) {
-	var i, len, asHash = {};
-	for (i = 0, len = indexArray.length; i < len; i++) {
-		asHash[indexArray[i]] = true;
-	}
-	for (i = 0, len = model.getLineCount(); i < len; i++) {
-		assert.equal(model._lines[i].isInvalid, asHash.hasOwnProperty(i));
-	}
-}
-
-function stateEqual(state, content) {
-	assert.equal(state.prevLineContent, content);
-}
-
-function statesEqual(model:Model, states:string[]) {
-	var i, len = states.length - 1;
-	for (i = 0; i < len; i++) {
-		stateEqual(model._lines[i].getState(), states[i]);
-	}
-	stateEqual((<any>model)._lastState, states[len]);
-}
-
-
-var LINE1 = '1';
-var LINE2 = '2';
-var LINE3 = '3';
-var LINE4 = '4';
-var LINE5 = '5';
-
-
 suite('Editor Model - Model Modes 1', () => {
 
-	var thisHighlighter: ModelMode1;
-	var thisModel: Model;
+	let calledFor: string[] = [];
+
+	function checkAndClear(arr: string[]) {
+		assert.deepEqual(calledFor, arr);
+		calledFor = [];
+	}
+
+	const tokenizationSupport: modes.ITokenizationSupport = {
+		getInitialState: () => NULL_STATE,
+		tokenize: undefined,
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+			calledFor.push(line.charAt(0));
+			return new TokenizationResult2(null, state);
+		}
+	};
+
+	let thisModel: Model = null;
+	let languageRegistration: IDisposable = null;
 
 	setup(() => {
-		thisHighlighter = new ModelMode1();
-		var text =
-			LINE1 + '\r\n' +
-			LINE2 + '\n' +
-			LINE3 + '\n' +
-			LINE4 + '\r\n' +
-			LINE5;
-		thisModel = Model.createFromString(text, undefined, thisHighlighter);
+		const TEXT =
+			'1\r\n' +
+			'2\n' +
+			'3\n' +
+			'4\r\n' +
+			'5';
+		const LANGUAGE_ID = 'modelModeTest1';
+		calledFor = [];
+		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {
 		thisModel.dispose();
+		thisModel = null;
+		languageRegistration.dispose();
+		languageRegistration = null;
+		calledFor = [];
 	});
+
 	test('model calls syntax highlighter 1', () => {
 		thisModel.getLineTokens(1);
-		checkAndClear(thisHighlighter, ['1']);
+		checkAndClear(['1']);
 	});
 
 	test('model calls syntax highlighter 2', () => {
 		thisModel.getLineTokens(2);
-		checkAndClear(thisHighlighter, ['1', '2']);
+		checkAndClear(['1', '2']);
 
 		thisModel.getLineTokens(2);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear([]);
 	});
 
 	test('model caches states', () => {
 		thisModel.getLineTokens(1);
-		checkAndClear(thisHighlighter, ['1']);
+		checkAndClear(['1']);
 
 		thisModel.getLineTokens(2);
-		checkAndClear(thisHighlighter, ['2']);
+		checkAndClear(['2']);
 
 		thisModel.getLineTokens(3);
-		checkAndClear(thisHighlighter, ['3']);
+		checkAndClear(['3']);
 
 		thisModel.getLineTokens(4);
-		checkAndClear(thisHighlighter, ['4']);
+		checkAndClear(['4']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['5']);
+		checkAndClear(['5']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for one line insert', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '-')]);
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['-']);
+		checkAndClear(['-']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines insert', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '0\n-\n+')]);
 		assert.equal(thisModel.getLineCount(), 7);
 		thisModel.getLineTokens(7);
-		checkAndClear(thisHighlighter, ['0', '-', '+']);
+		checkAndClear(['0', '-', '+']);
 
 		thisModel.getLineTokens(7);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for one new line', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '\n')]);
 		thisModel.applyEdits([EditOperation.insert(new Position(2, 1), 'a')]);
 		thisModel.getLineTokens(6);
-		checkAndClear(thisHighlighter, ['1', 'a']);
+		checkAndClear(['1', 'a']);
 	});
 
 	test('model invalidates states for one line delete', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '-')]);
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1']);
+		checkAndClear(['1']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['-']);
+		checkAndClear(['-']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines delete', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
 		thisModel.getLineTokens(3);
-		checkAndClear(thisHighlighter, ['3']);
+		checkAndClear(['3']);
 
 		thisModel.getLineTokens(3);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear([]);
 	});
 });
 
-
-
 suite('Editor Model - Model Modes 2', () => {
 
-	var thisHighlighter: ModelMode1;
-	var thisModel: Model;
+	class ModelState2 implements modes.IState {
+		prevLineContent: string;
+
+		constructor(prevLineContent: string) {
+			this.prevLineContent = prevLineContent;
+		}
+
+		clone(): modes.IState {
+			return new ModelState2(this.prevLineContent);
+		}
+
+		equals(other: modes.IState): boolean {
+			return (other instanceof ModelState2) && other.prevLineContent === this.prevLineContent;
+		}
+	}
+
+	const tokenizationSupport: modes.ITokenizationSupport = {
+		getInitialState: () => new ModelState2(''),
+		tokenize: undefined,
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+			(<ModelState2>state).prevLineContent = line;
+			return new TokenizationResult2(null, state);
+		}
+	};
+
+	function invalidEqual(model: Model, expected: number[]): void {
+		let actual: number[] = [];
+		for (let i = 0, len = model.getLineCount(); i < len; i++) {
+			if (model._lines[i].isInvalid) {
+				actual.push(i);
+			}
+		}
+		assert.deepEqual(actual, expected);
+	}
+
+	function stateEqual(state: modes.IState, content: string): void {
+		assert.equal((<ModelState2>state).prevLineContent, content);
+	}
+
+	function statesEqual(model: Model, states: string[]): void {
+		var i, len = states.length - 1;
+		for (i = 0; i < len; i++) {
+			stateEqual(model._lines[i].getState(), states[i]);
+		}
+		stateEqual((<any>model)._lastState, states[len]);
+	}
+
+	let thisModel: Model = null;
+	let languageRegistration: IDisposable = null;
 
 	setup(() => {
-		thisHighlighter = new ModelMode2();
-		var text =
+		const TEXT =
 			'Line1' + '\r\n' +
 			'Line2' + '\n' +
 			'Line3' + '\n' +
 			'Line4' + '\r\n' +
 			'Line5';
-		thisModel = Model.createFromString(text, undefined, thisHighlighter);
+		const LANGUAGE_ID = 'modelModeTest2';
+		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {
 		thisModel.dispose();
+		thisModel = null;
+		languageRegistration.dispose();
+		languageRegistration = null;
 	});
+
 	test('getTokensForInvalidLines one text insert', () => {
 		thisModel.getLineTokens(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
@@ -251,19 +292,43 @@ suite('Editor Model - Model Modes 2', () => {
 
 suite('Editor Model - Token Iterator', () => {
 
-	var thisModel: Model;
+	const tokenizationSupport: modes.ITokenizationSupport = {
+		getInitialState: (): modes.IState => NULL_STATE,
+		tokenize: undefined,
+		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+			if (line.length % 3 !== 0) {
+				throw new Error('Unexpected line length in ' + line);
+			}
+			let tokensCount = line.length / 3;
+			let tokens = new Uint32Array(tokensCount << 1);
+			for (let i = 0; i < tokensCount; i++) {
+				tokens[(i << 1)] = 3 * i;
+				tokens[(i << 1) + 1] = (
+					i << modes.MetadataConsts.FOREGROUND_OFFSET
+				) >>> 0;
+			}
+			return new TokenizationResult2(tokens, state);
+		}
+	};
+
+	let thisModel: Model = null;
+	let languageRegistration: IDisposable = null;
 
 	setup(() => {
-		var nmode = new NMode(3);
-		var text =
+		const TEXT =
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n';
-		thisModel = Model.createFromString(text, undefined, nmode);
+		const LANGUAGE_ID = 'modelModeTestTokenIterator';
+		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {
 		thisModel.dispose();
+		thisModel = null;
+		languageRegistration.dispose();
+		languageRegistration = null;
 	});
 
 	test('all tokens with ranges', () => {
@@ -275,9 +340,9 @@ suite('Editor Model - Token Iterator', () => {
 		];
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
 			var a = [], line = 0;
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				calls++;
-				if(a.length === 0) {
+				if (a.length === 0) {
 					a = ranges.shift();
 					line += 1;
 				}
@@ -293,7 +358,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from beginning with next', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				iter.next();
 				n++;
 			}
@@ -304,7 +369,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from beginning with prev', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
 			}
@@ -315,7 +380,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from end with prev', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(3, 12), (iter) => {
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
 			}
@@ -326,7 +391,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from end with next', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(3, 12), (iter) => {
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				iter.next();
 				n++;
 			}
@@ -379,12 +444,12 @@ suite('Editor Model - Token Iterator', () => {
 		var n = 0;
 		var up = [], down = [];
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				var next = iter.next();
 				up.push(next);
 				n++;
 			}
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				var prev = iter.prev();
 				down.push(prev);
 				n++;
@@ -393,7 +458,7 @@ suite('Editor Model - Token Iterator', () => {
 		assert.equal(n, 24);
 		assert.equal(up.length, 12);
 		assert.equal(down.length, 12);
-		while(up.length) {
+		while (up.length) {
 			assert.deepEqual(up.pop(), down.shift());
 		}
 	});
@@ -402,12 +467,12 @@ suite('Editor Model - Token Iterator', () => {
 		var n = 0;
 		var up = [], down = [];
 		thisModel.tokenIterator(new Position(3, 12), (iter) => {
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				var prev = iter.prev();
 				down.push(prev);
 				n++;
 			}
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				var next = iter.next();
 				up.push(next);
 				n++;
@@ -416,7 +481,7 @@ suite('Editor Model - Token Iterator', () => {
 		assert.equal(n, 24);
 		assert.equal(up.length, 12);
 		assert.equal(down.length, 12);
-		while(up.length) {
+		while (up.length) {
 			assert.deepEqual(up.pop(), down.shift());
 		}
 	});
@@ -432,28 +497,26 @@ suite('Editor Model - Token Iterator', () => {
 		try {
 			illegalIterReference.hasNext();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 		try {
 			illegalIterReference.next();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 		try {
 			illegalIterReference.hasPrev();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 		try {
 			illegalIterReference.prev();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 	});
 });
-
-

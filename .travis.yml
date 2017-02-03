@@ -5,9 +5,6 @@ os:
   - linux
   - osx
 
-env:
-  - VSCODE_BUILD_VERBOSE=true
-
 notifications:
   email: false
 
@@ -27,8 +24,8 @@ before_install:
   - git submodule update --init --recursive
   - git clone https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
-  - nvm install 5.10
-  - nvm use 5.10
+  - nvm install 6.6.0
+  - nvm use 6.6.0
   - npm config set python `which python`
   - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
@@ -41,11 +38,11 @@ install:
   - ./scripts/npm.sh install
 
 script:
-  - gulp hygiene
-  - gulp electron
-  - gulp compile
-  - gulp optimize-vscode
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage; else ./scripts/test.sh; fi
+  - gulp hygiene --silent
+  - gulp electron --silent
+  - gulp compile --silent --max_old_space_size=4096
+  - gulp optimize-vscode --silent --max_old_space_size=4096
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 
 after_success:

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EmitterEvent} from 'vs/base/common/eventEmitter';
+import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class ViewEventHandler {
 
-	private _shouldRender:boolean;
+	private _shouldRender: boolean;
 
 	constructor() {
 		this._shouldRender = true;
@@ -35,52 +35,52 @@ export class ViewEventHandler {
 	public onModelFlushed(): boolean {
 		return false;
 	}
-	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		return false;
 	}
-	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
 		return false;
 	}
-	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
 		return false;
 	}
-	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e:editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
 		return false;
 	}
-	public onCursorScrollRequest(e:editorCommon.IViewScrollRequestEvent): boolean {
+	public onCursorScrollRequest(e: editorCommon.IViewScrollRequestEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		return false;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		return false;
 	}
-	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
 		return false;
 	}
 	public onZonesChanged(): boolean {
 		return false;
 	}
-	public onViewFocusChanged(isFocused:boolean): boolean {
+	public onViewFocusChanged(isFocused: boolean): boolean {
 		return false;
 	}
 
 	// --- end event handlers
 
-	public handleEvents(events:EmitterEvent[]): void {
+	public handleEvents(events: EmitterEvent[]): void {
 
 		let shouldRender = false;
 

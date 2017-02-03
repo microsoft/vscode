@@ -5,15 +5,15 @@
 
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel, IRange} from 'vs/editor/common/editorCommon';
-import {ILink, LinkProvider, LinkProviderRegistry} from 'vs/editor/common/modes';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Range } from 'vs/editor/common/core/range';
+import { IReadOnlyModel, IRange } from 'vs/editor/common/editorCommon';
+import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class Link implements ILink {
 
@@ -69,7 +69,7 @@ export function getLinks(model: IReadOnlyModel): TPromise<Link[]> {
 				const newLinks = result.map(link => new Link(link, provider));
 				links = union(links, newLinks);
 			}
-		}, onUnexpectedError);
+		}, onUnexpectedExternalError);
 	});
 
 	return TPromise.join(promises).then(() => {
@@ -125,12 +125,12 @@ CommandsRegistry.registerCommand('_executeLinkProvider', (accessor, ...args) => 
 
 	const [uri] = args;
 	if (!(uri instanceof URI)) {
-		return;
+		return undefined;
 	}
 
 	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
-		return;
+		return undefined;
 	}
 
 	return getLinks(model);

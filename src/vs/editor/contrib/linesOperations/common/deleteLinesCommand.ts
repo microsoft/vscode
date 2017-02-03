@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 
 
 export class DeleteLinesCommand implements ICommand {
 
-	public static createFromSelection(selection:Selection): DeleteLinesCommand {
+	public static createFromSelection(selection: Selection): DeleteLinesCommand {
 		var endLineNumber = selection.endLineNumber;
 		if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
 			endLineNumber -= 1;
@@ -19,17 +19,17 @@ export class DeleteLinesCommand implements ICommand {
 		return new DeleteLinesCommand(selection.startLineNumber, endLineNumber, selection.positionColumn);
 	}
 
-	private startLineNumber:number;
-	private endLineNumber:number;
-	private restoreCursorToColumn:number;
+	private startLineNumber: number;
+	private endLineNumber: number;
+	private restoreCursorToColumn: number;
 
-	constructor(startLineNumber:number, endLineNumber:number, restoreCursorToColumn:number) {
+	constructor(startLineNumber: number, endLineNumber: number, restoreCursorToColumn: number) {
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
 		this.restoreCursorToColumn = restoreCursorToColumn;
 	}
 
-	public getEditOperations(model:ITokenizedModel, builder:IEditOperationBuilder):void {
+	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 			// Model is empty
 			return;
@@ -51,7 +51,7 @@ export class DeleteLinesCommand implements ICommand {
 		builder.addEditOperation(new Range(startLineNumber, startColumn, endLineNumber, endColumn), null);
 	}
 
-	public computeCursorState(model:ITokenizedModel, helper: ICursorStateComputerData):Selection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 		return new Selection(

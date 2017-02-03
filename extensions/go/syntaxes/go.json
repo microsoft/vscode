@@ -171,6 +171,64 @@
 			}
 		},
 		{
+			"comment": "Single line import declarations",
+			"match": "(?<=import)(\\s+((?!\\s+\")[^\\s]*)?\\s*)((\")([^\"]*)(\"))",
+			"captures": {
+				"2": {
+					"name": "entity.alias.import.go"
+				},
+				"3": {
+					"name": "string.quoted.double.go"
+				},
+				"4": {
+					"name": "punctuation.definition.string.begin.go"
+				},
+				"5": {
+					"name": "entity.name.import.go"
+				},
+				"6": {
+					"name": "punctuation.definition.string.end.go"
+				}
+			}
+		},
+		{
+			"comment": "Multiline import declarations",
+			"begin": "(?<=import)\\s+(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.other.bracket.round.go"
+				}
+			},
+			"patterns": [
+				{
+					"match": "((?!\\s+\")[^\\s]*)?\\s+((\")([^\"]*)(\"))",
+					"captures": {
+						"1": {
+							"name": "entity.alias.import.go"
+						},
+						"2": {
+							"name": "string.quoted.double.go"
+						},
+						"3": {
+							"name": "punctuation.definition.string.begin.go"
+						},
+						"4": {
+							"name": "entity.name.import.go"
+						},
+						"5": {
+							"name": "punctuation.definition.string.end.go"
+						}
+					}
+				}
+			],
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.other.bracket.round.go"
+				}
+			}
+		},
+		{
 			"comment": "Type declarations",
 			"match": "(?<=type)\\s+([a-zA-Z_]\\w*)",
 			"captures": {
@@ -549,5 +607,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-go/commit/93594dfb138a664f0914d54e408527e136899fb2"
+	"version": "https://github.com/atom/language-go/commit/d941ce3155b500e65b4d7fbc53ea51b9c92ec1cb"
 }

@@ -2,20 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-.monaco-editor .detected-link {
-	text-decoration: underline;
+.monaco-editor .detected-link,
+.monaco-editor .detected-link-active {
+	border-bottom: 1px solid;
+	border-color: currentColor;
+	text-decoration: none !important;
 }
 
 .monaco-editor .detected-link-active {
-	text-decoration: underline;
 	cursor: pointer;
 	color: blue !important;
 }
 
-.monaco-editor.vs-dark .detected-link {
-	border-color: #1C5DAF;
+.monaco-editor.vs-dark .detected-link-active {
+	color: #4E94CE !important;
 }
 
-.monaco-editor.vs-dark  .detected-link-active {
-	color: #4E94CE !important;
+.monaco-editor.hc-black .detected-link-active {
+	color: cyan !important;
 }

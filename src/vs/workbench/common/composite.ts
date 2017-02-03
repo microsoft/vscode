@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IAction, IActionItem} from 'vs/base/common/actions';
-import {IEditorControl} from 'vs/platform/editor/common/editor';
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { IEditorControl } from 'vs/platform/editor/common/editor';
 
 export interface IComposite {
 

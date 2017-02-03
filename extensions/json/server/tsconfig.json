@@ -1,11 +1,13 @@
 {
 	"compilerOptions": {
-		"noLib": true,
 		"target": "es5",
 		"module": "commonjs",
 		"sourceMap": true,
 		"sourceRoot": "../src",
-		"outDir": "./out"
+		"outDir": "./out",
+		"lib": [
+			"es5", "es2015.promise"
+		]
 	},
 	"exclude": [
 		"node_modules"

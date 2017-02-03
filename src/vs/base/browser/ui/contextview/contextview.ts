@@ -7,10 +7,10 @@
 'use strict';
 
 import 'vs/css!./contextview';
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 
 export interface IAnchor {
 	x: number;
@@ -58,7 +58,7 @@ export interface IView extends IPosition, ISize { }
 
 function layout(view: ISize, around: IView, viewport: IView, anchorPosition: AnchorPosition, anchorAlignment: AnchorAlignment): IPosition {
 
-	let chooseBiased = (a:number, aIsGood:boolean, b:number, bIsGood:boolean) => {
+	let chooseBiased = (a: number, aIsGood: boolean, b: number, bIsGood: boolean) => {
 		if (aIsGood) {
 			return a;
 		}
@@ -68,7 +68,7 @@ function layout(view: ISize, around: IView, viewport: IView, anchorPosition: Anc
 		return a;
 	};
 
-	let chooseOne = (a:number, aIsGood:boolean, b:number, bIsGood:boolean, aIsPreferred:boolean) => {
+	let chooseOne = (a: number, aIsGood: boolean, b: number, bIsGood: boolean, aIsPreferred: boolean) => {
 		if (aIsPreferred) {
 			return chooseBiased(a, aIsGood, b, bIsGood);
 		} else {

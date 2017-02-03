@@ -15,12 +15,13 @@
 	"noResultsFound": "Résultats introuvables. Vérifiez les paramètres d'exclusion configurés - ",
 	"noResultsIncludes": "Résultats introuvables dans '{0}' - ",
 	"noResultsIncludesExcludes": "Résultats introuvables pour '{0}' excluant '{1}' - ",
+	"openFolder": "Ouvrir le dossier",
 	"openSettings.message": "Ouvrir les paramètres",
 	"removeAll.confirmation.message": "Supprimer {0} occurrences dans {1} fichiers ?",
 	"removeAll.message": "{0} occurrences supprimées dans {1} fichiers.",
 	"replaceAll.confirm.button": "Remplacer",
 	"replaceAll.confirmation.message": "Remplacer {0} occurrences dans {1} fichiers avec '{2}' ?",
-	"replaceAll.confirmation.title": "Remplacer tout",
+	"replaceAll.confirmation.title": "Tout remplacer",
 	"replaceAll.message": "{0} occurrences remplacées dans {1} fichiers avec {2}.",
 	"rerunSearch.message": "Rechercher à nouveau",
 	"rerunSearchInAll.message": "Rechercher à nouveau dans tous les fichiers",
@@ -28,5 +29,6 @@
 	"searchMaxResultsWarning": "Le jeu de résultats contient uniquement un sous-ensemble de toutes les correspondances. Soyez plus précis dans votre recherche de façon à limiter les résultats retournés.",
 	"searchScope.excludes": "fichiers à exclure",
 	"searchScope.includes": "fichiers à inclure",
+	"searchWithoutFolder": "Vous n'avez pas encore ouvert de dossier. Seuls les fichiers ouverts font l'objet de recherches - ",
 	"treeAriaLabel": "Résultats de la recherche"
 }

@@ -5,7 +5,7 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 
 export class MockExtensionService extends AbstractExtensionService<ActivatedExtension> {
 	constructor() {

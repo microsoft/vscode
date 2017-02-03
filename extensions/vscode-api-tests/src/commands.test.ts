@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {join} from 'path';
-import {commands, workspace, window, Uri, ViewColumn} from 'vscode';
+import { join } from 'path';
+import { commands, workspace, window, Uri, ViewColumn } from 'vscode';
 
 suite('commands namespace tests', () => {
 
-	test('getCommands', function(done) {
+	test('getCommands', function (done) {
 
 		let p1 = commands.getCommands().then(commands => {
 			let hasOneWithUnderscore = false;
@@ -40,14 +40,30 @@ suite('commands namespace tests', () => {
 		}, done);
 	});
 
-	test('editorCommand with extra args', function () {
+	test('command with args', function () {
 
 		let args: IArguments;
-		let registration = commands.registerTextEditorCommand('t1', function() {
+		let registration = commands.registerCommand('t1', function () {
 			args = arguments;
 		});
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return commands.executeCommand('t1', 'start').then(() => {
+			registration.dispose();
+
+			assert.ok(args);
+			assert.equal(args.length, 1);
+			assert.equal(args[0], 'start');
+		});
+	});
+
+	test('editorCommand with extra args', function () {
+
+		let args: IArguments;
+		let registration = commands.registerTextEditorCommand('t1', function () {
+			args = arguments;
+		});
+
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc).then(editor => {
 				return commands.executeCommand('t1', 12345, commands);
 			}).then(() => {
@@ -105,7 +121,7 @@ suite('commands namespace tests', () => {
 	});
 
 	test('api-command: vscode.open', function () {
-		let uri = Uri.file(join(workspace.rootPath, './image.png'));
+		let uri = Uri.file(join(workspace.rootPath || '', './image.png'));
 		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
 		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
 		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));

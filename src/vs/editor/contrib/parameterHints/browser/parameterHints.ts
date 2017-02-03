@@ -21,14 +21,14 @@ class ParameterHintsController implements IEditorContribution {
 
 	private static ID = 'editor.controller.parameterHints';
 
-	public static get(editor:ICommonCodeEditor): ParameterHintsController {
+	public static get(editor: ICommonCodeEditor): ParameterHintsController {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 
-	private editor:ICodeEditor;
+	private editor: ICodeEditor;
 	private widget: ParameterHintsWidget;
 
-	constructor(editor:ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
+	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
 		this.editor = editor;
 		this.widget = instantiationService.createInstance(ParameterHintsWidget, this.editor);
 	}
@@ -74,7 +74,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let controller = ParameterHintsController.get(editor);
 		if (controller) {
 			controller.trigger();

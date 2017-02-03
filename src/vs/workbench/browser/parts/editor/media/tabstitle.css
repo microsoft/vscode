@@ -3,35 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Title decoration */
+/* Title Container */
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
 	background: #F3F3F3;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
 	background: #252526;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	display: block;
-	content: '';
-	position: absolute;
-	top: 34px;
-	width: 100%;
-	z-index: 1; /* on top of tabs */
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #DDDDDD;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #403F3F;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #6FC3DF;
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
+	border-bottom: 1px solid #6FC3DF;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs > .monaco-scrollable-element {
@@ -64,7 +47,6 @@
 	display: flex;
 	width: 120px;
 	min-width: fit-content;
-	overflow: hidden;
 	white-space: nowrap;
 	cursor: pointer;
 	height: 35px;
@@ -73,12 +55,10 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active {
-	z-index: 2; /* on top of the horizontal border of the title */
-}
-
-.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title .tabs-container > .tab.active {
-	z-index: auto;
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-left {
+	flex-direction: row-reverse;
+	padding-left: 0;
+	padding-right: 10px;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
@@ -90,19 +70,19 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #DDDDDD;
+	border-left-color: #F3F3F3;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #DDDDDD;
+	border-right-color: #F3F3F3;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #403F3F;
+	border-left-color: #252526;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #403F3F;
+	border-right-color: #252526;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child,
@@ -110,13 +90,23 @@
 	border-left-color: transparent;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(:first-child) {
 	border-left-color: #6FC3DF;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active  {
-	outline: 2px solid #f38518;
-	outline-offset: -1px;
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:last-child {
+	border-right-color: #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {
+	outline: 1px solid #f38518;
+	outline-offset: -5px;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover  {
+	outline: 1px dashed #f38518;
+	outline-offset: -5px;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
@@ -133,7 +123,7 @@
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
 	background: none !important;
 	outline: 2px dashed #f38518;
-	outline-offset: -2px;
+	outline-offset: -5px;
 }
 
 /* Tab Label */
@@ -141,6 +131,10 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
 	margin-top: auto;
 	margin-bottom: auto;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before {
+	height: 16px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
@@ -168,21 +162,23 @@
 	width: 28px;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off > .tab-close {
+	display: none; /* hide the close action bar when we are configured to hide it */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.active > .tab-close .action-label,			/* always show it for active tab */
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab > .tab-close .action-label:focus,			/* always show it on focus */
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab:hover > .tab-close .action-label,			/* always show it on hover */
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.active:hover > .tab-close .action-label,		/* always show it on hover */
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty > .tab-close .action-label {					/* always show it for dirty tabs */
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.dirty > .tab-close .action-label {			/* always show it for dirty tabs */
 	opacity: 1;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active > .tab-close .action-label,					/* show dimmed for inactive group */
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover > .tab-close .action-label {			/* show dimmed for inactive group */
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,			/* show dimmed for inactive group */
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty > .tab-close .action-label,					/* show dimmed for inactive group */
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover > .tab-close .action-label {					/* show dimmed for inactive group */
 	opacity: 0.5;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover > .tab-close .action-label {					/* show more dimmed for inactive group and tab */
-	opacity: 0.4;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab > .tab-close .action-label {
@@ -214,9 +210,38 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active > .tab-close .action-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover > .tab-close .action-label {
+	opacity: 1 !important;
+}
+
+/* No Tab Close Button */
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
+	padding-right: 28px; /* make room for dirty indication when we are running without close button */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
+	background-repeat: no-repeat;
+	background-position-y: center;
+	background-position-x: calc(100% - 6px); /* to the right of the tab label */
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
+	background-image: url('close-dirty.svg');
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
+	background-image: url('close-dirty-inverse.svg');
+}
+
 /* Editor Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
+	cursor: default;
 	flex: initial;
 	padding-left: 4px;
 }

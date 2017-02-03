@@ -11,3 +11,23 @@
 .hc-black .monaco-workbench .output-action.clear-output {
 	background: url('clear_output_inverse.svg') center center no-repeat;
 }
+
+.monaco-workbench .output-action.toggle-output-scroll-lock {
+	background: url('toggle_output_scroll_lock.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .output-action.toggle-output-scroll-lock,
+.hc-black .monaco-workbench .output-action.toggle-output-scroll-lock {
+	background: url('toggle_output_scroll_lock_inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .output-action.toggle-output-scroll-lock.checked::after {
+	position: absolute;
+	content: "";
+	left: 4px;
+	top: 7px;
+	z-index: 1;
+	width: 20px;
+	height: 20px;
+	border: #007ACC 1px solid;
+}

@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import {isWindows} from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -25,11 +25,8 @@ suite('ExtHostTypes', function () {
 		assert.deepEqual(data, {
 			$mid: 1,
 			scheme: 'file',
-			authority: '',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
-			query: '',
-			fragment: '',
 			external: 'file:///path/test.file'
 		});
 	});
@@ -66,9 +63,9 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Position(0, -1));
 
 		let pos = new types.Position(0, 0);
-		assert.throws(() => pos.line = -1);
-		assert.throws(() => pos.character = -1);
-		assert.throws(() => pos.line = 12);
+		assert.throws(() => (pos as any).line = -1);
+		assert.throws(() => (pos as any).character = -1);
+		assert.throws(() => (pos as any).line = 12);
 
 		let {line, character} = pos.toJSON();
 		assert.equal(line, 0);
@@ -185,8 +182,8 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null, new types.Position(0, 0)));
 
 		let range = new types.Range(1, 0, 0, 0);
-		assert.throws(() => range.start = null);
-		assert.throws(() => range.start = new types.Position(0, 3));
+		assert.throws(() => (range as any).start = null);
+		assert.throws(() => (range as any).start = new types.Position(0, 3));
 	});
 
 	test('Range, toJSON', function () {
@@ -373,7 +370,7 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null));
 	});
 
-	test('toJSON & stringify', function() {
+	test('toJSON & stringify', function () {
 
 		assertToJSON(new types.Selection(3, 4, 2, 1), { start: { line: 2, character: 1 }, end: { line: 3, character: 4 }, anchor: { line: 3, character: 4 }, active: { line: 2, character: 1 } });
 
@@ -415,5 +412,61 @@ suite('ExtHostTypes', function () {
 		let info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
 		assert.ok(info.location instanceof types.Location);
 		assert.equal(info.location.uri, undefined);
+	});
+
+	test('SnippetString, builder-methods', function () {
+
+		let string: types.SnippetString;
+
+		string = new types.SnippetString();
+		assert.equal(string.appendText('I need $ and $').value, 'I need \\$ and \\$');
+
+		string = new types.SnippetString();
+		assert.equal(string.appendText('I need \\$').value, 'I need \\\\\\$');
+
+		string = new types.SnippetString();
+		string.appendPlaceholder('fo$o}');
+		assert.equal(string.value, '${1:fo\\$o\\}}');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendTabstop(0).appendText('bar');
+		assert.equal(string.value, 'foo$0bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendTabstop().appendText('bar');
+		assert.equal(string.value, 'foo$1bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendTabstop(42).appendText('bar');
+		assert.equal(string.value, 'foo$42bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder('farboo').appendText('bar');
+		assert.equal(string.value, 'foo${1:farboo}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder('far$boo').appendText('bar');
+		assert.equal(string.value, 'foo${1:far\\$boo}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder(b => b.appendText('abc').appendPlaceholder('nested')).appendText('bar');
+		assert.equal(string.value, 'foo${1:abc${2:nested}}bar');
+
+		string = new types.SnippetString();
+		string.appendVariable('foo');
+		assert.equal(string.value, '${foo}');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendVariable('TM_SELECTED_TEXT').appendText('bar');
+		assert.equal(string.value, 'foo${TM_SELECTED_TEXT}bar');
+
+		string = new types.SnippetString();
+		string.appendVariable('BAR', b => b.appendPlaceholder('ops'));
+		assert.equal(string.value, '${BAR:${1:ops}}');
+
+		string = new types.SnippetString();
+		string.appendVariable('BAR', b => { });
+		assert.equal(string.value, '${BAR}');
+
 	});
 });

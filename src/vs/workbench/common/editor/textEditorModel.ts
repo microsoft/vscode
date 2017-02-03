@@ -4,28 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EndOfLinePreference, IModel, IRawText} from 'vs/editor/common/editorCommon';
-import {IMode} from 'vs/editor/common/modes';
-import {EditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EndOfLinePreference, IModel, ITextSource2 } from 'vs/editor/common/editorCommon';
+import { IMode } from 'vs/editor/common/modes';
+import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {RawText} from 'vs/editor/common/model/textModel';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;
-	private createdEditorModel: boolean;
+	protected createdEditorModel: boolean;
 	private modelDisposeListener: IDisposable;
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@IModelService protected modelService: IModelService,
+		@IModeService protected modeService: IModeService,
 		textEditorModelHandle?: URI
 	) {
 		super();
@@ -65,11 +64,11 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	/**
-	 * Creates the text editor model with the provided value, mime (can be comma separated for multiple values) and optional resource URL.
+	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string | IRawText, resource?: URI, mime?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: string | ITextSource2, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
-		const mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
+		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
 		return TPromise.any<any>([TPromise.timeout(50), mode]).then(() => {
@@ -77,7 +76,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	private doCreateTextEditorModel(value: string | IRawText, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: string | ITextSource2, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
@@ -86,13 +85,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			// Make sure we clean up when this model gets disposed
 			this.registerModelDisposeListener(model);
 		} else {
-			if (typeof value === 'string') {
-				model.setValue(value);
-			} else {
-				model.setValueFromRawText(value);
-			}
-
-			model.setMode(mode);
+			this.modelService.updateModel(model, value);
+			this.modelService.setMode(model, mode);
 		}
 
 		this.textEditorModelHandle = model.uri;
@@ -100,7 +94,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	private getFirstLineText(value: string | IRawText): string {
+	protected getFirstLineText(value: string | ITextSource2): string {
 		if (typeof value === 'string') {
 			const firstLineText = value.substr(0, 100);
 
@@ -125,32 +119,19 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateMode(mime);
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
+		return modeService.getOrCreateMode(modeId);
 	}
 
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string | IRawText): void {
+	protected updateTextEditorModel(newValue: string | ITextSource2): void {
 		if (!this.textEditorModel) {
 			return;
 		}
 
-		let rawText: IRawText;
-		if (typeof newValue === 'string') {
-			rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
-		} else {
-			rawText = newValue;
-		}
-
-		// Return early if the text is already set in that form
-		if (this.textEditorModel.equals(rawText)) {
-			return;
-		}
-
-		// Otherwise update model
-		this.textEditorModel.setValueFromRawText(rawText);
+		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
 	/**
@@ -163,6 +144,10 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		}
 
 		return null;
+	}
+
+	public isResolved(): boolean {
+		return !!this.textEditorModelHandle;
 	}
 
 	public dispose(): void {
@@ -179,9 +164,5 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.createdEditorModel = false;
 
 		super.dispose();
-	}
-
-	public isResolved(): boolean {
-		return !!this.textEditorModelHandle;
 	}
 }

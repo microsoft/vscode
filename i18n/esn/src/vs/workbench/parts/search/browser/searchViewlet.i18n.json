@@ -28,5 +28,6 @@
 	"searchMaxResultsWarning": "El conjunto de resultados solo contiene un subconjunto de todas las coincidencias. Sea más específico en la búsqueda para acotar los resultados.",
 	"searchScope.excludes": "archivos para excluir",
 	"searchScope.includes": "archivos para incluir",
+	"searchWithoutFolder": "Aún no ha abierto una carpeta. Solo se busca en los archivos abiertos en este momento - ",
 	"treeAriaLabel": "Resultados de la búsqueda"
 }

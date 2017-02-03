@@ -7,7 +7,7 @@
 	"TaskRunnerSystem.cancelRequested": "\nDer Task \"{0}\" wurde durch eine Benutzeranforderung beendet.",
 	"TaskRunnerSystem.childProcessError": "Fehler beim Starten des externen Programms {0} {1}.",
 	"TaskRunnerSystem.fatalError": "Die bereitgestellte Taskkonfiguration weist Validierungsfehler auf. Details finden Sie im Taskausgabeprotokoll.",
-	"TaskRunnerSystem.noBuildTask": "Es ist kein Buildtask konfiguriert.",
+	"TaskRunnerSystem.noBuildTask": "Kein Task ist in der Datei \"tasks.json\" als Buildtask markiert. Markieren Sie einen Task mit \"isBuildCommand\".",
 	"TaskRunnerSystem.noTestTask": "Es ist kein Testtask konfiguriert.",
 	"TaskRunnerSystem.norebuild": "Es wurde kein auszuführender Task gefunden.",
 	"TaskRunnerSystem.unknownError": "Unbekannter Fehler beim Ausführen eines Tasks. Details finden Sie im Taskausgabeprotokoll.",

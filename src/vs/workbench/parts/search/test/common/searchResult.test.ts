@@ -6,13 +6,16 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Match, FileMatch, SearchResult, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
-import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
+import { IFileMatch, ILineMatch } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Range } from 'vs/editor/common/core/range';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 
@@ -21,9 +24,11 @@ suite('SearchResult', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService= new TestInstantiationService();
-		instantiationService.stub(ITelemetryService);
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService = new TestInstantiationService();
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stubPromise(IReplaceService, {});
+		instantiationService.stubPromise(IReplaceService, 'replace', null);
 	});
 
 	test('Line Match', function () {
@@ -39,9 +44,9 @@ suite('SearchResult', () => {
 
 	test('Line Match - Remove', function () {
 		let fileMatch = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
-					preview: 'foo bar',
-					lineNumber: 1,
-					offsetAndLengths: [[0, 3]]
+			preview: 'foo bar',
+			lineNumber: 1,
+			offsetAndLengths: [[0, 3]]
 		}]);
 		let lineMatch = fileMatch.matches()[0];
 		fileMatch.remove(lineMatch);
@@ -66,10 +71,10 @@ suite('SearchResult', () => {
 			lineNumber: 1,
 			offsetAndLengths: [[0, 3]]
 		}, {
-				preview: 'bar',
-				lineNumber: 1,
-				offsetAndLengths: [[5, 3]]
-			}]);
+			preview: 'bar',
+			lineNumber: 1,
+			offsetAndLengths: [[5, 3]]
+		}]);
 
 		testObject.setSelectedMatch(testObject.matches()[0]);
 
@@ -82,10 +87,10 @@ suite('SearchResult', () => {
 			lineNumber: 1,
 			offsetAndLengths: [[0, 3]]
 		}, {
-				preview: 'bar',
-				lineNumber: 1,
-				offsetAndLengths: [[5, 3]]
-			}]);
+			preview: 'bar',
+			lineNumber: 1,
+			offsetAndLengths: [[5, 3]]
+		}]);
 		let target = testObject.matches()[0];
 		testObject.remove(target);
 
@@ -100,10 +105,10 @@ suite('SearchResult', () => {
 			lineNumber: 1,
 			offsetAndLengths: [[0, 3]]
 		}, {
-				preview: 'bar',
-				lineNumber: 1,
-				offsetAndLengths: [[5, 3]]
-			}]);
+			preview: 'bar',
+			lineNumber: 1,
+			offsetAndLengths: [[5, 3]]
+		}]);
 		let target = testObject.matches()[0];
 		testObject.setSelectedMatch(target);
 
@@ -116,10 +121,10 @@ suite('SearchResult', () => {
 			lineNumber: 1,
 			offsetAndLengths: [[0, 3]]
 		}, {
-				preview: 'bar',
-				lineNumber: 1,
-				offsetAndLengths: [[5, 3]]
-			}]);
+			preview: 'bar',
+			lineNumber: 1,
+			offsetAndLengths: [[5, 3]]
+		}]);
 
 		testObject.setSelectedMatch(testObject.matches()[0]);
 
@@ -132,10 +137,10 @@ suite('SearchResult', () => {
 			lineNumber: 1,
 			offsetAndLengths: [[0, 3]]
 		}, {
-				preview: 'bar',
-				lineNumber: 1,
-				offsetAndLengths: [[5, 3]]
-			}]);
+			preview: 'bar',
+			lineNumber: 1,
+			offsetAndLengths: [[5, 3]]
+		}]);
 
 		testObject.setSelectedMatch(testObject.matches()[0]);
 		testObject.setSelectedMatch(null);
@@ -149,10 +154,10 @@ suite('SearchResult', () => {
 			lineNumber: 1,
 			offsetAndLengths: [[0, 3]]
 		}, {
-				preview: 'bar',
-				lineNumber: 1,
-				offsetAndLengths: [[5, 3]]
-			}]);
+			preview: 'bar',
+			lineNumber: 1,
+			offsetAndLengths: [[5, 3]]
+		}]);
 
 		testObject.setSelectedMatch(null);
 
@@ -170,17 +175,17 @@ suite('SearchResult', () => {
 
 	test('Adding a raw match will add a file match with line matches', function () {
 		let testObject = aSearchResult();
-		let target= [aRawMatch('file://c:/', aLineMatch('preview 1', 1, [[1, 3], [4, 7]]), aLineMatch('preview 2'))];
+		let target = [aRawMatch('file://c:/', aLineMatch('preview 1', 1, [[1, 3], [4, 7]]), aLineMatch('preview 2'))];
 
 		testObject.add(target);
 
 		assert.equal(3, testObject.count());
 
-		let actual= testObject.matches();
+		let actual = testObject.matches();
 		assert.equal(1, actual.length);
 		assert.equal('file://c:/', actual[0].resource().toString());
 
-		let actuaMatches= actual[0].matches();
+		let actuaMatches = actual[0].matches();
 		assert.equal(3, actuaMatches.length);
 
 		assert.equal('preview 1', actuaMatches[0].text());
@@ -195,32 +200,32 @@ suite('SearchResult', () => {
 
 	test('Adding multiple raw matches', function () {
 		let testObject = aSearchResult();
-		let target= [aRawMatch('file://c:/1', aLineMatch('preview 1', 1, [[1, 3], [4, 7]])), aRawMatch('file://c:/2', aLineMatch('preview 2'))];
+		let target = [aRawMatch('file://c:/1', aLineMatch('preview 1', 1, [[1, 3], [4, 7]])), aRawMatch('file://c:/2', aLineMatch('preview 2'))];
 
 		testObject.add(target);
 
 		assert.equal(3, testObject.count());
 
-		let actual= testObject.matches();
+		let actual = testObject.matches();
 		assert.equal(2, actual.length);
 		assert.equal('file://c:/1', actual[0].resource().toString());
 
-		let actuaMatches= actual[0].matches();
+		let actuaMatches = actual[0].matches();
 		assert.equal(2, actuaMatches.length);
 		assert.equal('preview 1', actuaMatches[0].text());
 		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
 		assert.equal('preview 1', actuaMatches[1].text());
 		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
 
-		actuaMatches= actual[1].matches();
+		actuaMatches = actual[1].matches();
 		assert.equal(1, actuaMatches.length);
 		assert.equal('preview 2', actuaMatches[0].text());
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
 	test('Dispose disposes matches', function () {
-		let target1= sinon.spy();
-		let target2= sinon.spy();
+		let target1 = sinon.spy();
+		let target2 = sinon.spy();
 
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1')), aRawMatch('file://c:/2', aLineMatch('preview 2'))]);
@@ -236,36 +241,36 @@ suite('SearchResult', () => {
 	});
 
 	test('remove triggers change event', function () {
-		let target= sinon.spy();
+		let target = sinon.spy();
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
-		let objectRoRemove= testObject.matches()[0];
+		let objectRoRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
 		testObject.remove(objectRoRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{elements: [objectRoRemove], removed: true}], target.args[0]);
+		assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
 	});
 
 	test('remove triggers change event', function () {
-		let target= sinon.spy();
+		let target = sinon.spy();
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
-		let objectRoRemove= testObject.matches()[0];
+		let objectRoRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
 		testObject.remove(objectRoRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{elements: [objectRoRemove], removed: true}], target.args[0]);
+		assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
 	});
 
 	test('Removing all line matches and adding back will add file back to result', function () {
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
-		let target= testObject.matches()[0];
-		let matchToRemove= target.matches()[0];
+		let target = testObject.matches()[0];
+		let matchToRemove = target.matches()[0];
 		target.remove(matchToRemove);
 
 		assert.ok(testObject.isEmpty());
@@ -286,17 +291,17 @@ suite('SearchResult', () => {
 	});
 
 	test('replace should trigger the change event', function () {
-		let target= sinon.spy();
+		let target = sinon.spy();
 		instantiationService.stubPromise(IReplaceService, 'replace', null);
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
 		testObject.onChange(target);
-		let objectRoRemove= testObject.matches()[0];
+		let objectRoRemove = testObject.matches()[0];
 
 		testObject.replace(objectRoRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{elements: [objectRoRemove], removed: true}], target.args[0]);
+		assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
 	});
 
 	test('replaceAll should remove all file matches', function () {
@@ -372,5 +377,10 @@ suite('SearchResult', () => {
 
 	function aLineMatch(preview: string, lineNumber: number = 1, offsetAndLengths: number[][] = [[0, 1]]): ILineMatch {
 		return { preview, lineNumber, offsetAndLengths };
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

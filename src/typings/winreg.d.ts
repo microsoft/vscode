@@ -5,21 +5,21 @@
 
 declare module winreg {
 	export interface IRegValue {
-			host: string;
-			hive: any;
-			key: string;
-			name: string;
-			type: string;
-			value: any;
-		}
+		host: string;
+		hive: any;
+		key: string;
+		name: string;
+		type: string;
+		value: any;
+	}
 
 	export interface IWinRegConfig {
-			hive: any;
-			key: string;
+		hive: any;
+		key: string;
 	}
 
 	export interface IRegValuesCallback {
-			(error: Error, items: IRegValue[]): void;
+		(error: Error, items: IRegValue[]): void;
 	}
 
 	export interface IWinReg {
@@ -31,17 +31,17 @@ declare module winreg {
 		/**
 		 * list the subkeys of this key
 		 */
-		keys(callback: (error:Error, keys: string[])=> void): void;
+		keys(callback: (error: Error, keys: string[]) => void): void;
 
 		/**
 		 * gets a value by it's name
 		 */
-		get(name: string, callback: (error: Error, item: IRegValue)=> void): void;
+		get(name: string, callback: (error: Error, item: IRegValue) => void): void;
 
 		/**
 		 * sets a value
 		 */
-		set(name:string, type: string, value: string, callback: (error:string) => void): void;
+		set(name: string, type: string, value: string, callback: (error: string) => void): void;
 
 		/**
 		 * remove the value with the given key
@@ -51,12 +51,12 @@ declare module winreg {
 		/**
 		 * create this key
 		 */
-		create(callback: (error:Error) => void): void;
+		create(callback: (error: Error) => void): void;
 
 		/**
 		 * remove this key
 		 */
-		erase(callback: (error:Error)=> void): void;
+		erase(callback: (error: Error) => void): void;
 
 		/**
 		 * a new Winreg instance initialized with the parent ke
@@ -70,7 +70,7 @@ declare module winreg {
 	}
 
 	export interface IWinRegFactory {
-		new(config: IWinRegConfig): IWinReg;
+		new (config: IWinRegConfig): IWinReg;
 
 		// hives
 		HKLM: string;
@@ -81,16 +81,16 @@ declare module winreg {
 
 		// types
 		REG_SZ: string;
- 		REG_MULTI_SZ: string;
-   		REG_EXPAND_SZ: string;
-   		REG_DWORD: string;
-   		REG_QWORD: string;
-   		REG_BINARY: string;
-	    REG_NONE: string;
+		REG_MULTI_SZ: string;
+		REG_EXPAND_SZ: string;
+		REG_DWORD: string;
+		REG_QWORD: string;
+		REG_BINARY: string;
+		REG_NONE: string;
 	}
 }
 
 declare module 'winreg' {
-	 var winreg: winreg.IWinRegFactory;
-	 export = winreg;
+	var winreg: winreg.IWinRegFactory;
+	export = winreg;
 }

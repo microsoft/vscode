@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -29,4 +29,40 @@ export interface IProgressRunner {
 	total(value: number): void;
 	worked(value: number): void;
 	done(): void;
+}
+
+export interface IProgress<T> {
+	report(item: T): void;
+}
+
+export const emptyProgress: IProgress<any> = Object.freeze({ report() { } });
+
+export class Progress<T> implements IProgress<T> {
+
+	private _callback: () => void;
+	private _value: T;
+
+	constructor(callback: () => void) {
+		this._callback = callback;
+	}
+
+	get value() {
+		return this._value;
+	}
+
+	report(item: T) {
+		this._value = item;
+		this._callback();
+	}
+}
+
+export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+
+export interface IProgressService2 {
+
+	_serviceBrand: any;
+
+	withWindowProgress(title: string, task: (progress: IProgress<string>) => TPromise<any>): void;
+
+	withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void;
 }

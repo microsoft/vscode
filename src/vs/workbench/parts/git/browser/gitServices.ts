@@ -12,31 +12,29 @@ import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import * as mime from 'vs/base/common/mime';
 import * as paths from 'vs/base/common/paths';
-import { once } from 'vs/base/common/event';
+import Event, { once } from 'vs/base/common/event';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { IFileStatus, IGitServiceError, GitErrorCodes, Status, StatusType, AutoFetcherState, IGitConfiguration, IAutoFetcher, ServiceEvents, ServiceState,
-	IModel, IGitOperation, IRawGitService, IGitService, IGitCredentialScope, RawServiceState, ServiceOperations, IPushOptions, ICommit, IRawStatus } from 'vs/workbench/parts/git/common/git';
+import {
+	IFileStatus, IGitServiceError, GitErrorCodes, Status, StatusType, AutoFetcherState, IGitConfiguration, IAutoFetcher, ServiceEvents, ServiceState,
+	IModel, IGitOperation, IRawGitService, IGitService, RawServiceState, ServiceOperations, IPushOptions, ICommit, IRawStatus
+} from 'vs/workbench/parts/git/common/git';
 import { Model } from 'vs/workbench/parts/git/common/gitModel';
 import { NativeGitIndexStringEditorInput, GitIndexDiffEditorInput, GitWorkingTreeDiffEditorInput, GitDiffEditorInput } from 'vs/workbench/parts/git/browser/gitEditorInputs';
 import { GitOperation } from 'vs/workbench/parts/git/browser/gitOperations';
-import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/parts/files/common/files';
-import { IFileService, EventType as FileEventType, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer, PeriodThrottledDelayer } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import * as semver from 'semver';
-import { shell } from 'electron';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import Event from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
@@ -51,7 +49,6 @@ function toReadablePath(path: string): string {
 class EditorInputCache {
 	private gitService: GitService;
 	private fileService: IFileService;
-	private eventService: IEventService;
 	private instantiationService: IInstantiationService;
 	private editorService: IWorkbenchEditorService;
 	private editorGroupService: IEditorGroupService;
@@ -62,14 +59,12 @@ class EditorInputCache {
 	constructor(gitService: GitService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		this.instantiationService = instantiationService;
 		this.fileService = fileService;
-		this.eventService = eventService;
 		this.editorService = editorService;
 		this.editorGroupService = editorGroupService;
 		this.contextService = contextService;
@@ -257,7 +252,6 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 
 	private _state: AutoFetcherState;
 	private gitService: GitService;
-	private eventService: IEventService;
 	private messageService: IMessageService;
 	private configurationService: IConfigurationService;
 	private instantiationService: IInstantiationService;
@@ -267,7 +261,6 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	private gitServiceStateDisposable: IDisposable;
 
 	constructor(gitService: GitService, // gitService passed as argument, not by injection
-		@IEventService eventService: IEventService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -275,7 +268,6 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	) {
 		this._state = AutoFetcherState.Disabled;
 		this.gitService = gitService;
-		this.eventService = eventService;
 		this.messageService = messageService;
 		this.configurationService = configurationService;
 		this.instantiationService = instantiationService;
@@ -349,7 +341,8 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	private loop(): void {
 		this._state = AutoFetcherState.Fetching;
 
-		const remotes = this.gitService.getModel().getRemotes();
+		const model = this.gitService.getModel();
+		const remotes = model ? model.getRemotes() : [];
 
 		if (remotes.length === 0) {
 			this.timeout = AutoFetcher.MIN_TIMEOUT;
@@ -365,6 +358,7 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 				} else {
 					this.timeout = Math.min(Math.round(this.timeout * 1.2), AutoFetcher.MAX_TIMEOUT); // backoff
 				}
+				return undefined;
 			});
 		}
 
@@ -380,20 +374,14 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	}
 }
 
-interface IGitCredentialRequest {
-	guid: string;
-	scope: IGitCredentialScope;
-}
-
 const IgnoreOldGitStorageKey = 'settings.workspace.git.ignoreOld';
 
 export class GitService extends EventEmitter
 	implements
-		IGitService {
+	IGitService {
 
 	_serviceBrand: any;
 
-	private eventService: IEventService;
 	private contextService: IWorkspaceContextService;
 	private messageService: IMessageService;
 	private textFileService: ITextFileService;
@@ -413,7 +401,6 @@ export class GitService extends EventEmitter
 	private reactiveStatusDelayer: PeriodThrottledDelayer<IModel>;
 	private autoFetcher: AutoFetcher;
 	private isStatusPending = false;
-	private isFocused = true;
 
 	private _allowHugeRepositories: boolean;
 	get allowHugeRepositories(): boolean { return this._allowHugeRepositories; }
@@ -430,7 +417,7 @@ export class GitService extends EventEmitter
 	constructor(
 		raw: IRawGitService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEventService eventService: IEventService,
+		@IFileService private fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
@@ -443,7 +430,6 @@ export class GitService extends EventEmitter
 		super();
 
 		this.instantiationService = instantiationService;
-		this.eventService = eventService;
 		this.messageService = messageService;
 		this.editorService = editorService;
 		this.textFileService = textFileService;
@@ -472,20 +458,19 @@ export class GitService extends EventEmitter
 		if (!storageService.getBoolean(IgnoreOldGitStorageKey, StorageScope.GLOBAL, false)) {
 			this.raw.serviceState().done(state => {
 				if (state !== RawServiceState.OK) {
-					return;
+					return undefined;
 				}
 
 				return this.raw.getVersion().then(version => {
-					version = version || '';
-					version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
-					version = semver.valid(version);
+					const match = /^(\d+)\.\d+\.\d+/.exec(version || '');
+					const major = match && parseInt(match[1]);
 
-					if (version && semver.satisfies(version, '<2.0.0')) {
+					if (major && major < 2) {
 						messageService.show(severity.Warning, {
 							message: localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
 							actions: [
 								new Action('downloadLatest', localize('download', "Download"), '', true, () => {
-									shell.openExternal('https://git-scm.com/');
+									window.open('https://git-scm.com/');
 									return null;
 								}),
 								new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
@@ -502,7 +487,7 @@ export class GitService extends EventEmitter
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFileChanges(e)));
+		this.toDispose.push(this.fileService.onFileChanges((e) => this.onFileChanges(e)));
 		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {
@@ -521,15 +506,10 @@ export class GitService extends EventEmitter
 
 		const focusEvent = domEvent(window, 'focus');
 		this.toDispose.push(focusEvent(() => {
-			this.isFocused = true;
-
 			if (this.isStatusPending) {
 				this.triggerAutoStatus();
 			}
 		}));
-
-		const blurEvent = domEvent(window, 'blur');
-		this.toDispose.push(blurEvent(() => this.isFocused = false));
 	}
 
 	private onTextFileChange(e: TextFileModelChangeEvent): void {
@@ -618,7 +598,7 @@ export class GitService extends EventEmitter
 	private triggerAutoStatus(force = false): void {
 		this.isStatusPending = true;
 
-		if (!this.isFocused && !force) {
+		if (!document.hasFocus() && !force) {
 			return;
 		}
 
@@ -714,6 +694,11 @@ export class GitService extends EventEmitter
 		return this.raw.detectMimetypes(path, treeish);
 	}
 
+	clone(url: string, parentPath: string): TPromise<string> {
+		return this.raw.clone(url, parentPath)
+			.then(null, e => this.wrapGitError(e));
+	}
+
 	private run(operationId: string, fn: () => TPromise<IRawStatus>): TPromise<IModel> {
 		return this.raw.serviceState().then(state => {
 			if (state === RawServiceState.GitNotFound) {
@@ -791,18 +776,24 @@ export class GitService extends EventEmitter
 				return TPromise.as(null);
 			}
 
-			var error: Error;
-			var showOutputAction = new Action('show.gitOutput', localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
-			var cancelAction = new Action('close.message', localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
-
-			error = createError(
-				localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
-				{ actions: [cancelAction, showOutputAction] }
-			);
-
-			(<any>error).gitErrorCode = gitErrorCode;
-			return TPromise.wrapError(error);
+			return this.wrapGitError(e);
 		});
+	}
+
+	private wrapGitError<T>(e: any): TPromise<T> {
+		const gitErrorCode: string = e.gitErrorCode || null;
+		const showOutputAction = new Action('show.gitOutput', localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
+		const cancelAction = new Action('close.message', localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
+		const error = createError(
+			localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
+			{ actions: [cancelAction, showOutputAction] }
+		);
+
+		(<any>error).gitErrorCode = gitErrorCode;
+		(<any>error).stdout = e.stdout;
+		(<any>error).stderr = e.stderr;
+
+		return TPromise.wrapError(error);
 	}
 
 	private transition(state: ServiceState): void {

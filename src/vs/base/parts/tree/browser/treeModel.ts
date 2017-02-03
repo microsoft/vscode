@@ -14,8 +14,8 @@ import WinJS = require('vs/base/common/winjs.base');
 import _ = require('./tree');
 
 interface IMap<T> { [id: string]: T; }
-interface IItemMap extends IMap<Item> {}
-interface ITraitMap extends IMap<IItemMap> {}
+interface IItemMap extends IMap<Item> { }
+interface ITraitMap extends IMap<IItemMap> { }
 
 export class LockData extends Events.EventEmitter {
 
@@ -848,12 +848,19 @@ export class TreeModel extends Events.EventEmitter {
 	}
 
 	public refreshAll(elements: any[], recursive: boolean = true): WinJS.Promise {
+		try {
+			this._beginDeferredEmit();
+			return this._refreshAll(elements, recursive);
+		} finally {
+			this._endDeferredEmit();
+		}
+	}
+
+	private _refreshAll(elements: any[], recursive: boolean): WinJS.Promise {
 		var promises = [];
-		this.deferredEmit(() => {
-			for (var i = 0, len = elements.length; i < len; i++) {
-				promises.push(this.refresh(elements[i], recursive));
-			}
-		});
+		for (var i = 0, len = elements.length; i < len; i++) {
+			promises.push(this.refresh(elements[i], recursive));
+		}
 		return WinJS.Promise.join(promises);
 	}
 
@@ -1250,7 +1257,7 @@ export class TreeModel extends Events.EventEmitter {
 	}
 
 	public addTraits(trait: string, elements: any[]): void {
-		var items: IItemMap = this.traitsToItems[trait] || <IItemMap> {};
+		var items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
 		var item: Item;
 		for (var i = 0, len = elements.length; i < len; i++) {
 			item = this.getItem(elements[i]);
@@ -1264,7 +1271,7 @@ export class TreeModel extends Events.EventEmitter {
 	}
 
 	public removeTraits(trait: string, elements: any[]): void {
-		var items: IItemMap = this.traitsToItems[trait] || <IItemMap> {};
+		var items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
 		var item: Item;
 		var id: string;
 
@@ -1324,7 +1331,7 @@ export class TreeModel extends Events.EventEmitter {
 				}
 			}
 
-			var traitItems: IItemMap = this.traitsToItems[trait] || <IItemMap> {};
+			var traitItems: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
 			var itemsToRemoveTrait: Item[] = [];
 			var id: string;
 

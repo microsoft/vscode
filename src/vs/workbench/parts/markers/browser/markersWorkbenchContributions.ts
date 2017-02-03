@@ -6,16 +6,17 @@
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/platform/platform';
+import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import * as panel from 'vs/workbench/browser/panel';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import { ToggleMarkersPanelAction, ToggleErrorsAndWarningsAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
 export function registerContributions(): void {
 
-	(<IConfigurationRegistry>platform.Registry.as(Extensions.Configuration)).registerConfiguration({
+	// configuration
+	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 		'id': 'problems',
 		'order': 101,
 		'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
@@ -29,24 +30,23 @@ export function registerContributions(): void {
 		}
 	});
 
-	// register markers panel
-	(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+	// markers panel
+	Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
 		'vs/workbench/parts/markers/browser/markersPanel',
 		'MarkersPanel',
 		Constants.MARKERS_PANEL_ID,
-		Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS,
-		'markersPanel'
+		Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+		'markersPanel',
+		10,
+		ToggleMarkersPanelAction.ID
 	));
 
-	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
-
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
-		primary: null,
-		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M }
-	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
+	// actions
+	const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
+	}), 'View: Show Problems', Messages.MARKERS_PANEL_VIEW_CATEGORY);
 
 	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleErrorsAndWarningsAction, markersPanelActions.ToggleErrorsAndWarningsAction.ID, ''), Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL);
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleErrorsAndWarningsAction, ToggleErrorsAndWarningsAction.ID, ToggleErrorsAndWarningsAction.LABEL), 'Show Errors and Warnings');
 }

@@ -2,13 +2,13 @@
 Name=@@NAME_LONG@@
 Comment=Code Editing. Redefined.
 GenericName=Text Editor
-Exec=/usr/share/@@NAME@@/@@NAME@@ %U
+Exec=/usr/share/@@NAME@@/@@NAME@@ --new-window-if-not-first %U
 Icon=@@NAME@@
 Type=Application
 StartupNotify=true
 StartupWMClass=@@NAME_SHORT@@
 Categories=Utility;TextEditor;Development;IDE;
-MimeType=text/plain;
+MimeType=text/plain;inode/directory;
 Actions=new-window;
 Keywords=vscode;
 

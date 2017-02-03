@@ -6,9 +6,10 @@
 import { spawn } from 'child_process';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import { parseCLIProcessArgv, buildHelpMessage, ParsedArgs } from 'vs/platform/environment/node/argv';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return argv['list-extensions'] || !!argv['install-extension'] || !!argv['uninstall-extension'];
@@ -31,7 +32,7 @@ export function main(argv: string[]): TPromise<void> {
 	if (args.help) {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	} else if (args.version) {
-		console.log(`${ pkg.version }\n${ product.commit }`);
+		console.log(`${pkg.version}\n${product.commit}`);
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
@@ -41,12 +42,18 @@ export function main(argv: string[]): TPromise<void> {
 			'VSCODE_CLI': '1',
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		});
+
 		delete env['ELECTRON_RUN_AS_NODE'];
 
-		let options = {
+		if (args.verbose) {
+			env['ELECTRON_ENABLE_LOGGING'] = '1';
+		}
+
+		const options = {
 			detached: true,
 			env,
 		};
+
 		if (!args.verbose) {
 			options['stdio'] = 'ignore';
 		}
@@ -66,9 +73,13 @@ export function main(argv: string[]): TPromise<void> {
 	return TPromise.as(null);
 }
 
+function eventuallyExit(code: number): void {
+	setTimeout(() => process.exit(code), 0);
+}
+
 main(process.argv)
-	.then(() => process.exit(0))
+	.then(() => eventuallyExit(0))
 	.then(null, err => {
 		console.error(err.stack ? err.stack : err);
-		process.exit(1);
+		eventuallyExit(1);
 	});

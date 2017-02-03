@@ -6,31 +6,30 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IAction} from 'vs/base/common/actions';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Dimension, Builder} from 'vs/base/browser/builder';
-import {Scope} from 'vs/workbench/common/memento';
-import {VIEWLET_ID, ExplorerViewletVisible, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
-import {IViewletView, Viewlet} from 'vs/workbench/browser/viewlet';
-import {IActionRunner} from 'vs/base/common/actions';
-import {SplitView, Orientation} from 'vs/base/browser/ui/splitview/splitview';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ActionRunner, FileViewletState} from 'vs/workbench/parts/files/browser/views/explorerViewer';
-import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
-import {EmptyView} from 'vs/workbench/parts/files/browser/views/emptyView';
-import {OpenEditorsView} from 'vs/workbench/parts/files/browser/views/openEditorsView';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {DelegatingWorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Dimension, Builder } from 'vs/base/browser/builder';
+import { Scope } from 'vs/workbench/common/memento';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
+import { SplitView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
+import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
+import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
+import { OpenEditorsView } from 'vs/workbench/parts/files/browser/views/openEditorsView';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -39,6 +38,8 @@ export class ExplorerViewlet extends Viewlet {
 
 	private explorerView: ExplorerView;
 	private openEditorsView: OpenEditorsView;
+	private emptyView: EmptyView;
+
 	private openEditorsVisible: boolean;
 	private lastFocusedView: ExplorerView | OpenEditorsView | EmptyView;
 	private focusListener: IDisposable;
@@ -53,7 +54,7 @@ export class ExplorerViewlet extends Viewlet {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -65,7 +66,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.views = [];
 
 		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo(contextKeyService);
+		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
@@ -84,9 +85,13 @@ export class ExplorerViewlet extends Viewlet {
 	public getActions(): IAction[] {
 		if (this.openEditorsVisible) {
 			return [];
-		} else {
+		}
+
+		if (this.explorerView) {
 			return this.explorerView.getActions();
 		}
+
+		return [];
 	}
 
 	private onConfigurationUpdated(config: IFilesConfiguration): TPromise<void> {
@@ -95,7 +100,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
 
 		// Open editors view should always be visible in no folder workspace.
-		let openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
+		const openEditorsVisible = !this.contextService.hasWorkspace() || config.explorer.openEditors.visible !== 0;
 
 		// Create views on startup and if open editors visibility has changed #6919
 		if (this.openEditorsVisible !== openEditorsVisible) {
@@ -142,10 +147,10 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	private addExplorerView(): void {
-		let explorerView: ExplorerView | EmptyView;
+		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
-		if (this.contextService.getWorkspace()) {
+		if (this.contextService.hasWorkspace()) {
 
 			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
 			// editors view above. This is a workaround for being able to double click on a file to make it pinned
@@ -178,21 +183,22 @@ export class ExplorerViewlet extends Viewlet {
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 
-			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise let it be computed by super class.
-			this.explorerView = explorerView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
+			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise const it be computed by super class.
+			this.explorerView = explorerOrEmptyView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
 		}
 
 		// No workspace
 		else {
-			explorerView = this.instantiationService.createInstance(EmptyView);
+			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, this.getActionRunner());
 		}
 
 		if (this.openEditorsVisible) {
-			this.splitView.addView(explorerView);
+			this.splitView.addView(explorerOrEmptyView);
 		} else {
-			explorerView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
+			explorerOrEmptyView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 		}
-		this.views.push(explorerView);
+
+		this.views.push(explorerOrEmptyView);
 	}
 
 	public getExplorerView(): ExplorerView {
@@ -214,12 +220,16 @@ export class ExplorerViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
+		const hasOpenedEditors = !!this.editorGroupService.getStacksModel().activeGroup;
+
 		if (this.lastFocusedView && this.lastFocusedView.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedView)) {
-			this.lastFocusedView.focusBody();
-			return;
+			if (this.lastFocusedView !== this.openEditorsView || hasOpenedEditors) {
+				this.lastFocusedView.focusBody();
+				return;
+			}
 		}
 
-		if (this.hasSelectionOrFocus(this.openEditorsView)) {
+		if (this.hasSelectionOrFocus(this.openEditorsView) && hasOpenedEditors) {
 			return this.openEditorsView.focusBody();
 		}
 
@@ -227,12 +237,16 @@ export class ExplorerViewlet extends Viewlet {
 			return this.explorerView.focusBody();
 		}
 
-		if (this.openEditorsView && this.openEditorsView.isExpanded()) {
-			return this.openEditorsView.focusBody();
+		if (this.openEditorsView && this.openEditorsView.isExpanded() && hasOpenedEditors) {
+			return this.openEditorsView.focusBody(); // we have entries in the opened editors view to focus on
 		}
 
 		if (this.explorerView && this.explorerView.isExpanded()) {
 			return this.explorerView.focusBody();
+		}
+
+		if (this.emptyView && this.emptyView.isExpanded()) {
+			return this.emptyView.focusBody();
 		}
 
 		return this.openEditorsView.focus();
@@ -262,6 +276,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
+
 		if (this.openEditorsVisible) {
 			this.splitView.layout(dimension.height);
 		} else if (this.explorerView) {
@@ -277,12 +292,17 @@ export class ExplorerViewlet extends Viewlet {
 		return this.actionRunner;
 	}
 
+	public getViewletState(): FileViewletState {
+		return this.viewletState;
+	}
+
 	public getOptimalWidth(): number {
-		let additionalMargin = 16;
-		let openedEditorsViewWidth = this.openEditorsVisible ? this.openEditorsView.getOptimalWidth() : 0;
-		let explorerView = this.getExplorerView();
-		let explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
-		let optimalWidth = Math.max(openedEditorsViewWidth, explorerViewWidth);
+		const additionalMargin = 16;
+		const openedEditorsViewWidth = this.openEditorsVisible ? this.openEditorsView.getOptimalWidth() : 0;
+		const explorerView = this.getExplorerView();
+		const explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
+		const optimalWidth = Math.max(openedEditorsViewWidth, explorerViewWidth);
+
 		return optimalWidth + additionalMargin;
 	}
 
@@ -297,13 +317,20 @@ export class ExplorerViewlet extends Viewlet {
 			this.splitView.dispose();
 			this.splitView = null;
 		}
+
 		if (this.explorerView) {
 			this.explorerView.dispose();
 			this.explorerView = null;
 		}
+
 		if (this.openEditorsView) {
 			this.openEditorsView.dispose();
 			this.openEditorsView = null;
+		}
+
+		if (this.emptyView) {
+			this.emptyView.dispose();
+			this.emptyView = null;
 		}
 
 		if (this.focusListener) {

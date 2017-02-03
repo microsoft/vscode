@@ -15,7 +15,7 @@ import actions = require('vs/base/common/actions');
 import * as dom from 'vs/base/browser/dom';
 import { IGitService } from 'vs/workbench/parts/git/common/git';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import {Button} from 'vs/base/browser/ui/button/button';
+import { Button } from 'vs/base/browser/ui/button/button';
 
 const $ = dom.$;
 
@@ -24,7 +24,7 @@ export class HugeView extends ee.EventEmitter implements view.IView {
 	ID = 'huge';
 	private _element: HTMLElement;
 
-	constructor(@IGitService private gitService: IGitService) {
+	constructor( @IGitService private gitService: IGitService) {
 		super();
 	}
 
@@ -65,7 +65,7 @@ export class HugeView extends ee.EventEmitter implements view.IView {
 		return;
 	}
 
-	setVisible(visible:boolean): winjs.TPromise<void> {
+	setVisible(visible: boolean): winjs.TPromise<void> {
 		return winjs.TPromise.as(null);
 	}
 

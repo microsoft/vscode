@@ -6,15 +6,15 @@
 
 import * as path from 'path';
 
-import {languages, window, commands, ExtensionContext} from 'vscode';
-import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit, Protocol2Code} from 'vscode-languageclient';
-import {activateColorDecorations} from './colorDecorators';
+import { languages, window, commands, ExtensionContext } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
+import { activateColorDecorations } from './colorDecorators';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
 }
 
 // this method is called when vs code is activated
@@ -50,11 +50,13 @@ export function activate(context: ExtensionContext) {
 	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
 
-	let colorRequestor = (uri: string) => {
-		return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(Protocol2Code.asRange));
-	};
-	disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true });
-	context.subscriptions.push(disposable);
+	client.onReady().then(_ => {
+		let colorRequestor = (uri: string) => {
+			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
+		};
+		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true });
+		context.subscriptions.push(disposable);
+	});
 
 	languages.setLanguageConfiguration('css', {
 		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
@@ -69,23 +71,23 @@ export function activate(context: ExtensionContext) {
 	});
 
 	commands.registerCommand('_css.applyCodeAction', applyCodeAction);
-}
 
-function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]) {
-	let textEditor = window.activeTextEditor;
-	if (textEditor && textEditor.document.uri.toString() === uri) {
-		if (textEditor.document.version !== documentVersion) {
-			window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
+	function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]) {
+		let textEditor = window.activeTextEditor;
+		if (textEditor && textEditor.document.uri.toString() === uri) {
+			if (textEditor.document.version !== documentVersion) {
+				window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
+			}
+			textEditor.edit(mutator => {
+				for (let edit of edits) {
+					mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+				}
+			}).then(success => {
+				if (!success) {
+					window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
+				}
+			});
 		}
-		textEditor.edit(mutator => {
-			for (let edit of edits) {
-				mutator.replace(Protocol2Code.asRange(edit.range), edit.newText);
-			}
-		}).then(success => {
-			if (!success) {
-				window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
-			}
-		});
 	}
 }
 

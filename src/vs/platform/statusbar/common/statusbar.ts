@@ -5,8 +5,8 @@
 
 'use strict';
 
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export var IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -40,6 +40,11 @@ export interface IStatusbarEntry {
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
 	command?: string;
+
+	/**
+	 * An optional extension ID if this entry is provided from an extension.
+	 */
+	extensionId?: string;
 }
 
 export interface IStatusbarService {

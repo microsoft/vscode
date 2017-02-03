@@ -1,0 +1,432 @@
+{
+	"fileTypes": [],
+	"name": "JavaDoc",
+	"patterns": [
+		{
+			"begin": "(/\\*\\*)\\s*$",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.comment.begin.javadoc"
+				}
+			},
+			"contentName": "text.html",
+			"end": "\\*/",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.comment.end.javadoc"
+				}
+			},
+			"name": "comment.block.documentation.javadoc",
+			"patterns": [
+				{
+					"include": "#inline"
+				},
+				{
+					"begin": "((\\@)param)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.param.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.param.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)return)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.return.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.return.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)throws)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.throws.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.throws.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)exception)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.exception.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.exception.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)author)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.author.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.author.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)version)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.version.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.version.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)see)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.see.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.see.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)since)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.since.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.since.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)serial)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.serial.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.serial.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)serialField)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.serialField.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.serialField.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)serialData)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.serialData.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.serialData.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"begin": "((\\@)deprecated)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.documentation.deprecated.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"end": "(?=^\\s*\\*?\\s*@|\\*/)",
+					"name": "meta.documentation.tag.deprecated.javadoc",
+					"patterns": [
+						{
+							"include": "#inline"
+						}
+					]
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.documentation.custom.javadoc"
+						},
+						"2": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"match": "((\\@)\\S+)\\s"
+				}
+			]
+		}
+	],
+	"repository": {
+		"inline": {
+			"patterns": [
+				{
+					"include": "#inline-formatting"
+				},
+				{
+					"comment": "This prevents < characters in commented source from starting\n\t\t\t\t\t\t\t\ta tag that will not end. List of allowed tags taken from\n\t\t\t\t\t\t\t\tjava checkstyle.",
+					"match": "<(?!/?(a|abbr|acronym|address|area|b|bdo|big|blockquote|br|caption|cite|code|colgroup|dd|del|div|dfn|dl|dt|em|fieldset|font|h1toh6|hr|i|img|ins|kbd|li|ol|p|pre|q|samp|small|span|strong|sub|sup|table|tbody|td|tfoot|th|thread|tr|tt|u|ul)\\b[^>]*>)"
+				},
+				{
+					"include": "text.html.basic"
+				},
+				{
+					"match": "((https?|s?ftp|ftps|file|smb|afp|nfs|(x-)?man|gopher|txmt)://|mailto:)[-:@a-zA-Z0-9_.,~%+/?=&#;]+(?<![-.,?:#;])",
+					"name": "markup.underline.link"
+				}
+			]
+		},
+		"inline-formatting": {
+			"patterns": [
+				{
+					"begin": "(\\{)((\\@)code)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.tag.begin.javadoc"
+						},
+						"2": {
+							"name": "keyword.other.documentation.directive.code.javadoc"
+						},
+						"3": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"contentName": "markup.raw.code.javadoc",
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.tag.end.javadoc"
+						}
+					},
+					"name": "meta.tag.template.code.javadoc",
+					"patterns": []
+				},
+				{
+					"begin": "(\\{)((\\@)literal)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.tag.begin.javadoc"
+						},
+						"2": {
+							"name": "keyword.other.documentation.directive.literal.javadoc"
+						},
+						"3": {
+							"name": "punctuation.definition.keyword.javadoc"
+						}
+					},
+					"contentName": "markup.raw.literal.javadoc",
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.tag.end.javadoc"
+						}
+					},
+					"name": "meta.tag.template.literal.javadoc",
+					"patterns": []
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.tag.begin.javadoc"
+						},
+						"2": {
+							"name": "keyword.other.documentation.directive.docRoot.javadoc"
+						},
+						"3": {
+							"name": "punctuation.definition.keyword.javadoc"
+						},
+						"4": {
+							"name": "punctuation.definition.tag.end.javadoc"
+						}
+					},
+					"match": "(\\{)((\\@)docRoot)(\\})",
+					"name": "meta.tag.template.docRoot.javadoc"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.tag.begin.javadoc"
+						},
+						"2": {
+							"name": "keyword.other.documentation.directive.inheritDoc.javadoc"
+						},
+						"3": {
+							"name": "punctuation.definition.keyword.javadoc"
+						},
+						"4": {
+							"name": "punctuation.definition.tag.end.javadoc"
+						}
+					},
+					"match": "(\\{)((\\@)inheritDoc)(\\})",
+					"name": "meta.tag.template.inheritDoc.javadoc"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.tag.begin.javadoc"
+						},
+						"2": {
+							"name": "keyword.other.documentation.directive.link.javadoc"
+						},
+						"3": {
+							"name": "punctuation.definition.keyword.javadoc"
+						},
+						"4": {
+							"name": "markup.underline.link.javadoc"
+						},
+						"5": {
+							"name": "string.other.link.title.javadoc"
+						},
+						"6": {
+							"name": "punctuation.definition.tag.end.javadoc"
+						}
+					},
+					"match": "(\\{)((\\@)link)(?:\\s+(\\S+?))?(?:\\s+(.+?))?\\s*(\\})",
+					"name": "meta.tag.template.link.javadoc"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.tag.begin.javadoc"
+						},
+						"2": {
+							"name": "keyword.other.documentation.directive.linkplain.javadoc"
+						},
+						"3": {
+							"name": "punctuation.definition.keyword.javadoc"
+						},
+						"4": {
+							"name": "markup.underline.linkplain.javadoc"
+						},
+						"5": {
+							"name": "string.other.link.title.javadoc"
+						},
+						"6": {
+							"name": "punctuation.definition.tag.end.javadoc"
+						}
+					},
+					"match": "(\\{)((\\@)linkplain)(?:\\s+(\\S+?))?(?:\\s+(.+?))?\\s*(\\})",
+					"name": "meta.tag.template.linkplain.javadoc"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.tag.begin.javadoc"
+						},
+						"2": {
+							"name": "keyword.other.documentation.directive.value.javadoc"
+						},
+						"3": {
+							"name": "punctuation.definition.keyword.javadoc"
+						},
+						"4": {
+							"name": "variable.other.javadoc"
+						},
+						"5": {
+							"name": "punctuation.definition.tag.end.javadoc"
+						}
+					},
+					"match": "(\\{)((\\@)value)\\s*(\\S+?)?\\s*(\\})",
+					"name": "meta.tag.template.value.javadoc"
+				}
+			]
+		}
+	},
+	"scopeName": "text.html.javadoc",
+	"uuid": "64BB98A4-59D4-474E-9091-C1E1D04BDD03",
+	"version": "https://github.com/textmate/javadoc.tmbundle/commit/5276d7a93f0cf53b7d425c39c6968b09ea9f2d40"
+}

@@ -6,7 +6,7 @@
 
 import Types = require('vs/base/common/types');
 import Assert = require('vs/base/common/assert');
-import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IRegistry {
 

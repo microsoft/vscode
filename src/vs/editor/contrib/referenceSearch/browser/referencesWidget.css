@@ -37,8 +37,7 @@
 .monaco-editor .reference-zone-widget .preview .monaco-editor,
 .monaco-editor .reference-zone-widget .preview .glyph-margin,
 .monaco-editor .reference-zone-widget .preview .monaco-editor-background,
-.monaco-editor .reference-zone-widget .preview .monaco-editor .line-numbers,
-.monaco-editor .reference-zone-widget .preview .monaco-editor .lines-decorations {
+.monaco-editor .reference-zone-widget .preview .monaco-editor .margin .view-line {
 	background-color: #F2F8FC;
 }
 
@@ -115,8 +114,7 @@
 .monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor,
 .monaco-editor.vs-dark .reference-zone-widget .preview .glyph-margin,
 .monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor-background,
-.monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor .line-numbers,
-.monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor .lines-decorations {
+.monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor .margin .view-line {
 	background-color: #001F33;
 }
 
@@ -154,8 +152,7 @@
 .monaco-editor.hc-black .reference-zone-widget,
 .monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor,
 .monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor-background,
-.monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor .line-numbers,
-.monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor .lines-decorations {
+.monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor .margin .view-line {
 	background-color: #0C141F;
 }
 

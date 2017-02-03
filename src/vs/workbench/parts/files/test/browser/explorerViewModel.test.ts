@@ -6,17 +6,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {isUndefinedOrNull, isArray} from 'vs/base/common/types';
-import {isLinux, isWindows} from 'vs/base/common/platform';
+import { isUndefinedOrNull, isArray } from 'vs/base/common/types';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
-import {join} from 'vs/base/common/paths';
-import {guessMimeTypes} from 'vs/base/common/mime';
-import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
-import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
-import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
+import { join } from 'vs/base/common/paths';
+import { validateFileName } from 'vs/workbench/parts/files/browser/fileActions';
+import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {
-	return new FileStat(toResource(path), isFolder, hasChildren, name, !isFolder ? guessMimeTypes(path).join(', ') : null, mtime);
+	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);
 }
 
 function toResource(path) {
@@ -238,65 +236,23 @@ suite('Files - View Model', () => {
 		assert(validateFileName(s, 'foo') === null);
 	});
 
-	test('File Change Event (with stats)', function () {
-		const d = new Date().toUTCString();
-		const s1 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', void 0, 8096 /* Size */, d);
-		const s2 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', void 0, 16000 /* Size */, d);
-		const s3 = new FileStat(toResource('/path/to/sNameMoved'), false, false, 'sNameMoved', void 0, 8096 /* Size */, d);
-
-		// Got Added
-		let event = new LocalFileChangeEvent(null, s1);
-		assert(event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(!event.gotMoved());
-
-		// Got Removed
-		event = new LocalFileChangeEvent(s1, null);
-		assert(!event.gotAdded());
-		assert(event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(!event.gotMoved());
-
-		// Got Moved
-		event = new LocalFileChangeEvent(s3, s1);
-		assert(!event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(event.gotMoved());
-
-		// Got Updated
-		event = new LocalFileChangeEvent(s2, s1);
-		assert(!event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(event.gotUpdated());
-		assert(!event.gotMoved());
-
-		// No Change
-		event = new LocalFileChangeEvent(s1, s1);
-		assert(!event.gotAdded());
-		assert(!event.gotDeleted());
-		assert(!event.gotUpdated());
-		assert(!event.gotMoved());
-	});
-
 	test('Merge Local with Disk', function () {
 		const d = new Date().toUTCString();
 
-		const merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', void 0, 8096, d);
-		const merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', void 0, 16000, new Date(0).toUTCString());
+		const merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', Date.now(), d);
+		const merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', Date.now(), new Date(0).toUTCString());
 
 		// Merge Properties
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d));
+		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', Date.now(), d));
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 0);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d);
+		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', Date.now(), d);
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		merge2.isDirectoryResolved = true;

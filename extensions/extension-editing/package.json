@@ -6,19 +6,16 @@
 		"vscode": "^1.4.0"
 	},
 	"categories": [
-		"Languages", "Other"
+		"Languages",
+		"Other"
 	],
 	"activationEvents": [
 		"onLanguage:typescript"
 	],
 	"main": "./out/extension",
 	"scripts": {
-		"postinstall": "node ./postinstall",
 		"compile": "gulp compile-extension:extension-editing",
 		"watch": "gulp watch-extension:extension-editing"
-	},
-	"dependencies": {
-		"typescript": "^1.8.10"
 	},
 	"contributes": {
 		"jsonValidation": [
@@ -35,5 +32,8 @@
 				"url": "vscode://schemas/icon-theme"
 			}
 		]
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
 	}
 }

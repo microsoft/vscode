@@ -13,6 +13,7 @@
 		"Languages"
 	],
 	"activationEvents": [
+		"onLanguage:markdown",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showSource"
@@ -45,7 +46,7 @@
 			{
 				"command": "markdown.showPreview",
 				"title": "%markdown.preview.title%",
-				"category": "%markdown.category%",
+				"category": "Markdown",
 				"icon": {
 					"light": "./media/Preview.svg",
 					"dark": "./media/Preview_inverse.svg"
@@ -54,7 +55,7 @@
 			{
 				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewSide.title%",
-				"category": "%markdown.category%",
+				"category": "Markdown",
 				"icon": {
 					"light": "./media/PreviewOnRightPane_16x.svg",
 					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
@@ -63,7 +64,7 @@
 			{
 				"command": "markdown.showSource",
 				"title": "%markdown.showSource.title%",
-				"category": "%markdown.category%",
+				"category": "Markdown",
 				"icon": {
 					"light": "./media/ViewSource.svg",
 					"dark": "./media/ViewSource_inverse.svg"
@@ -73,7 +74,7 @@
 		"menus": {
 			"editor/title": [
 				{
-					"when": "resourceLangId == markdown",
+					"when": "editorLangId == markdown",
 					"command": "markdown.showPreview",
 					"alt": "markdown.showPreviewToSide",
 					"group": "navigation"
@@ -97,12 +98,13 @@
 				"command": "markdown.showPreview",
 				"key": "shift+ctrl+v",
 				"mac": "shift+cmd+v",
-				"when": "!terminalFocus"
+				"when": "editorFocus"
 			},
 			{
 				"command": "markdown.showPreviewToSide",
 				"key": "ctrl+k v",
-				"mac": "cmd+k v"
+				"mac": "cmd+k v",
+				"when": "editorFocus"
 			}
 		],
 		"snippets": [
@@ -117,9 +119,53 @@
 			"order": 20,
 			"properties": {
 				"markdown.styles": {
-					"type": ["array"],
+					"type": "array",
 					"default": [],
-					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file. All '\\' need to be written as '\\\\'."
+					"description": "%markdown.styles.dec%"
+				},
+				"markdown.previewFrontMatter": {
+					"type": "string",
+					"enum": [
+						"hide",
+						"show"
+					],
+					"default": "hide",
+					"description": "%markdown.previewFrontMatter.dec%"
+				},
+				"markdown.preview.fontFamily": {
+					"type": "string",
+					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light', sans-serif",
+					"description": "%markdown.preview.fontFamily.desc%"
+				},
+				"markdown.preview.fontSize": {
+					"type": "number",
+					"default": 14,
+					"description": "%markdown.preview.fontSize.desc%"
+				},
+				"markdown.preview.lineHeight": {
+					"type": "number",
+					"default": 1.6,
+					"description": "%markdown.preview.lineHeight.desc%"
+				},
+				"markdown.preview.scrollPreviewWithEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%"
+				},
+				"markdown.preview.markEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.markEditorSelection.desc%"
+				},
+				"markdown.preview.scrollEditorWithPreview": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollEditorWithPreview.desc%"
+				},
+				"markdown.preview.doubleClickToSwitchToEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
 				}
 			}
 		}
@@ -129,8 +175,11 @@
 	},
 	"dependencies": {
 		"highlight.js": "^9.3.0",
-		"markdown-it": "^6.0.1",
+		"markdown-it": "^8.2.2",
 		"markdown-it-named-headers": "0.0.4",
 		"vscode-extension-telemetry": "^0.0.5"
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
 	}
 }

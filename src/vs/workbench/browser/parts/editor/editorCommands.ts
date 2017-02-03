@@ -5,27 +5,26 @@
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands} from 'vs/workbench/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditor, Position, POSITIONS} from 'vs/platform/editor/common/editor';
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {TextCompareEditorVisible, TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
-import {Action} from 'vs/base/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
+import { Action } from 'vs/base/common/actions';
 
-export function setup() {
+export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
 	handleCommandDeprecations();
 }
 
-const isActiveEditorMoveArg = function (arg): boolean {
+const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean {
 	if (!types.isObject(arg)) {
 		return false;
 	}
@@ -47,7 +46,7 @@ const isActiveEditorMoveArg = function (arg): boolean {
 	return true;
 };
 
-function registerActiveEditorMoveCommand() {
+function registerActiveEditorMoveCommand(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -59,11 +58,10 @@ function registerActiveEditorMoveCommand() {
 			args: [
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
-					description: nls.localize('editorCommand.activeEditorMove.arg.description', `
-						Argument Properties:
-						'to': String value providing where to move.
-						'by': String value providing the unit for move. By tab or by group.
-						'value': Number value providing how many positions or an absolute position to move.
+					description: nls.localize('editorCommand.activeEditorMove.arg.description', `Argument Properties:
+						* 'to': String value providing where to move.
+						* 'by': String value providing the unit for move. By tab or by group.
+						* 'value': Number value providing how many positions or an absolute position to move.
 					`),
 					constraint: isActiveEditorMoveArg
 				}
@@ -72,23 +70,24 @@ function registerActiveEditorMoveCommand() {
 	});
 }
 
-function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor) {
-	const tabsShown = !!(<IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration()).workbench.editor.showTabs;
+function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor): void {
+	const showTabs = accessor.get(IEditorGroupService).getTabOptions().showTabs;
 	args.to = args.to || ActiveEditorMovePositioning.RIGHT;
-	args.by = tabsShown ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
+	args.by = showTabs ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
 	args.value = types.isUndefined(args.value) ? 1 : args.value;
 
 	const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
-
-	switch (args.by) {
-		case ActiveEditorMovePositioningBy.TAB:
-			return moveActiveTab(args, activeEditor, accessor);
-		case ActiveEditorMovePositioningBy.GROUP:
-			return moveActiveEditorToGroup(args, activeEditor, accessor);
+	if (activeEditor) {
+		switch (args.by) {
+			case ActiveEditorMovePositioningBy.TAB:
+				return moveActiveTab(args, activeEditor, accessor);
+			case ActiveEditorMovePositioningBy.GROUP:
+				return moveActiveEditorToGroup(args, activeEditor, accessor);
+		}
 	}
 }
 
-function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
+function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	const editorGroupsService: IEditorGroupService = accessor.get(IEditorGroupService);
 	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.position);
 	let index = editorGroup.indexOf(activeEditor.input);
@@ -117,7 +116,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 	editorGroupsService.moveEditor(activeEditor.input, editorGroup, editorGroup, index);
 }
 
-function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
+function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	let newPosition = activeEditor.position;
 	switch (args.to) {
 		case ActiveEditorMovePositioning.LEFT:
@@ -127,13 +126,13 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 			newPosition = newPosition + 1;
 			break;
 		case ActiveEditorMovePositioning.FIRST:
-			newPosition = Position.LEFT;
+			newPosition = Position.ONE;
 			break;
 		case ActiveEditorMovePositioning.LAST:
-			newPosition = Position.RIGHT;
+			newPosition = Position.THREE;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
-			newPosition = Position.CENTER;
+			newPosition = Position.TWO;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
 			newPosition = args.value - 1;
@@ -191,28 +190,10 @@ function registerDiffEditorCommands(): void {
 	});
 }
 
-// TODO@Ben remove eventually
 function handleCommandDeprecations(): void {
 	const mapDeprecatedCommands = {
-		'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
-		'workbench.action.focusSecondEditor': 'workbench.action.focusSecondEditorGroup',
-		'workbench.action.focusThirdEditor': 'workbench.action.focusThirdEditorGroup',
-		'workbench.action.focusLeftEditor': 'workbench.action.focusPreviousGroup',
-		'workbench.action.focusRightEditor': 'workbench.action.focusNextGroup',
-		'workbench.action.moveActiveEditorLeft': 'workbench.action.moveActiveEditorGroupLeft',
-		'workbench.action.moveActiveEditorRight': 'workbench.action.moveActiveEditorGroupRight',
-		'workbench.action.openPreviousEditor': 'workbench.action.openPreviousEditorFromHistory',
-		'workbench.files.action.addToWorkingFiles': 'workbench.action.keepEditor',
-		'workbench.files.action.closeAllFiles': 'workbench.action.closeAllEditors',
-		'workbench.files.action.closeFile': 'workbench.action.closeActiveEditor',
-		'workbench.files.action.closeOtherFiles': 'workbench.action.closeOtherEditors',
-		'workbench.files.action.focusWorkingFiles': 'workbench.files.action.focusOpenEditorsView',
-		'workbench.files.action.openNextWorkingFile': 'workbench.action.nextEditor',
-		'workbench.files.action.openPreviousWorkingFile': 'workbench.action.previousEditor',
-		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
-		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
-		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
-		'workbench.action.terminal.focus': 'workbench.action.focusPanel'
+		// Add in here a map from old command to new command like this:
+		// 'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {

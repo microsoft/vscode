@@ -7,7 +7,7 @@
 	"TaskRunnerSystem.cancelRequested": "\nЗадача \"{0}\" была завершена по запросу пользователя.",
 	"TaskRunnerSystem.childProcessError": "Не удалось запустить внешнюю программу {0} {1}.",
 	"TaskRunnerSystem.fatalError": "В предоставленной конфигурации задачи есть ошибки проверки. Подробности см. в журнале выходных данных задач.",
-	"TaskRunnerSystem.noBuildTask": "Задача сборки не настроена.",
+	"TaskRunnerSystem.noBuildTask": "Нет задач, помеченных как задача сборки в tasks.json. Пометьте задачу с помощью флага \"isBuildCommand\".",
 	"TaskRunnerSystem.noTestTask": "Задача тестирования не настроена.",
 	"TaskRunnerSystem.norebuild": "Задача для выполнения не найдена.",
 	"TaskRunnerSystem.unknownError": "При выполнении задачи произошла неизвестная ошибка. Подробности см. в журнале выходных данных задач.",

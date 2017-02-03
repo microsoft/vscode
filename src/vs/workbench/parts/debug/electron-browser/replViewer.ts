@@ -3,67 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import actions = require('vs/base/common/actions');
-import strings = require('vs/base/common/strings');
-import URI from 'vs/base/common/uri';
-import {isMacintosh} from 'vs/base/common/platform';
-import keyboard = require('vs/base/browser/keyboardEvent');
-import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import dom = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IAction } from 'vs/base/common/actions';
+import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
+import uri from 'vs/base/common/uri';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import * as dom from 'vs/base/browser/dom';
+import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
-import mouse = require('vs/base/browser/mouseEvent');
-import tree = require('vs/base/parts/tree/browser/tree');
-import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
-import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import model = require('vs/workbench/parts/debug/common/debugModel');
-import debugviewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import {CopyAction} from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ITree, IAccessibilityProvider, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IExpressionContainer, IExpression } from 'vs/workbench/parts/debug/common/debug';
+import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
+import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
-export class ReplExpressionsDataSource implements tree.IDataSource {
+export class ReplExpressionsDataSource implements IDataSource {
 
-	constructor(private debugService: debug.IDebugService) {
-		// noop
-	}
-
-	public getId(tree: tree.ITree, element: any): string {
+	public getId(tree: ITree, element: any): string {
 		return element.getId();
 	}
 
-	public hasChildren(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Model || element.reference > 0 || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0);
+	public hasChildren(tree: ITree, element: any): boolean {
+		return element instanceof Model || (<IExpressionContainer>element).hasChildren;
 	}
 
-	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
-		if (element instanceof model.Model) {
+	public getChildren(tree: ITree, element: any): TPromise<any> {
+		if (element instanceof Model) {
 			return TPromise.as(element.getReplElements());
 		}
-		if (element instanceof model.KeyValueOutputElement) {
+		if (element instanceof OutputNameValueElement) {
 			return TPromise.as(element.getChildren());
 		}
-		if (element instanceof model.ValueOutputElement) {
+		if (element instanceof OutputElement) {
 			return TPromise.as(null);
 		}
 
-		return (<debug.IExpression>element).getChildren(this.debugService);
+		return (<IExpression>element).getChildren();
 	}
 
-	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+	public getParent(tree: ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
 
-interface IInputOutputPairTemplateData {
+interface IExpressionTemplateData {
 	input: HTMLElement;
 	output: HTMLElement;
 	value: HTMLElement;
@@ -79,17 +73,17 @@ interface IValueOutputTemplateData {
 interface IKeyValueOutputTemplateData {
 	container: HTMLElement;
 	expression: HTMLElement;
-	key: HTMLElement;
+	name: HTMLElement;
 	value: HTMLElement;
 	annotation: HTMLElement;
 }
 
-export class ReplExpressionsRenderer implements tree.IRenderer {
+export class ReplExpressionsRenderer implements IRenderer {
 
 	private static VARIABLE_TEMPLATE_ID = 'variable';
-	private static INPUT_OUTPUT_PAIR_TEMPLATE_ID = 'inputOutputPair';
+	private static EXPRESSION_TEMPLATE_ID = 'inputOutputPair';
 	private static VALUE_OUTPUT_TEMPLATE_ID = 'outputValue';
-	private static KEY_VALUE_OUTPUT_TEMPLATE_ID = 'outputKeyValue';
+	private static NAME_VALUE_OUTPUT_TEMPLATE_ID = 'outputNameValue';
 
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
@@ -112,8 +106,15 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		// noop
 	}
 
-	public getHeight(tree: tree.ITree, element: any): number {
-		return this.getHeightForString(element.value) + (element instanceof model.Expression ? this.getHeightForString(element.name) : 0);
+	public getHeight(tree: ITree, element: any): number {
+		if (element instanceof Variable && (element.hasChildren || (element.name !== null))) {
+			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
+		}
+		if (element instanceof Expression && element.hasChildren) {
+			return 2 * ReplExpressionsRenderer.LINE_HEIGHT_PX;
+		}
+
+		return this.getHeightForString(element.value) + (element instanceof Expression ? this.getHeightForString(element.name) : 0);
 	}
 
 	private getHeightForString(s: string): number {
@@ -121,11 +122,15 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		const lines = s.trim().split(/\r\n|\r|\n/g);
+		// Last new line should be ignored since the repl elements are by design split by rows
+		if (endsWith(s, '\n')) {
+			s = s.substr(0, s.length - 1);
+		}
+		const lines = removeAnsiEscapeCodes(s).split('\n');
 		const numLines = lines.reduce((lineCount: number, line: string) => {
 			let lineLength = 0;
 			for (let i = 0; i < line.length; i++) {
-				lineLength += strings.isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
+				lineLength += isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
 			}
 
 			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
@@ -139,26 +144,27 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		this.characterWidth = characterWidth;
 	}
 
-	public getTemplateId(tree: tree.ITree, element: any): string {
-		if (element instanceof model.Variable) {
+	public getTemplateId(tree: ITree, element: any): string {
+		if (element instanceof Variable && element.name) {
 			return ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID;
 		}
-		if (element instanceof model.Expression) {
-			return ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID;
+		if (element instanceof Expression) {
+			return ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID;
 		}
-		if (element instanceof model.ValueOutputElement) {
+		if (element instanceof OutputElement || (element instanceof Variable && !element.name)) {
+			// Variable with no name is a top level variable which should be rendered like an output element #17404
 			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
 		}
-		if (element instanceof model.KeyValueOutputElement) {
-			return ReplExpressionsRenderer.KEY_VALUE_OUTPUT_TEMPLATE_ID;
+		if (element instanceof OutputNameValueElement) {
+			return ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID;
 		}
 
 		return null;
 	}
 
-	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			let data: debugviewer.IVariableTemplateData = Object.create(null);
+			let data: IVariableTemplateData = Object.create(null);
 			data.expression = dom.append(container, $('.expression'));
 			data.name = dom.append(data.expression, $('span.name'));
 			data.value = dom.append(data.expression, $('span.value'));
@@ -166,8 +172,8 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			return data;
 		}
 
-		if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
-			let data: IInputOutputPairTemplateData = Object.create(null);
+		if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
+			let data: IExpressionTemplateData = Object.create(null);
 			dom.addClass(container, 'input-output-pair');
 			data.input = dom.append(container, $('.input.expression'));
 			data.output = dom.append(container, $('.output.expression'));
@@ -189,13 +195,13 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			return data;
 		}
 
-		if (templateId === ReplExpressionsRenderer.KEY_VALUE_OUTPUT_TEMPLATE_ID) {
+		if (templateId === ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID) {
 			let data: IKeyValueOutputTemplateData = Object.create(null);
 			dom.addClass(container, 'output');
 
 			data.container = container;
 			data.expression = dom.append(container, $('.output.expression'));
-			data.key = dom.append(data.expression, $('span.name'));
+			data.name = dom.append(data.expression, $('span.name'));
 			data.value = dom.append(data.expression, $('span.value'));
 			data.annotation = dom.append(data.expression, $('span'));
 
@@ -203,28 +209,31 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		}
 	}
 
-	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
+	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			debugviewer.renderVariable(tree, element, templateData, false);
-		} else if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
-			this.renderInputOutputPair(tree, element, templateData);
+			renderVariable(tree, element, templateData, false);
+		} else if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
+			this.renderExpression(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
 			this.renderOutputValue(element, templateData);
-		} else if (templateId === ReplExpressionsRenderer.KEY_VALUE_OUTPUT_TEMPLATE_ID) {
-			this.renderOutputKeyValue(tree, element, templateData);
+		} else if (templateId === ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID) {
+			this.renderOutputNameValue(tree, element, templateData);
 		}
 	}
 
-	private renderInputOutputPair(tree: tree.ITree, expression: debug.IExpression, templateData: IInputOutputPairTemplateData): void {
+	private renderExpression(tree: ITree, expression: IExpression, templateData: IExpressionTemplateData): void {
 		templateData.input.textContent = expression.name;
-		debugviewer.renderExpressionValue(expression, templateData.value, false);
-		if (expression.reference > 0) {
+		renderExpressionValue(expression, templateData.value, {
+			preserveWhitespace: !expression.hasChildren,
+			showHover: false
+		});
+		if (expression.hasChildren) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
 			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
 		}
 	}
 
-	private renderOutputValue(output: model.ValueOutputElement, templateData: IValueOutputTemplateData): void {
+	private renderOutputValue(output: OutputElement, templateData: IValueOutputTemplateData): void {
 
 		// counter
 		if (output.counter > 1) {
@@ -237,14 +246,42 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 		// value
 		dom.clearNode(templateData.value);
+		templateData.value.className = '';
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
-			templateData.value.textContent = result;
+			renderExpressionValue(result, templateData.value, {
+				preserveWhitespace: true,
+				showHover: false
+			});
 		} else {
 			templateData.value.appendChild(result);
 		}
 
-		templateData.value.className = (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info';
+		dom.addClass(templateData.value, (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info');
+	}
+
+	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement, templateData: IKeyValueOutputTemplateData): void {
+		// key
+		if (output.name) {
+			templateData.name.textContent = `${output.name}:`;
+		} else {
+			templateData.name.textContent = '';
+		}
+
+		// value
+		renderExpressionValue(output.value, templateData.value, {
+			preserveWhitespace: true,
+			showHover: false
+		});
+
+		// annotation if any
+		if (output.annotation) {
+			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.title = output.annotation;
+		} else {
+			templateData.annotation.className = '';
+			templateData.annotation.title = '';
+		}
 	}
 
 	private handleANSIOutput(text: string): HTMLElement | string {
@@ -343,9 +380,9 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			pattern.lastIndex = 0; // the holy grail of software development
 
 			const match = pattern.exec(text);
-			let resource = null;
+			let resource: uri = null;
 			try {
-				resource = match && URI.file(match[1]);
+				resource = match && uri.file(match[1]);
 			} catch (e) { }
 
 			if (resource) {
@@ -362,7 +399,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 				link.textContent = text.substr(match.index, match[0].length);
 				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
 				linkContainer.appendChild(link);
-				link.onclick = (e) => this.onLinkClick(new mouse.StandardMouseEvent(e), resource, Number(match[3]), Number(match[4]));
+				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[3]), Number(match[4]));
 
 				let textAfterLink = text.substr(match.index + match[0].length);
 				if (textAfterLink) {
@@ -378,7 +415,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		return linkContainer || text;
 	}
 
-	private onLinkClick(event: mouse.IMouseEvent, resource: URI, line: number, column: number): void {
+	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number): void {
 		const selection = window.getSelection();
 		if (selection.type === 'Range') {
 			return; // do not navigate when user is selecting
@@ -397,106 +434,71 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
 	}
 
-	private renderOutputKeyValue(tree: tree.ITree, output: model.KeyValueOutputElement, templateData: IKeyValueOutputTemplateData): void {
-
-		// key
-		if (output.key) {
-			templateData.key.textContent = `${output.key}:`;
-		} else {
-			templateData.key.textContent = '';
-		}
-
-		// value
-		debugviewer.renderExpressionValue(output.value, templateData.value, false);
-
-		// annotation if any
-		if (output.annotation) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
-			templateData.annotation.title = output.annotation;
-		} else {
-			templateData.annotation.className = '';
-			templateData.annotation.title = '';
-		}
-	}
-
-	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
+	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		// noop
 	}
 }
 
-export class ReplExpressionsAccessibilityProvider implements tree.IAccessibilityProvider {
+export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvider {
 
-	public getAriaLabel(tree: tree.ITree, element: any): string {
-		if (element instanceof model.Variable) {
-			return nls.localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+	public getAriaLabel(tree: ITree, element: any): string {
+		if (element instanceof Variable) {
+			return nls.localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", (<Variable>element).name, (<Variable>element).value);
 		}
-		if (element instanceof model.Expression) {
-			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", (<model.Expression>element).name, (<model.Expression>element).value);
+		if (element instanceof Expression) {
+			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", (<Expression>element).name, (<Expression>element).value);
 		}
-		if (element instanceof model.ValueOutputElement) {
-			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<model.ValueOutputElement>element).value);
+		if (element instanceof OutputElement) {
+			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<OutputElement>element).value);
 		}
-		if (element instanceof model.KeyValueOutputElement) {
-			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<model.KeyValueOutputElement>element).key, (<model.KeyValueOutputElement>element).value);
+		if (element instanceof OutputNameValueElement) {
+			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<OutputNameValueElement>element).name, (<OutputNameValueElement>element).value);
 		}
 
 		return null;
 	}
 }
 
-export class ReplExpressionsActionProvider implements renderer.IActionProvider {
+export class ReplExpressionsActionProvider implements IActionProvider {
 
 	constructor(private instantiationService: IInstantiationService) {
 		// noop
 	}
 
-	public hasActions(tree: tree.ITree, element: any): boolean {
+	public hasActions(tree: ITree, element: any): boolean {
 		return false;
 	}
 
-	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
 		return TPromise.as([]);
 	}
 
-	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
+	public hasSecondaryActions(tree: ITree, element: any): boolean {
 		return true;
 	}
 
-	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		const actions: actions.IAction[] = [];
-		if (element instanceof model.Variable || element instanceof model.Expression) {
-			actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, element));
-			actions.push(new actionbar.Separator());
-		}
+	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+		const actions: IAction[] = [];
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
-		actions.push(this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL));
+		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
 
 		return TPromise.as(actions);
 	}
 
-	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
 		return null;
 	}
 }
 
-export class ReplExpressionsController extends debugviewer.BaseDebugController {
+export class ReplExpressionsController extends BaseDebugController {
 
 	private lastSelectedString: string = null;
+	public toFocusOnClick: { focus(): void };
 
-	constructor(
-		debugService: debug.IDebugService,
-		contextMenuService: IContextMenuService,
-		actionProvider: renderer.IActionProvider,
-		private replInput: ICodeEditor,
-		focusOnContextMenu = true
-	) {
-		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);
-	}
-
-	protected onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
-		const mouseEvent = <mouse.IMouseEvent>eventish;
+	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+		const mouseEvent = <IMouseEvent>eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
-		if ((element.reference > 0 || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
+		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.hasChildren)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);
@@ -505,14 +507,14 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 		const selection = window.getSelection();
 		if (selection.type !== 'Range' || this.lastSelectedString === selection.toString()) {
 			// only focus the input if the user is not currently selecting.
-			this.replInput.focus();
+			this.toFocusOnClick.focus();
 		}
 		this.lastSelectedString = selection.toString();
 
 		return true;
 	}
 
-	protected onDown(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
+	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
 		if (tree.getFocus()) {
 			return super.onDown(tree, event);
 		}

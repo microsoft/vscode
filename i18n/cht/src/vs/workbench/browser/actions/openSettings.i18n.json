@@ -7,6 +7,7 @@
 	"defaultKeybindings": "預設鍵盤快速鍵",
 	"defaultKeybindingsHeader": "將按鍵組合放入您的按鍵組合檔案中加以覆寫。",
 	"defaultName": "預設值",
+	"defaultSettingsEditor": "預設設定編輯器",
 	"defaultSettingsHeader": "將設定放入您的設定檔中加以覆寫。",
 	"defaultSettingsHeader2": "如需最常使用的設定，請參閱 http://go.microsoft.com/fwlink/?LinkId=808995。",
 	"emptyKeybindingsHeader": "將您的按鍵組合放入此檔案中以覆寫預設值",

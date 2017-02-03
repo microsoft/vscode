@@ -4,18 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import Severity from 'vs/base/common/severity';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {stringDiff} from 'vs/base/common/diff/diff';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface PositionLike {
 	line: number;
@@ -68,8 +65,8 @@ export function toPosition(position: IPosition): types.Position {
 	return new types.Position(position.lineNumber - 1, position.column - 1);
 }
 
-export function fromPosition(position: types.Position):IPosition {
-	return { lineNumber: position.line + 1, column: position.character + 1};
+export function fromPosition(position: types.Position): IPosition {
+	return { lineNumber: position.line + 1, column: position.character + 1 };
 }
 
 export function fromDiagnosticSeverity(value: number): Severity {
@@ -101,48 +98,49 @@ export function toDiagnosticSeverty(value: Severity): types.DiagnosticSeverity {
 }
 
 export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
-	let editorColumn = EditorPosition.LEFT;
+	let editorColumn = EditorPosition.ONE;
 	if (typeof column !== 'number') {
-		// stick with LEFT
+		// stick with ONE
 	} else if (column === <number>types.ViewColumn.Two) {
-		editorColumn = EditorPosition.CENTER;
+		editorColumn = EditorPosition.TWO;
 	} else if (column === <number>types.ViewColumn.Three) {
-		editorColumn = EditorPosition.RIGHT;
+		editorColumn = EditorPosition.THREE;
 	}
 	return editorColumn;
 }
 
 export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 	if (typeof position !== 'number') {
-		return;
+		return undefined;
 	}
-	if (position === EditorPosition.LEFT) {
-		return <number> types.ViewColumn.One;
-	} else if (position === EditorPosition.CENTER) {
-		return <number> types.ViewColumn.Two;
-	} else if (position === EditorPosition.RIGHT) {
-		return <number> types.ViewColumn.Three;
+	if (position === EditorPosition.ONE) {
+		return <number>types.ViewColumn.One;
+	} else if (position === EditorPosition.TWO) {
+		return <number>types.ViewColumn.Two;
+	} else if (position === EditorPosition.THREE) {
+		return <number>types.ViewColumn.Three;
 	}
+	return undefined;
 }
 
 function isDecorationOptions(something: any): something is vscode.DecorationOptions {
 	return (typeof something.range !== 'undefined');
 }
 
-function isDecorationOptionsArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
+function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
 	if (something.length === 0) {
 		return true;
 	}
 	return isDecorationOptions(something[0]) ? true : false;
 }
 
-export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IDecorationOptions[] {
+export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
 	if (isDecorationOptionsArr(ranges)) {
 		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r.range),
 				hoverMessage: r.hoverMessage,
-				renderOptions: r.renderOptions
+				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
 	} else {
@@ -156,45 +154,7 @@ export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.Decorat
 
 export const TextEdit = {
 
-	minimalEditOperations(edits: vscode.TextEdit[], document: vscode.TextDocument, beforeDocumentVersion: number): ISingleEditOperation[] {
-
-		// document has changed in the meantime and we shouldn't do
-		// offset math as it's likely to be all wrong
-		if (document.version !== beforeDocumentVersion) {
-			return edits.map(TextEdit.from);
-		}
-
-		const result: ISingleEditOperation[] = [];
-
-		for (let edit of edits) {
-
-			const original = document.getText(edit.range);
-			const modified = edit.newText;
-			const changes = stringDiff(original, modified);
-
-			if (changes.length <= 1) {
-				result.push(TextEdit.from(edit));
-				continue;
-			}
-
-			const editOffset = document.offsetAt(edit.range.start);
-
-			for (let j = 0; j < changes.length; j++) {
-				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
-				const start = fromPosition(<types.Position> document.positionAt(editOffset + originalStart));
-				const end = fromPosition(<types.Position> document.positionAt(editOffset + originalStart + originalLength));
-
-				result.push({
-					text: modified.substr(modifiedStart, modifiedLength),
-					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
-				});
-			}
-		}
-
-		return result;
-	},
-
-	from(edit: vscode.TextEdit): ISingleEditOperation{
+	from(edit: vscode.TextEdit): ISingleEditOperation {
 		return <ISingleEditOperation>{
 			text: edit.newText,
 			range: fromRange(edit.range)
@@ -250,10 +210,10 @@ export function toSymbolInformation(bearing: IWorkspaceSymbol): types.SymbolInfo
 
 
 export const location = {
-	from(value: types.Location): modes.Location {
+	from(value: vscode.Location): modes.Location {
 		return {
-			range: fromRange(value.range),
-			uri: value.uri
+			range: value.range && fromRange(value.range),
+			uri: <URI>value.uri
 		};
 	},
 	to(value: modes.Location): types.Location {
@@ -298,6 +258,7 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.Color: return 'color';
 			case types.CompletionItemKind.File: return 'file';
 			case types.CompletionItemKind.Reference: return 'reference';
+			case types.CompletionItemKind.Folder: return 'folder';
 		}
 		return 'property';
 	},
@@ -311,24 +272,9 @@ export const CompletionItemKind = {
 	}
 };
 
-export const Suggest = {
+export namespace Suggest {
 
-	from(item: vscode.CompletionItem, disposables: IDisposable[]): modes.ISuggestion {
-		const suggestion: modes.ISuggestion = {
-			label: item.label,
-			insertText: item.insertText || item.label,
-			type: CompletionItemKind.from(item.kind),
-			detail: item.detail,
-			documentation: item.documentation,
-			sortText: item.sortText,
-			filterText: item.filterText,
-			command: Command.from(item.command, disposables),
-			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TextEdit.from)
-		};
-		return suggestion;
-	},
-
-	to(container: modes.ISuggestResult, position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
+	export function to(position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.type);
@@ -337,14 +283,25 @@ export const Suggest = {
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
-		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : container.currentWord.length;
+		// 'overwrite[Before|After]'-logic
+		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
 		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
 		let endPosition = position;
 		if (typeof suggestion.overwriteAfter === 'number') {
 			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
 		}
+		result.range = new types.Range(startPosition, endPosition);
 
-		result.textEdit = types.TextEdit.replace(new types.Range(startPosition, endPosition), suggestion.insertText);
+		// 'inserText'-logic
+		if (suggestion.snippetType === 'textmate') {
+			result.insertText = new types.SnippetString(suggestion.insertText);
+		} else {
+			result.insertText = suggestion.insertText;
+			result.textEdit = new types.TextEdit(result.range, result.insertText);
+		}
+
+		// TODO additionalEdits, command
+
 		return result;
 	}
 };
@@ -374,65 +331,17 @@ export namespace DocumentLink {
 	}
 }
 
-export namespace Command {
+export namespace TextDocumentSaveReason {
 
-	const _delegateId = '_internal_delegate_command';
-	const _cache: { [id: string]: vscode.Command } = Object.create(null);
-	let _idPool = 1;
-
-	export function initialize(commands: ExtHostCommands) {
-		return commands.registerCommand(_delegateId, (id: string) => {
-			const command = _cache[id];
-			if (!command) {
-				// handle already disposed delegations graceful
-				return;
-			}
-			return commands.executeCommand(command.command, ...command.arguments);
-		});
-	}
-
-	export function from(command: vscode.Command, disposables: IDisposable[]): modes.Command {
-
-		if (!command) {
-			return;
+	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {
+		switch (reason) {
+			case SaveReason.AUTO:
+				return types.TextDocumentSaveReason.AfterDelay;
+			case SaveReason.EXPLICIT:
+				return types.TextDocumentSaveReason.Manual;
+			case SaveReason.FOCUS_CHANGE:
+			case SaveReason.WINDOW_CHANGE:
+				return types.TextDocumentSaveReason.FocusOut;
 		}
-
-		const result = <modes.Command>{
-			id: command.command,
-			title: command.title
-		};
-
-		if (!isFalsyOrEmpty(command.arguments)) {
-
-			// redirect to delegate command and store actual command
-			const id = `delegate/${_idPool++}/for/${command.command}`;
-
-			result.id = _delegateId;
-			result.arguments = [id];
-			_cache[id] = command;
-
-			disposables.push({
-				dispose() {
-					delete _cache[id];
-				}
-			});
-		}
-
-		return result;
-	}
-
-	export function to(command: modes.Command): vscode.Command {
-		let result: vscode.Command;
-		if (command.id === _delegateId) {
-			let [key] = command.arguments;
-			result = _cache[key];
-		}
-		if (!result) {
-			result = {
-				command: command.id,
-				title: command.title
-			};
-		}
-		return result;
 	}
 }

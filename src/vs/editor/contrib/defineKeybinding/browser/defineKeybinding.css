@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .defineKeybindingLauncher {
-	background: rgb(179,255,179);
+	background: #007ACC;
+	color: white;
 	padding: 10px;
 	border-radius: 5px;
 	cursor: pointer;
-}
-.monaco-editor.vs-dark .defineKeybindingLauncher,
-.monaco-editor.hc-black .defineKeybindingLauncher {
-	background: rgb(21,97,21);
 }
 
 .monaco-editor .defineKeybindingWidget {
@@ -71,4 +68,22 @@
 .monaco-editor .keybindingError {
 	box-shadow:	inset 0 0 0 1px #B9B9B9;
 	background-color: rgba(250, 100, 100, 0.2);
+}
+
+/* for keybindings rendered as HTML */
+.monaco-kb {
+	white-space: nowrap;
+}
+.monaco-kbkey {
+	display: inline-block;
+	border: solid 1px #ccc;
+	border-bottom-color: #bbb;
+	border-radius: 3px;
+	box-shadow: inset 0 -1px 0 #bbb;
+	background-color: #fcfcfc;
+	vertical-align: middle;
+	color: #555;
+	line-height: 10px;
+	font-size: 11px;
+	padding: 3px 5px;
 }

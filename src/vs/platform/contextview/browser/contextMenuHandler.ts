@@ -6,17 +6,17 @@
 'use strict';
 
 import 'vs/css!./contextMenuHandler';
-import {$, Builder} from  'vs/base/browser/builder';
-import {combinedDisposable, IDisposable} from  'vs/base/common/lifecycle';
-import {StandardMouseEvent} from  'vs/base/browser/mouseEvent';
-import {IActionRunner, ActionRunner, IAction} from  'vs/base/common/actions';
-import {Menu} from  'vs/base/browser/ui/menu/menu';
-import {EventType} from  'vs/base/common/events';
+import { $, Builder } from 'vs/base/browser/builder';
+import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IActionRunner, ActionRunner, IAction } from 'vs/base/common/actions';
+import { Menu } from 'vs/base/browser/ui/menu/menu';
+import { EventType } from 'vs/base/common/events';
 import Severity from 'vs/base/common/severity';
 
-import {IContextViewService, IContextMenuDelegate} from 'vs/platform/contextview/browser/contextView';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { IContextViewService, IContextMenuDelegate } from 'vs/platform/contextview/browser/contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 export class ContextMenuHandler {
 

@@ -6,7 +6,9 @@
 {
 	"extension": "확장",
 	"extensions": "확장",
+	"extensionsAutoUpdate": "자동으로 확장 업데이트",
 	"extensionsCommands": "확장 관리",
+	"extensionsConfigurationTitle": "확장",
 	"galleryExtensionsCommands": "갤러리 확장 설치",
 	"view": "보기"
 }

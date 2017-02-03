@@ -6,7 +6,7 @@
 // file generated from PHP53Schema.xml using php-exclude_generate_php_globals.js
 
 export interface IEntry { description?: string; signature?: string; }
-export interface IEntries { [name:string]:IEntry; }
+export interface IEntries { [name: string]: IEntry; }
 
 export var globalfunctions: IEntries = {
 	password_get_info: {
@@ -1950,7 +1950,7 @@ export var globalfunctions: IEntries = {
 		signature: '(string $str): string'
 	},
 	urldecode: {
-		description: 'Decodes any %## encoding in the given string. Plus symbols ('+') are decoded to a space character.',
+		description: 'Decodes any %## encoding in the given string. Plus symbols (' + ') are decoded to a space character.',
 		signature: '(string $str): string'
 	},
 	rawurlencode: {

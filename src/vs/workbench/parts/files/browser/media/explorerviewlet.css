@@ -15,41 +15,87 @@
 	line-height: 22px;
 }
 
-.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .explorer-item {
+	display: flex; /* this helps showing the overflow ellipsis (...) even though we use display:inline-block for the labels */
+	flex-wrap: nowrap;
+}
+
+.explorer-viewlet .explorer-item > a,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .explorer-item,
 .explorer-viewlet .explorer-item .monaco-inputbox {
-	display: inline-block; /* required for icons support :before rule */
+	flex: 1;
+}
+
+.explorer-viewlet .explorer-item::before {
+	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
+}
+
+.explorer-viewlet .explorer-item.explorer-item-edited .label-name {
+	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {
 	display: flex;
 }
 
-.explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon::before,
-.explorer-viewlet .explorer-folders-view.show-file-icons .file-icon::before {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
+	visibility: hidden;
+}
 
-	/* svg icons rendered as background image */
+.explorer-viewlet .header .monaco-count-badge.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.explorer-folders-view .monaco-tree-row .sub-content {
+	display: flex;
+}
+
+.explorer-folders-view .monaco-tree-row .sub-content::before {
 	background-size: 16px;
-	background-position: left center;
+	background-position: 50% 50%;
 	background-repeat: no-repeat;
 	padding-right: 6px;
 	width: 16px;
 	height: 22px;
 	display: inline-block;
-
-	/* fonts icons */
-	-webkit-font-smoothing: antialiased;
 	vertical-align: top;
+	content: ' ';
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
-	visibility: hidden;
+.explorer-folders-view.align-icons-and-twisties .monaco-tree-row:not(.has-children) .sub-content::before {
+	display: none;
+}
+
+.explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded.svg");
+}
+
+.explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	display: inline-block;
+	background-image: url("collapsed.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded-dark.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	background-image: url("collapsed-dark.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded-hc.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	background-image: url("collapsed-hc.svg");
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
@@ -75,7 +121,6 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor {
 	flex: 1;
-	margin-left: 1px;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .editor-group {
@@ -116,10 +161,6 @@
 	height: 20px;
 }
 
-.explorer-viewlet-label > .badge-content {
-	background-color: #007ACC;
-}
-
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group {
 	font-size: 11px;
 	font-weight: bold;
@@ -132,22 +173,6 @@
 .explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(ja) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group { font-weight: normal; }
-
-/* Disable tree twistie */
-.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
-.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
-	border: none;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor > .description {
-	opacity: .7;
-	margin-left: .5em;
-	font-size: .9em;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
-	font-style: italic;
-}
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,

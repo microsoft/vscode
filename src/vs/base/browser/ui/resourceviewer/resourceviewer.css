@@ -30,8 +30,8 @@
 
 .vs-dark .monaco-resource-viewer.image {
 	background-image:
-		linear-gradient(45deg, rgb(40, 40, 40) 25%, transparent 25%, transparent 75%, rgb(40, 40, 40) 75%, rgb(40, 40, 40)),
-		linear-gradient(45deg, rgb(40, 40, 40) 25%, transparent 25%, transparent 75%, rgb(40, 40, 40) 75%, rgb(40, 40, 40));
+		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20)),
+		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20));
 }
 
 .monaco-resource-viewer img {

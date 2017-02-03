@@ -5,12 +5,11 @@
 
 # If root, ensure that --user-data-dir is specified
 if [ "$(id -u)" = "0" ]; then
-	while test $# -gt 0
+	for i in $@
 	do
-		if [[ $1 == --user-data-dir=* ]]; then
+		if [[ $i == --user-data-dir=* ]]; then
 			DATA_DIR_SET=1
 		fi
-		shift
 	done
 	if [ -z $DATA_DIR_SET ]; then
 		echo "It is recommended to start vscode as a normal user. To run as root, you must specify an alternate user data directory with the --user-data-dir argument." 1>&2
@@ -24,7 +23,7 @@ if [ ! -L $0 ]; then
 else
 	if which readlink >/dev/null; then
 		# if readlink exists, follow the symlink and find relatively
-		VSCODE_PATH="$(dirname $(readlink $0))/.."
+		VSCODE_PATH="$(dirname $(readlink -f $0))/.."
 	else
 		# else use the standard install location
 		VSCODE_PATH="/usr/share/@@NAME@@"

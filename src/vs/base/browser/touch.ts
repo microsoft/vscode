@@ -5,7 +5,7 @@
 'use strict';
 
 import arrays = require('vs/base/common/arrays');
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
 
 export namespace EventType {

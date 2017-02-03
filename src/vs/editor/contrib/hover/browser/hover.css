@@ -26,7 +26,7 @@
 }
 
 .monaco-editor-hover .monaco-editor-hover-content {
-	max-width: 438px;
+	max-width: 500px;
 }
 
 .monaco-editor-hover .hover-row {
@@ -65,6 +65,7 @@
 
 .monaco-editor-hover .monaco-tokenized-source {
 	white-space: pre-wrap;
+	word-break: break-all;
 }
 
 .monaco-editor .hoverHighlight {
@@ -77,3 +78,4 @@
 .monaco-editor.vs-dark .hoverHighlight { background: rgba(38, 79, 120, 0.25); }
 
 .monaco-editor.hc-black .monaco-editor-hover { background-color: #0C141F; }
+.monaco-editor.hc-black .monaco-editor-hover a { color: #1C5DAF; }

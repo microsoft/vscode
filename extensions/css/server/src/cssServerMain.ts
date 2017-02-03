@@ -9,11 +9,11 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
 
-import {getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet} from 'vscode-css-languageservice';
-import {getLanguageModelCache} from './languageModelCache';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
+import { getLanguageModelCache } from './languageModelCache';
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
 }
 
 export interface Settings {
@@ -46,11 +46,12 @@ connection.onShutdown(() => {
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: false },
+			completionProvider: snippetSupport ? { resolveProvider: false } : null,
 			hoverProvider: true,
 			documentSymbolProvider: true,
 			referencesProvider: true,
@@ -62,7 +63,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
-let languageServices : { [id:string]: LanguageService} = {
+let languageServices: { [id: string]: LanguageService } = {
 	css: getCSSLanguageService(),
 	scss: getSCSSLanguageService(),
 	less: getLESSLanguageService()
@@ -90,7 +91,7 @@ function updateConfiguration(settings: Settings) {
 	documents.all().forEach(triggerValidation);
 }
 
-let pendingValidationRequests : { [uri:string]: NodeJS.Timer } = {};
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
 const validationDelayMs = 200;
 
 // The content of a text document has changed. This event is emitted
@@ -172,8 +173,11 @@ connection.onCodeAction(codeActionParams => {
 
 connection.onRequest(ColorSymbolRequest.type, uri => {
 	let document = documents.get(uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findColorSymbols(document, stylesheet);
+	if (document) {
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findColorSymbols(document, stylesheet);
+	}
+	return [];
 });
 
 connection.onRenameRequest(renameParameters => {

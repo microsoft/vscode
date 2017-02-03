@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ILink} from 'vs/editor/common/modes';
-import {CharCode} from 'vs/base/common/charCode';
-import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
+import { ILink } from 'vs/editor/common/modes';
+import { CharCode } from 'vs/base/common/charCode';
+import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { Uint8Matrix } from 'vs/editor/common/core/uint';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
-	getLineContent(lineNumber:number): string;
+	getLineContent(lineNumber: number): string;
 }
 
 const enum State {
@@ -30,14 +31,14 @@ const enum State {
 	Accept = 13
 }
 
-type Edge = [State,number,State];
+type Edge = [State, number, State];
 
 class StateMachine {
 
-	private _states: State[][];
+	private _states: Uint8Matrix;
 	private _maxCharCode: number;
 
-	constructor(edges:Edge[]) {
+	constructor(edges: Edge[]) {
 		let maxCharCode = 0;
 		let maxState = State.Invalid;
 		for (let i = 0, len = edges.length; i < len; i++) {
@@ -53,67 +54,69 @@ class StateMachine {
 			}
 		}
 
-		let states:number[][] = [];
-		for (let i = 0; i <= maxState; i++) {
-			let tmp:number[] = [];
-			for (let j = 0; j <= maxCharCode; j++) {
-				tmp[j] = State.Invalid;
-			}
-			states[i] = tmp;
-		}
+		maxCharCode++;
+		maxState++;
 
+		let states = new Uint8Matrix(maxState, maxCharCode, State.Invalid);
 		for (let i = 0, len = edges.length; i < len; i++) {
 			let [from, chCode, to] = edges[i];
-			states[from][chCode] = to;
+			states.set(from, chCode, to);
 		}
 
 		this._states = states;
 		this._maxCharCode = maxCharCode;
 	}
 
-	public nextState(currentState:State, chCode:number): State {
-		if (chCode < 0 || chCode > this._maxCharCode) {
+	public nextState(currentState: State, chCode: number): State {
+		if (chCode < 0 || chCode >= this._maxCharCode) {
 			return State.Invalid;
 		}
-		return this._states[currentState][chCode];
+		return this._states.get(currentState, chCode);
 	}
 }
 
 // State machine for http:// or https:// or file://
-let stateMachine = new StateMachine([
-	[State.Start, CharCode.h, State.H],
-	[State.Start, CharCode.H, State.H],
-	[State.Start, CharCode.f, State.F],
-	[State.Start, CharCode.F, State.F],
+let _stateMachine: StateMachine = null;
+function getStateMachine(): StateMachine {
+	if (_stateMachine === null) {
+		_stateMachine = new StateMachine([
+			[State.Start, CharCode.h, State.H],
+			[State.Start, CharCode.H, State.H],
+			[State.Start, CharCode.f, State.F],
+			[State.Start, CharCode.F, State.F],
 
-	[State.H, CharCode.t, State.HT],
-	[State.H, CharCode.T, State.HT],
+			[State.H, CharCode.t, State.HT],
+			[State.H, CharCode.T, State.HT],
 
-	[State.HT, CharCode.t, State.HTT],
-	[State.HT, CharCode.T, State.HTT],
+			[State.HT, CharCode.t, State.HTT],
+			[State.HT, CharCode.T, State.HTT],
 
-	[State.HTT, CharCode.p, State.HTTP],
-	[State.HTT, CharCode.P, State.HTTP],
+			[State.HTT, CharCode.p, State.HTTP],
+			[State.HTT, CharCode.P, State.HTTP],
 
-	[State.HTTP, CharCode.s, State.BeforeColon],
-	[State.HTTP, CharCode.S, State.BeforeColon],
-	[State.HTTP, CharCode.Colon, State.AfterColon],
+			[State.HTTP, CharCode.s, State.BeforeColon],
+			[State.HTTP, CharCode.S, State.BeforeColon],
+			[State.HTTP, CharCode.Colon, State.AfterColon],
 
-	[State.F, CharCode.i, State.FI],
-	[State.F, CharCode.I, State.FI],
+			[State.F, CharCode.i, State.FI],
+			[State.F, CharCode.I, State.FI],
 
-	[State.FI, CharCode.l, State.FIL],
-	[State.FI, CharCode.L, State.FIL],
+			[State.FI, CharCode.l, State.FIL],
+			[State.FI, CharCode.L, State.FIL],
 
-	[State.FIL, CharCode.e, State.BeforeColon],
-	[State.FIL, CharCode.E, State.BeforeColon],
+			[State.FIL, CharCode.e, State.BeforeColon],
+			[State.FIL, CharCode.E, State.BeforeColon],
 
-	[State.BeforeColon, CharCode.Colon, State.AfterColon],
+			[State.BeforeColon, CharCode.Colon, State.AfterColon],
 
-	[State.AfterColon, CharCode.Slash, State.AlmostThere],
+			[State.AfterColon, CharCode.Slash, State.AlmostThere],
 
-	[State.AlmostThere, CharCode.Slash, State.End],
-]);
+			[State.AlmostThere, CharCode.Slash, State.End],
+		]);
+	}
+	return _stateMachine;
+}
+
 
 const enum CharacterClass {
 	None = 0,
@@ -121,25 +124,27 @@ const enum CharacterClass {
 	CannotEndIn = 2
 }
 
-const classifier = (function() {
-	let result = new CharacterClassifier(CharacterClass.None);
+let _classifier: CharacterClassifier<CharacterClass> = null;
+function getClassifier(): CharacterClassifier<CharacterClass> {
+	if (_classifier === null) {
+		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
-	const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
-	for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
-		result.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
+		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
+		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
+			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
+		}
+
+		const CANNOT_END_WITH_CHARACTERS = '.,;';
+		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
+			_classifier.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
+		}
 	}
-
-	const CANNOT_END_WITH_CHARACTERS = '.,;';
-	for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
-		result.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
-	}
-
-	return result;
-})();
+	return _classifier;
+}
 
 class LinkComputer {
 
-	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):ILink {
+	private static _createLink(classifier: CharacterClassifier<CharacterClass>, line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
 		// Do not allow to end link in certain characters...
 		let lastIncludedCharIndex = linkEndIndex - 1;
 		do {
@@ -162,14 +167,18 @@ class LinkComputer {
 		};
 	}
 
-	public static computeLinks(model:ILinkComputerTarget):ILink[] {
-		let result:ILink[] = [];
+	public static computeLinks(model: ILinkComputerTarget): ILink[] {
+		const stateMachine = getStateMachine();
+		const classifier = getClassifier();
+
+		let result: ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			const line = model.getLineContent(i);
 			const len = line.length;
 
 			let j = 0;
 			let linkBeginIndex = 0;
+			let linkBeginChCode = 0;
 			let state = State.Start;
 			let hasOpenParens = false;
 			let hasOpenSquareBracket = false;
@@ -181,7 +190,7 @@ class LinkComputer {
 				const chCode = line.charCodeAt(j);
 
 				if (state === State.Accept) {
-					let chClass:CharacterClass;
+					let chClass: CharacterClass;
 					switch (chCode) {
 						case CharCode.OpenParen:
 							hasOpenParens = true;
@@ -204,13 +213,23 @@ class LinkComputer {
 						case CharCode.CloseCurlyBrace:
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
+						/* The following three rules make it that ' or " or ` are allowed inside links if the link began with a different one */
+						case CharCode.SingleQuote:
+							chClass = (linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
+						case CharCode.DoubleQuote:
+							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
+						case CharCode.BackTick:
+							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
 						default:
 							chClass = classifier.get(chCode);
 					}
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
-						result.push(LinkComputer._createLink(line, i, linkBeginIndex, j));
+						result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
 						resetStateMachine = true;
 					}
 				} else if (state === State.End) {
@@ -237,13 +256,14 @@ class LinkComputer {
 
 					// Record where the link started
 					linkBeginIndex = j + 1;
+					linkBeginChCode = chCode;
 				}
 
 				j++;
 			}
 
 			if (state === State.Accept) {
-				result.push(LinkComputer._createLink(line, i, linkBeginIndex, len));
+				result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, len));
 			}
 
 		}
@@ -257,7 +277,7 @@ class LinkComputer {
  * document. *Note* that this operation is computational
  * expensive and should not run in the UI thread.
  */
-export function computeLinks(model:ILinkComputerTarget):ILink[] {
+export function computeLinks(model: ILinkComputerTarget): ILink[] {
 	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
 		// Unknown caller!
 		return [];

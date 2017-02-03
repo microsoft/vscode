@@ -8,24 +8,24 @@ import os = require('os');
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
-export class ToggleTerminalAction extends Action {
+export class ToggleTerminalAction extends TogglePanelAction {
 
 	public static ID = 'workbench.action.terminal.toggleTerminal';
 	public static LABEL = nls.localize('workbench.action.terminal.toggleTerminal', "Toggle Integrated Terminal");
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.terminalService.togglePanel();
+		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
 	}
 }
 
@@ -57,7 +57,7 @@ export class KillTerminalAction extends Action {
 
 /**
  * Copies the terminal selection. Note that since the command palette takes focus from the terminal,
- * this can only be triggered via a keybinding.
+ * this cannot be triggered through the command palette.
  */
 export class CopyTerminalSelectionAction extends Action {
 
@@ -198,15 +198,17 @@ export class RunSelectedTextInTerminalAction extends Action {
 			terminalInstance = this.terminalService.createInstance();
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		let selection = editor.getSelection();
-		let text: string;
-		if (selection.isEmpty()) {
-			text = editor.getValue();
-		} else {
-			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		if (editor) {
+			let selection = editor.getSelection();
+			let text: string;
+			if (selection.isEmpty()) {
+				text = editor.getValue();
+			} else {
+				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			}
+			terminalInstance.sendText(text, true);
 		}
-		terminalInstance.sendText(text, true);
 		return TPromise.as(void 0);
 	}
 }
@@ -225,7 +227,10 @@ export class SwitchTerminalInstanceAction extends Action {
 	}
 
 	public run(item?: string): TPromise<any> {
-		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
+		if (!item || !item.split) {
+			return TPromise.as(null);
+		}
+		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
 		return this.terminalService.showPanel(true);
 	}
@@ -238,12 +243,12 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
-		this.toDispose.push(terminalService.onInstancesChanged(this.updateItems, this));
-		this.toDispose.push(terminalService.onActiveInstanceChanged(this.updateItems, this));
-		this.toDispose.push(terminalService.onInstanceTitleChanged(this.updateItems, this));
+		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
 	}
 
-	private updateItems(): void {
+	private _updateItems(): void {
 		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
 	}
 }
@@ -251,7 +256,7 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 export class ScrollDownTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.scrollDown';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down");
+	public static LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)");
 
 	constructor(
 		id: string, label: string,
@@ -263,7 +268,49 @@ export class ScrollDownTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.scrollDown();
+			terminalInstance.scrollDownLine();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollDownPageTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollDownPage';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollDownPage();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollToBottomTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollToBottom';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollToBottom();
 		}
 		return TPromise.as(void 0);
 	}
@@ -272,7 +319,7 @@ export class ScrollDownTerminalAction extends Action {
 export class ScrollUpTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.scrollUp';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up");
+	public static LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)");
 
 	constructor(
 		id: string, label: string,
@@ -284,7 +331,70 @@ export class ScrollUpTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.scrollUp();
+			terminalInstance.scrollUpLine();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollUpPageTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollUpPage';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollUpPage();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollToTopTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollToTop';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollToTop', "Scroll to Top");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollToTop();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ClearTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.clear';
+	public static LABEL = nls.localize('workbench.action.terminal.clear', "Clear");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.clear();
 		}
 		return TPromise.as(void 0);
 	}

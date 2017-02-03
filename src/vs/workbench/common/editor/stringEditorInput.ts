@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {MIME_TEXT} from 'vs/base/common/mime';
-import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { EditorModel, EditorInput } from 'vs/workbench/common/editor';
+import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
- * A read-only text editor input whos contents are made of the provided value and mime type.
+ * A read-only text editor input whos contents are made of the provided value and mode ID.
  */
 export class StringEditorInput extends EditorInput {
 
@@ -20,17 +20,18 @@ export class StringEditorInput extends EditorInput {
 
 	protected cachedModel: StringEditorModel;
 
+	protected value: string;
+
 	private name: string;
 	private description: string;
-	protected value: string;
-	protected mime: string;
+	private modeId: string;
 	private singleton: boolean;
 
 	constructor(
 		name: string,
 		description: string,
 		value: string,
-		mime: string,
+		modeId: string,
 		singleton: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -39,7 +40,7 @@ export class StringEditorInput extends EditorInput {
 		this.name = name;
 		this.description = description;
 		this.value = value;
-		this.mime = mime || MIME_TEXT;
+		this.modeId = modeId || PLAINTEXT_MODE_ID;
 		this.singleton = singleton;
 	}
 
@@ -63,10 +64,6 @@ export class StringEditorInput extends EditorInput {
 		return this.value;
 	}
 
-	public getMime(): string {
-		return this.mime;
-	}
-
 	/**
 	 * Sets the textual value of this input and will also update the underlying model if this input is resolved.
 	 */
@@ -77,44 +74,6 @@ export class StringEditorInput extends EditorInput {
 		}
 	}
 
-	/**
-	 * Clears the textual value of this input and will also update the underlying model if this input is resolved.
-	 */
-	public clearValue(): void {
-		this.value = '';
-		if (this.cachedModel) {
-			this.cachedModel.clearValue();
-		}
-	}
-
-	/**
-	 * Appends to the textual value of this input and will also update the underlying model if this input is resolved.
-	 */
-	public append(value: string): void {
-		this.value += value;
-		if (this.cachedModel) {
-			this.cachedModel.append(value);
-		}
-	}
-
-	/**
-	 * Removes all lines from the top if the line number exceeds the given line count. Returns the new value if lines got trimmed.
-	 *
-	 * Note: This method is a no-op if the input has not yet been resolved.
-	 */
-	public trim(linecount: number): string {
-		if (this.cachedModel) {
-			let newValue = this.cachedModel.trim(linecount);
-			if (newValue !== null) {
-				this.value = newValue;
-
-				return this.value;
-			}
-		}
-
-		return null;
-	}
-
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 
 		// Use Cached Model
@@ -123,7 +82,7 @@ export class StringEditorInput extends EditorInput {
 		}
 
 		//Otherwise Create Model and Load
-		let model = this.instantiationService.createInstance(StringEditorModel, this.value, this.mime, this.getResource());
+		let model = this.instantiationService.createInstance(StringEditorModel, this.value, this.modeId, this.getResource());
 		return model.load().then((resolvedModel: StringEditorModel) => {
 			this.cachedModel = resolvedModel;
 
@@ -139,8 +98,8 @@ export class StringEditorInput extends EditorInput {
 		if (otherInput instanceof StringEditorInput) {
 			let otherStringEditorInput = <StringEditorInput>otherInput;
 
-			// If both inputs are singletons, check on the mime for equalness
-			if (otherStringEditorInput.singleton && this.singleton && otherStringEditorInput.mime === this.mime) {
+			// If both inputs are singletons, check on the modeId for equalness
+			if (otherStringEditorInput.singleton && this.singleton && otherStringEditorInput.modeId === this.modeId) {
 				return true;
 			}
 
@@ -153,7 +112,7 @@ export class StringEditorInput extends EditorInput {
 
 			// Otherwise compare by properties
 			return otherStringEditorInput.value === this.value &&
-				otherStringEditorInput.mime === this.mime &&
+				otherStringEditorInput.modeId === this.modeId &&
 				otherStringEditorInput.description === this.description &&
 				otherStringEditorInput.name === this.name;
 		}

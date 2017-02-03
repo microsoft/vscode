@@ -5,22 +5,22 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
-import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {editorAction, IActionOptions, EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
-import {BlockCommentCommand} from './blockCommentCommand';
-import {LineCommentCommand, Type} from './lineCommentCommand';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { ICommand, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { editorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { BlockCommentCommand } from './blockCommentCommand';
+import { LineCommentCommand, Type } from './lineCommentCommand';
 
 abstract class CommentLineAction extends EditorAction {
 
 	private _type: Type;
 
-	constructor(type:Type, opts:IActionOptions) {
+	constructor(type: Type, opts: IActionOptions) {
 		super(opts);
 		this._type = type;
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -104,7 +104,7 @@ class BlockCommentAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
 

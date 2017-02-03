@@ -6,5 +6,6 @@
 {
 	"installNet": "Télécharger .NET Framework 4.5",
 	"netVersionError": "Microsoft .NET Framework 4.5 est obligatoire. Suivez le lien pour l'installer.",
+	"neverShowAgain": "Ne plus afficher",
 	"trashFailed": "Échec du déplacement de '{0}' vers la corbeille"
 }

@@ -6,75 +6,57 @@
 
 import 'vs/css!./media/editor';
 import 'vs/css!./media/tokens';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
-import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
+import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {Configuration} from 'vs/editor/browser/config/configuration';
+import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
-import {View} from 'vs/editor/browser/view/viewImpl';
-import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {InternalEditorAction} from 'vs/editor/common/editorAction';
+import { Colorizer } from 'vs/editor/browser/standalone/colorizer';
+import { View } from 'vs/editor/browser/view/viewImpl';
+import { Disposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter, fromEventEmitter } from 'vs/base/common/event';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { InternalEditorAction } from 'vs/editor/common/editorAction';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
-	public onMouseUp(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseUp, listener);
-	}
-	public onMouseDown(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseDown, listener);
-	}
-	public onContextMenu(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ContextMenu, listener);
-	}
-	public onMouseMove(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseMove, listener);
-	}
-	public onMouseLeave(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseLeave, listener);
-	}
-	public onKeyUp(listener: (e:IKeyboardEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.KeyUp, listener);
-	}
-	public onKeyDown(listener: (e:IKeyboardEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.KeyDown, listener);
-	}
-	public onDidLayoutChange(listener: (e:editorCommon.EditorLayoutInfo)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorLayout, listener);
-	}
-	public onDidScrollChange(listener: (e:editorCommon.IScrollEvent)=>void): IDisposable {
-		return this.addListener2('scroll', listener);
-	}
+	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseUp);
+	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDown);
+	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.ContextMenu);
+	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseMove);
+	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseLeave);
+	public readonly onKeyUp: Event<IKeyboardEvent> = fromEventEmitter(this, editorCommon.EventType.KeyUp);
+	public readonly onKeyDown: Event<IKeyboardEvent> = fromEventEmitter(this, editorCommon.EventType.KeyDown);
+	public readonly onDidLayoutChange: Event<editorCommon.EditorLayoutInfo> = fromEventEmitter(this, editorCommon.EventType.EditorLayout);
+	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = fromEventEmitter(this, 'scroll');
 
 	private _codeEditorService: ICodeEditorService;
 	private _commandService: ICommandService;
 
-	protected domElement:HTMLElement;
+	protected domElement: HTMLElement;
 	private _focusTracker: CodeEditorWidgetFocusTracker;
 
-	_configuration:Configuration;
+	_configuration: Configuration;
 
-	private contentWidgets:{ [key:string]:editorBrowser.IContentWidgetData; };
-	private overlayWidgets:{ [key:string]:editorBrowser.IOverlayWidgetData; };
+	private contentWidgets: { [key: string]: editorBrowser.IContentWidgetData; };
+	private overlayWidgets: { [key: string]: editorBrowser.IOverlayWidgetData; };
 
-	_view:editorBrowser.IView;
+	_view: editorBrowser.IView;
 
 	constructor(
-		domElement:HTMLElement,
-		options:editorCommon.IEditorOptions,
+		domElement: HTMLElement,
+		options: editorCommon.IEditorOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -120,7 +102,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	protected abstract _getContributions(): editorBrowser.IEditorContributionCtor[];
 	protected abstract _getActions(): EditorAction[];
 
-	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
+	protected _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
 		return new Configuration(options, this.domElement);
 	}
 
@@ -134,7 +116,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super.dispose();
 	}
 
-	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
+	public updateOptions(newOptions: editorCommon.IEditorOptions): void {
 		let oldTheme = this._configuration.editor.viewInfo.theme;
 		super.updateOptions(newOptions);
 		let newTheme = this._configuration.editor.viewInfo.theme;
@@ -144,15 +126,15 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	public colorizeModelLine(lineNumber:number, model:editorCommon.IModel = this.model): string {
+	public colorizeModelLine(lineNumber: number, model: editorCommon.IModel = this.model): string {
 		if (!model) {
 			return '';
 		}
-		var content = model.getLineContent(lineNumber);
-		var tokens = model.getLineTokens(lineNumber, false);
-		var inflatedTokens = tokens.inflate();
-		var tabSize = model.getOptions().tabSize;
-		return Colorizer.colorizeLine(content, inflatedTokens, tabSize);
+		let content = model.getLineContent(lineNumber);
+		let tokens = model.getLineTokens(lineNumber, false);
+		let inflatedTokens = tokens.inflate();
+		let tabSize = model.getOptions().tabSize;
+		return Colorizer.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 	public getView(): editorBrowser.IView {
 		return this._view;
@@ -169,7 +151,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCenteredRangeInViewport();
+		return this.viewModel.getCenteredRangeInViewport();
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
@@ -205,7 +187,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this._view.getCodeEditorHelper().getScrollTop();
 	}
 
-	public setScrollLeft(newScrollLeft:number): void {
+	public setScrollLeft(newScrollLeft: number): void {
 		if (!this.hasView) {
 			return;
 		}
@@ -216,7 +198,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			scrollLeft: newScrollLeft
 		});
 	}
-	public setScrollTop(newScrollTop:number): void {
+	public setScrollTop(newScrollTop: number): void {
 		if (!this.hasView) {
 			return;
 		}
@@ -234,7 +216,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._view.getCodeEditorHelper().setScrollPosition(position);
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		if (!this.hasView) {
 			return;
 		}
@@ -245,7 +227,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.cursor || !this.hasView) {
 			return null;
 		}
-		let contributionsState: {[key:string]:any} = {};
+		let contributionsState: { [key: string]: any } = {};
 
 		let keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
@@ -265,14 +247,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		};
 	}
 
-	public restoreViewState(state:editorCommon.IEditorViewState): void {
+	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
 		if (!this.cursor || !this.hasView) {
 			return;
 		}
-		var s = <any>state;
 		if (s && s.cursorState && s.viewState) {
-			var codeEditorState = <editorCommon.ICodeEditorViewState>s;
-			var cursorState = <any>codeEditorState.cursorState;
+			let codeEditorState = <editorCommon.ICodeEditorViewState>s;
+			let cursorState = <any>codeEditorState.cursorState;
 			if (Array.isArray(cursorState)) {
 				this.cursor.restoreState(<editorCommon.ICursorState[]>cursorState);
 			} else {
@@ -293,7 +274,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	public layout(dimension?:editorCommon.IDimension): void {
+	public layout(dimension?: editorCommon.IDimension): void {
 		this._configuration.observeReferenceElement(dimension);
 		this.render();
 	}
@@ -314,7 +295,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
-		var widgetData: editorBrowser.IContentWidgetData = {
+		let widgetData: editorBrowser.IContentWidgetData = {
 			widget: widget,
 			position: widget.getPosition()
 		};
@@ -331,9 +312,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public layoutContentWidget(widget: editorBrowser.IContentWidget): void {
-		var widgetId = widget.getId();
+		let widgetId = widget.getId();
 		if (this.contentWidgets.hasOwnProperty(widgetId)) {
-			var widgetData = this.contentWidgets[widgetId];
+			let widgetData = this.contentWidgets[widgetId];
 			widgetData.position = widget.getPosition();
 			if (this.hasView) {
 				this._view.layoutContentWidget(widgetData);
@@ -342,9 +323,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public removeContentWidget(widget: editorBrowser.IContentWidget): void {
-		var widgetId = widget.getId();
+		let widgetId = widget.getId();
 		if (this.contentWidgets.hasOwnProperty(widgetId)) {
-			var widgetData = this.contentWidgets[widgetId];
+			let widgetData = this.contentWidgets[widgetId];
 			delete this.contentWidgets[widgetId];
 			if (this.hasView) {
 				this._view.removeContentWidget(widgetData);
@@ -353,7 +334,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public addOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
-		var widgetData: editorBrowser.IOverlayWidgetData = {
+		let widgetData: editorBrowser.IOverlayWidgetData = {
 			widget: widget,
 			position: widget.getPosition()
 		};
@@ -370,9 +351,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public layoutOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
-		var widgetId = widget.getId();
+		let widgetId = widget.getId();
 		if (this.overlayWidgets.hasOwnProperty(widgetId)) {
-			var widgetData = this.overlayWidgets[widgetId];
+			let widgetData = this.overlayWidgets[widgetId];
 			widgetData.position = widget.getPosition();
 			if (this.hasView) {
 				this._view.layoutOverlayWidget(widgetData);
@@ -381,9 +362,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public removeOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
-		var widgetId = widget.getId();
+		let widgetId = widget.getId();
 		if (this.overlayWidgets.hasOwnProperty(widgetId)) {
-			var widgetData = this.overlayWidgets[widgetId];
+			let widgetData = this.overlayWidgets[widgetId];
 			delete this.overlayWidgets[widgetId];
 			if (this.hasView) {
 				this._view.removeOverlayWidget(widgetData);
@@ -391,12 +372,12 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	public changeViewZones(callback:(accessor:editorBrowser.IViewZoneChangeAccessor)=>void): void {
+	public changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void {
 		if (!this.hasView) {
-//			console.warn('Cannot change view zones on editor that is not attached to a model, since there is no view.');
+			//			console.warn('Cannot change view zones on editor that is not attached to a model, since there is no view.');
 			return;
 		}
-		var hasChanges = this._view.change(callback);
+		let hasChanges = this._view.change(callback);
 		if (hasChanges) {
 			this.emit(editorCommon.EventType.ViewZonesChanged);
 		}
@@ -423,17 +404,24 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this._view.getCodeEditorHelper().getVerticalOffsetForPosition(lineNumber, column);
 	}
 
-	public getScrolledVisiblePosition(rawPosition:editorCommon.IPosition): { top:number; left:number; height:number; } {
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+		if (!this.hasView) {
+			return null;
+		}
+		return this._view.getCodeEditorHelper().getTargetAtClientPoint(clientX, clientY);
+	}
+
+	public getScrolledVisiblePosition(rawPosition: editorCommon.IPosition): { top: number; left: number; height: number; } {
 		if (!this.hasView) {
 			return null;
 		}
 
-		var position = this.model.validatePosition(rawPosition);
-		var helper = this._view.getCodeEditorHelper();
-		var layoutInfo = this._configuration.editor.layoutInfo;
+		let position = this.model.validatePosition(rawPosition);
+		let helper = this._view.getCodeEditorHelper();
+		let layoutInfo = this._configuration.editor.layoutInfo;
 
-		var top = helper.getVerticalOffsetForPosition(position.lineNumber, position.column) - helper.getScrollTop();
-		var left = helper.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - helper.getScrollLeft();
+		let top = helper.getVerticalOffsetForPosition(position.lineNumber, position.column) - helper.getScrollTop();
+		let left = helper.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - helper.getScrollLeft();
 
 		return {
 			top: top,
@@ -442,7 +430,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		};
 	}
 
-	public getOffsetForColumn(lineNumber:number, column:number): number {
+	public getOffsetForColumn(lineNumber: number, column: number): number {
 		if (!this.hasView) {
 			return -1;
 		}
@@ -456,24 +444,24 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._view.render(true, false);
 	}
 
-	public setHiddenAreas(ranges:editorCommon.IRange[]): void {
+	public setHiddenAreas(ranges: editorCommon.IRange[]): void {
 		if (this.viewModel) {
 			this.viewModel.setHiddenAreas(ranges);
 		}
 	}
 
-	public setAriaActiveDescendant(id:string): void {
+	public setAriaActiveDescendant(id: string): void {
 		if (!this.hasView) {
 			return;
 		}
 		this._view.setAriaActiveDescendant(id);
 	}
 
-	public applyFontInfo(target:HTMLElement): void {
+	public applyFontInfo(target: HTMLElement): void {
 		Configuration.applyFontInfoSlow(target, this._configuration.editor.fontInfo);
 	}
 
-	_attachModel(model:editorCommon.IModel): void {
+	_attachModel(model: editorCommon.IModel): void {
 		this._view = null;
 
 		super._attachModel(model);
@@ -481,23 +469,20 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (this._view) {
 			this.domElement.appendChild(this._view.domNode);
 
-			this._view.renderOnce(() => {
+			let keys = Object.keys(this.contentWidgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				this._view.addContentWidget(this.contentWidgets[widgetId]);
+			}
 
-				let keys = Object.keys(this.contentWidgets);
-				for (let i = 0, len = keys.length; i < len; i++) {
-					let widgetId = keys[i];
-					this._view.addContentWidget(this.contentWidgets[widgetId]);
-				}
+			keys = Object.keys(this.overlayWidgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
+			}
 
-				keys = Object.keys(this.overlayWidgets);
-				for (let i = 0, len = keys.length; i < len; i++) {
-					let widgetId = keys[i];
-					this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
-				}
-
-				this._view.render(false, true);
-				this.hasView = true;
-			});
+			this._view.render(false, true);
+			this.hasView = true;
 		}
 	}
 
@@ -510,7 +495,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			this._commandService,
 			this._configuration,
 			this.viewModel,
-			(source:string, handlerId:string, payload:any) => {
+			(source: string, handlerId: string, payload: any) => {
 				if (!this.cursor) {
 					return;
 				}
@@ -524,7 +509,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	protected _detachModel(): editorCommon.IModel {
-		var removeDomNode:HTMLElement = null;
+		let removeDomNode: HTMLElement = null;
 
 		if (this._view) {
 			this._view.dispose();
@@ -543,15 +528,15 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	// BEGIN decorations
 
-	protected _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
+	protected _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
 		this._codeEditorService.registerDecorationType(key, options, parentTypeKey);
 	}
 
-	protected _removeDecorationType(key:string): void {
+	protected _removeDecorationType(key: string): void {
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	protected _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions {
+	protected _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions {
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 
@@ -566,7 +551,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	private _onChange: Emitter<void> = this._register(new Emitter<void>());
 	public onChage: Event<void> = this._onChange.event;
 
-	constructor(domElement:HTMLElement) {
+	constructor(domElement: HTMLElement) {
 		super();
 
 		this._hasFocus = false;
@@ -593,11 +578,11 @@ class OverlayWidget2 implements editorBrowser.IOverlayWidget {
 	private _position: editorBrowser.IOverlayWidgetPosition;
 	private _domNode: HTMLElement;
 
-	constructor(id:string, position:editorBrowser.IOverlayWidgetPosition) {
+	constructor(id: string, position: editorBrowser.IOverlayWidgetPosition) {
 		this._id = id;
 		this._position = position;
 		this._domNode = document.createElement('div');
-		this._domNode.className = this._id.replace(/\./g, '-').replace(/[^a-z0-9\-]/,'');
+		this._domNode.className = this._id.replace(/\./g, '-').replace(/[^a-z0-9\-]/, '');
 	}
 
 	public getId(): string {
@@ -623,7 +608,7 @@ class SingleEditOperation {
 	text: string;
 	forceMoveMarkers: boolean;
 
-	constructor(source:editorCommon.ISingleEditOperation) {
+	constructor(source: editorCommon.ISingleEditOperation) {
 		this.range = new Range(source.range.startLineNumber, source.range.startColumn, source.range.endLineNumber, source.range.endColumn);
 		this.text = source.text;
 		this.forceMoveMarkers = source.forceMoveMarkers || false;
@@ -652,9 +637,9 @@ export class CommandRunner implements editorCommon.ICommand {
 		});
 
 		// Merge operations that touch each other
-		var resultOps:editorCommon.ISingleEditOperation[] = [];
-		var previousOp = this._ops[0];
-		for (var i = 1; i < this._ops.length; i++) {
+		let resultOps: editorCommon.ISingleEditOperation[] = [];
+		let previousOp = this._ops[0];
+		for (let i = 1; i < this._ops.length; i++) {
 			if (previousOp.range.endLineNumber === this._ops[i].range.startLineNumber && previousOp.range.endColumn === this._ops[i].range.startColumn) {
 				// These operations are one after another and can be merged
 				previousOp.range = Range.plusRange(previousOp.range, this._ops[i].range);
@@ -666,14 +651,14 @@ export class CommandRunner implements editorCommon.ICommand {
 		}
 		resultOps.push(previousOp);
 
-		for (var i = 0; i < resultOps.length; i++) {
+		for (let i = 0; i < resultOps.length; i++) {
 			builder.addEditOperation(Range.lift(resultOps[i].range), resultOps[i].text);
 		}
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[inverseEditOperations.length - 1].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[inverseEditOperations.length - 1].range;
 		return new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,

@@ -25,4 +25,4 @@ testRunner.configure({
 	timeout: 10000
 });
 
-export= testRunner;
+export = testRunner;

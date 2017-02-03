@@ -5,14 +5,14 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
-import {sequence, asWinJsPromise} from 'vs/base/common/async';
-import {illegalArgument} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {WorkspaceEdit, RenameProviderRegistry} from 'vs/editor/common/modes';
-import {Position} from 'vs/editor/common/core/position';
+import { localize } from 'vs/nls';
+import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
 
@@ -34,8 +34,13 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 					} else {
 						rejects.push(result.rejectReason);
 					}
+					return undefined;
+				}, err => {
+					onUnexpectedExternalError(err);
+					return TPromise.wrapError<WorkspaceEdit>('provider failed');
 				});
 			}
+			return undefined;
 		};
 	});
 
@@ -57,7 +62,7 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentRenameProvider', function(model, position, args) {
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentRenameProvider', function (model, position, args) {
 	let {newName} = args;
 	if (typeof newName !== 'string') {
 		throw illegalArgument('newName');

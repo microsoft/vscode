@@ -6,11 +6,11 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {SuggestRegistry} from 'vs/editor/common/modes';
-import {provideSuggestionItems} from 'vs/editor/contrib/suggest/common/suggest';
-import {Position} from 'vs/editor/common/core/position';
-import {Model} from 'vs/editor/common/model/model';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { SuggestRegistry } from 'vs/editor/common/modes';
+import { provideSuggestionItems } from 'vs/editor/contrib/suggest/common/suggest';
+import { Position } from 'vs/editor/common/core/position';
+import { Model } from 'vs/editor/common/model/model';
 
 
 suite('Suggest', function () {
@@ -25,21 +25,20 @@ suite('Suggest', function () {
 			triggerCharacters: [],
 			provideCompletionItems() {
 				return {
-					currentWord: '',
 					incomplete: false,
 					suggestions: [{
 						label: 'aaa',
 						type: 'snippet',
 						insertText: 'aaa'
 					}, {
-							label: 'zzz',
-							type: 'snippet',
-							insertText: 'zzz'
-						}, {
-							label: 'fff',
-							type: 'property',
-							insertText: 'fff'
-						}]
+						label: 'zzz',
+						type: 'snippet',
+						insertText: 'zzz'
+					}, {
+						label: 'fff',
+						type: 'property',
+						insertText: 'fff'
+					}]
 				};
 			}
 		});

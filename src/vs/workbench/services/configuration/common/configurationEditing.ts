@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export const IConfigurationEditingService = createDecorator<IConfigurationEditingService>('configurationEditingService');
 
@@ -15,6 +15,11 @@ export enum ConfigurationEditingErrorCode {
 	 * Error when trying to write a configuration key that is not registered.
 	 */
 	ERROR_UNKNOWN_KEY,
+
+	/**
+	 * Error when trying to write to user target but not supported for provided key.
+	 */
+	ERROR_INVALID_TARGET,
 
 	/**
 	 * Error when trying to write to the workspace configuration without having a workspace opened.
@@ -53,6 +58,12 @@ export enum ConfigurationTarget {
 export interface IConfigurationValue {
 	key: string;
 	value: any;
+	overrideIdentifier?: string;
+}
+
+export interface IConfigurationEditingOptions {
+	writeToBuffer: boolean;
+	autoSave: boolean;
 }
 
 export interface IConfigurationEditingService {
@@ -63,5 +74,5 @@ export interface IConfigurationEditingService {
 	 * Allows to write to either the user or workspace configuration file. The returned promise will be
 	 * in error state in any of the error cases from [ConfigurationEditingErrorCode](#ConfigurationEditingErrorCode)
 	 */
-	writeConfiguration(target: ConfigurationTarget, values: IConfigurationValue[]): TPromise<void>;
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options?: IConfigurationEditingOptions): TPromise<void>;
 }

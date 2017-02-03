@@ -8,8 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
-import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 
 export interface IConfigurationChangeEvent<T> {
@@ -28,6 +28,7 @@ export interface IConfigWatcher<T> {
 export interface IConfigOptions<T> {
 	defaultConfig?: T;
 	changeBufferDelay?: number;
+	parse?: (content: string, errors: any[]) => T;
 }
 
 /**
@@ -104,7 +105,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		let res: T;
 		try {
 			this.parseErrors = [];
-			res = json.parse(raw, this.parseErrors);
+			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
 		} catch (error) {
 			// Ignore parsing errors
 		}

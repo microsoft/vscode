@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IContextViewService, IContextViewDelegate} from './contextView';
-import {ContextView} from 'vs/base/browser/ui/contextview/contextview';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { IContextViewService, IContextViewDelegate } from './contextView';
+import { ContextView } from 'vs/base/browser/ui/contextview/contextview';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 export class ContextViewService implements IContextViewService {
 	public _serviceBrand: any;

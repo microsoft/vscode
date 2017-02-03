@@ -4,14 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .part.activitybar {
-	z-index: 20;
-	min-width: 50px;
 	width: 50px;
-	transition: width 0.2s ease-out;
-}
-
-.monaco-workbench > .activitybar.help {
-	width: 280px;
 }
 
 .monaco-workbench > .activitybar > .content {
@@ -20,21 +13,7 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar {
 	text-align: left;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-top {
 	background-color: inherit;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom .action-item {
-	padding-bottom: 0;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom:before {
-	content: '';
-	border-top: 1px solid #777;
-	display: block;
-	margin: 10px 10px;
 }
 
 .vs .monaco-workbench > .activitybar > .content {
@@ -45,22 +24,14 @@
 	background-color: #333;
 }
 
-/* Global Toolbar */
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis-global.svg');
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item > .dropdown,
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item > .dropdown > .dropdown-label {
-	width: 100%;
-}
-
 /* High Contrast Theming */
-.hc-black .monaco-workbench > .part.activitybar.left {
+
+.hc-black .monaco-workbench > .part.activitybar.left .content {
+	box-sizing: border-box; /* helps showing the border when sidebar collapsed */
 	border-right: 1px solid #6FC3DF;
 }
 
-.hc-black .monaco-workbench > .part.activitybar.right {
+.hc-black .monaco-workbench > .part.activitybar.right .content {
 	border-left: 1px solid #6FC3DF;
 }
 

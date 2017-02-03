@@ -5,25 +5,25 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {CodeEditorStateFlag, ICodeEditorState, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { CodeEditorStateFlag, ICodeEditorState, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 export class EditorState implements ICodeEditorState {
 
-	private flags:CodeEditorStateFlag[];
+	private flags: CodeEditorStateFlag[];
 
-	private position:Position;
-	private selection:Range;
-	private modelVersionId:string;
-	private scrollLeft:number;
-	private scrollTop:number;
+	private position: Position;
+	private selection: Range;
+	private modelVersionId: string;
+	private scrollLeft: number;
+	private scrollTop: number;
 
-	constructor(editor:ICommonCodeEditor, flags:CodeEditorStateFlag[]) {
+	constructor(editor: ICommonCodeEditor, flags: CodeEditorStateFlag[]) {
 		this.flags = flags;
 
 		flags.forEach((flag) => {
-			switch(flag) {
+			switch (flag) {
 				case CodeEditorStateFlag.Value:
 					var model = editor.getModel();
 					this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
@@ -42,29 +42,29 @@ export class EditorState implements ICodeEditorState {
 		});
 	}
 
-	private _equals(other:any):boolean {
+	private _equals(other: any): boolean {
 
-		if(!(other instanceof EditorState)) {
+		if (!(other instanceof EditorState)) {
 			return false;
 		}
-		var state = <EditorState> other;
+		var state = <EditorState>other;
 
-		if(this.modelVersionId !== state.modelVersionId) {
+		if (this.modelVersionId !== state.modelVersionId) {
 			return false;
 		}
-		if(this.scrollLeft !== state.scrollLeft || this.scrollTop !== state.scrollTop) {
+		if (this.scrollLeft !== state.scrollLeft || this.scrollTop !== state.scrollTop) {
 			return false;
 		}
-		if(!this.position && state.position || this.position && !state.position || this.position && state.position && !this.position.equals(state.position)) {
+		if (!this.position && state.position || this.position && !state.position || this.position && state.position && !this.position.equals(state.position)) {
 			return false;
 		}
-		if(!this.selection && state.selection || this.selection && !state.selection || this.selection && state.selection && !this.selection.equalsRange(state.selection)) {
+		if (!this.selection && state.selection || this.selection && !state.selection || this.selection && state.selection && !this.selection.equalsRange(state.selection)) {
 			return false;
 		}
 		return true;
 	}
 
-	public validate(editor:ICommonCodeEditor):boolean {
+	public validate(editor: ICommonCodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
 	}
 }

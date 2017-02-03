@@ -5,34 +5,34 @@
 
 'use strict';
 
-import {clipboard} from 'electron';
+import { clipboard } from 'electron';
 import * as platform from 'vs/base/common/platform';
-import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {EndOfLinePreference, IEditorContribution, ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {Range} from 'vs/editor/common/core/range';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { EndOfLinePreference, IEditorContribution, ICursorSelectionChangedEvent, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Range } from 'vs/editor/common/core/range';
 
 @editorContribution
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.selectionClipboard';
 
-	constructor(editor:ICodeEditor, @IContextKeyService contextKeyService:IContextKeyService) {
+	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();
 
 		if (platform.isLinux) {
 			var isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
 
-			this._register(editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
+			this._register(editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 				if (e.contribInfo) {
 					isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
 				}
 			}));
 
-			this._register(editor.onMouseDown((e:IEditorMouseEvent) => {
+			this._register(editor.onMouseDown((e: IEditorMouseEvent) => {
 				if (!isEnabled) {
 					return;
 				}
@@ -82,7 +82,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				clipboard.writeText(textToCopy, 'selection');
 			}, 100));
 
-			this._register(editor.onDidChangeCursorSelection((e:ICursorSelectionChangedEvent) => {
+			this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 				if (!isEnabled) {
 					return;
 				}

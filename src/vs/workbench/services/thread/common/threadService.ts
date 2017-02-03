@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IThreadService = createDecorator<IThreadService>('threadService');
 
@@ -14,12 +14,12 @@ export interface IThreadService {
 	/**
 	 * Always returns a proxy.
 	 */
-	get<T>(identifier:ProxyIdentifier<T>): T;
+	get<T>(identifier: ProxyIdentifier<T>): T;
 
 	/**
 	 * Register instance.
 	 */
-	set<T>(identifier:ProxyIdentifier<T>, value:T): void;
+	set<T>(identifier: ProxyIdentifier<T>, value: T): void;
 }
 
 export class ProxyIdentifier<T> {
@@ -29,7 +29,7 @@ export class ProxyIdentifier<T> {
 	id: string;
 	methodNames: string[];
 
-	constructor(isMain: boolean, id: string, ctor:Function) {
+	constructor(isMain: boolean, id: string, ctor: Function) {
 		this.isMain = isMain;
 		this.id = id;
 
@@ -42,10 +42,10 @@ export class ProxyIdentifier<T> {
 	}
 }
 
-export function createMainContextProxyIdentifier<T>(identifier:string, ctor:Function): ProxyIdentifier<T> {
+export function createMainContextProxyIdentifier<T>(identifier: string, ctor: Function): ProxyIdentifier<T> {
 	return new ProxyIdentifier(true, 'm' + identifier, ctor);
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier:string, ctor:Function): ProxyIdentifier<T> {
+export function createExtHostContextProxyIdentifier<T>(identifier: string, ctor: Function): ProxyIdentifier<T> {
 	return new ProxyIdentifier(false, 'e' + identifier, ctor);
 }

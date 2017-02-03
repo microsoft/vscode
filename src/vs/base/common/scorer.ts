@@ -35,7 +35,7 @@ BEGIN THIRD PARTY
  * Start of string bonus: 8
  */
 const wordPathBoundary = ['-', '_', ' ', '/', '\\', '.'];
-export function score(target: string, query: string, cache?: {[id: string]: number}): number {
+export function score(target: string, query: string, cache?: { [id: string]: number }): number {
 	if (!target || !query) {
 		return 0; // return early if target or query are undefined
 	}

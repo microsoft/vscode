@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IHoverComputer<Result> {
 
@@ -28,7 +28,7 @@ export interface IHoverComputer<Result> {
 	/**
 	 * This is called whenever one of the compute* methods returns a truey value
 	 */
-	onResult: (result:Result, isFromSynchronousComputation: boolean) => void;
+	onResult: (result: Result, isFromSynchronousComputation: boolean) => void;
 
 	/**
 	 * This is what will be sent as progress/complete to the computation promise
@@ -51,19 +51,19 @@ export class HoverOperation<Result> {
 	static HOVER_TIME = 300;
 
 	private _computer: IHoverComputer<Result>;
-	private _state:ComputeHoverOperationState;
+	private _state: ComputeHoverOperationState;
 
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
 	private _loadingMessageScheduler: RunOnceScheduler;
 	private _asyncComputationPromise: TPromise<void>;
-	private _asyncComputationPromiseDone:boolean;
+	private _asyncComputationPromiseDone: boolean;
 
-	private _completeCallback:(r:Result)=>void;
-	private _errorCallback:(err:any)=>void;
-	private _progressCallback:(progress:any)=>void;
+	private _completeCallback: (r: Result) => void;
+	private _errorCallback: (err: any) => void;
+	private _progressCallback: (progress: any) => void;
 
-	constructor(computer: IHoverComputer<Result>, success:(r:Result)=>void, error:(err:any)=>void, progress:(progress:any)=>void) {
+	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: (err: any) => void, progress: (progress: any) => void) {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
 
@@ -136,13 +136,13 @@ export class HoverOperation<Result> {
 		}
 	}
 
-	private _onComplete(value:Result): void {
+	private _onComplete(value: Result): void {
 		if (this._completeCallback) {
 			this._completeCallback(value);
 		}
 	}
 
-	private _onError(error:any): void {
+	private _onError(error: any): void {
 		if (this._errorCallback) {
 			this._errorCallback(error);
 		} else {
@@ -150,7 +150,7 @@ export class HoverOperation<Result> {
 		}
 	}
 
-	private _onProgress(value:Result): void {
+	private _onProgress(value: Result): void {
 		if (this._progressCallback) {
 			this._progressCallback(value);
 		}

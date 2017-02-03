@@ -5,7 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {illegalArgument} from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
+import * as vscode from 'vscode';
 
 export class Disposable {
 
@@ -34,11 +35,6 @@ export class Disposable {
 			this._callOnDispose = undefined;
 		}
 	}
-}
-
-export interface EditorOptions {
-	tabSize: number | string;
-	insertSpaces: boolean | string;
 }
 
 export class Position {
@@ -149,7 +145,7 @@ export class Position {
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number;}): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
 	translate(lineDelta?: number, characterDelta?: number): Position;
 	translate(lineDeltaOrChange: number | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
 
@@ -230,7 +226,7 @@ export class Range {
 
 	constructor(start: Position, end: Position);
 	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
-	constructor(startLineOrStart: number|Position, startColumnOrEnd: number|Position, endLine?: number, endColumn?: number) {
+	constructor(startLineOrStart: number | Position, startColumnOrEnd: number | Position, endLine?: number, endColumn?: number) {
 		let start: Position;
 		let end: Position;
 
@@ -283,7 +279,7 @@ export class Range {
 			// this happens when there is no overlap:
 			// |-----|
 			//          |----|
-			return;
+			return undefined;
 		}
 		return new Range(start, end);
 	}
@@ -367,7 +363,7 @@ export class Selection extends Range {
 
 	constructor(anchor: Position, active: Position);
 	constructor(anchorLine: number, anchorColumn: number, activeLine: number, activeColumn: number);
-	constructor(anchorLineOrAnchor: number|Position, anchorColumnOrActive: number|Position, activeLine?: number, activeColumn?: number) {
+	constructor(anchorLineOrAnchor: number | Position, anchorColumnOrActive: number | Position, activeLine?: number, activeColumn?: number) {
 		let anchor: Position;
 		let active: Position;
 
@@ -469,7 +465,7 @@ export class Uri extends URI { }
 export class WorkspaceEdit {
 
 	private _values: [Uri, TextEdit[]][] = [];
-	private _index: { [uri: string]: number } = Object.create(null);
+	private _index = new Map<string, number>();
 
 	replace(uri: Uri, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -490,21 +486,21 @@ export class WorkspaceEdit {
 	}
 
 	has(uri: Uri): boolean {
-		return typeof this._index[uri.toString()] !== 'undefined';
+		return this._index.has(uri.toString());
 	}
 
 	set(uri: Uri, edits: TextEdit[]): void {
-		let idx = this._index[uri.toString()];
+		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
-			this._index[uri.toString()] = newLen - 1;
+			this._index.set(uri.toString(), newLen - 1);
 		} else {
 			this._values[idx][1] = edits;
 		}
 	}
 
 	get(uri: Uri): TextEdit[] {
-		let idx = this._index[uri.toString()];
+		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 
@@ -518,6 +514,88 @@ export class WorkspaceEdit {
 
 	toJSON(): any {
 		return this._values;
+	}
+}
+
+export class SnippetString {
+
+	static isSnippetString(thing: any): thing is SnippetString {
+		if (thing instanceof SnippetString) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<SnippetString>thing).value === 'string';
+	}
+
+	private static _escape(value: string): string {
+		return value.replace(/\$|}|\\/g, '\\$&');
+	}
+
+	private _tabstop: number = 1;
+
+	value: string;
+
+	constructor(value?: string) {
+		this.value = value || '';
+	}
+
+	appendText(string: string): SnippetString {
+		this.value += SnippetString._escape(string);
+		return this;
+	}
+
+	appendTabstop(number: number = this._tabstop++): SnippetString {
+		this.value += '$';
+		this.value += number;
+		return this;
+	}
+
+	appendPlaceholder(value: string | ((snippet: SnippetString) => any), number: number = this._tabstop++): SnippetString {
+
+		if (typeof value === 'function') {
+			const nested = new SnippetString();
+			nested._tabstop = this._tabstop;
+			value(nested);
+			this._tabstop = nested._tabstop;
+			value = nested.value;
+		} else {
+			value = SnippetString._escape(value);
+		}
+
+		this.value += '${';
+		this.value += number;
+		this.value += ':';
+		this.value += value;
+		this.value += '}';
+
+		return this;
+	}
+
+	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
+
+		if (typeof defaultValue === 'function') {
+			const nested = new SnippetString();
+			nested._tabstop = this._tabstop;
+			defaultValue(nested);
+			this._tabstop = nested._tabstop;
+			defaultValue = nested.value;
+
+		} else if (typeof defaultValue === 'string') {
+			defaultValue = defaultValue.replace(/\$|}/g, '\\$&');
+		}
+
+		this.value += '${';
+		this.value += name;
+		if (defaultValue) {
+			this.value += ':';
+			this.value += defaultValue;
+		}
+		this.value += '}';
+
+
+		return this;
 	}
 }
 
@@ -598,7 +676,7 @@ export class Hover {
 
 	constructor(contents: vscode.MarkedString | vscode.MarkedString[], range?: Range) {
 		if (!contents) {
-			throw new Error('Illegal argument');
+			throw new Error('Illegal argument, contents must be defined');
 		}
 
 		if (Array.isArray(contents)) {
@@ -611,9 +689,9 @@ export class Hover {
 }
 
 export enum DocumentHighlightKind {
-	Text,
-	Read,
-	Write
+	Text = 0,
+	Read = 1,
+	Write = 2
 }
 
 export class DocumentHighlight {
@@ -679,7 +757,7 @@ export class SymbolInformation {
 		if (locationOrUri instanceof Location) {
 			this.location = locationOrUri;
 		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(<URI> locationOrUri, rangeOrContainer);
+			this.location = new Location(<URI>locationOrUri, rangeOrContainer);
 		}
 	}
 
@@ -712,7 +790,7 @@ export class CodeLens {
 export class ParameterInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 
 	constructor(label: string, documentation?: string) {
 		this.label = label;
@@ -723,7 +801,7 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 	parameters: ParameterInformation[];
 
 	constructor(label: string, documentation?: string) {
@@ -745,24 +823,25 @@ export class SignatureHelp {
 }
 
 export enum CompletionItemKind {
-	Text,
-	Method,
-	Function,
-	Constructor,
-	Field,
-	Variable,
-	Class,
-	Interface,
-	Module,
-	Property,
-	Unit,
-	Value,
-	Enum,
-	Keyword,
-	Snippet,
-	Color,
-	File,
-	Reference
+	Text = 0,
+	Method = 1,
+	Function = 2,
+	Constructor = 3,
+	Field = 4,
+	Variable = 5,
+	Class = 6,
+	Interface = 7,
+	Module = 8,
+	Property = 9,
+	Unit = 10,
+	Value = 11,
+	Enum = 12,
+	Keyword = 13,
+	Snippet = 14,
+	Color = 15,
+	File = 16,
+	Reference = 17,
+	Folder = 18
 }
 
 export class CompletionItem {
@@ -773,7 +852,8 @@ export class CompletionItem {
 	documentation: string;
 	sortText: string;
 	filterText: string;
-	insertText: string;
+	insertText: string | SnippetString;
+	range: Range;
 	textEdit: TextEdit;
 	additionalTextEdits: TextEdit[];
 	command: vscode.Command;
@@ -799,7 +879,7 @@ export class CompletionItem {
 
 export class CompletionList {
 
-	isIncomplete: boolean;
+	isIncomplete?: boolean;
 
 	items: vscode.CompletionItem[];
 
@@ -825,10 +905,23 @@ export enum EndOfLine {
 	CRLF = 2
 }
 
+export enum TextEditorLineNumbersStyle {
+	Off = 0,
+	On = 1,
+	Relative = 2
+}
+
+export enum TextDocumentSaveReason {
+	Manual = 1,
+	AfterDelay = 2,
+	FocusOut = 3
+}
+
 export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 export enum TextEditorSelectionChangeKind {
@@ -844,6 +937,7 @@ export namespace TextEditorSelectionChangeKind {
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
 			case 'api': return TextEditorSelectionChangeKind.Command;
 		}
+		return undefined;
 	}
 }
 

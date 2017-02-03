@@ -5,7 +5,7 @@
 'use strict';
 
 import types = require('vs/base/common/types');
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 /**
  * Supported memento scopes.

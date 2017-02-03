@@ -5,30 +5,29 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import {ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
-import {IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
-import {IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {IWorkspaceSymbolProvider, IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
-import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 
-export function registerApiCommands(commands:ExtHostCommands) {
-	new ExtHostApiCommands(commands).registerCommands();
-}
+export class ExtHostApiCommands {
 
-class ExtHostApiCommands {
+	static register(commands: ExtHostCommands) {
+		return new ExtHostApiCommands(commands).registerCommands();
+	}
 
 	private _commands: ExtHostCommands;
 	private _disposables: IDisposable[] = [];
 
-	constructor(commands: ExtHostCommands) {
+	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
 	}
 
@@ -46,6 +45,14 @@ class ExtHostApiCommands {
 				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
 			],
 			returns: 'A promise that resolves to an array of Location-instances.'
+		});
+		this._register('vscode.executeImplementationProvider', this._executeImplementationProvider, {
+			description: 'Execute all implementation providers.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Location-instance.'
 		});
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
 			description: 'Execute all hover provider.',
@@ -114,7 +121,7 @@ class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
-			description: 'Execute code lens provider.',
+			description: 'Execute CodeLens provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
@@ -177,46 +184,46 @@ class ExtHostApiCommands {
 					The body element of the displayed html is dynamically annotated with one of the following css classes in order to
 					communicate the kind of color theme vscode is currently using: \`vscode-light\`, \`vscode-dark\`, or \`vscode-high-contrast\'.
 				`,
-			args: [
-				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
-				{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' }
-			]
-		});
+				args: [
+					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
+					{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
+					{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' }
+				]
+			});
 
-		this._register('vscode.openFolder', (uri?: URI, newWindow?: boolean) => {
+		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
 			if (!uri) {
-				return this._commands.executeCommand('_workbench.ipc', 'vscode:openFolderPicker', [newWindow]);
+				return this._commands.executeCommand('_files.openFolderPicker', forceNewWindow);
 			}
 
-			return this._commands.executeCommand('_workbench.ipc', 'vscode:windowOpen', [[uri.fsPath], newWindow]);
+			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
 		}, {
-			description: 'Open a folder in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
-			args: [
-				{ name: 'uri', description: '(optional) Uri of the folder to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
-				{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
-			]
-		});
+				description: 'Open a folder in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
+				args: [
+					{ name: 'uri', description: '(optional) Uri of the folder to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
+					{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
+				]
+			});
 
 		this._register('vscode.startDebug', (configuration?: any) => {
 			return this._commands.executeCommand('_workbench.startDebug', configuration);
 		}, {
-			description: 'Start a debugging session.',
-			args: [
-				{ name: 'configuration', description: '(optional) Name of the debug configuration from \'launch.json\' to use. Or a configuration json object to use.' }
-			]
-		});
+				description: 'Start a debugging session.',
+				args: [
+					{ name: 'configuration', description: '(optional) Name of the debug configuration from \'launch.json\' to use. Or a configuration json object to use.' }
+				]
+			});
 
 		this._register('vscode.diff', (left: URI, right: URI, label: string) => {
 			return this._commands.executeCommand('_workbench.diff', [left, right, label]);
 		}, {
-			description: 'Opens the provided resources in the diff editor to compare their contents.',
-			args: [
-				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
-				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
-				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
-			]
-		});
+				description: 'Opens the provided resources in the diff editor to compare their contents.',
+				args: [
+					{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
+					{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
+					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
+				]
+			});
 
 		this._register('vscode.open', (resource: URI, column: vscode.ViewColumn) => {
 			return this._commands.executeCommand('_workbench.open', [resource, typeConverters.fromViewColumn(column)]);
@@ -263,6 +270,20 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
+			return undefined;
+		});
+	}
+
+	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+		const args = {
+			resource,
+			position: position && typeConverters.fromPosition(position)
+		};
+		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(typeConverters.location.to);
+			}
+			return undefined;
 		});
 	}
 
@@ -275,6 +296,7 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toHover);
 			}
+			return undefined;
 		});
 	}
 
@@ -287,6 +309,7 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toDocumentHighlight);
 			}
+			return undefined;
 		});
 	}
 
@@ -299,6 +322,7 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
+			return undefined;
 		});
 	}
 
@@ -310,7 +334,7 @@ class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
-				return;
+				return undefined;
 			}
 			if (value.rejectReason) {
 				return TPromise.wrapError(value.rejectReason);
@@ -333,25 +357,22 @@ class ExtHostApiCommands {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
 			}
+			return undefined;
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionItem[]|types.CompletionList> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position),
 			triggerCharacter
 		};
-		return this._commands.executeCommand<{ suggestion: modes.ISuggestion; container: modes.ISuggestResult }[]>('_executeCompletionItemProvider', args).then(values => {
-			if (values) {
-				let items: types.CompletionItem[] = [];
-				let incomplete: boolean;
-				for (let item of values) {
-					incomplete = item.container.incomplete || incomplete;
-					items.push(typeConverters.Suggest.to(item.container, position, item.suggestion));
-				}
-				return new types.CompletionList(items, incomplete);
+		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
+			if (result) {
+				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
+				return new types.CompletionList(items, result.incomplete);
 			}
+			return undefined;
 		});
 	}
 
@@ -363,6 +384,7 @@ class ExtHostApiCommands {
 			if (value && Array.isArray(value.entries)) {
 				return value.entries.map(typeConverters.SymbolInformation.fromOutlineEntry);
 			}
+			return undefined;
 		});
 	}
 
@@ -371,11 +393,11 @@ class ExtHostApiCommands {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<IQuickFix2[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<modes.CodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
-				return;
+				return undefined;
 			}
-			return value.map(quickFix => typeConverters.Command.to(quickFix.command));
+			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
 		});
 	}
 
@@ -386,9 +408,10 @@ class ExtHostApiCommands {
 				return value.map(item => {
 					return new types.CodeLens(
 						typeConverters.toRange(item.symbol.range),
-						typeConverters.Command.to(item.symbol.command));
+						this._commands.converter.fromInternal(item.symbol.command));
 				});
 			}
+			return undefined;
 		});
 	}
 
@@ -401,6 +424,7 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -414,6 +438,7 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -428,6 +453,7 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -436,6 +462,7 @@ class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.DocumentLink.to);
 			}
+			return undefined;
 		});
 	}
 }

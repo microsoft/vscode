@@ -1265,7 +1265,9 @@ marked.inlineLexer = InlineLexer.output;
 marked.parse = marked;
 
 // TODO MonacoChange: we have our own way of defining modules
-this.marked = marked;
+define([], function() {
+  return marked;
+});
 //if (typeof module !== 'undefined' && typeof exports === 'object') {
 //  module.exports = marked;
 //} else if (typeof define === 'function' && define.amd) {

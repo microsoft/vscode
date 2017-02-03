@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {OverviewRulerLane, OverviewRulerZone, ColorZone} from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane, OverviewRulerZone, ColorZone } from 'vs/editor/common/editorCommon';
 
 export class OverviewZoneManager {
 
-	private _getVerticalOffsetForLine:(lineNumber:number)=>number;
+	private _getVerticalOffsetForLine: (lineNumber: number) => number;
 	private _zones: OverviewRulerZone[];
 	private _colorZonesInvalid: boolean;
 	private _lineHeight: number;
@@ -21,10 +21,10 @@ export class OverviewZoneManager {
 	private _pixelRatio: number;
 
 	private _lastAssignedId;
-	private _color2Id: { [color:string]: number; };
+	private _color2Id: { [color: string]: number; };
 	private _id2Color: string[];
 
-	constructor(getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(getVerticalOffsetForLine: (lineNumber: number) => number) {
 		this._getVerticalOffsetForLine = getVerticalOffsetForLine;
 		this._zones = [];
 		this._colorZonesInvalid = false;
@@ -82,7 +82,7 @@ export class OverviewZoneManager {
 		this._zones = result;
 	}
 
-	public setLineHeight(lineHeight:number): boolean {
+	public setLineHeight(lineHeight: number): boolean {
 		if (this._lineHeight === lineHeight) {
 			return false;
 		}
@@ -91,7 +91,7 @@ export class OverviewZoneManager {
 		return true;
 	}
 
-	public setPixelRatio(pixelRatio:number): void {
+	public setPixelRatio(pixelRatio: number): void {
 		this._pixelRatio = pixelRatio;
 		this._colorZonesInvalid = true;
 	}
@@ -104,7 +104,7 @@ export class OverviewZoneManager {
 		return this._domWidth * this._pixelRatio;
 	}
 
-	public setDOMWidth(width:number): boolean {
+	public setDOMWidth(width: number): boolean {
 		if (this._domWidth === width) {
 			return false;
 		}
@@ -121,7 +121,7 @@ export class OverviewZoneManager {
 		return this._domHeight * this._pixelRatio;
 	}
 
-	public setDOMHeight(height:number): boolean {
+	public setDOMHeight(height: number): boolean {
 		if (this._domHeight === height) {
 			return false;
 		}
@@ -134,7 +134,7 @@ export class OverviewZoneManager {
 		return this._outerHeight;
 	}
 
-	public setOuterHeight(outerHeight:number): boolean {
+	public setOuterHeight(outerHeight: number): boolean {
 		if (this._outerHeight === outerHeight) {
 			return false;
 		}
@@ -143,7 +143,7 @@ export class OverviewZoneManager {
 		return true;
 	}
 
-	public setMaximumHeight(maximumHeight:number): boolean {
+	public setMaximumHeight(maximumHeight: number): boolean {
 		if (this._maximumHeight === maximumHeight) {
 			return false;
 		}
@@ -152,7 +152,7 @@ export class OverviewZoneManager {
 		return true;
 	}
 
-	public setMinimumHeight(minimumHeight:number): boolean {
+	public setMinimumHeight(minimumHeight: number): boolean {
 		if (this._minimumHeight === minimumHeight) {
 			return false;
 		}
@@ -161,7 +161,7 @@ export class OverviewZoneManager {
 		return true;
 	}
 
-	public setUseDarkColor(useDarkColor:boolean): boolean {
+	public setUseDarkColor(useDarkColor: boolean): boolean {
 		if (this._useDarkColor === useDarkColor) {
 			return false;
 		}
@@ -238,7 +238,7 @@ export class OverviewZoneManager {
 
 		this._colorZonesInvalid = false;
 
-		let sortFunc = (a:ColorZone, b:ColorZone) => {
+		let sortFunc = (a: ColorZone, b: ColorZone) => {
 			if (a.colorId === b.colorId) {
 				if (a.from === b.from) {
 					return a.to - b.to;
@@ -252,7 +252,7 @@ export class OverviewZoneManager {
 		return allColorZones;
 	}
 
-	public createZone(totalHeight:number, y1:number, y2:number, minimumHeight:number, maximumHeight:number, color:string, position:OverviewRulerLane): ColorZone {
+	public createZone(totalHeight: number, y1: number, y2: number, minimumHeight: number, maximumHeight: number, color: string, position: OverviewRulerLane): ColorZone {
 		totalHeight = Math.floor(totalHeight); // @perf
 		y1 = Math.floor(y1); // @perf
 		y2 = Math.floor(y2); // @perf

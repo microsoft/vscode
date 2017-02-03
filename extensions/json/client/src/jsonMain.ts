@@ -6,15 +6,15 @@
 
 import * as path from 'path';
 
-import {workspace, languages, ExtensionContext, extensions, Uri} from 'vscode';
-import {LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
+import { workspace, languages, ExtensionContext, extensions, Uri } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
+	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
 }
 
 export interface ISchemaAssociations {
@@ -22,7 +22,7 @@ export interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
+	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
 }
 
 interface IPackageInfo {
@@ -57,7 +57,7 @@ export function activate(context: ExtensionContext) {
 			documentSelector: ['json'],
 			synchronize: {
 				// Synchronize the setting section 'json' to the server
-				configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
+				configurationSection: ['json', 'http.proxy', 'http.proxyStrictSSL'],
 				fileEvents: workspace.createFileSystemWatcher('**/*.json')
 			},
 			initializationOptions: {
@@ -67,25 +67,26 @@ export function activate(context: ExtensionContext) {
 
 		// Create the language client and start the client.
 		let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
-		client.onTelemetry(e => {
-			if (telemetryReporter) {
-				telemetryReporter.sendTelemetryEvent(e.key, e.data);
-			}
-		});
-
-		// handle content request
-		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
-			let uri = Uri.parse(uriPath);
-			return workspace.openTextDocument(uri).then(doc => {
-				return doc.getText();
-			}, error => {
-				return Promise.reject(error);
-			});
-		});
-
 		let disposable = client.start();
+		client.onReady().then(() => {
+			client.onTelemetry(e => {
+				if (telemetryReporter) {
+					telemetryReporter.sendTelemetryEvent(e.key, e.data);
+				}
+			});
 
-		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+			// handle content request
+			client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
+				let uri = Uri.parse(uriPath);
+				return workspace.openTextDocument(uri).then(doc => {
+					return doc.getText();
+				}, error => {
+					return Promise.reject(error);
+				});
+			});
+
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		});
 
 		// Push the disposable to the context's subscriptions so that the
 		// client can be deactivated on extension deactivation
@@ -97,8 +98,8 @@ export function activate(context: ExtensionContext) {
 	});
 }
 
-function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
-	let associations : ISchemaAssociations = {};
+function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
+	let associations: ISchemaAssociations = {};
 	extensions.all.forEach(extension => {
 		let packageJSON = extension.packageJSON;
 		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {

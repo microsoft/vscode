@@ -1,0 +1,25 @@
+{
+  "name": "handlebars",
+  "version": "0.1.0",
+  "publisher": "vscode",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "scripts": {
+    "update-grammar": "node ../../build/npm/update-grammar.js daaain/Handlebars grammars/Handlebars.json ./syntaxes/Handlebars.tmLanguage.json"
+  },
+	"contributes": {
+		"languages": [{
+			"id": "handlebars",
+			"extensions": [ ".handlebars", ".hbs"],
+			"aliases": [ "Handlebars", "handlebars" ],
+			"mimetypes": ["text/x-handlebars-template"],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+      "language": "handlebars",
+			"scopeName": "text.html.handlebars",
+			"path": "./syntaxes/Handlebars.tmLanguage.json"
+		}]
+  }
+}

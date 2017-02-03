@@ -6,9 +6,9 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
+import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {editorAction} from 'vs/editor/common/editorCommonExtensions';
+import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 
 @editorAction
 class IncrementNumberByOneTenthAction extends BasicEmmetEditorAction {

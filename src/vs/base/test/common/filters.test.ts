@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
-	var r = filter(word, wordToMatchAgainst);
+	let r = filter(word, wordToMatchAgainst);
 	assert(r);
 	if (highlights) {
 		assert.deepEqual(r, highlights);
@@ -21,30 +21,30 @@ function filterNotOk(filter, word, suggestion) {
 
 suite('Filters', () => {
 	test('or', function () {
-		var filter, counters;
-		var newFilter = function (i, r) {
+		let filter, counters;
+		let newFilter = function (i, r) {
 			return function () { counters[i]++; return r; };
 		};
 
-		counters = [0,0];
+		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, false));
 		filterNotOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1,1]);
+		assert.deepEqual(counters, [1, 1]);
 
-		counters = [0,0];
+		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, false));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1,0]);
+		assert.deepEqual(counters, [1, 0]);
 
-		counters = [0,0];
+		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1,0]);
+		assert.deepEqual(counters, [1, 0]);
 
-		counters = [0,0];
+		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1,1]);
+		assert.deepEqual(counters, [1, 1]);
 	});
 
 	test('PrefixFilter - case sensitive', function () {
@@ -64,6 +64,7 @@ suite('Filters', () => {
 		filterOk(matchesPrefix, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
 		filterNotOk(matchesPrefix, 'alpha', 'alp');
 		filterOk(matchesPrefix, 'a', 'alpha', [{ start: 0, end: 1 }]);
+		filterOk(matchesPrefix, 'ä', 'Älpha', [{ start: 0, end: 1 }]);
 		filterNotOk(matchesPrefix, 'x', 'alpha');
 		filterOk(matchesPrefix, 'A', 'alpha', [{ start: 0, end: 1 }]);
 		filterOk(matchesPrefix, 'AlPh', 'alPHA', [{ start: 0, end: 4 }]);
@@ -171,20 +172,23 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'AlPh', 'alPHA', [{ start: 0, end: 4 }]);
 		assert(matchesWords('Debug Console', 'Open: Debug Console'));
 
-		filterOk(matchesWords, 'gp', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6}]);
-		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 4, end: 6}]);
-		filterOk(matchesWords, 'gipu', 'Git: Pull', [{ start: 0, end: 2 }, { start: 5, end: 7}]);
+		filterOk(matchesWords, 'gp', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6 }]);
+		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
+		filterOk(matchesWords, 'gipu', 'Git: Pull', [{ start: 0, end: 2 }, { start: 5, end: 7 }]);
 
-		filterOk(matchesWords, 'gp', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16}]);
-		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 14, end: 16}]);
-		filterOk(matchesWords, 'gipu', 'Category: Git: Pull', [{ start: 10, end: 12 }, { start: 15, end: 17}]);
+		filterOk(matchesWords, 'gp', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16 }]);
+		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 14, end: 16 }]);
+		filterOk(matchesWords, 'gipu', 'Category: Git: Pull', [{ start: 10, end: 12 }, { start: 15, end: 17 }]);
 
 		filterNotOk(matchesWords, 'it', 'Git: Pull');
 		filterNotOk(matchesWords, 'll', 'Git: Pull');
 
 		filterOk(matchesWords, 'git: プル', 'git: プル', [{ start: 0, end: 7 }]);
-		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 3 }, { start: 4, end: 7}]);
+		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 3 }, { start: 4, end: 7 }]);
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
+
+		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
+		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 	});
 });

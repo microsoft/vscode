@@ -16,8 +16,9 @@
     "compile": "gulp compile-extension:css-client && gulp compile-extension:css-server",
     "postinstall": "cd server && npm install",
     "install-client-next": "npm install vscode-languageclient@next -f -S",
-    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S"
-  },
+    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S",
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
+	},
   "contributes": {
     "languages": [
       {
@@ -39,7 +40,7 @@
       {
         "language": "css",
         "scopeName": "source.css",
-        "path": "./syntaxes/css.plist"
+        "path": "./syntaxes/css.tmLanguage.json"
       }
     ],
     "snippets": [
@@ -61,7 +62,7 @@
                 "css.validate": {
                   "type": "boolean",
                   "default": true,
-                  "description": "Enables or disables all validations"
+                  "description": "%css.validate.desc%"
                 },
                 "css.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -71,7 +72,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties"
+                  "description": "%css.lint.compatibleVendorPrefixes.desc%"
                 },
                 "css.lint.vendorPrefix": {
                   "type": "string",
@@ -81,7 +82,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "When using a vendor-specific prefix also include the standard property"
+                  "description": "%css.lint.vendorPrefix.desc%"
                 },
                 "css.lint.duplicateProperties": {
                   "type": "string",
@@ -91,7 +92,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Do not use duplicate style definitions"
+                  "description": "%css.lint.duplicateProperties.desc%"
                 },
                 "css.lint.emptyRules": {
                   "type": "string",
@@ -101,7 +102,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Do not use empty rulesets"
+                  "description": "%css.lint.emptyRules.desc%"
                 },
                 "css.lint.importStatement": {
                   "type": "string",
@@ -111,7 +112,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Import statements do not load in parallel"
+                  "description": "%css.lint.importStatement.desc%"
                 },
                 "css.lint.boxModel": {
                   "type": "string",
@@ -121,7 +122,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Do not use width or height when using padding or border"
+                  "description": "%css.lint.boxModel.desc%"
                 },
                 "css.lint.universalSelector": {
                   "type": "string",
@@ -131,7 +132,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "The universal selector (*) is known to be slow"
+                  "description": "%css.lint.universalSelector.desc%"
                 },
                 "css.lint.zeroUnits": {
                   "type": "string",
@@ -141,7 +142,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "No unit for zero needed"
+                  "description": "%css.lint.zeroUnits.desc%"
                 },
                 "css.lint.fontFaceProperties": {
                   "type": "string",
@@ -151,7 +152,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "@font-face rule must define 'src' and 'font-family' properties"
+                  "description": "%css.lint.fontFaceProperties.desc%"
                 },
                 "css.lint.hexColorLength": {
                   "type": "string",
@@ -161,7 +162,7 @@
                     "error"
                   ],
                   "default": "error",
-                  "description": "Hex colors must consist of three or six hex numbers"
+                  "description": "%css.lint.hexColorLength.desc%"
                 },
                 "css.lint.argumentsInColorFunction": {
                   "type": "string",
@@ -171,7 +172,7 @@
                     "error"
                   ],
                   "default": "error",
-                  "description": "Invalid number of parameters"
+                  "description": "%css.lint.argumentsInColorFunction.desc%"
                 },
                 "css.lint.unknownProperties": {
                   "type": "string",
@@ -181,7 +182,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Unknown property."
+                  "description": "%css.lint.unknownProperties.desc%"
                 },
                 "css.lint.ieHack": {
                   "type": "string",
@@ -191,7 +192,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "IE hacks are only necessary when supporting IE7 and older"
+                  "description": "%css.lint.ieHack.desc%"
                 },
                 "css.lint.unknownVendorSpecificProperties": {
                   "type": "string",
@@ -201,7 +202,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Unknown vendor specific property."
+                  "description": "%css.lint.unknownVendorSpecificProperties.desc%"
                 },
                 "css.lint.propertyIgnoredDueToDisplay": {
                   "type": "string",
@@ -211,7 +212,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Property is ignored due to the display. E.g. with 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect"
+                  "description": "%css.lint.propertyIgnoredDueToDisplay.desc%"
                 },
                 "css.lint.important": {
                   "type": "string",
@@ -221,7 +222,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Avoid using !important. It is an indication that the specificity of the entire CSS has gotten out of control and needs to be refactored."
+                  "description": "%css.lint.important.desc%"
                 },
                 "css.lint.float": {
                   "type": "string",
@@ -231,7 +232,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Avoid using 'float'. Floats lead to fragile CSS that is easy to break if one aspect of the layout changes."
+                  "description": "%css.lint.float.desc%"
                 },
                 "css.lint.idSelector": {
                   "type": "string",
@@ -241,7 +242,17 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Selectors should not contain IDs because these rules are too tightly coupled with the HTML."
+                  "description": "%css.lint.idSelector.desc%"
+                },
+                "css.trace.server": {
+                  "type": "string",
+                  "enum": [
+                    "off",
+                    "messages",
+                    "verbose"
+                  ],
+                  "default": "off",
+                  "description": "Traces the communication between VS Code and the CSS language server."
                 }
               }
             }
@@ -258,7 +269,7 @@
                 "scss.validate": {
                   "type": "boolean",
                   "default": true,
-                  "description": "Enables or disables all validations"
+                  "description": "%scss.validate.desc%"
                 },
                 "scss.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -268,7 +279,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties"
+                  "description": "%scss.lint.compatibleVendorPrefixes.desc%"
                 },
                 "scss.lint.vendorPrefix": {
                   "type": "string",
@@ -278,7 +289,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "When using a vendor-specific prefix also include the standard property"
+                  "description": "%scss.lint.vendorPrefix.desc%"
                 },
                 "scss.lint.duplicateProperties": {
                   "type": "string",
@@ -288,7 +299,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Do not use duplicate style definitions"
+                  "description": "%scss.lint.duplicateProperties.desc%"
                 },
                 "scss.lint.emptyRules": {
                   "type": "string",
@@ -298,7 +309,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Do not use empty rulesets"
+                  "description": "%scss.lint.emptyRules.desc%"
                 },
                 "scss.lint.importStatement": {
                   "type": "string",
@@ -308,7 +319,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Import statements do not load in parallel"
+                  "description": "%scss.lint.importStatement.desc%"
                 },
                 "scss.lint.boxModel": {
                   "type": "string",
@@ -318,7 +329,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Do not use width or height when using padding or border"
+                  "description": "%scss.lint.boxModel.desc%"
                 },
                 "scss.lint.universalSelector": {
                   "type": "string",
@@ -328,7 +339,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "The universal selector (*) is known to be slow"
+                  "description": "%scss.lint.universalSelector.desc%"
                 },
                 "scss.lint.zeroUnits": {
                   "type": "string",
@@ -338,7 +349,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "No unit for zero needed"
+                  "description": "%scss.lint.zeroUnits.desc%"
                 },
                 "scss.lint.fontFaceProperties": {
                   "type": "string",
@@ -348,7 +359,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "@font-face rule must define 'src' and 'font-family' properties"
+                  "description": "%scss.lint.fontFaceProperties.desc%"
                 },
                 "scss.lint.hexColorLength": {
                   "type": "string",
@@ -358,7 +369,7 @@
                     "error"
                   ],
                   "default": "error",
-                  "description": "Hex colors must consist of three or six hex numbers"
+                  "description": "%scss.lint.hexColorLength.desc%"
                 },
                 "scss.lint.argumentsInColorFunction": {
                   "type": "string",
@@ -368,7 +379,7 @@
                     "error"
                   ],
                   "default": "error",
-                  "description": "Invalid number of parameters"
+                  "description": "%scss.lint.argumentsInColorFunction.desc%"
                 },
                 "scss.lint.unknownProperties": {
                   "type": "string",
@@ -378,7 +389,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Unknown property."
+                  "description": "%scss.lint.unknownProperties.desc%"
                 },
                 "scss.lint.ieHack": {
                   "type": "string",
@@ -388,7 +399,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "IE hacks are only necessary when supporting IE7 and older"
+                  "description": "%scss.lint.ieHack.desc%"
                 },
                 "scss.lint.unknownVendorSpecificProperties": {
                   "type": "string",
@@ -398,7 +409,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Unknown vendor specific property."
+                  "description": "%scss.lint.unknownVendorSpecificProperties.desc%"
                 },
                 "scss.lint.propertyIgnoredDueToDisplay": {
                   "type": "string",
@@ -408,7 +419,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Property is ignored due to the display. E.g. with 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect"
+                  "description": "%scss.lint.propertyIgnoredDueToDisplay.desc%"
                 },
                 "scss.lint.important": {
                   "type": "string",
@@ -418,7 +429,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Avoid using !important. It is an indication that the specificity of the entire CSS has gotten out of control and needs to be refactored."
+                  "description": "%scss.lint.important.desc%"
                 },
                 "scss.lint.float": {
                   "type": "string",
@@ -428,7 +439,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Avoid using 'float'. Floats lead to fragile CSS that is easy to break if one aspect of the layout changes."
+                  "description": "%scss.lint.float.desc%"
                 },
                 "scss.lint.idSelector": {
                   "type": "string",
@@ -438,7 +449,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Selectors should not contain IDs because these rules are too tightly coupled with the HTML."
+                  "description": "%scss.lint.idSelector.desc%"
                 }
               }
             }
@@ -456,7 +467,7 @@
                 "less.validate": {
                   "type": "boolean",
                   "default": true,
-                  "description": "Enables or disables all validations"
+                  "description": "%less.validate.desc%"
                 },
                 "less.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -466,7 +477,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties"
+                  "description": "%less.lint.compatibleVendorPrefixes.desc%"
                 },
                 "less.lint.vendorPrefix": {
                   "type": "string",
@@ -476,7 +487,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "When using a vendor-specific prefix also include the standard property"
+                  "description": "%less.lint.vendorPrefix.desc%"
                 },
                 "less.lint.duplicateProperties": {
                   "type": "string",
@@ -486,7 +497,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Do not use duplicate style definitions"
+                  "description": "%less.lint.duplicateProperties.desc%"
                 },
                 "less.lint.emptyRules": {
                   "type": "string",
@@ -496,7 +507,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Do not use empty rulesets"
+                  "description": "%less.lint.emptyRules.desc%"
                 },
                 "less.lint.importStatement": {
                   "type": "string",
@@ -506,7 +517,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Import statements do not load in parallel"
+                  "description": "%less.lint.importStatement.desc%"
                 },
                 "less.lint.boxModel": {
                   "type": "string",
@@ -516,7 +527,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Do not use width or height when using padding or border"
+                  "description": "%less.lint.boxModel.desc%"
                 },
                 "less.lint.universalSelector": {
                   "type": "string",
@@ -526,7 +537,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "The universal selector (*) is known to be slow"
+                  "description": "%less.lint.universalSelector.desc%"
                 },
                 "less.lint.zeroUnits": {
                   "type": "string",
@@ -536,7 +547,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "No unit for zero needed"
+                  "description": "%less.lint.zeroUnits.desc%"
                 },
                 "less.lint.fontFaceProperties": {
                   "type": "string",
@@ -546,7 +557,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "@font-face rule must define 'src' and 'font-family' properties"
+                  "description": "%less.lint.fontFaceProperties.desc%"
                 },
                 "less.lint.hexColorLength": {
                   "type": "string",
@@ -556,7 +567,7 @@
                     "error"
                   ],
                   "default": "error",
-                  "description": "Hex colors must consist of three or six hex numbers"
+                  "description": "%less.lint.hexColorLength.desc%"
                 },
                 "less.lint.argumentsInColorFunction": {
                   "type": "string",
@@ -566,7 +577,7 @@
                     "error"
                   ],
                   "default": "error",
-                  "description": "Invalid number of parameters"
+                  "description": "%less.lint.argumentsInColorFunction.desc%"
                 },
                 "less.lint.unknownProperties": {
                   "type": "string",
@@ -576,7 +587,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Unknown property."
+                  "description": "%less.lint.unknownProperties.desc%"
                 },
                 "less.lint.ieHack": {
                   "type": "string",
@@ -586,7 +597,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "IE hacks are only necessary when supporting IE7 and older"
+                  "description": "%less.lint.ieHack.desc%"
                 },
                 "less.lint.unknownVendorSpecificProperties": {
                   "type": "string",
@@ -596,7 +607,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Unknown vendor specific property."
+                  "description": "%less.lint.unknownVendorSpecificProperties.desc%"
                 },
                 "less.lint.propertyIgnoredDueToDisplay": {
                   "type": "string",
@@ -606,7 +617,7 @@
                     "error"
                   ],
                   "default": "warning",
-                  "description": "Property is ignored due to the display. E.g. with 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect"
+                  "description": "%less.lint.propertyIgnoredDueToDisplay.desc%"
                 },
                 "less.lint.important": {
                   "type": "string",
@@ -616,7 +627,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Avoid using !important. It is an indication that the specificity of the entire CSS has gotten out of control and needs to be refactored."
+                  "description": "%less.lint.important.desc%"
                 },
                 "less.lint.float": {
                   "type": "string",
@@ -626,7 +637,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Avoid using 'float'. Floats lead to fragile CSS that is easy to break if one aspect of the layout changes."
+                  "description": "%less.lint.float.desc%"
                 },
                 "less.lint.idSelector": {
                   "type": "string",
@@ -636,7 +647,7 @@
                     "error"
                   ],
                   "default": "ignore",
-                  "description": "Selectors should not contain IDs because these rules are too tightly coupled with the HTML."
+                  "description": "%less.lint.idSelector.desc%"
                 }
               }
             }
@@ -646,7 +657,10 @@
     }
   },
   "dependencies": {
-    "vscode-languageclient": "^2.4.2-next.22",
-    "vscode-nls": "^1.0.7"
+    "vscode-languageclient": "^3.0.2-beta.5",
+    "vscode-nls": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51"
   }
 }

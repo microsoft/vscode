@@ -4,83 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, ITokenizationResult, ILineTokens} from 'vs/editor/common/modes';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
+import { IState, ColorId, MetadataConsts, LanguageIdentifier, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
+import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 
-export class NullState implements IState {
-
-	private mode: IMode;
-	private stateData: IState;
-
-	constructor(mode: IMode, stateData: IState) {
-		this.mode = mode;
-		this.stateData = stateData;
-	}
+class NullStateImpl implements IState {
 
 	public clone(): IState {
-		let stateDataClone:IState = (this.stateData ? this.stateData.clone() : null);
-		return new NullState(this.mode, stateDataClone);
-	}
-
-	public equals(other:IState): boolean {
-		if (this.mode !== other.getMode()) {
-			return false;
-		}
-		let otherStateData = other.getStateData();
-		if (!this.stateData && !otherStateData) {
-			return true;
-		}
-		if (this.stateData && otherStateData) {
-			return this.stateData.equals(otherStateData);
-		}
-		return false;
-	}
-
-	public getMode(): IMode {
-		return this.mode;
-	}
-
-	public tokenize(stream:IStream):ITokenizationResult {
-		stream.advanceToEOS();
-		return { type:'' };
-	}
-
-	public getStateData(): IState {
-		return this.stateData;
-	}
-
-	public setStateData(stateData:IState):void {
-		this.stateData = stateData;
-	}
-}
-
-export class NullMode implements IMode {
-
-
-	public static ID = 'vs.editor.nullMode';
-
-	constructor() {
-	}
-
-	public getId():string {
-		return NullMode.ID;
-	}
-
-	public toSimplifiedMode(): IMode {
 		return this;
 	}
+
+	public equals(other: IState): boolean {
+		return (this === other);
+	}
 }
 
-export function nullTokenize(modeId: string, buffer:string, state: IState, deltaOffset:number = 0, stopAtOffset?:number): ILineTokens {
-	let tokens:Token[] = [new Token(deltaOffset, '')];
+export const NULL_STATE: IState = new NullStateImpl();
 
-	let modeTransitions:ModeTransition[] = [new ModeTransition(deltaOffset, modeId)];
+export const NULL_MODE_ID = 'vs.editor.nullMode';
 
-	return {
-		tokens: tokens,
-		actualStopOffset: deltaOffset + buffer.length,
-		endState: state,
-		modeTransitions: modeTransitions
-	};
+export const NULL_LANGUAGE_IDENTIFIER = new LanguageIdentifier(NULL_MODE_ID, LanguageId.Null);
+
+export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
+	return new TokenizationResult([new Token(deltaOffset, '', modeId)], state);
+}
+
+export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState, deltaOffset: number): TokenizationResult2 {
+	let tokens = new Uint32Array(2);
+	tokens[0] = deltaOffset;
+	tokens[1] = (
+		(languageId << MetadataConsts.LANGUAGEID_OFFSET)
+		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
+
+	return new TokenizationResult2(tokens, state);
 }

@@ -127,7 +127,7 @@ SelectDirBrowseLabel=ÈôÒª¼ÌĞø£¬µ¥»÷¡°ÏÂÒ»²½¡±¡£Èç¹ûÏëÑ¡ÔñÆäËûÎÄ¼ş¼Ğ£¬µ¥»÷¡°ä¯ÀÀ¡
 DiskSpaceMBLabel=ĞèÒªÖÁÉÙ [mb] MB ¿ÉÓÃ´ÅÅÌ¿Õ¼ä¡£
 CannotInstallToNetworkDrive=°²×°³ÌĞòÎŞ·¨°²×°µ½ÍøÂçÇı¶¯Æ÷¡£
 CannotInstallToUNCPath=°²×°³ÌĞòÎŞ·¨°²×°µ½ UNC Â·¾¶¡£
-InvalidPath=±ØĞëÊäÈë´øÇı¶¯Æ÷ºÅµÄÍêÕûÂ·¾¶(ÀıÈç:%n%nC:APP%n%n)»òÒÔÏÂ¸ñÊ½µÄ UNC Â·¾¶:%n%nservershare
+InvalidPath=±ØĞëÊäÈë´øÇı¶¯Æ÷ºÅµÄÍêÕûÂ·¾¶(ÀıÈç:%n%nC:\APP%n%n)»òÒÔÏÂ¸ñÊ½µÄ UNC Â·¾¶:%n%n\server\share
 InvalidDrive=ËùÑ¡Çı¶¯Æ÷»ò UNC ¹²Ïí²»´æÔÚ»ò²»¿É·ÃÎÊ¡£ÇëÁíÍâÑ¡Ôñ¡£
 DiskSpaceWarningTitle=´ÅÅÌ¿Õ¼ä²»×ã
 DiskSpaceWarning=°²×°³ÌĞòĞèÒªÖÁÉÙ %1 KB ¿ÉÓÃ¿Õ¼äÀ´°²×°£¬µ«ËùÑ¡Çı¶¯Æ÷½öÓĞ %2 KB ¿ÉÓÃ¿Õ¼ä¡£%n%nÊÇ·ñÈÔÒª¼ÌĞø?
@@ -231,9 +231,9 @@ ErrorFunctionFailed=%1 Ê§°Ü£»´úÂë %2
 ErrorFunctionFailedWithMessage=%1 Ê§°Ü£»´úÂë %2¡£%n%3
 ErrorExecutingProgram=ÎŞ·¨Ö´ĞĞÎÄ¼ş:%n%1
 ; *** Registry errors
-ErrorRegOpenKey=´ò¿ª×¢²á±íÏîÊ±³ö´í:%n%1%2
-ErrorRegCreateKey=´´½¨×¢²á±íÏîÊ±³ö´í:%n%1%2
-ErrorRegWriteKey=Ğ´Èë×¢²á±íÏîÊ±³ö´í:%n%1%2
+ErrorRegOpenKey=´ò¿ª×¢²á±íÏîÊ±³ö´í:%n%1\%2
+ErrorRegCreateKey=´´½¨×¢²á±íÏîÊ±³ö´í:%n%1\%2
+ErrorRegWriteKey=Ğ´Èë×¢²á±íÏîÊ±³ö´í:%n%1\%2
 ; *** INI errors
 ErrorIniEntry=ÔÚÎÄ¼ş¡°%1¡±ÖĞ´´½¨ INI ÏîÊ±³ö´í¡£
 ; *** File copying errors

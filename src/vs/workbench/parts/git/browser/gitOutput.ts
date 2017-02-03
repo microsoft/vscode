@@ -18,7 +18,7 @@ export class GitOutput implements IWorkbenchContribution {
 	private gitService: IGitService;
 	private outputService: IOutputService;
 
-	constructor(@IGitService gitService: IGitService, @IOutputService outputService: IOutputService) {
+	constructor( @IGitService gitService: IGitService, @IOutputService outputService: IOutputService) {
 		this.gitService = gitService;
 		this.outputService = outputService;
 

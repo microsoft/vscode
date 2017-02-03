@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
-import {StatusbarAlignment, IStatusbarRegistry, Extensions, StatusbarItemDescriptor} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {FeedbackStatusbarItem} from 'vs/workbench/parts/feedback/electron-browser/feedbackStatusbarItem';
+import { Registry } from 'vs/platform/platform';
+import { StatusbarAlignment, IStatusbarRegistry, Extensions, StatusbarItemDescriptor } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { FeedbackStatusbarItem } from './feedbackStatusbarItem';
 
 // Register Statusbar item
-(<IStatusbarRegistry>Registry.as(Extensions.Statusbar)).registerStatusbarItem(new StatusbarItemDescriptor(
+Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(new StatusbarItemDescriptor(
 	FeedbackStatusbarItem,
 	StatusbarAlignment.RIGHT,
 	-100 /* Low Priority */

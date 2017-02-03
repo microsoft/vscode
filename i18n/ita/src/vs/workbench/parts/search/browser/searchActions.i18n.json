@@ -6,11 +6,16 @@
 {
 	"ClearSearchResultsAction.label": "Cancella risultati della ricerca",
 	"ConfigureGlobalExclusionsAction.label": "Apri impostazioni",
+	"FocusNextSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca successivo",
+	"FocusPreviousSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca precedente",
 	"RefreshAction.label": "Aggiorna",
 	"RemoveAction.label": "Rimuovi",
 	"file.replaceAll.label": "Sostituisci tutto",
 	"findInFolder": "Trova nella cartella",
+	"focusNextInputBox": "Sposta lo stato attivo sulla casella di input successiva",
+	"focusPreviousInputBox": "Sposta lo stato attivo sulla casella di input precedente",
 	"match.replace.label": "Sostituisci",
-	"replaceInFiles": "Sostituisci nei file",
-	"showSearchViewlet": "Mostra Cerca"
+	"nextSearchTerm": "Mostra il termine di ricerca successivo",
+	"previousSearchTerm": "Mostra il termine di ricerca precedente",
+	"replaceInFiles": "Sostituisci nei file"
 }

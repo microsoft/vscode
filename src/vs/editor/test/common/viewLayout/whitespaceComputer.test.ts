@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {WhitespaceComputer} from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { WhitespaceComputer } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 suite('Editor ViewLayout - WhitespaceComputer', () => {
 
@@ -244,16 +244,16 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 	test('WhitespaceComputer findInsertionIndex', () => {
 
-		var makeArray = (size:number, fillValue:number) => {
-			var r:number[] = [];
+		var makeArray = (size: number, fillValue: number) => {
+			var r: number[] = [];
 			for (var i = 0; i < size; i++) {
 				r[i] = fillValue;
 			}
 			return r;
 		};
 
-		var arr:number[];
-		var ordinals:number[];
+		var arr: number[];
+		var ordinals: number[];
 
 		arr = [];
 		ordinals = makeArray(arr.length, 0);

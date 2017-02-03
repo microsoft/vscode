@@ -6,7 +6,9 @@
 {
 	"extension": "扩展",
 	"extensions": "扩展",
+	"extensionsAutoUpdate": "自动更新扩展",
 	"extensionsCommands": "管理扩展",
+	"extensionsConfigurationTitle": "扩展",
 	"galleryExtensionsCommands": "安装库扩展",
 	"view": "查看"
 }

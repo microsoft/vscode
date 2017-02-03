@@ -6,11 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
-import {MainThreadCommandsShape} from 'vs/workbench/api/node/extHost.protocol';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {OneGetThreadService} from './testThreadService';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { OneGetThreadService } from './testThreadService';
 
 suite('ExtHostCommands', function () {
 
@@ -20,15 +20,15 @@ suite('ExtHostCommands', function () {
 
 		const shape = new class extends MainThreadCommandsShape {
 			$registerCommand(id: string): TPromise<any> {
-				return;
+				return undefined;
 			}
 			$unregisterCommand(id: string): TPromise<any> {
 				lastUnregister = id;
-				return;
+				return undefined;
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, undefined);
 		commands.registerCommand('foo', () => { }).dispose();
 		assert.equal(lastUnregister, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
@@ -41,15 +41,15 @@ suite('ExtHostCommands', function () {
 
 		const shape = new class extends MainThreadCommandsShape {
 			$registerCommand(id: string): TPromise<any> {
-				return;
+				return undefined;
 			}
 			$unregisterCommand(id: string): TPromise<any> {
 				unregisterCounter += 1;
-				return;
+				return undefined;
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, undefined);
 		const reg = commands.registerCommand('foo', () => { });
 		reg.dispose();
 		reg.dispose();

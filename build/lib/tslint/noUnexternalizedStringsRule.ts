@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
-import * as Lint from 'tslint/lib/lint';
+import * as Lint from 'tslint';
 
 /**
  * Implementation of the no-unexternalized-strings rule.
@@ -109,8 +109,12 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		if (functionName && this.ignores[functionName]) {
 			return;
 		}
+
 		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
-			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`));
+			const s = node.getText();
+			const replacement = new Lint.Replacement(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`);
+			const fix = new Lint.Fix("Unexternalitzed string", [replacement]);
+			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`, fix));
 			return;
 		}
 		// We have a single quoted string outside a localize function name.

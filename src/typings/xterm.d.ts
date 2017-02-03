@@ -13,5 +13,5 @@ declare module 'xterm' {
 		resize(columns: number, rows: number): void;
 	}
 
-    export = init;
+	export = init;
 }

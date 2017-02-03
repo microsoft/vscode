@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {ICommandAndKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
 import H = editorCommon.Handler;
 import D = editorCommon.CommandDescription;
@@ -39,16 +39,16 @@ export abstract class Command {
 	private kbOpts: ICommandKeybindingsOptions;
 	private description: ICommandHandlerDescription;
 
-	constructor(opts:ICommandOptions) {
+	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this.kbOpts = opts.kbOpts;
 		this.description = opts.description;
 	}
 
-	public abstract runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void>;
+	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
 
-	public toCommandAndKeybindingRule(defaultWeight:number): ICommandAndKeybindingRule {
+	public toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
 		const kbOpts = this.kbOpts || { primary: 0 };
 
 		let kbWhen = kbOpts.kbExpr;
@@ -76,27 +76,27 @@ export abstract class Command {
 }
 
 export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
-	new(opts:IContributionCommandOptions<T>): EditorCommand;
+	new (opts: IContributionCommandOptions<T>): EditorCommand;
 }
 
 export interface IContributionCommandOptions<T> extends ICommandOptions {
-	handler: (controller:T)=>void;
+	handler: (controller: T) => void;
 }
 
 export abstract class EditorCommand extends Command {
 
-	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter:(editor:editorCommon.ICommonCodeEditor) => T): EditorControllerCommand<T> {
+	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter: (editor: editorCommon.ICommonCodeEditor) => T): EditorControllerCommand<T> {
 
 		return class EditorControllerCommandImpl extends EditorCommand {
-			private _callback:(controller:T)=>void;
+			private _callback: (controller: T) => void;
 
-			constructor(opts:IContributionCommandOptions<T>) {
+			constructor(opts: IContributionCommandOptions<T>) {
 				super(opts);
 
 				this._callback = opts.handler;
 			}
 
-			protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			protected runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
 				let controller = controllerGetter(editor);
 				if (controller) {
 					this._callback(controllerGetter(editor));
@@ -105,14 +105,14 @@ export abstract class EditorCommand extends Command {
 		};
 	}
 
-	constructor(opts:ICommandOptions) {
+	constructor(opts: ICommandOptions) {
 		super(opts);
 	}
 
-	public runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void> {
+	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
 		let editor = findFocusedEditor(this.id, accessor, false);
 		if (!editor) {
-			editor = getActiveEditor(accessor);
+			editor = getActiveEditorWidget(accessor);
 		}
 		if (!editor) {
 			// well, at least we tried...
@@ -129,7 +129,7 @@ export abstract class EditorCommand extends Command {
 		});
 	}
 
-	protected abstract runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
+	protected abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
@@ -143,29 +143,17 @@ export function findFocusedEditor(commandId: string, accessor: ServicesAccessor,
 	return editor;
 }
 
-function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, callback: (editor:editorCommon.ICommonCodeEditor) => void): void {
+function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, callback: (editor: editorCommon.ICommonCodeEditor) => void): void {
 	let editor = findFocusedEditor(commandId, accessor, true);
 	if (editor) {
 		callback(editor);
 	}
 }
 
-function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-	let editorService = accessor.get(IEditorService);
+function getActiveEditorWidget(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	const editorService = accessor.get(IEditorService);
 	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-	if (activeEditor) {
-		let editor = <editorCommon.IEditor>activeEditor.getControl();
-
-		// Substitute for (editor instanceof ICodeEditor)
-		if (editor && typeof editor.getEditorType === 'function') {
-			if (editor.getEditorType() === editorCommon.EditorType.ICodeEditor) {
-				return <editorCommon.ICommonCodeEditor>editor;
-			}
-			return (<editorCommon.ICommonDiffEditor>editor).getModifiedEditor();
-		}
-	}
-
-	return null;
+	return getCodeEditor(activeEditor);
 }
 
 function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, args: any): void {
@@ -175,13 +163,13 @@ function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, arg
 }
 
 class CoreCommand extends Command {
-	public runCommand(accessor:ServicesAccessor, args: any): void {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
 		triggerEditorHandler(this.id, accessor, args);
 	}
 }
 
 class UnboundCoreCommand extends CoreCommand {
-	constructor(handlerId:string, precondition: ContextKeyExpr = null) {
+	constructor(handlerId: string, precondition: ContextKeyExpr = null) {
 		super({
 			id: handlerId,
 			precondition: precondition
@@ -189,7 +177,7 @@ class UnboundCoreCommand extends CoreCommand {
 	}
 }
 
-function registerCommand(command:Command) {
+function registerCommand(command: Command) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 }
 
@@ -200,7 +188,7 @@ function registerCoreAPICommand(handlerId: string, description: ICommandHandlerD
 	});
 }
 
-function registerOverwritableCommand(handlerId:string, handler:ICommandHandler): void {
+function registerOverwritableCommand(handlerId: string, handler: ICommandHandler): void {
 	CommandsRegistry.registerCommand(handlerId, handler);
 	CommandsRegistry.registerCommand('default:' + handlerId, handler);
 }
@@ -213,11 +201,11 @@ registerCoreDispatchCommand(H.ReplacePreviousChar);
 registerCoreDispatchCommand(H.Paste);
 registerCoreDispatchCommand(H.Cut);
 
-registerOverwritableCommand(H.CompositionStart, () => {});
-registerOverwritableCommand(H.CompositionEnd, () => {});
+registerOverwritableCommand(H.CompositionStart, () => { });
+registerOverwritableCommand(H.CompositionEnd, () => { });
 
 class WordCommand extends CoreCommand {
-	public static getMacWordNavigationKB(shift:boolean, key:KeyCode): number {
+	public static getMacWordNavigationKB(shift: boolean, key: KeyCode): number {
 		// For macs, word navigation is based on the alt modifier
 		if (shift) {
 			return KeyMod.Shift | KeyMod.Alt | key;
@@ -226,7 +214,7 @@ class WordCommand extends CoreCommand {
 		}
 	}
 
-	public static getWordNavigationKB(shift:boolean, key:KeyCode): number {
+	public static getWordNavigationKB(shift: boolean, key: KeyCode): number {
 		// Normally word navigation is based on the ctrl modifier
 		if (shift) {
 			return KeyMod.CtrlCmd | KeyMod.Shift | key;
@@ -235,7 +223,7 @@ class WordCommand extends CoreCommand {
 		}
 	}
 
-	constructor(handlerId: string, shift:boolean, key:KeyCode, precondition: ContextKeyExpr = null) {
+	constructor(handlerId: string, shift: boolean, key: KeyCode, precondition: ContextKeyExpr = null) {
 		super({
 			id: handlerId,
 			precondition: precondition,
@@ -469,7 +457,7 @@ registerCommand(new CoreCommand({
 		weight: CORE_WEIGHT,
 		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp}
+		mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp }
 	}
 }));
 registerCommand(new CoreCommand({
@@ -479,7 +467,7 @@ registerCommand(new CoreCommand({
 		weight: CORE_WEIGHT,
 		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown}
+		mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown }
 	}
 }));
 
@@ -615,26 +603,6 @@ registerCommand(new CoreCommand({
 		mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
 	}
 }));
-registerCommand(new CoreCommand({
-	id: H.DeleteAllLeft,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: null,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
-	}
-}));
-registerCommand(new CoreCommand({
-	id: H.DeleteAllRight,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: null,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
-	}
-}));
 
 
 registerCommand(new WordCommand(H.CursorWordStartLeft, false, KeyCode.LeftArrow));
@@ -735,15 +703,6 @@ registerCommand(new CoreCommand({
 }));
 
 registerCommand(new CoreCommand({
-	id: H.Undo,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-	}
-}));
-registerCommand(new CoreCommand({
 	id: H.CursorUndo,
 	precondition: null,
 	kbOpts: {
@@ -752,19 +711,41 @@ registerCommand(new CoreCommand({
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_U
 	}
 }));
-registerCommand(new CoreCommand({
-	id: H.Redo,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
-	}
-}));
 
-class SelectAllCommand extends Command {
+abstract class BaseTextInputAwareCommand extends Command {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		let HANDLER = this.getEditorHandler();
+
+		let focusedEditor = findFocusedEditor(HANDLER, accessor, false);
+		// Only if editor text focus (i.e. not if editor has widget focus).
+		if (focusedEditor && focusedEditor.isFocused()) {
+			focusedEditor.trigger('keyboard', HANDLER, args);
+			return;
+		}
+
+		// Ignore this action when user is focussed on an element that allows for entering text
+		let activeElement = <HTMLElement>document.activeElement;
+		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+			document.execCommand(this.getInputHandler());
+			return;
+		}
+
+		// Redirecting to last active editor
+		let activeEditor = getActiveEditorWidget(accessor);
+		if (activeEditor) {
+			activeEditor.focus();
+			activeEditor.trigger('keyboard', HANDLER, args);
+			return;
+		}
+	}
+
+	protected abstract getEditorHandler(): string;
+
+	protected abstract getInputHandler(): string;
+}
+
+class SelectAllCommand extends BaseTextInputAwareCommand {
 
 	constructor() {
 		super({
@@ -778,30 +759,62 @@ class SelectAllCommand extends Command {
 		});
 	}
 
-	public runCommand(accessor:ServicesAccessor, args: any): void {
-		let HANDLER = editorCommon.Handler.SelectAll;
+	protected getEditorHandler(): string {
+		return editorCommon.Handler.SelectAll;
+	}
 
-		let focusedEditor = findFocusedEditor(HANDLER, accessor, false);
-		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.isFocused()) {
-			focusedEditor.trigger('keyboard', HANDLER, args);
-			return;
-		}
-
-		// Ignore this action when user is focussed on an element that allows for entering text
-		let activeElement = <HTMLElement>document.activeElement;
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-			(<any>activeElement).select();
-			return;
-		}
-
-		// Redirecting to last active editor
-		let activeEditor = getActiveEditor(accessor);
-		if (activeEditor) {
-			activeEditor.focus();
-			activeEditor.trigger('keyboard', HANDLER, args);
-			return;
-		}
+	protected getInputHandler(): string {
+		return 'selectAll';
 	}
 }
 registerCommand(new SelectAllCommand());
+
+class UndoCommand extends BaseTextInputAwareCommand {
+
+	constructor() {
+		super({
+			id: H.Undo,
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				weight: CORE_WEIGHT,
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+			}
+		});
+	}
+
+	protected getEditorHandler(): string {
+		return H.Undo;
+	}
+
+	protected getInputHandler(): string {
+		return 'undo';
+	}
+}
+registerCommand(new UndoCommand());
+
+class RedoCommand extends BaseTextInputAwareCommand {
+
+	constructor() {
+		super({
+			id: H.Redo,
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				weight: CORE_WEIGHT,
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+			}
+		});
+	}
+
+	protected getEditorHandler(): string {
+		return H.Redo;
+	}
+
+	protected getInputHandler(): string {
+		return 'redo';
+	}
+}
+registerCommand(new RedoCommand());

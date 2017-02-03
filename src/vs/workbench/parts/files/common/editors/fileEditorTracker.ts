@@ -4,26 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
-import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {IEditor} from 'vs/editor/common/editorCommon';
-import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
-import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {LocalFileChangeEvent, BINARY_FILE_EDITOR_ID, ITextFileService, ModelState} from 'vs/workbench/parts/files/common/files';
-import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
+import { toResource, EditorInput, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
+import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -35,15 +30,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private toUnbind: IDisposable[];
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IHistoryService private historyService: IHistoryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IFileService private fileService: IFileService
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
@@ -57,32 +48,98 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 
-		// Update editors from local changes and saves
-		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
+		// Update editors from operation changes
+		this.toUnbind.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 
 		// Update editors from disk changes
-		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	// Note: there is some duplication with the other file event handler below. Since we cannot always rely on the disk events
-	// carrying all necessary data in all environments, we also use the local file events to make sure operations are handled.
+	// carrying all necessary data in all environments, we also use the file operation events to make sure operations are handled.
 	// In any case there is no guarantee if the local event is fired first or the disk one. Thus, code must handle the case
 	// that the event ordering is random as well as might not carry all information needed.
-	private onLocalFileChange(e: LocalFileChangeEvent): void {
+	private onFileOperation(e: FileOperationEvent): void {
 
 		// Handle moves specially when file is opened
-		if (e.gotMoved()) {
-			const before = e.getBefore();
-			const after = e.getAfter();
+		if (e.operation === FileOperation.MOVE) {
+			this.handleMovedFileInOpenedEditors(e.resource, e.target.resource);
+		}
 
-			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
+		// Handle deletes
+		if (e.operation === FileOperation.DELETE || e.operation === FileOperation.MOVE) {
+			this.handleDeletes(e.resource, e.target ? e.target.resource : void 0);
 		}
 	}
 
-	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
+	private onFileChanges(e: FileChangesEvent): void {
+
+		// Handle updates to visible editors
+		this.handleUpdatesToVisibleEditors(e);
+
+		// Handle deletes
+		if (e.gotDeleted()) {
+			this.handleDeletes(e);
+		}
+	}
+
+	private handleDeletes(arg1: URI | FileChangesEvent, movedTo?: URI): void {
+		const fileInputs = this.getOpenedFileInputs();
+		fileInputs.forEach(input => {
+			if (input.isDirty()) {
+				return; // we never dispose dirty files
+			}
+
+			// Special case: a resource was renamed to the same path with different casing. Since our paths
+			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
+			// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
+			if (movedTo && movedTo.fsPath === input.getResource().fsPath) {
+				return;
+			}
+
+			let matches = false;
+			if (arg1 instanceof FileChangesEvent) {
+				matches = arg1.contains(input.getResource(), FileChangeType.DELETED);
+			} else {
+				matches = paths.isEqualOrParent(input.getResource().toString(), arg1.toString());
+			}
+
+			if (matches) {
+				input.dispose();
+			}
+		});
+	}
+
+	private getOpenedFileInputs(): FileEditorInput[] {
+		const inputs: FileEditorInput[] = [];
+
+		const stacks = this.editorGroupService.getStacksModel();
+		stacks.groups.forEach(group => {
+			group.getEditors().forEach(input => {
+				if (input instanceof FileEditorInput) {
+					inputs.push(input);
+				} else if (input instanceof SideBySideEditorInput) {
+					const master = input.master;
+					const details = input.details;
+
+					if (master instanceof FileEditorInput) {
+						inputs.push(master);
+					}
+
+					if (details instanceof FileEditorInput) {
+						inputs.push(details);
+					}
+				}
+			});
+		});
+
+		return inputs;
+	}
+
+	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		const stacks = this.editorGroupService.getStacksModel();
 		stacks.groups.forEach(group => {
 			group.getEditors().forEach(input => {
@@ -100,25 +157,48 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						}
 
 						// Reopen
-						this.editorService.openEditor({ resource: reopenFileResource, mime: mimeHint || MIME_UNKNOWN, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor({
+							resource: reopenFileResource,
+							options: {
+								preserveFocus: true,
+								pinned: group.isPinned(input),
+								index: group.indexOf(input),
+								inactive: !group.isActive(input),
+								viewState: this.getViewStateFor(oldResource, group)
+							}
+						}, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
 			});
 		});
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
+	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState {
+		const stacks = this.editorGroupService.getStacksModel();
+		const editors = this.editorService.getVisibleEditors();
 
-		// Handle updates to visible editors
-		this.handleUpdatesToVisibleEditors(e);
+		for (let i = 0; i < editors.length; i++) {
+			const editor = editors[i];
+			if (editor && editor.position === stacks.positionOfGroup(group)) {
+				const resource = toResource(editor.input, { filter: 'file' });
+				if (resource && resource.fsPath === resource.fsPath) {
+					const control = editor.getControl();
+					if (isCommonCodeEditor(control)) {
+						return control.saveViewState();
+					}
+				}
+			}
+		}
+
+		return void 0;
 	}
 
 	private handleUpdatesToVisibleEditors(e: FileChangesEvent) {
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			let input = editor.input;
-			if (input instanceof DiffEditorInput) {
-				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, e);
+			if (input instanceof SideBySideEditorInput) {
+				input = this.getMatchingFileEditorInputFromSideBySide(<SideBySideEditorInput>input, e);
 			}
 
 			// File Editor Input
@@ -174,61 +254,33 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			return false;
 		}
 
-		// Support diff editor input too
-		if (input instanceof DiffEditorInput) {
-			input = (<DiffEditorInput>input).modifiedInput;
+		// Support side by side editor input too
+		if (input instanceof SideBySideEditorInput) {
+			input = (<SideBySideEditorInput>input).master;
 		}
 
 		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
 	}
 
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, deletedResource: URI): FileEditorInput;
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, arg: any): FileEditorInput {
+	private getMatchingFileEditorInputFromSideBySide(input: SideBySideEditorInput, e: FileChangesEvent): FileEditorInput {
 
-		// First try modifiedInput
-		const modifiedInput = input.modifiedInput;
-		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
+		// First try master
+		const master = input.master;
+		const res = this.getMatchingFileEditorInputFromInput(master, e);
 		if (res) {
 			return res;
 		}
 
-		// Second try originalInput
-		return this.getMatchingFileEditorInputFromInput(input.originalInput, arg);
+		// Second try details
+		return this.getMatchingFileEditorInputFromInput(input.details, e);
 	}
 
-	private getMatchingFileEditorInputFromInput(input: EditorInput, deletedResource: URI): FileEditorInput;
-	private getMatchingFileEditorInputFromInput(input: EditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
-	private getMatchingFileEditorInputFromInput(input: EditorInput, arg: any): FileEditorInput {
-		if (input instanceof FileEditorInput) {
-			if (arg instanceof URI) {
-				const deletedResource = <URI>arg;
-				if (this.containsResource(input, deletedResource)) {
-					return input;
-				}
-			} else {
-				const updatedFiles = <FileChangesEvent>arg;
-				if (updatedFiles.contains(input.getResource(), FileChangeType.UPDATED)) {
-					return input;
-				}
-			}
+	private getMatchingFileEditorInputFromInput(input: EditorInput, e: FileChangesEvent): FileEditorInput {
+		if (input instanceof FileEditorInput && e.contains(input.getResource(), FileChangeType.UPDATED)) {
+			return input;
 		}
 
 		return null;
-	}
-
-	private containsResource(input: FileEditorInput, resource: URI): boolean;
-	private containsResource(input: EditorInput, resource: URI): boolean {
-		let fileResource: URI;
-		if (input instanceof FileEditorInput) {
-			fileResource = input.getResource();
-		}
-
-		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {
-			return true;
-		}
-
-		return false;
 	}
 
 	public dispose(): void {

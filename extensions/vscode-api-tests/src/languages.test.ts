@@ -6,9 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {join} from 'path';
-import {languages, workspace, commands, Uri, Diagnostic, Range, Command, Disposable, CancellationToken,
-	CompletionList, CompletionItem, CompletionItemKind, TextDocument, Position} from 'vscode';
+import { join } from 'path';
+import {
+	languages, workspace, commands, Uri, Diagnostic, Range, Command, Disposable, CancellationToken,
+	CompletionList, CompletionItem, CompletionItemKind, TextDocument, Position
+} from 'vscode';
 
 suite('languages namespace tests', () => {
 
@@ -67,7 +69,7 @@ suite('languages namespace tests', () => {
 
 	test('completions with document filters', function (done) {
 		let ran = false;
-		let uri = Uri.file(join(workspace.rootPath, './bower.json'));
+		let uri = Uri.file(join(workspace.rootPath || '', './bower.json'));
 
 		let jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 
@@ -76,7 +78,7 @@ suite('languages namespace tests', () => {
 				let proposal = new CompletionItem('foo');
 				proposal.kind = CompletionItemKind.Property;
 				ran = true;
-				return [ proposal ];
+				return [proposal];
 			}
 		});
 

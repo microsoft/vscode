@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IPanel} from 'vs/workbench/common/panel';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IPanel } from 'vs/workbench/common/panel';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
+
+export interface IPanelIdentifier {
+	id: string;
+	name: string;
+	commandId: string;
+}
 
 export interface IPanelService {
 	_serviceBrand: ServiceIdentifier<any>;
@@ -26,4 +32,9 @@ export interface IPanelService {
 	 * Returns the current active panel or null if none
 	 */
 	getActivePanel(): IPanel;
+
+	/**
+	 * Returns all registered panels
+	 */
+	getPanels(): IPanelIdentifier[];
 }

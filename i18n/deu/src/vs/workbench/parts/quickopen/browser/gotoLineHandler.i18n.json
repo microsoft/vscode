@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "Zuerst eine Textdatei öffnen, um zu einer Zeile zu navigieren",
 	"gotoLine": "Gehe zu Zeile...",
-	"gotoLineColumnLabel": "Gehe zu Zeile {0} und Spalte {1}",
+	"gotoLineColumnLabel": "Zu Zeile {0} und Zeichen {1} wechseln",
 	"gotoLineHandlerAriaLabel": "Geben Sie eine Zeilennummer ein, zu der navigiert werden soll.",
 	"gotoLineLabel": "Gehe zu Zeile {0}",
 	"gotoLineLabelEmpty": "Zeilennummer eingeben, zu der navigiert werden soll",

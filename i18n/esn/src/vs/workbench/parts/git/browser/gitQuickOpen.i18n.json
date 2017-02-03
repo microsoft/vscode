@@ -7,7 +7,7 @@
 	"alreadyCheckedOut": "{0} ya es la rama actual",
 	"branchAriaLabel": "{0}, rama de GIT",
 	"checkoutBranch": "Rama en {0}",
-	"checkoutRemoteBranch": "Sucursal remota en {0}",
+	"checkoutRemoteBranch": "Rama remota en {0}",
 	"checkoutTag": "Etiqueta en {0}",
 	"createBranch": "Crear la rama {0}",
 	"noBranches": "No hay otras ramas",

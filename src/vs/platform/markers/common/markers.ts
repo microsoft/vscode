@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IMarkerService = createDecorator<IMarkerService>('markerService');
 
@@ -22,14 +22,9 @@ export interface IMarkerService {
 
 	remove(owner: string, resources: URI[]): void;
 
-	read(filter?: { owner?: string; resource?: URI; selector?: RegExp, take?: number; }): IMarker[];
+	read(filter?: { owner?: string; resource?: URI; take?: number; }): IMarker[];
 
 	onMarkerChanged: Event<URI[]>;
-}
-
-export enum MarkerType {
-	transient = 1,
-	permanent = 2
 }
 
 /**
@@ -68,5 +63,5 @@ export interface MarkerStatistics {
 	errors: number;
 	warnings: number;
 	infos: number;
-	unknwons: number;
+	unknowns: number;
 }

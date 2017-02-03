@@ -13,11 +13,19 @@ const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
-const windowId = remote.getCurrentWindow().id;
+
+
+process.lazyEnv = new Promise(function (resolve) {
+	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		assign(process.env, shellEnv);
+		resolve(process.env);
+	});
+	ipc.send('vscode:fetchShellEnv', remote.getCurrentWindow().id);
+});
 
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
-		ipc.send('vscode:openDevTools', windowId);
+		remote.getCurrentWebContents().openDevTools();
 	}
 
 	console.error('[uncaught exception]: ' + error);
@@ -63,6 +71,7 @@ function uriFromPath(_path) {
 function registerListeners(enableDeveloperTools) {
 
 	// Devtools & reload support
+	var listener;
 	if (enableDeveloperTools) {
 		const extractKey = function (e) {
 			return [
@@ -77,17 +86,25 @@ function registerListeners(enableDeveloperTools) {
 		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-		window.addEventListener('keydown', function (e) {
+		listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
-				ipc.send('vscode:toggleDevTools', windowId);
+				remote.getCurrentWebContents().toggleDevTools();
 			} else if (key === RELOAD_KB) {
-				ipc.send('vscode:reloadWindow', windowId);
+				remote.getCurrentWindow().reload();
 			}
-		});
+		};
+		window.addEventListener('keydown', listener);
 	}
 
 	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools) });
+
+	return function () {
+		if (listener) {
+			window.removeEventListener('keydown', listener);
+			listener = void 0;
+		}
+	}
 }
 
 function main() {
@@ -118,13 +135,23 @@ function main() {
 	window.document.documentElement.setAttribute('lang', locale);
 
 	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
-	registerListeners(enableDeveloperTools);
+	const unbind = registerListeners(enableDeveloperTools);
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
 	webFrame.setZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
+	}
+
+	// Handle high contrast mode
+	if (configuration.highContrast) {
+		var themeStorageKey = 'storage://global/workbench.theme';
+		var hcTheme = 'hc-black vscode-theme-defaults-themes-hc_black-json';
+		if (window.localStorage.getItem(themeStorageKey) !== hcTheme) {
+			window.localStorage.setItem(themeStorageKey, hcTheme);
+			window.document.body.className = 'monaco-shell ' + hcTheme;
+		}
 	}
 
 	// Load the loader and start loading the workbench
@@ -135,13 +162,16 @@ function main() {
 	createScript(rootUrl + '/vs/loader.js', function () {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
+		window.MonacoEnvironment = {};
+
+		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
 			recordStats: !!configuration.performance,
-			ignoreDuplicateModules: [
-				'vs/workbench/parts/search/common/searchQuery'
-			]
+			nodeCachedDataDir: configuration.nodeCachedDataDir,
+			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
+			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 
 		if (nlsConfig.pseudo) {
@@ -150,30 +180,34 @@ function main() {
 			});
 		}
 
-		window.MonacoEnvironment = {};
-
+		// Perf Counters
 		const timers = window.MonacoEnvironment.timers = {
-			start: new Date()
+			isInitialStartup: !!configuration.isInitialStartup,
+			hasAccessibilitySupport: !!configuration.accessibilitySupport,
+			start: new Date(configuration.perfStartTime),
+			appReady: new Date(configuration.perfAppReady),
+			windowLoad: new Date(configuration.perfWindowLoadTime),
+			beforeLoadWorkbenchMain: new Date()
 		};
 
-		if (configuration.performance) {
-			const vscodeStart = remote.getGlobal('vscodeStart');
-			timers.vscodeStart = new Date(vscodeStart);
-			timers.start = new Date(vscodeStart);
-		}
-
-		timers.beforeLoad = new Date();
-
 		require([
-			'vs/workbench/workbench.main',
-			'vs/nls!vs/workbench/workbench.main',
-			'vs/css!vs/workbench/workbench.main'
+			'vs/workbench/electron-browser/workbench.main',
+			'vs/nls!vs/workbench/electron-browser/workbench.main',
+			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.afterLoad = new Date();
+			timers.afterLoadWorkbenchMain = new Date();
 
-			require('vs/workbench/electron-browser/main')
-				.startup(configuration)
-				.done(null, function (error) { onError(error, enableDeveloperTools); });
+			process.lazyEnv.then(function () {
+
+				require('vs/workbench/electron-browser/main')
+					.startup(configuration)
+					.done(function () {
+						unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
+					}, function (error) {
+						onError(error, enableDeveloperTools);
+					});
+			});
+
 		});
 	});
 }

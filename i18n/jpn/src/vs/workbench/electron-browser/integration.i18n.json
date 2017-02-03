@@ -6,10 +6,8 @@
 {
 	"copy": "コピー",
 	"cut": "切り取り",
-	"files": "ファイル",
-	"folders": "フォルダー",
-	"openRecentPlaceHolder": "パスを選択して開く (Ctrl キーを押しながら新しいウィンドウで開く)",
-	"openRecentPlaceHolderMac": "パスを選択 (Cmd キーを押しながら新しいウィンドウで開く)",
+	"developer": "開発者",
+	"file": "ファイル",
 	"paste": "貼り付け",
 	"redo": "やり直し",
 	"selectAll": "すべて選択",

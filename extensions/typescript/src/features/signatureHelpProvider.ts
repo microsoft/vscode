@@ -13,47 +13,44 @@ import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptSignatureHelpProvider implements SignatureHelpProvider {
 
-	private client: ITypescriptServiceClient;
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
-
-	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp> {
-		let args: Proto.SignatureHelpRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp | undefined | null> {
+		const filepath = this.client.normalizePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve(null);
+		}
+		const args: Proto.SignatureHelpRequestArgs = {
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve<SignatureHelp>(null);
-		}
 		return this.client.execute('signatureHelp', args, token).then((response) => {
-			let info = response.body;
+			const info = response.body;
 			if (!info) {
 				return null;
 			}
 
-			let result = new SignatureHelp();
+			const result = new SignatureHelp();
 			result.activeSignature = info.selectedItemIndex;
 			result.activeParameter = info.argumentIndex;
 
-			if (info.items[info.selectedItemIndex].isVariadic) {
-			}
-
 			info.items.forEach((item, i) => {
+				if (!info) {
+					return;
+				}
 
 				// keep active parameter in bounds
 				if (i === info.selectedItemIndex && item.isVariadic) {
 					result.activeParameter = Math.min(info.argumentIndex, item.parameters.length - 1);
 				}
 
-				let signature = new SignatureInformation('');
+				const signature = new SignatureInformation('');
 				signature.label += Previewer.plain(item.prefixDisplayParts);
 
 				item.parameters.forEach((p, i, a) => {
-
-					let parameter = new ParameterInformation(
+					const parameter = new ParameterInformation(
 						Previewer.plain(p.displayParts),
 						Previewer.plain(p.documentation));
 

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TimeoutTimer} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
-import {isObject} from 'vs/base/common/types';
-import {isChrome, isWebKit} from 'vs/base/browser/browser';
-import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {CharCode} from 'vs/base/common/charCode';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isObject } from 'vs/base/common/types';
+import { isChrome, isWebKit } from 'vs/base/browser/browser';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { CharCode } from 'vs/base/common/charCode';
 
 export function clearNode(node: HTMLElement) {
 	while (node.firstChild) {
@@ -176,58 +176,36 @@ export function toggleClass(node: HTMLElement, className: string, shouldHaveIt?:
 	}
 }
 
-class DomListener extends Disposable {
+class DomListener implements IDisposable {
 
-	private _usedAddEventListener: boolean;
-	private _wrapHandler: (e: any) => void;
-	private _node: any;
-	private _type: string;
-	private _useCapture: boolean;
+	private _handler: (e: any) => void;
+	private _node: Element | Window | Document;
+	private readonly _type: string;
+	private readonly _useCapture: boolean;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
-		super();
-
+	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean) {
 		this._node = node;
 		this._type = type;
+		this._handler = handler;
 		this._useCapture = (useCapture || false);
-
-		this._wrapHandler = (e) => {
-			e = e || window.event;
-			handler(e);
-		};
-
-		if (typeof this._node.addEventListener === 'function') {
-			this._usedAddEventListener = true;
-			this._node.addEventListener(this._type, this._wrapHandler, this._useCapture);
-		} else {
-			this._usedAddEventListener = false;
-			this._node.attachEvent('on' + this._type, this._wrapHandler);
-		}
+		this._node.addEventListener(this._type, this._handler, this._useCapture);
 	}
 
 	public dispose(): void {
-		if (!this._wrapHandler) {
+		if (!this._handler) {
 			// Already disposed
 			return;
 		}
 
-		if (this._usedAddEventListener) {
-			this._node.removeEventListener(this._type, this._wrapHandler, this._useCapture);
-		} else {
-			this._node.detachEvent('on' + this._type, this._wrapHandler);
-		}
+		this._node.removeEventListener(this._type, this._handler, this._useCapture);
 
 		// Prevent leakers from holding on to the dom or handler func
 		this._node = null;
-		this._wrapHandler = null;
+		this._handler = null;
 	}
 }
 
-export function addDisposableListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
 
@@ -257,21 +235,7 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
 	}
 
-	node.addEventListener(type, wrapHandler, useCapture || false);
-	return {
-		dispose: function () {
-			if (!wrapHandler) {
-				// Already removed
-				return;
-			}
-			node.removeEventListener(type, wrapHandler, useCapture || false);
-
-			// Prevent leakers from holding on to the dom node or handler func
-			wrapHandler = null;
-			node = null;
-			handler = null;
-		}
-	};
+	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
@@ -444,9 +408,9 @@ class AnimationFrameQueueItem implements IDisposable {
 	};
 })();
 
-/// <summary>
-/// Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
-/// </summary>
+/**
+ * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ */
 export interface IEventMerger<R> {
 	(lastEvent: R, currentEvent: Event): R;
 }
@@ -461,7 +425,7 @@ class TimeoutThrottledDomListener<R> extends Disposable {
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
-		let lastEvent = null;
+		let lastEvent: R = null;
 		let lastHandlerTime = 0;
 		let timeout = this._register(new TimeoutTimer());
 
@@ -650,6 +614,11 @@ export function getTotalWidth(element: HTMLElement): number {
 	return element.offsetWidth + margin;
 }
 
+export function getTotalScrollWidth(element: HTMLElement): number {
+	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	return element.scrollWidth + margin;
+}
+
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
@@ -678,7 +647,7 @@ function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
 	let childWidths = children.map((child) => {
-		return getTotalWidth(child) + getRelativeLeft(child, parent) || 0;
+		return Math.max(getTotalScrollWidth(child), getTotalWidth(child)) + getRelativeLeft(child, parent) || 0;
 	});
 	let maxWidth = Math.max(...childWidths);
 	return maxWidth;
@@ -894,7 +863,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._eventEmitter = this._register(new EventEmitter());
 
-		let onFocus = (event) => {
+		let onFocus = (event: Event) => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
@@ -902,7 +871,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
-		let onBlur = (event) => {
+		let onBlur = (event: Event) => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {

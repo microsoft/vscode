@@ -5,9 +5,9 @@
 'use strict';
 
 import * as env from 'vs/base/common/platform';
-import {WinTerminalService, MacTerminalService, LinuxTerminalService} from 'vs/workbench/parts/execution/electron-browser/terminalService';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
+import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);

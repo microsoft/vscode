@@ -8,6 +8,7 @@
 	"dupe.command": "L'élément de menu fait référence à la même commande que la commande par défaut et la commande alt",
 	"menuId.invalid": "'{0}' est un identificateur de menu non valide",
 	"menus.editorContext": "Menu contextuel de l'éditeur",
+	"menus.editorTabContext": "Menu contextuel des onglets de l'éditeur",
 	"menus.editorTitle": "Menu de titre de l'éditeur",
 	"menus.explorerContext": "Menu contextuel de l'Explorateur de fichiers",
 	"missing.altCommand": "L'élément de menu fait référence à une commande alt '{0}' qui n'est pas définie dans la section 'commands'.",

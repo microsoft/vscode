@@ -6,11 +6,7 @@
 {
 	"foldAction.label": "Свернуть",
 	"foldAllAction.label": "Свернуть все",
-	"foldLevel1Action.label": "Уровень сгиба 1",
-	"foldLevel2Action.label": "Уровень сгиба 2",
-	"foldLevel3Action.label": "Уровень сгиба 3",
-	"foldLevel4Action.label": "Уровень сгиба 4",
-	"foldLevel5Action.label": "Уровень сгиба 5",
+	"foldLevelAction.label": "Уровень папки {0}",
 	"foldRecursivelyAction.label": "Свернуть рекурсивно",
 	"unFoldRecursivelyAction.label": "Развернуть рекурсивно",
 	"unfoldAction.label": "Развернуть",

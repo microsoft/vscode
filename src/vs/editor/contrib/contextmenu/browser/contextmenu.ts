@@ -5,21 +5,21 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IAction} from 'vs/base/common/actions';
-import {KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { IAction } from 'vs/base/common/actions';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
-import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 export interface IPosition {
 	x: number;
@@ -38,7 +38,6 @@ export class ContextMenuController implements IEditorContribution {
 	private _toDispose: IDisposable[] = [];
 	private _contextMenuIsBeingShownCount: number = 0;
 	private _editor: ICodeEditor;
-	private _contextMenu: IMenu;
 
 	constructor(
 		editor: ICodeEditor,
@@ -49,9 +48,6 @@ export class ContextMenuController implements IEditorContribution {
 		@IMenuService private _menuService: IMenuService
 	) {
 		this._editor = editor;
-
-		this._contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		this._toDispose.push(this._contextMenu);
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
 		this._toDispose.push(this._editor.onDidScrollChange((e: IScrollEvent) => {
@@ -128,7 +124,10 @@ export class ContextMenuController implements IEditorContribution {
 
 	private _getMenuActions(): IAction[] {
 		const result: IAction[] = [];
-		const groups = this._contextMenu.getActions();
+
+		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
+		const groups = contextMenu.getActions(this._editor.getModel().uri);
+		contextMenu.dispose();
 
 		for (let group of groups) {
 			const [, actions] = group;
@@ -237,7 +236,7 @@ class ShowContextMenu extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let contribution = ContextMenuController.get(editor);
 		contribution.showContextMenu();
 	}

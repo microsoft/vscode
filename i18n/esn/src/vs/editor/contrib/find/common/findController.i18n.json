@@ -6,7 +6,7 @@
 {
 	"addSelectionToNextFindMatch": "Agregar selección hasta la siguiente coincidencia de búsqueda",
 	"addSelectionToPreviousFindMatch": "Agregar selección hasta la anterior coincidencia de búsqueda",
-	"changeAll.label": "Cambiar todas las repeticiones",
+	"changeAll.label": "Cambiar todas las ocurrencias",
 	"findNextMatchAction": "Buscar siguiente",
 	"findPreviousMatchAction": "Buscar anterior",
 	"moveSelectionToNextFindMatch": "Mover última selección hasta la siguiente coincidencia de búsqueda",

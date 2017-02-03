@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ScrollableElementCreationOptions {
 	/**

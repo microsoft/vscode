@@ -13,14 +13,12 @@ import ee = require('vs/base/common/eventEmitter');
 import view = require('vs/workbench/parts/git/browser/views/view');
 import builder = require('vs/base/browser/builder');
 import actions = require('vs/base/common/actions');
-import product from 'vs/platform/product';
 
 var $ = builder.$;
 
 export class GitlessView
 	extends ee.EventEmitter
-	implements view.IView
-{
+	implements view.IView {
 	public ID = 'gitless';
 	private _element: HTMLElement;
 
@@ -69,7 +67,7 @@ export class GitlessView
 			'<div class="gitless-view">',
 			'<p>', nls.localize('looksLike', "It looks like git is not installed on your system."), '</p>',
 			'<p>', instructions, '</p>',
-			'<p>', nls.localize('pleaseRestart', "Once git is installed, please restart {0}.", product.nameLong), '</p>',
+			'<p>', nls.localize('pleaseRestart', "Once git is installed, please restart VSCode."), '</p>',
 			'</div>'
 		].join('')).getHTMLElement();
 	}
@@ -82,7 +80,7 @@ export class GitlessView
 		return;
 	}
 
-	public setVisible(visible:boolean): winjs.TPromise<void> {
+	public setVisible(visible: boolean): winjs.TPromise<void> {
 		return winjs.TPromise.as(null);
 	}
 

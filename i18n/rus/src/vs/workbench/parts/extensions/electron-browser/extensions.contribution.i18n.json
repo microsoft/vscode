@@ -6,7 +6,9 @@
 {
 	"extension": "Расширение",
 	"extensions": "Расширения",
+	"extensionsAutoUpdate": "Автоматически обновлять расширения",
 	"extensionsCommands": "Управление расширениями",
+	"extensionsConfigurationTitle": "Расширения",
 	"galleryExtensionsCommands": "Установить расширения из коллекции",
 	"view": "Просмотреть"
 }

@@ -4,27 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {EditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 /**
  * An editor model whith an in-memory, readonly content that is not backed by any particular resource.
  */
 export class StringEditorModel extends BaseTextEditorModel {
 	protected value: string;
-	protected mime: string;
+	protected modeId: string;
 	protected resource: URI;
 
 	constructor(
 		value: string,
-		mime: string,
+		modeId: string,
 		resource: URI,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService
@@ -32,7 +29,7 @@ export class StringEditorModel extends BaseTextEditorModel {
 		super(modelService, modeService);
 
 		this.value = value;
-		this.mime = mime;
+		this.modeId = modeId;
 		this.resource = resource;
 	}
 
@@ -53,61 +50,11 @@ export class StringEditorModel extends BaseTextEditorModel {
 		}
 	}
 
-	/**
-	 * Appends value to this string editor model.
-	 */
-	public append(value: string): void {
-		this.value += value;
-		if (this.textEditorModel) {
-			let model = this.textEditorModel;
-			let lastLine = model.getLineCount();
-			let lastLineMaxColumn = model.getLineMaxColumn(lastLine);
-
-			model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), value)]);
-		}
-	}
-
-	/**
-	 * Clears the value of this string editor model
-	 */
-	public clearValue(): void {
-		this.value = '';
-		if (this.textEditorModel) {
-			let model = this.textEditorModel;
-			let lastLine = model.getLineCount();
-			model.applyEdits([EditOperation.delete(new Range(1, 1, lastLine, model.getLineMaxColumn(lastLine)))]);
-		}
-	}
-
-	/**
-	 * Removes all lines from the top if the line number exceeds the given line count. Returns the new value if lines got trimmed.
-	 */
-	public trim(linecount: number): string {
-		if (this.textEditorModel) {
-			let model = this.textEditorModel;
-			let lastLine = model.getLineCount();
-			if (lastLine > linecount) {
-				model.applyEdits([EditOperation.delete(new Range(1, 1, lastLine - linecount + 1, 1))]);
-
-				let newValue = model.getValue();
-				this.value = newValue;
-
-				return this.value;
-			}
-		}
-
-		return null;
-	}
-
-	public getMime(): string {
-		return this.mime;
-	}
-
 	public load(): TPromise<EditorModel> {
 
 		// Create text editor model if not yet done
 		if (!this.textEditorModel) {
-			return this.createTextEditorModel(this.value, this.resource, this.mime);
+			return this.createTextEditorModel(this.value, this.resource, this.modeId);
 		}
 
 		// Otherwise update

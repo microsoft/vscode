@@ -5,21 +5,20 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {IQuickFix2} from '../common/quickFix';
-import {QuickFixModel} from './quickFixModel';
-import {QuickFixSelectionWidget} from './quickFixSelectionWidget';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { QuickFixContextMenu } from 'vs/editor/contrib/quickFix/browser/quickFixWidget';
+import { LightBulbWidget } from 'vs/editor/contrib/quickFix/browser/lightBulbWidget';
+import { QuickFixModel, QuickFixComputeEvent } from 'vs/editor/contrib/quickFix/common/quickFixModel';
 
 @editorContribution
 export class QuickFixController implements IEditorContribution {
@@ -30,97 +29,88 @@ export class QuickFixController implements IEditorContribution {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
-	private editor: ICodeEditor;
-	private model: QuickFixModel;
-	private suggestWidget: QuickFixSelectionWidget;
-	private quickFixWidgetVisible: IContextKey<boolean>;
+	private _editor: ICodeEditor;
+	private _model: QuickFixModel;
+	private _quickFixContextMenu: QuickFixContextMenu;
+	private _lightBulbWidget: LightBulbWidget;
+	private _disposables: IDisposable[] = [];
 
 	constructor(editor: ICodeEditor,
-		@IMarkerService private _markerService: IMarkerService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ICommandService private _commandService: ICommandService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IEditorService editorService: IEditorService,
-		@IMessageService messageService: IMessageService
+		@IMarkerService markerService: IMarkerService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
-		this.editor = editor;
-		this.model = new QuickFixModel(this.editor, this._markerService, this.onAccept.bind(this));
+		this._editor = editor;
+		this._model = new QuickFixModel(this._editor, markerService);
+		this._quickFixContextMenu = new QuickFixContextMenu(editor, contextMenuService, commandService);
+		this._lightBulbWidget = new LightBulbWidget(editor);
 
-		this.quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(this._contextKeyService);
-		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService, () => {
-			this.quickFixWidgetVisible.set(true);
-		}, () => {
-			this.quickFixWidgetVisible.reset();
-		});
-		this.suggestWidget.setModel(this.model);
+		this._updateLightBulbTitle();
+
+		this._disposables.push(
+			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
+			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e)),
+			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
+		);
+	}
+
+	public dispose(): void {
+		this._model.dispose();
+		dispose(this._disposables);
+	}
+
+	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
+		if (e && e.type === 'manual') {
+			this._quickFixContextMenu.show(e.fixes, e.position);
+
+		} else if (e && e.fixes) {
+			// auto magically triggered
+			// * update an existing list of code actions
+			// * manage light bulb
+			if (this._quickFixContextMenu.isVisible) {
+				this._quickFixContextMenu.show(e.fixes, e.position);
+			} else {
+				this._lightBulbWidget.model = e;
+			}
+		} else {
+			this._lightBulbWidget.hide();
+		}
 	}
 
 	public getId(): string {
 		return QuickFixController.ID;
 	}
 
-	private onAccept(fix: IQuickFix2, range: IRange): void {
-		var model = this.editor.getModel();
-		if (model) {
-			let {command} = fix;
-			return this._commandService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
-		}
+	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
+		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
 	}
 
-	public run(): void {
-		this.model.triggerDialog(false, this.editor.getPosition());
-		this.editor.focus();
+	public triggerFromEditorSelection(): void {
+		this._model.triggerManual();
 	}
 
-	public dispose(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.destroy();
-			this.suggestWidget = null;
+	private _updateLightBulbTitle(): void {
+		const [kb] = this._keybindingService.lookupKeybindings(QuickFixAction.Id);
+		let title: string;
+		if (kb) {
+			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", this._keybindingService.getLabelFor(kb));
+		} else {
+			title = nls.localize('quickFix', "Show Fixes");
 		}
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
-		}
-	}
-
-	public acceptSelectedSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.acceptSelectedSuggestion();
-		}
-	}
-	public closeWidget(): void {
-		if (this.model) {
-			this.model.cancelDialog();
-		}
-	}
-	public selectNextSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectNext();
-		}
-	}
-	public selectNextPageSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectNextPage();
-		}
-	}
-	public selectPrevSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectPrevious();
-		}
-	}
-	public selectPrevPageSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectPreviousPage();
-		}
+		this._lightBulbWidget.getDomNode().title = title;
 	}
 }
 
 @editorAction
 export class QuickFixAction extends EditorAction {
 
+	static Id = 'editor.action.quickFix';
+
 	constructor() {
 		super({
-			id: 'editor.action.quickFix',
+			id: QuickFixAction.Id,
 			label: nls.localize('quickfix.trigger.label', "Quick Fix"),
 			alias: 'Quick Fix',
 			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCodeActionsProvider),
@@ -134,77 +124,7 @@ export class QuickFixAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.run();
+			controller.triggerFromEditorSelection();
 		}
 	}
 }
-
-var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new RawContextKey<boolean>('quickFixWidgetVisible', false);
-
-const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.get);
-
-// register action
-CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
-	id: 'acceptQuickFixSuggestion',
-	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
-	handler: x => x.acceptSelectedSuggestion(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(80),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyCode.Enter,
-		secondary: [KeyCode.Tab]
-	}
-}));
-CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
-	id: 'closeQuickFixWidget',
-	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
-	handler: x => x.closeWidget(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(80),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
-	}
-}));
-CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
-	id: 'selectNextQuickFix',
-	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
-	handler: x => x.selectNextSuggestion(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(80),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyCode.DownArrow,
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] }
-	}
-}));
-CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
-	id: 'selectNextPageQuickFix',
-	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
-	handler: x => x.selectNextPageSuggestion(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(80),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyCode.PageDown
-	}
-}));
-CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
-	id: 'selectPrevQuickFix',
-	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
-	handler: x => x.selectPrevSuggestion(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(80),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyCode.UpArrow,
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }
-	}
-}));
-CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
-	id: 'selectPrevPageQuickFix',
-	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
-	handler: x => x.selectPrevPageSuggestion(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(80),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyCode.PageUp
-	}
-}));

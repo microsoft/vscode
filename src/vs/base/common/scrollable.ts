@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Disposable} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export enum ScrollbarVisibility {
 	Auto = 1,
@@ -88,14 +88,14 @@ export class Scrollable extends Disposable {
 		return this._scrollTop;
 	}
 
-	public updateState(newState:INewScrollState): void {
-		let width = (typeof newState.width !== 'undefined' ? newState.width|0 : this._width);
-		let scrollWidth = (typeof newState.scrollWidth !== 'undefined' ? newState.scrollWidth|0 : this._scrollWidth);
-		let scrollLeft = (typeof newState.scrollLeft !== 'undefined' ? newState.scrollLeft|0 : this._scrollLeft);
+	public updateState(newState: INewScrollState): void {
+		let width = (typeof newState.width !== 'undefined' ? newState.width | 0 : this._width);
+		let scrollWidth = (typeof newState.scrollWidth !== 'undefined' ? newState.scrollWidth | 0 : this._scrollWidth);
+		let scrollLeft = (typeof newState.scrollLeft !== 'undefined' ? newState.scrollLeft | 0 : this._scrollLeft);
 
-		let height = (typeof newState.height !== 'undefined' ? newState.height|0 : this._height);
-		let scrollHeight = (typeof newState.scrollHeight !== 'undefined' ? newState.scrollHeight|0 : this._scrollHeight);
-		let scrollTop = (typeof newState.scrollTop !== 'undefined' ? newState.scrollTop|0 : this._scrollTop);
+		let height = (typeof newState.height !== 'undefined' ? newState.height | 0 : this._height);
+		let scrollHeight = (typeof newState.scrollHeight !== 'undefined' ? newState.scrollHeight | 0 : this._scrollHeight);
+		let scrollTop = (typeof newState.scrollTop !== 'undefined' ? newState.scrollTop | 0 : this._scrollTop);
 
 		if (width < 0) {
 			width = 0;

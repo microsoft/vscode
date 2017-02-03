@@ -2,6 +2,12 @@
 	"name": "Dark Visual Studio",
 	"settings": [
 		{
+			"settings": {
+				"foreground": "#FFFFFF",
+				"background": "#000000"
+			}
+		},
+		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"
@@ -14,7 +20,7 @@
 			}
 		},
 		{
-			"scope": "header",
+			"scope": "meta.diff.header",
 			"settings": {
 				"foreground": "#000080"
 			}
@@ -33,7 +39,12 @@
 			}
 		},
 		{
-			"scope": "constant.numeric",
+			"scope": [
+				"constant.numeric",
+				"constant.other.color.rgb-value",
+				"constant.other.rgb-value",
+				"support.constant.color"
+			],
 			"settings": {
 				"foreground": "#b5cea8"
 			}
@@ -45,19 +56,13 @@
 			}
 		},
 		{
-			"scope": "constant.rgb-value",
-			"settings": {
-				"foreground": "#d4d4d4"
-			}
-		},
-		{
 			"scope": "entity.name.tag",
 			"settings": {
 				"foreground": "#569cd6"
 			}
 		},
 		{
-			"scope": "entity.name.selector",
+			"scope": "entity.name.tag.css",
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -69,7 +74,19 @@
 			}
 		},
 		{
-			"scope": "entity.other.attribute-name.css",
+			"scope": [
+				"entity.other.attribute-name.class.css",
+				"entity.other.attribute-name.class.mixin.css",
+				"entity.other.attribute-name.id.css",
+				"entity.other.attribute-name.parent-selector.css",
+				"entity.other.attribute-name.pseudo-class.css",
+				"entity.other.attribute-name.pseudo-element.css",
+
+				"source.css.less entity.other.attribute-name.id",
+
+				"entity.other.attribute-name.attribute.scss",
+				"entity.other.attribute-name.scss"
+			],
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -129,7 +146,10 @@
 			}
 		},
 		{
-			"scope": "meta.tag",
+			"name": "brackets of XML/HTML tags",
+			"scope": [
+				"punctuation.definition.tag"
+			],
 			"settings": {
 				"foreground": "#808080"
 			}
@@ -201,7 +221,23 @@
 			}
 		},
 		{
-			"scope": "support.type.property-name",
+			"name": "JavaScript string interpolation ${}",
+			"scope": [
+				"punctuation.definition.template-expression.begin.ts",
+				"punctuation.definition.template-expression.end.ts"
+			],
+			"settings": {
+				"foreground": "#569cd6"
+			}
+		},
+		{
+			"scope": [
+				"support.type.vendored.property-name",
+				"support.type.property-name",
+				"variable.css",
+				"variable.scss",
+				"variable.other.less"
+			],
 			"settings": {
 				"foreground": "#d4d4d4"
 			}
@@ -219,19 +255,13 @@
 			}
 		},
 		{
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#d7ba7d"
-			}
-		},
-		{
 			"scope": "keyword.operator",
 			"settings": {
 				"foreground": "#d4d4d4"
 			}
 		},
 		{
-			"scope": "keyword.operator.new",
+			"scope": ["keyword.operator.new", "keyword.operator.expression"],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -259,6 +289,13 @@
 			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
 			"settings": {
 				"foreground": "#d4d4d4"
+			}
+		},
+		{
+			"name": "coloring of the TS this",
+			"scope": "variable.language.this",
+			"settings": {
+				"foreground": "#569cd6"
 			}
 		}
 	]

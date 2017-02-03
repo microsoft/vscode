@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorModel } from 'vs/workbench/common/editor';
 
 /**
  * The base editor model for the diff editor. It is made up of two editor models, the original version
  * and the modified version.
  */
 export class DiffEditorModel extends EditorModel {
-	private _originalModel: EditorModel;
-	private _modifiedModel: EditorModel;
+	protected _originalModel: EditorModel;
+	protected _modifiedModel: EditorModel;
 
 	constructor(originalModel: EditorModel, modifiedModel: EditorModel) {
 		super();

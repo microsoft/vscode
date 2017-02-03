@@ -10,14 +10,14 @@
  * or a code-block that provides a language and a code snippet. Note that
  * markdown strings will be sanitized - that means html will be escaped.
  */
-export type MarkedString = string | { language: string; value: string };
+export type MarkedString = string | { readonly language: string; readonly value: string };
 
 export interface IHTMLContentElementCode {
 	language: string;
 	value: string;
 }
 
-export function markedStringsEquals(a:MarkedString | MarkedString[], b:MarkedString |MarkedString[]): boolean {
+export function markedStringsEquals(a: MarkedString | MarkedString[], b: MarkedString | MarkedString[]): boolean {
 	if (!a && !b) {
 		return true;
 	}
@@ -29,13 +29,13 @@ export function markedStringsEquals(a:MarkedString | MarkedString[], b:MarkedStr
 		if (!Array.isArray(b)) {
 			return false;
 		}
-		return markedStringArrEquals(<MarkedString[]> a, <MarkedString[]> b);
+		return markedStringArrEquals(<MarkedString[]>a, <MarkedString[]>b);
 	}
-	return markedStringEqual(<MarkedString> a, <MarkedString> b);
+	return markedStringEqual(<MarkedString>a, <MarkedString>b);
 }
 
 
-function markedStringArrEquals(a:MarkedString[], b:MarkedString[]): boolean {
+function markedStringArrEquals(a: MarkedString[], b: MarkedString[]): boolean {
 	let aLen = a.length,
 		bLen = b.length;
 
@@ -51,7 +51,7 @@ function markedStringArrEquals(a:MarkedString[], b:MarkedString[]): boolean {
 
 	return true;
 }
-function markedStringEqual(a:MarkedString, b:MarkedString): boolean {
+function markedStringEqual(a: MarkedString, b: MarkedString): boolean {
 	if (!a && !b) {
 		return true;
 	}
@@ -67,16 +67,22 @@ function markedStringEqual(a:MarkedString, b:MarkedString): boolean {
 	);
 }
 
-export function textToMarkedString(text: string) : MarkedString {
+export function textToMarkedString(text: string): MarkedString {
 	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&'); // escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 }
 
+export function removeMarkdownEscapes(text: string): string {
+	if (!text) {
+		return text;
+	}
+	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+}
 
 export interface IHTMLContentElement {
 	/**
 	 * supports **bold**, __italics__, and [[actions]]
 	 */
-	formattedText?:string;
+	formattedText?: string;
 	text?: string;
 	className?: string;
 	style?: string;
@@ -89,7 +95,7 @@ export interface IHTMLContentElement {
 	code?: IHTMLContentElementCode;
 }
 
-function htmlContentElementCodeEqual(a:IHTMLContentElementCode, b:IHTMLContentElementCode): boolean {
+function htmlContentElementCodeEqual(a: IHTMLContentElementCode, b: IHTMLContentElementCode): boolean {
 	if (!a && !b) {
 		return true;
 	}
@@ -102,7 +108,7 @@ function htmlContentElementCodeEqual(a:IHTMLContentElementCode, b:IHTMLContentEl
 	);
 }
 
-function htmlContentElementEqual(a:IHTMLContentElement, b:IHTMLContentElement): boolean {
+function htmlContentElementEqual(a: IHTMLContentElement, b: IHTMLContentElement): boolean {
 	return (
 		a.formattedText === b.formattedText
 		&& a.text === b.text
@@ -118,7 +124,7 @@ function htmlContentElementEqual(a:IHTMLContentElement, b:IHTMLContentElement): 
 	);
 }
 
-export function htmlContentElementArrEquals(a:IHTMLContentElement[], b:IHTMLContentElement[]): boolean {
+export function htmlContentElementArrEquals(a: IHTMLContentElement[], b: IHTMLContentElement[]): boolean {
 	if (!a && !b) {
 		return true;
 	}

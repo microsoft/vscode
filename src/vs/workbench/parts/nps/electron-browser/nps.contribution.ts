@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { shell } from 'electron';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { language } from 'vs/base/common/platform';
@@ -16,8 +15,8 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import pkg from 'vs/platform/package';
-import product from 'vs/platform/product';
+import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/node/product';
 
 const PROBABILITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';
@@ -68,7 +67,7 @@ class NPSContribution implements IWorkbenchContribution {
 
 		const takeSurveyAction = new Action('nps.takeSurvey', nls.localize('takeSurvey', "Take Survey"), '', true, () => {
 			return telemetryService.getTelemetryInfo().then(info => {
-				shell.openExternal(`${ product.npsSurveyUrl }?o=${ encodeURIComponent(process.platform) }&v=${ encodeURIComponent(pkg.version) }&m=${ encodeURIComponent(info.machineId) }`);
+				window.open(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
 				storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 				storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			});
@@ -79,13 +78,13 @@ class NPSContribution implements IWorkbenchContribution {
 			return TPromise.as(null);
 		});
 
-		const neverAgainAction = new Action('nps.never', nls.localize('neverAgain', "Never Show Again"), '', true, () => {
+		const neverAgainAction = new Action('nps.never', nls.localize('neverAgain', "Don't Show Again"), '', true, () => {
 			storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			return TPromise.as(null);
 		});
 
-		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction ];
+		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction];
 
 		messageService.show(Severity.Info, { message, actions });
 	}

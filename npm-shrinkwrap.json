@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.6.0",
+  "version": "1.10.0",
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
@@ -13,9 +13,9 @@
       "resolved": "https://registry.npmjs.org/anymatch/-/anymatch-1.3.0.tgz"
     },
     "applicationinsights": {
-      "version": "0.15.6",
-      "from": "applicationinsights@0.15.6",
-      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.15.6.tgz"
+      "version": "0.17.0",
+      "from": "applicationinsights@0.17.0",
+      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.17.0.tgz"
     },
     "arr-diff": {
       "version": "2.0.0",
@@ -70,7 +70,7 @@
     "chokidar": {
       "version": "1.6.0",
       "from": "bpasero/chokidar#vscode",
-      "resolved": "git://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
+      "resolved": "git+https://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
     },
     "concat-map": {
       "version": "0.0.1",
@@ -118,9 +118,9 @@
       "resolved": "https://registry.npmjs.org/extract-opts/-/extract-opts-2.2.0.tgz"
     },
     "fast-plist": {
-      "version": "0.1.1",
-      "from": "fast-plist@0.1.1",
-      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.1.tgz"
+      "version": "0.1.2",
+      "from": "fast-plist@0.1.2",
+      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.2.tgz"
     },
     "fd-slicer": {
       "version": "1.0.1",
@@ -150,7 +150,7 @@
     "fsevents": {
       "version": "0.3.8",
       "from": "bpasero/fsevents#vscode",
-      "resolved": "git://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
+      "resolved": "git+https://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
     },
     "gc-signals": {
       "version": "0.0.1",
@@ -173,9 +173,9 @@
       "resolved": "https://registry.npmjs.org/glob-parent/-/glob-parent-2.0.0.tgz"
     },
     "graceful-fs": {
-      "version": "4.1.2",
-      "from": "graceful-fs@4.1.2",
-      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.2.tgz"
+      "version": "4.1.11",
+      "from": "graceful-fs@4.1.11",
+      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.11.tgz"
     },
     "http-proxy-agent": {
       "version": "0.2.7",
@@ -188,9 +188,9 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "iconv-lite": {
-      "version": "0.4.13",
-      "from": "iconv-lite@0.4.13",
-      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.13.tgz"
+      "version": "0.4.15",
+      "from": "iconv-lite@0.4.15",
+      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.15.tgz"
     },
     "inherits": {
       "version": "2.0.1",
@@ -288,9 +288,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "0.1.2",
-      "from": "native-keymap@0.1.2",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.1.2.tgz"
+      "version": "0.3.0",
+      "from": "native-keymap@0.3.0",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.3.0.tgz"
     },
     "normalize-path": {
       "version": "2.0.1",
@@ -303,9 +303,9 @@
       "resolved": "https://registry.npmjs.org/object.omit/-/object.omit-2.0.0.tgz"
     },
     "oniguruma": {
-      "version": "6.1.0",
+      "version": "6.1.1",
       "from": "oniguruma@>=6.0.1 <7.0.0",
-      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.1.0.tgz"
+      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.1.1.tgz"
     },
     "parse-glob": {
       "version": "3.0.4",
@@ -332,10 +332,10 @@
       "from": "process-nextick-args@>=1.0.6 <1.1.0",
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
-    "pty.js": {
-      "version": "0.3.0",
-      "from": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
-      "resolved": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
+    "node-pty": {
+      "version": "0.6.1",
+      "from": "node-pty@0.6.1",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.1.tgz",
       "dependencies": {
         "extend": {
           "version": "1.2.1",
@@ -405,16 +405,21 @@
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.13.0-pre.3",
-      "from": "vscode-debugprotocol@1.13.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.13.0-pre.3.tgz"
+      "version": "1.16.0",
+      "from": "vscode-debugprotocol@1.16.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.16.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.1.1",
-      "from": "vscode-textmate@2.1.1",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.1.1.tgz"
+      "version": "3.1.0",
+      "from": "vscode-textmate@3.1.0",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.0.tgz"
     },
-        "windows-mutex": {
+    "windows-foreground-love": {
+      "version": "0.1.0",
+      "from": "windows-foreground-love@0.1.0",
+      "resolved": "https://registry.npmjs.org/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz"
+    },
+    "windows-mutex": {
       "version": "0.2.0",
       "from": "windows-mutex@>=0.2.0 <0.3.0",
       "resolved": "https://registry.npmjs.org/windows-mutex/-/windows-mutex-0.2.0.tgz"
@@ -425,9 +430,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "1.1.3",
-      "from": "git+https://github.com/sourcelair/xterm.js.git#220828f",
-      "resolved": "git+https://github.com/sourcelair/xterm.js.git#220828f7db9932acbd3198be5b97d81f5a7b6880"
+      "version": "2.2.3",
+      "from": "Tyriar/xterm.js#vscode-release/1.10",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#90cd66bf353b86ad52d7b650760d8d879dd1c7b8"
     },
     "yauzl": {
       "version": "2.3.1",

@@ -6,9 +6,9 @@
 {
 	"fileLink": "Fare clic per aprire (CTRL+clic apre lateralmente)",
 	"fileLinkMac": "Fare clic per aprire (CMD+clic apre lateralmente)",
-	"replExpressionAriaLabel": "Il valore dell'espressione {0} è {1}, Read Eval Print Loop, debug",
-	"replKeyValueOutputAriaLabel": "Il valore della variabile di output {0} è {1}, Read Eval Print Loop, debug",
-	"replValueOutputAriaLabel": "{0}, Read Eval Print Loop, debug",
-	"replVariableAriaLabel": "Il valore della variabile {0} è {1}, Read Eval Print Loop, debug",
+	"replExpressionAriaLabel": "Il valore dell'espressione {0} è {1}, ciclo Read Eval Print, debug",
+	"replKeyValueOutputAriaLabel": "Il valore della variabile di output {0} è {1}, ciclo Read Eval Print, debug",
+	"replValueOutputAriaLabel": "{0}, ciclo Read Eval Print, debug",
+	"replVariableAriaLabel": "Il valore della variabile {0} è {1}, ciclo Read Eval Print, debug",
 	"stateCapture": "Lo stato dell'oggetto viene acquisito dalla prima valutazione"
 }

@@ -6,11 +6,11 @@
 'use strict';
 
 import * as childProcess from 'child_process';
-import {StringDecoder} from 'string_decoder';
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import { StringDecoder, NodeStringDecoder } from 'string_decoder';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import fs = require('fs');
 import paths = require('path');
-import {Readable} from "stream";
+import { Readable } from "stream";
 
 import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
@@ -18,11 +18,11 @@ import platform = require('vs/base/common/platform');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import glob = require('vs/base/common/glob');
-import {IProgress, IUncachedSearchStats} from 'vs/platform/search/common/search';
+import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
-import {IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} from './search';
+import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 
 enum Traversal {
 	Node = 1,
@@ -67,7 +67,7 @@ export class FileWalker {
 	constructor(config: IRawSearch) {
 		this.config = config;
 		this.filePattern = config.filePattern;
-		this.excludePattern = glob.parse(config.excludePattern);
+		this.excludePattern = glob.parse(config.excludePattern, { trimForExclusions: true });
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.maxFilesize = config.maxFilesize || null;
@@ -129,14 +129,14 @@ export class FileWalker {
 			if (!this.maxFilesize) {
 				if (platform.isMacintosh) {
 					this.traversal = Traversal.MacFind;
-					traverse = this.macFindTraversal;
-				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
-				} else if (false && platform.isWindows) {
+					traverse = this.findTraversal;
+					// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+				} /* else if (platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
-				} else if (platform.isLinux) {
+				} */ else if (platform.isLinux) {
 					this.traversal = Traversal.LinuxFind;
-					traverse = this.linuxFindTraversal;
+					traverse = this.findTraversal;
 				}
 			}
 
@@ -147,7 +147,7 @@ export class FileWalker {
 
 			// For each root folder
 			flow.parallel<string, void>(rootFolders, (rootFolder: string, rootFolderDone: (err?: Error) => void) => {
-				traverse.call(this, rootFolder, onResult, (err?: Error) => {
+				this.call(traverse, this, rootFolder, onResult, (err?: Error) => {
 					if (err) {
 						if (isNodeTraversal) {
 							rootFolderDone(err);
@@ -168,21 +168,46 @@ export class FileWalker {
 		});
 	}
 
-	private macFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
-		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
+	private call(fun: Function, that: any, ...args: any[]): void {
+		try {
+			fun.apply(that, args);
+		} catch (e) {
+			args[args.length - 1](e);
+		}
+	}
+
+	private findTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
+		const isMac = platform.isMacintosh;
+		let done = (err?: Error) => {
+			done = () => { };
+			cb(err);
+		};
+		let leftover = '';
+		let first = true;
+		const tree = this.initDirectoryTree();
+		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
+		this.collectStdout(cmd, 'utf8', (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
 				return;
 			}
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
-			const relativeFiles = strings.normalizeNFC(stdout).split('\n./');
-			relativeFiles[0] = relativeFiles[0].trim().substr(2);
-			const n = relativeFiles.length;
-			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
-			if (!relativeFiles[n - 1]) {
-				relativeFiles.pop();
+			const normalized = leftover + (isMac ? strings.normalizeNFC(stdout) : stdout);
+			const relativeFiles = normalized.split('\n./');
+			if (first && normalized.length >= 2) {
+				first = false;
+				relativeFiles[0] = relativeFiles[0].trim().substr(2);
+			}
+
+			if (last) {
+				const n = relativeFiles.length;
+				relativeFiles[n - 1] = relativeFiles[n - 1].trim();
+				if (!relativeFiles[n - 1]) {
+					relativeFiles.pop();
+				}
+			} else {
+				leftover = relativeFiles.pop();
 			}
 
 			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
@@ -190,74 +215,94 @@ export class FileWalker {
 				return;
 			}
 
-			this.matchFiles(rootFolder, relativeFiles, onResult);
+			this.addDirectoryEntries(tree, rootFolder, relativeFiles, onResult);
 
-			done();
+			if (last) {
+				this.matchDirectoryTree(tree, rootFolder, onResult);
+				done();
+			}
 		});
 	}
 
-	private windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d', rootFolder]);
-		this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
+	// protected windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+	// 	const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d', rootFolder]);
+	// 	this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
+	// 		if (err) {
+	// 			done(err);
+	// 			return;
+	// 		}
+
+	// 		const relativeFiles = stdout.split(`\r\n${rootFolder}\\`);
+	// 		relativeFiles[0] = relativeFiles[0].trim().substr(rootFolder.length + 1);
+	// 		const n = relativeFiles.length;
+	// 		relativeFiles[n - 1] = relativeFiles[n - 1].trim();
+	// 		if (!relativeFiles[n - 1]) {
+	// 			relativeFiles.pop();
+	// 		}
+
+	// 		if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
+	// 			done(new Error('Splitting up files failed'));
+	// 			return;
+	// 		}
+
+	// 		this.matchFiles(rootFolder, relativeFiles, onResult);
+
+	// 		done();
+	// 	});
+	// }
+
+	/**
+	 * Public for testing.
+	 */
+	public spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
+		const basenames = glob.getBasenameTerms(excludePattern);
+		const paths = glob.getPathTerms(excludePattern);
+		let args = ['-L', '.'];
+		if (basenames.length || paths.length) {
+			args.push('-not', '(', '(');
+			for (const basename of basenames) {
+				args.push('-name', basename);
+				args.push('-o');
+			}
+			for (const path of paths) {
+				args.push('-path', path);
+				args.push('-o');
+			}
+			args.pop();
+			args.push(')', '-prune', ')');
+		}
+		args.push('-type', 'f');
+		return childProcess.spawn('find', args, { cwd: rootFolder });
+	}
+
+	/**
+	 * Public for testing.
+	 */
+	public readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
+		let all = '';
+		this.collectStdout(cmd, encoding, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
-				done(err);
+				cb(err);
 				return;
 			}
 
-			const relativeFiles = stdout.split(`\r\n${rootFolder}\\`);
-			relativeFiles[0] = relativeFiles[0].trim().substr(rootFolder.length + 1);
-			const n = relativeFiles.length;
-			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
-			if (!relativeFiles[n - 1]) {
-				relativeFiles.pop();
+			all += stdout;
+			if (last) {
+				cb(null, all);
 			}
-
-			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
-				done(new Error('Splitting up files failed'));
-				return;
-			}
-
-			this.matchFiles(rootFolder, relativeFiles, onResult);
-
-			done();
 		});
 	}
 
-	private linuxFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
-		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
-			if (err) {
-				done(err);
-				return;
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
+		let done = (err: Error, stdout?: string, last?: boolean) => {
+			if (err || last) {
+				done = () => { };
+				this.cmdForkResultTime = Date.now();
 			}
-
-			const relativeFiles = stdout.split('\n./');
-			relativeFiles[0] = relativeFiles[0].trim().substr(2);
-			const n = relativeFiles.length;
-			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
-			if (!relativeFiles[n - 1]) {
-				relativeFiles.pop();
-			}
-
-			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
-				done(new Error('Splitting up files failed'));
-				return;
-			}
-
-			this.matchFiles(rootFolder, relativeFiles, onResult);
-
-			done();
-		});
-	}
-
-	private readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
-		let done = (err: Error, stdout?: string) => {
-			done = () => {};
-			this.cmdForkResultTime = Date.now();
-			cb(err, stdout);
+			cb(err, stdout, last);
 		};
 
-		const stdout = this.collectData(cmd.stdout);
+		this.forwardData(cmd.stdout, encoding, done);
 		const stderr = this.collectData(cmd.stderr);
 
 		cmd.on('error', (err: Error) => {
@@ -268,9 +313,17 @@ export class FileWalker {
 			if (code !== 0) {
 				done(new Error(`find failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
-				done(null, this.decodeData(stdout, encoding));
+				done(null, '', true);
 			}
 		});
+	}
+
+	private forwardData(stream: Readable, encoding: string, cb: (err: Error, stdout?: string) => void): NodeStringDecoder {
+		const decoder = new StringDecoder(encoding);
+		stream.on('data', (data: Buffer) => {
+			cb(null, decoder.write(data));
+		});
+		return decoder;
 	}
 
 	private collectData(stream: Readable): Buffer[] {
@@ -286,27 +339,25 @@ export class FileWalker {
 		return buffers.map(buffer => decoder.write(buffer)).join('');
 	}
 
-	private matchFiles(rootFolder: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
-		this.cmdResultCount = relativeFiles.length;
-
-		// Support relative paths to files from a root resource (ignores excludes)
-		if (relativeFiles.indexOf(this.filePattern) !== -1) {
-			const basename = paths.basename(this.filePattern);
-			this.matchFile(onResult, { base: rootFolder, relativePath: this.filePattern, basename });
-		}
-
-		const tree = this.buildDirectoryTree(rootFolder, relativeFiles);
-		this.matchDirectoryTree(rootFolder, tree, onResult);
-	}
-
-	private buildDirectoryTree(base: string, relativeFilePaths: string[]): IDirectoryTree {
+	private initDirectoryTree(): IDirectoryTree {
 		const tree: IDirectoryTree = {
 			rootEntries: [],
 			pathToEntries: Object.create(null)
 		};
-		const {pathToEntries} = tree;
-		pathToEntries['.'] = tree.rootEntries;
-		relativeFilePaths.forEach(function add(relativePath: string) {
+		tree.pathToEntries['.'] = tree.rootEntries;
+		return tree;
+	}
+
+	private addDirectoryEntries({pathToEntries}: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
+		this.cmdResultCount += relativeFiles.length;
+
+		// Support relative paths to files from a root resource (ignores excludes)
+		if (relativeFiles.indexOf(this.filePattern) !== -1) {
+			const basename = paths.basename(this.filePattern);
+			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
+		}
+
+		relativeFiles.forEach(function add(relativePath: string) {
 			const basename = paths.basename(relativePath);
 			const dirname = paths.dirname(relativePath);
 			let entries = pathToEntries[dirname];
@@ -320,10 +371,9 @@ export class FileWalker {
 				basename
 			});
 		});
-		return tree;
 	}
 
-	private matchDirectoryTree(rootFolder: string, { rootEntries, pathToEntries }: IDirectoryTree, onResult: (result: IRawFileMatch) => void) {
+	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IRawFileMatch) => void) {
 		const self = this;
 		const excludePattern = this.excludePattern;
 		const filePattern = this.filePattern;

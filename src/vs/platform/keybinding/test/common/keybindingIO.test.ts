@@ -5,13 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ISimplifiedPlatform, KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
-import {NormalizedKeybindingItem, IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { NormalizedKeybindingItem, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { ISimplifiedPlatform } from 'vs/base/common/keybinding';
 
 suite('Keybinding IO', () => {
 
-	test('serialize/deserialize', function() {
+	test('serialize/deserialize', function () {
 		const WINDOWS = { isMacintosh: false, isWindows: true };
 		const MACINTOSH = { isMacintosh: true, isWindows: false };
 		const LINUX = { isMacintosh: false, isWindows: false };
@@ -134,5 +135,13 @@ suite('Keybinding IO', () => {
 		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
 		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
 		assert.equal(normalizedKeybindingItem.keybinding, 0);
+	});
+
+	test('test commands args', () => {
+		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.commandArgs.text, 'theText');
 	});
 });

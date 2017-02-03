@@ -6,7 +6,8 @@
 {
 	"entryAriaLabel": "{0}, 编辑器组选取器",
 	"groupLabel": "组: {0}",
-	"noOpenedEditors": "已打开的编辑器列表当前为空",
+	"noOpenedEditors": "已打开的编辑器组列表当前为空",
+	"noOpenedEditorsAllGroups": "已打开的编辑器列表当前为空",
 	"noResultsFound": "未找到匹配的已打开编辑器",
 	"noResultsFoundInGroup": "未在组中找到匹配的已打开编辑器"
 }

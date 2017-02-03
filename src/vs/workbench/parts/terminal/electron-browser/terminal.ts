@@ -4,174 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import * as os from 'os';
+import * as path from 'path';
+import * as cp from 'child_process';
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
-import { Builder, Dimension } from 'vs/base/browser/builder';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
-
-export const TERMINAL_SERVICE_ID = 'terminalService';
 
 export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
-export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
 
-/**
- * A context key that is set when the integrated terminal has focus.
- */
-export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
-export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED:ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;
+const is64BitWindows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+const powerShellPath = `${process.env.windir}\\${is64BitWindows ? 'Sysnative' : 'System32'}\\WindowsPowerShell\\v1.0\\powershell.exe`;
 
-export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
+export const TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell();
 
-export interface ITerminalConfiguration {
-	terminal: {
-		integrated: {
-			shell: {
-				linux: string,
-				osx: string,
-				windows: string
-			},
-			shellArgs: {
-				linux: string[],
-				osx: string[]
-			},
-			cursorBlinking: boolean,
-			fontFamily: string,
-			fontLigatures: boolean,
-			fontSize: number,
-			lineHeight: number,
-			setLocaleVariables: boolean,
-			commandsToSkipShell: string[]
-		}
-	};
-}
+// Terminal flow control is disabled if the shell is zsh since the popular oh-my-zsh configuration
+// overrides the ^S and ^Q keybindings which are used for flow control. fish also overrides the
+// keybindings.
+// TODO #19474: This should be enabled for zsh when ~/.oh-my-zsh does not exist as well
+export const TERMINAL_DEFAULT_FLOW_CONTROL = (typeof process.env.SHELL === 'string' && path.basename(process.env.SHELL) === 'bash');
 
-export interface ITerminalService {
-	_serviceBrand: any;
-
-	activeTerminalInstanceIndex: number;
-	configHelper: TerminalConfigHelper;
-	onActiveInstanceChanged: Event<string>;
-	onInstancesChanged: Event<string>;
-	onInstanceTitleChanged: Event<string>;
-	terminalInstances: ITerminalInstance[];
-
-	createInstance(name?: string, shellPath?: string, shellArgs?: string[]): ITerminalInstance;
-	getInstanceFromId(terminalId: number): ITerminalInstance;
-	getInstanceLabels(): string[];
-	getActiveInstance(): ITerminalInstance;
-	setActiveInstance(terminalInstance: ITerminalInstance): void;
-	setActiveInstanceByIndex(terminalIndex: number): void;
-	setActiveInstanceToNext(): void;
-	setActiveInstanceToPrevious(): void;
-
-	showPanel(focus?: boolean): TPromise<void>;
-	hidePanel(): void;
-	togglePanel(): TPromise<void>;
-	setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void;
-}
-
-export interface ITerminalInstance {
-	/**
-	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
-	 * terminal instance.
-	 */
-	id: number;
-
-	/**
-	 * An event that fires when the terminal instance's title changes.
-	 */
-	onTitleChanged: Event<string>;
-
-	/**
-	 * The title of the terminal. This is either title or the process currently running or an
-	 * explicit name given to the terminal instance through the extension API.
-	 *
-	 * @readonly
-	 */
-	title: string;
-
-	/**
-	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
-	 */
-	dispose(): void;
-
-	/**
-	 * Copies the terminal selection to the clipboard.
-	 */
-	copySelection(): void;
-
-	/**
-	 * Focuses the terminal instance.
-	 *
-	 * @param focus Force focus even if there is a selection.
-	 */
-	focus(force?: boolean): void;
-
-	/**
-	 * Focuses and pastes the contents of the clipboard into the terminal instance.
-	 */
-	paste(): void;
-
-	/**
-	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
-	 * process (shell) of the terminal instance.
-	 *
-	 * @param text The text to send.
-	 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-	 * required to run a command in the terminal. The character(s) added are \n or \r\n
-	 * depending on the platform. This defaults to `true`.
-	 */
-	sendText(text: string, addNewLine: boolean): void;
-
-	/**
-	 * Scroll the terminal buffer down 1 line.
-	 */
-	scrollDown(): void;
-
-	/**
-	 * Scroll the terminal buffer up 1 line.
-	 */
-	scrollUp(): void;
-
-	/**
-	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal
-	 * instance process may run in the background but cannot be displayed on the UI.
-	 *
-	 * @param container The element to attach the terminal instance to.
-	 */
-	attachToElement(container: HTMLElement): void;
-
-	/**
-	 * Sets whether the terminal instance's cursor will blink or be solid.
-	 *
-	 * @param blink Whether the cursor will blink.
-	 */
-	setCursorBlink(blink: boolean): void;
-
-	/**
-	 * Sets the array of commands that skip the shell process so they can be handled by VS Code's
-	 * keybinding system.
-	 */
-	setCommandsToSkipShell(commands: string[]): void;
-
-	/**
-	 * Configure the dimensions of the terminal instance.
-	 *
-	 * @param dimension The dimensions of the container.
-	 */
-	layout(dimension: Dimension): void;
-
-	/**
-	 * Sets whether the terminal instance's element is visible in the DOM.
-	 *
-	 * @param visible Whether the element is visible.
-	 */
-	setVisible(visible: boolean): void;
+export interface ITerminalProcessFactory {
+	create(env: { [key: string]: string }): cp.ChildProcess;
 }

@@ -6,14 +6,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { memoize } from 'vs/base/common/decorators';
+import { memoize } from 'vs/base/common/decorators';
 
 suite('Decorators', () => {
 	test('memoize should memoize methods', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) {}
+			constructor(private _answer: number) { }
 
 			@memoize
 			answer() {
@@ -58,7 +58,7 @@ suite('Decorators', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) {}
+			constructor(private _answer: number) { }
 
 			@memoize
 			get answer() {

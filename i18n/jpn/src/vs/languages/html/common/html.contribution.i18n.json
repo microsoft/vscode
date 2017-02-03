@@ -12,5 +12,8 @@
 	"format.preserveNewLines": "要素の前にある既存の改行を保持するかどうか。要素の前でのみ機能し、タグの内側やテキストに対しては機能しません。",
 	"format.unformatted": "再フォーマットしてはならないタグの、コンマ区切りの一覧。'null' の場合、既定で https://www.w3.org/TR/html5/dom.html#phrasing-content にリストされているすべてのタグになります。",
 	"format.wrapLineLength": "1 行あたりの最大文字数 (0 = 無効にする)。",
-	"htmlConfigurationTitle": "HTML"
+	"htmlConfigurationTitle": "HTML",
+	"suggest.angular1": "ビルトイン HTML 言語サポートが Angular V1 のタグおよびプロパティを候補表示するかどうかを構成します。",
+	"suggest.html5": "ビルトイン HTML 言語サポートが HTML5 のタグ、プロパティ、および値を候補表示するかどうかを構成します。",
+	"suggest.ionic": "ビルトイン HTML 言語サポートが Ionic のタグ、プロパティ、および値を候補表示するかどうかを構成します。"
 }

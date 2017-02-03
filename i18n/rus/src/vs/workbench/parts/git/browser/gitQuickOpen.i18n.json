@@ -7,7 +7,7 @@
 	"alreadyCheckedOut": "Ветвь {0} уже является текущей ветвью",
 	"branchAriaLabel": "{0}, ветвь GIT",
 	"checkoutBranch": "Ветвь в {0}",
-	"checkoutRemoteBranch": "Удалить ветвь в {0}",
+	"checkoutRemoteBranch": "Удаленная ветвь в {0}",
 	"checkoutTag": "Тег в {0}",
 	"createBranch": "Создать ветвь {0}",
 	"noBranches": "Нет других ветвей",

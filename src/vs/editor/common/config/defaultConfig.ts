@@ -5,12 +5,12 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import * as platform from 'vs/base/common/platform';
-import {USUAL_WORD_SEPARATORS} from 'vs/editor/common/model/wordHelper';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 export interface IConfiguration {
-	editor:IEditorOptions;
+	editor: IEditorOptions;
 }
 
 export const DEFAULT_INDENTATION = {
@@ -40,10 +40,10 @@ class ConfigClass implements IConfiguration {
 			wordSeparators: USUAL_WORD_SEPARATORS,
 			selectionClipboard: true,
 			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
-			lineNumbers: true,
+			lineNumbers: 'on',
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,
-			glyphMargin: false,
+			glyphMargin: true,
 			lineDecorationsWidth: 10,
 			revealHorizontalRightPadding: 30,
 			roundedSelection: true,
@@ -56,12 +56,14 @@ class ConfigClass implements IConfiguration {
 				verticalHasArrows: false,
 				horizontalHasArrows: false
 			},
+			fixedOverflowWidgets: false,
 			overviewRulerLanes: 2,
 			cursorBlinking: 'blink',
 			mouseWheelZoom: false,
 			cursorStyle: 'line',
 			fontLigatures: false,
 			disableTranslate3d: false,
+			disableMonospaceOptimizations: false,
 			hideCursorInOverviewRuler: false,
 			scrollBeyondLastLine: true,
 			automaticLayout: false,
@@ -82,11 +84,16 @@ class ConfigClass implements IConfiguration {
 			iconsInSuggestions: true,
 			autoClosingBrackets: true,
 			formatOnType: false,
+			formatOnPaste: false,
 			suggestOnTriggerCharacters: true,
 			acceptSuggestionOnEnter: true,
+			acceptSuggestionOnCommitCharacter: true,
 			snippetSuggestions: 'bottom',
+			emptySelectionClipboard: true,
 			tabCompletion: false,
 			wordBasedSuggestions: true,
+			suggestFontSize: 0,
+			suggestLineHeight: 0,
 			selectionHighlight: true,
 			codeLens: true,
 			referenceInfos: true,
@@ -94,7 +101,7 @@ class ConfigClass implements IConfiguration {
 			renderWhitespace: 'none',
 			renderControlCharacters: false,
 			renderIndentGuides: false,
-			renderLineHighlight: true,
+			renderLineHighlight: 'line',
 			useTabStops: true,
 
 			fontFamily: (

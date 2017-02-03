@@ -6,9 +6,9 @@
 {
 	"fileLink": "クリックして従う (Ctrl を押しながらクリックすると横に開きます)",
 	"fileLinkMac": "クリックして従う (Cmd を押しながらクリックすると横に開きます)",
-	"replExpressionAriaLabel": "式 {0} に値 {1} があります、対話型評価環境、デバッグ",
-	"replKeyValueOutputAriaLabel": "出力変数 {0} に値 {1} があります、対話型評価環境、デバッグ",
-	"replValueOutputAriaLabel": "{0}、対話型評価環境、デバッグ",
-	"replVariableAriaLabel": "変数 {0} に値 {1} があります、対話型評価環境、デバッグ",
+	"replExpressionAriaLabel": "式 {0} に値 {1} があります、Read Eval Print Loop、デバッグ",
+	"replKeyValueOutputAriaLabel": "出力変数 {0} に値 {1} があります、Read Eval Print Loop、デバッグ",
+	"replValueOutputAriaLabel": "{0}、Read Eval Print Loop、デバッグ",
+	"replVariableAriaLabel": "変数 {0} に値 {1} があります、Read Eval Print Loop、デバッグ",
 	"stateCapture": "最初の評価からオブジェクトの状態がキャプチャされます"
 }

@@ -5,15 +5,44 @@
 
 'use strict';
 
-var download = require('../lib/download');
 var path = require('path');
 var fs = require('fs');
 var plist = require('fast-plist');
 var cson = require('cson-parser');
+var https = require('https');
+var url = require('url');
+
+function getOptions(urlString) {
+	var _url = url.parse(urlString);
+	return {
+		protocol: _url.protocol,
+		host: _url.host,
+		port: _url.port,
+		path: _url.path,
+		headers: {
+			'User-Agent': 'NodeJS'
+		}
+	}
+}
+
+function download(url) {
+return new Promise((c, e) => {
+	var content = '';
+		var request = https.get(getOptions(url), function (response) {
+			response.on('data', function (data) {
+				content += data.toString();
+			}).on('end', function () {
+				c(content);
+			});
+		}).on('error', function (err) {
+			e(err.message);
+		});
+});
+}
 
 function getCommitSha(repoId, repoPath) {
 	var commitInfo = 'https://api.github.com/repos/' + repoId + '/commits?path=' + repoPath;
-	return download.toString(commitInfo).then(function (content) {
+	return download(commitInfo).then(function (content) {
 		try {
 			let lastCommit = JSON.parse(content)[0];
 			return Promise.resolve({
@@ -32,7 +61,7 @@ function getCommitSha(repoId, repoPath) {
 exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 	var contentPath = 'https://raw.githubusercontent.com/' + repoId + '/master/' + repoPath;
 	console.log('Reading from ' + contentPath);
-	return download.toString(contentPath).then(function (content) {
+	return download(contentPath).then(function (content) {
 		var ext = path.extname(repoPath);
 		var grammar;
 		if (ext === '.tmLanguage' || ext === '.plist') {
@@ -66,11 +95,9 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 
 	}, console.error);
 }
+
 if (path.basename(process.argv[1]) === 'update-grammar.js') {
 	for (var i = 3; i < process.argv.length; i+=2) {
 		exports.update(process.argv[2], process.argv[i], process.argv[i+1]);
 	}
 }
-
-
-

@@ -5,12 +5,13 @@
 
 'use strict';
 
-import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration } from 'vscode';
+import { workspace as Workspace, DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 interface Configuration {
+	enable: boolean;
 	insertSpaceAfterCommaDelimiter: boolean;
 	insertSpaceAfterSemicolonInForStatements: boolean;
 	insertSpaceBeforeAndAfterBinaryOperators: boolean;
@@ -18,8 +19,12 @@ interface Configuration {
 	insertSpaceAfterFunctionKeywordForAnonymousFunctions: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
+
+	[key: string]: boolean;
 }
 
 namespace Configuration {
@@ -30,6 +35,8 @@ namespace Configuration {
 	export const insertSpaceAfterFunctionKeywordForAnonymousFunctions: string = 'insertSpaceAfterFunctionKeywordForAnonymousFunctions';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
+	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
+	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
 	export const placeOpenBraceOnNewLineForFunctions: string = 'placeOpenBraceOnNewLineForFunctions';
 	export const placeOpenBraceOnNewLineForControlBlocks: string = 'placeOpenBraceOnNewLineForControlBlocks';
 
@@ -46,6 +53,7 @@ namespace Configuration {
 
 	export function def(): Configuration {
 		let result: Configuration = Object.create(null);
+		result.enable = true;
 		result.insertSpaceAfterCommaDelimiter = true;
 		result.insertSpaceAfterSemicolonInForStatements = true;
 		result.insertSpaceBeforeAndAfterBinaryOperators = true;
@@ -53,6 +61,8 @@ namespace Configuration {
 		result.insertSpaceAfterFunctionKeywordForAnonymousFunctions = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = false;
 		result.placeOpenBraceOnNewLineForFunctions = false;
 		result.placeOpenBraceOnNewLineForControlBlocks = false;
 		return result;
@@ -60,15 +70,22 @@ namespace Configuration {
 }
 
 export default class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
-
-	private client: ITypescriptServiceClient;
 	private config: Configuration;
-	private formatOptions: { [key: string]: Proto.FormatOptions; };
+	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; };
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
+	public constructor(
+		private client: ITypescriptServiceClient
+	) {
 		this.config = Configuration.def();
 		this.formatOptions = Object.create(null);
+		Workspace.onDidCloseTextDocument((textDocument) => {
+			let key = textDocument.uri.toString();
+			// When a document gets closed delete the cached formatting options.
+			// This is necessary sine the tsserver now closed a project when its
+			// last file in it closes which drops the stored formatting options
+			// as well.
+			delete this.formatOptions[key];
+		});
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
@@ -80,17 +97,25 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 		}
 	}
 
-	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatOptions> {
-		let key = document.uri.toString();
-		let currentOptions = this.formatOptions[key];
+	public isEnabled(): boolean {
+		return this.config.enable;
+	}
+
+	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatCodeSettings> {
+		const key = document.uri.toString();
+		const currentOptions = this.formatOptions[key];
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
 			return Promise.resolve(currentOptions);
 		} else {
-			let args: Proto.ConfigureRequestArguments = {
-				file: this.client.asAbsolutePath(document.uri),
+			const absPath = this.client.normalizePath(document.uri);
+			if (!absPath) {
+				return Promise.resolve(Object.create(null));
+			}
+			const args: Proto.ConfigureRequestArguments = {
+				file: absPath,
 				formatOptions: this.getFormatOptions(options)
 			};
-			return this.client.execute('configure', args, token).then((response) => {
+			return this.client.execute('configure', args, token).then(_ => {
 				this.formatOptions[key] = args.formatOptions;
 				return args.formatOptions;
 			});
@@ -100,7 +125,11 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	private doFormat(document: TextDocument, options: FormattingOptions, args: Proto.FormatRequestArgs, token: CancellationToken): Promise<TextEdit[]> {
 		return this.ensureFormatOptions(document, options, token).then(() => {
 			return this.client.execute('format', args, token).then((response): TextEdit[] => {
-				return response.body.map(this.codeEdit2SingleEditOperation);
+				if (response.body) {
+					return response.body.map(this.codeEdit2SingleEditOperation);
+				} else {
+					return [];
+				}
 			}, (err: any) => {
 				this.client.error(`'format' request failed with error.`, err);
 				return [];
@@ -109,8 +138,12 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	public provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
-		let args: Proto.FormatRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+		const absPath = this.client.normalizePath(document.uri);
+		if (!absPath) {
+			return Promise.resolve([]);
+		}
+		const args: Proto.FormatRequestArgs = {
+			file: absPath,
 			line: range.start.line + 1,
 			offset: range.start.character + 1,
 			endLine: range.end.line + 1,
@@ -120,8 +153,12 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	public provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
+		const filepath = this.client.normalizePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve([]);
+		}
 		let args: Proto.FormatOnKeyRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1,
 			key: ch
@@ -131,6 +168,9 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			return this.client.execute('formatonkey', args, token).then((response): TextEdit[] => {
 				let edits = response.body;
 				let result: TextEdit[] = [];
+				if (!edits) {
+					return result;
+				}
 				for (let edit of edits) {
 					let textEdit = this.codeEdit2SingleEditOperation(edit);
 					let range = textEdit.range;
@@ -161,7 +201,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			edit.newText);
 	}
 
-	private getFormatOptions(options: FormattingOptions): Proto.FormatOptions {
+	private getFormatOptions(options: FormattingOptions): Proto.FormatCodeSettings {
 		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
@@ -175,6 +215,8 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceAfterFunctionKeywordForAnonymousFunctions: this.config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
+			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
 			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks
 		};

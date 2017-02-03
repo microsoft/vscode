@@ -8,7 +8,6 @@
 		],
 		"description": "jsdoc snippet"
 	},
-
 	"Constructor": {
 		"prefix": "ctor",
 		"body": [
@@ -22,99 +21,90 @@
 		],
 		"description": "Constructor"
 	},
-	
 	"Class Definition": {
 		"prefix": "class",
 		"body": [
 			"/**",
-			" * ${name}",
+			" * ${1:name}",
 			" */",
-			"class ${name} {",
-			"\tconstructor(${parameters}) {",
+			"class ${1:name} {",
+			"\tconstructor(${2:parameters}) {",
 			"\t\t$0",
 			"\t}",
 			"}"
 		],
 		"description": "Class Definition"
 	},
-	
 	"Public Method Definition": {
 		"prefix": "public method",
 		"body": [
 			"/**",
-			" * ${name}",
+			" * ${1:name}",
 			" */",
-			"public ${name}() {",
+			"public ${1:name}() {",
 			"\t$0",
 			"}"
 		],
 		"description": "Public Method Definition"
 	},
-	
 	"Private Method Definition": {
 		"prefix": "private method",
 		"body": [
-			"private ${name}() {",
+			"private ${1:name}() {",
 			"\t$0",
 			"}"
 		],
 		"description": "Private Method Definition"
 	},
-	
 	"Import external module.": {
 		"prefix": "import statement",
 		"body": [
-			"import ${name} = require('$0');"
+			"import ${1:name} = require('$0');"
 		],
 		"description": "Import external module."
 	},
-	
 	"Property getter": {
 		"prefix": "get",
 		"body": [
 			"",
-			"public get ${value}() : ${string} {",
-			"	${return $0}",
+			"public get ${1:value}() : ${2:string} {",
+			"	${3:return $0}",
 			"}",
 			""
 		],
 		"description": "Property getter"
 	},
-	
 	"Log to the console": {
 		"prefix": "log",
 		"body": [
-			"console.log(${_});",
+			"console.log($1);",
 			"$0"
 		],
 		"description": "Log to the console"
 	},
-	
 	"Define a full property": {
 		"prefix": "prop",
 		"body": [
 			"",
-			"private _${value} : ${string};",
-			"public get ${value}() : ${string} {",
-			"	return this._${value};",
+			"private _${1:value} : ${2:string};",
+			"public get ${1:value}() : ${2:string} {",
+			"	return this._${1:value};",
 			"}",
-			"public set ${value}(v : ${string}) {",
-			"	this._${value} = v;",
+			"public set ${1:value}(v : ${2:string}) {",
+			"	this._${1:value} = v;",
 			"}",
 			""
 		],
 		"description": "Define a full property"
 	},
-	
 	"Triple-slash reference": {
 		"prefix": "ref",
 		"body": [
-			"/// <reference path=\"${_}\" />",
+			"/// <reference path=\"$1\" />",
 			"$0"
 		],
 		"description": "Triple-slash reference"
 	},
-	
 	"Return false": {
 		"prefix": "ret0",
 		"body": [
@@ -122,7 +112,6 @@
 		],
 		"description": "Return false"
 	},
-	
 	"Return true": {
 		"prefix": "ret1",
 		"body": [
@@ -130,41 +119,37 @@
 		],
 		"description": "Return true"
 	},
-	
 	"Return statement": {
 		"prefix": "ret",
 		"body": [
-			"return ${_};$0"
+			"return $1;$0"
 		],
 		"description": "Return statement"
 	},
-	
 	"Property setter": {
 		"prefix": "set",
 		"body": [
 			"",
-			"public set ${value}(v : ${string}) {",
-			"	this.${_} = v;",
+			"public set ${1:value}(v : ${2:string}) {",
+			"	this.$3 = v;",
 			"}",
 			""
 		],
 		"description": "Property setter"
 	},
-	
 	"Throw Exception": {
 		"prefix": "throw",
 		"body": [
-			"throw \"${_}\";",
+			"throw \"$1\";",
 			"$0"
 		],
 		"description": "Throw Exception"
 	},
-	
 	"For Loop": {
 		"prefix": "for",
 		"body": [
-			"for (var ${index} = 0; ${index} < ${array}.length; ${index}++) {",
-			"\tvar ${element} = ${array}[${index}];",
+			"for (var ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
+			"\tvar ${3:element} = ${2:array}[${1:index}];",
 			"\t$0",
 			"}"
 		],
@@ -173,18 +158,18 @@
 	"For-Each Loop using =>": {
 		"prefix": "foreach =>",
 		"body": [
-			"${array}.forEach(${element} => {",
+			"${1:array}.forEach(${2:element} => {",
 			"\t$0",
 			"});"
 		],
 		"description": "For-Each Loop using =>"
-	},	
+	},
 	"For-In Loop": {
 		"prefix": "forin",
 		"body": [
-			"for (var ${key} in ${object}) {",
-			"\tif (${object}.hasOwnProperty(${key})) {",
-			"\t\tvar ${element} = ${object}[${key}];",
+			"for (var ${1:key} in ${2:object}) {",
+			"\tif (${2:object}.hasOwnProperty(${1:key})) {",
+			"\t\tvar ${3:element} = ${2:object}[${1:key}];",
 			"\t\t$0",
 			"\t}",
 			"}"
@@ -194,7 +179,7 @@
 	"Function Statement": {
 		"prefix": "function",
 		"body": [
-			"function ${name}(${params}:${type}) {",
+			"function ${1:name}(${2:params}:${3:type}) {",
 			"\t$0",
 			"}"
 		],
@@ -203,7 +188,7 @@
 	"If Statement": {
 		"prefix": "if",
 		"body": [
-			"if (${condition}) {",
+			"if (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
@@ -212,7 +197,7 @@
 	"If-Else Statement": {
 		"prefix": "ifelse",
 		"body": [
-			"if (${condition}) {",
+			"if (${1:condition}) {",
 			"\t$0",
 			"} else {",
 			"\t",
@@ -223,15 +208,15 @@
 	"New Statement": {
 		"prefix": "new",
 		"body": [
-			"var ${name} = new ${type}(${arguments});$0"
+			"var ${1:name} = new ${2:type}(${2:arguments});$0"
 		],
 		"description": "New Statement"
 	},
 	"Switch Statement": {
 		"prefix": "switch",
 		"body": [
-			"switch (${key}) {",
-			"\tcase ${value}:",
+			"switch (${1:key}) {",
+			"\tcase ${2:value}:",
 			"\t\t$0",
 			"\t\tbreak;",
 			"",
@@ -244,7 +229,7 @@
 	"While Statement": {
 		"prefix": "while",
 		"body": [
-			"while (${condition}) {",
+			"while (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
@@ -255,16 +240,16 @@
 		"body": [
 			"do {",
 			"\t$0",
-			"} while (${condition});"
+			"} while (${1:condition});"
 		],
 		"description": "Do-While Statement"
 	},
-	"Try-Catch Statement":{
+	"Try-Catch Statement": {
 		"prefix": "trycatch",
 		"body": [
 			"try {",
 			"\t$0",
-			"} catch (${error}) {",
+			"} catch (${1:error}) {",
 			"\t",
 			"}"
 		],
@@ -275,7 +260,7 @@
 		"body": [
 			"setTimeout(function() {",
 			"\t$0",
-			"}, ${timeout});"
+			"}, ${1:timeout});"
 		],
 		"description": "Set Timeout Function"
 	}
