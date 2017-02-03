@@ -717,8 +717,15 @@ export class VSCodeWindow implements IVSCodeWindow {
 				break;
 
 			case ('hidden'):
-				this.win.setMenuBarVisibility(false);
-				this.win.setAutoHideMenuBar(false);
+				// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
+				// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+				// a timing issue with us opening the first window and the menu bar getting created. somehow the
+				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
+				// still show the menu. Unable to reproduce from a simple Hello World application though...
+				setTimeout(() => {
+					this.win.setMenuBarVisibility(false);
+					this.win.setAutoHideMenuBar(false);
+				});
 				break;
 		};
 	}
