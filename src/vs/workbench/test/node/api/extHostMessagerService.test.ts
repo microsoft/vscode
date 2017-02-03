@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { MainThreadMessageService } from 'vs/workbench/api/node/mainThreadMessageService';
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
 
-suite('`ExtHostMessageService`', function () {
+suite('ExtHostMessageService', function () {
 
 	test('propagte handle on select', function () {
 
