@@ -178,8 +178,8 @@ export class ViewZones extends ViewPart {
 			});
 		}
 
-		let viewPosition = this._context.model.convertModelPositionToViewPosition(zoneAfterModelPosition.lineNumber, zoneAfterModelPosition.column);
-		let isVisible = this._context.model.modelPositionIsVisible(zoneBeforeModelPosition);
+		let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition.lineNumber, zoneAfterModelPosition.column);
+		let isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			afterViewLineNumber: viewPosition.lineNumber,
 			heightInPx: (isVisible ? this._heightInPixels(zone) : 0)

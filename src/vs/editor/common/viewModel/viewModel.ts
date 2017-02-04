@@ -9,8 +9,27 @@ import { IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/comm
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+
+export interface ICoordinatesConverter {
+	// View -> Model conversion and related methods
+	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;
+	convertViewRangeToModelRange(viewRange: Range): Range;
+	convertViewSelectionToModelSelection(viewSelection: Selection): Selection;
+	validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position;
+	validateViewRange(viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range): Range;
+
+	// Model -> View conversion and related methods
+	convertModelPositionToViewPosition(modelLineNumber: number, modelColumn: number): Position;
+	convertModelRangeToViewRange(modelRange: Range): Range;
+	convertWholeLineModelRangeToViewRange(modelRange: Range): Range;
+	modelPositionIsVisible(position: Position): boolean;
+}
 
 export interface IViewModel extends IEventEmitter {
+
+	readonly coordinatesConverter: ICoordinatesConverter;
+
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
@@ -34,14 +53,9 @@ export interface IViewModel extends IEventEmitter {
 	getEOL(): string;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
-	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;
-	convertViewRangeToModelRange(viewRange: Range): Range;
-
 	getModelLineContent(lineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(position: IPosition): Position;
-	convertModelPositionToViewPosition(modelLineNumber: number, modelColumn: number): Position;
-	modelPositionIsVisible(position: Position): boolean;
 }
 
 export class ViewLineRenderingData {

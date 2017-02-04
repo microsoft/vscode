@@ -300,7 +300,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 		let nextLineModelLineNumber: number;
 		if (includeNewLines) {
-			nextLineModelLineNumber = this._context.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;
+			nextLineModelLineNumber = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;
 		}
 
 		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
@@ -321,7 +321,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 			if (includeNewLines && lineNumber < originalEndLineNumber) {
 				let currentLineModelLineNumber = nextLineModelLineNumber;
-				nextLineModelLineNumber = this._context.model.convertViewPositionToModelPosition(lineNumber + 1, 1).lineNumber;
+				nextLineModelLineNumber = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(lineNumber + 1, 1).lineNumber;
 
 				if (currentLineModelLineNumber !== nextLineModelLineNumber) {
 					visibleRangesForLine[visibleRangesForLine.length - 1].width += ViewLines.LINE_FEED_WIDTH;

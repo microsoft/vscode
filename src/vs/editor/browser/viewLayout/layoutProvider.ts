@@ -135,12 +135,11 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
 	}
 
-	// ---- begin view event handlers
-
-	public onZonesChanged(): boolean {
+	public onHeightMaybeChanged(): void {
 		this._updateHeight();
-		return false;
 	}
+
+	// ---- begin view event handlers
 
 	public onModelFlushed(): boolean {
 		this._linesLayout.onModelFlushed(this._model.getLineCount());
