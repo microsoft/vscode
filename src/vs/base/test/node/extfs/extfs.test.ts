@@ -223,7 +223,7 @@ suite('Extfs', () => {
 			// linux, unix, etc. -> assume case sensitive file system
 			else {
 				const real = extfs.realpathSync(newDir);
-				assert.equal(real, path);
+				assert.equal(real, newDir);
 			}
 
 			extfs.del(parentDir, os.tmpdir(), () => { }, done);
