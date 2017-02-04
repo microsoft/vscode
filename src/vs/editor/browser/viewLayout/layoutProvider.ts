@@ -194,11 +194,12 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	// ---- Layouting logic
 
 	public getCurrentViewport(): editorCommon.Viewport {
+		const scrollState = this._scrollable.getState();
 		return new editorCommon.Viewport(
-			this._scrollable.getScrollTop(),
-			this._scrollable.getScrollLeft(),
-			this._scrollable.getWidth(),
-			this._scrollable.getHeight()
+			scrollState.scrollTop,
+			scrollState.scrollLeft,
+			scrollState.width,
+			scrollState.height
 		);
 	}
 
@@ -231,13 +232,14 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	// ---- view state
 
 	public saveState(): editorCommon.IViewState {
-		let scrollTop = this._scrollable.getScrollTop();
+		const scrollState = this._scrollable.getState();
+		let scrollTop = scrollState.scrollTop;
 		let firstLineNumberInViewport = this._linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
 		let whitespaceAboveFirstLine = this._linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(firstLineNumberInViewport);
 		return {
 			scrollTop: scrollTop,
 			scrollTopWithoutViewZones: scrollTop - whitespaceAboveFirstLine,
-			scrollLeft: this._scrollable.getScrollLeft()
+			scrollLeft: scrollState.scrollLeft
 		};
 	}
 
@@ -295,8 +297,9 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	}
 
 	public getTotalHeight(): number {
+		const scrollState = this._scrollable.getState();
 		let reserveHorizontalScrollbarHeight = 0;
-		if (this._scrollable.getScrollWidth() > this._scrollable.getWidth()) {
+		if (scrollState.scrollWidth > scrollState.width) {
 			if (this._configuration.editor.viewInfo.scrollbar.horizontal !== ScrollbarVisibility.Hidden) {
 				reserveHorizontalScrollbarHeight = this._configuration.editor.viewInfo.scrollbar.horizontalScrollbarSize;
 			}
@@ -322,23 +325,28 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 
 	public getScrollWidth(): number {
-		return this._scrollable.getScrollWidth();
+		const scrollState = this._scrollable.getState();
+		return scrollState.scrollWidth;
 	}
 	public getScrollLeft(): number {
-		return this._scrollable.getScrollLeft();
+		const scrollState = this._scrollable.getState();
+		return scrollState.scrollLeft;
 	}
 	public getScrollHeight(): number {
-		return this._scrollable.getScrollHeight();
+		const scrollState = this._scrollable.getState();
+		return scrollState.scrollHeight;
 	}
 	public getScrollTop(): number {
-		return this._scrollable.getScrollTop();
+		const scrollState = this._scrollable.getState();
+		return scrollState.scrollTop;
 	}
 
 	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
 		this._scrollable.updateState(position);
 	}
 	public getScrolledTopFromAbsoluteTop(top: number): number {
-		return top - this._scrollable.getScrollTop();
+		const scrollState = this._scrollable.getState();
+		return top - scrollState.scrollTop;
 	}
 
 	public getOverviewRulerInsertData(): { parent: HTMLElement; insertBefore: HTMLElement; } {
