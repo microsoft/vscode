@@ -12,6 +12,7 @@ import { EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, IN
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { Scrollable } from 'vs/base/common/scrollable';
 
 function addPropertyIfPresent(src: any, dst: any, prop: string): void {
 	if (src.hasOwnProperty(prop)) {
@@ -19,8 +20,9 @@ function addPropertyIfPresent(src: any, dst: any, prop: string): void {
 	}
 }
 
-export class ScrollManager implements IDisposable {
+export class EditorScrollbar implements IDisposable {
 
+	private scrollable: Scrollable;
 	private configuration: IConfiguration;
 	private privateViewEventBus: IViewEventBus;
 
@@ -28,8 +30,9 @@ export class ScrollManager implements IDisposable {
 	private linesContent: HTMLElement;
 	private scrollbar: ScrollableElement;
 
-	constructor(configuration: IConfiguration, privateViewEventBus: IViewEventBus, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
+	constructor(scrollable: Scrollable, configuration: IConfiguration, privateViewEventBus: IViewEventBus, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
 		this.toDispose = [];
+		this.scrollable = scrollable;
 		this.configuration = configuration;
 		this.privateViewEventBus = privateViewEventBus;
 		this.linesContent = linesContent;
@@ -56,10 +59,9 @@ export class ScrollManager implements IDisposable {
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'arrowSize');
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'mouseWheelScrollSensitivity');
 
-		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions);
+		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions, this.scrollable);
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
-		this.onLayoutInfoChanged();
 		this.toDispose.push(this.scrollbar);
 		this.toDispose.push(this.scrollbar.onScroll((e: IScrollEvent) => {
 			this.privateViewEventBus.emit(EventType.ViewScrollChanged, e);
@@ -87,7 +89,7 @@ export class ScrollManager implements IDisposable {
 			if (lookAtScrollTop) {
 				let deltaTop = domNode.scrollTop;
 				if (deltaTop) {
-					newScrollPosition.scrollTop = this.getScrollTop() + deltaTop;
+					newScrollPosition.scrollTop = this.scrollable.getScrollTop() + deltaTop;
 					domNode.scrollTop = 0;
 				}
 			}
@@ -95,12 +97,12 @@ export class ScrollManager implements IDisposable {
 			if (lookAtScrollLeft) {
 				let deltaLeft = domNode.scrollLeft;
 				if (deltaLeft) {
-					newScrollPosition.scrollLeft = this.getScrollLeft() + deltaLeft;
+					newScrollPosition.scrollLeft = this.scrollable.getScrollLeft() + deltaLeft;
 					domNode.scrollLeft = 0;
 				}
 			}
 
-			this.setScrollPosition(newScrollPosition);
+			this.scrollable.updateState(newScrollPosition);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
@@ -117,13 +119,6 @@ export class ScrollManager implements IDisposable {
 		this.scrollbar.renderNow();
 	}
 
-	public onLayoutInfoChanged(): void {
-		this.scrollbar.updateState({
-			width: this.configuration.editor.layoutInfo.contentWidth,
-			height: this.configuration.editor.layoutInfo.contentHeight
-		});
-	}
-
 	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
 		return this.scrollbar.getOverviewRulerLayoutInfo();
 	}
@@ -134,40 +129,5 @@ export class ScrollManager implements IDisposable {
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
-	}
-
-	public getWidth(): number {
-		return this.scrollbar.getWidth();
-	}
-	public getScrollWidth(): number {
-		return this.scrollbar.getScrollWidth();
-	}
-	public getScrollLeft(): number {
-		return this.scrollbar.getScrollLeft();
-	}
-
-	public getHeight(): number {
-		return this.scrollbar.getHeight();
-	}
-	public getScrollHeight(): number {
-		return this.scrollbar.getScrollHeight();
-	}
-	public getScrollTop(): number {
-		return this.scrollbar.getScrollTop();
-	}
-
-	public setScrollPosition(position: INewScrollPosition): void {
-		this.scrollbar.updateState(position);
-	}
-
-	public setScrollHeight(scrollHeight: number): void {
-		this.scrollbar.updateState({
-			scrollHeight: scrollHeight
-		});
-	}
-	public setScrollWidth(scrollWidth: number): void {
-		this.scrollbar.updateState({
-			scrollWidth: scrollWidth
-		});
 	}
 }

@@ -54,12 +54,17 @@ export class ScrollableElement extends Widget {
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
 	public onScroll: Event<ScrollEvent> = this._onScroll.event;
 
-	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
+	constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
 		super();
 		element.style.overflow = 'hidden';
 		this._options = resolveOptions(options);
 
-		this._scrollable = this._register(new Scrollable());
+		if (typeof scrollable === 'undefined') {
+			this._scrollable = this._register(new Scrollable());
+		} else {
+			this._scrollable = scrollable;
+		}
+
 		this._register(this._scrollable.onScroll((e) => {
 			this._onDidScroll(e);
 			this._onScroll.fire(e);
