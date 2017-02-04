@@ -48,6 +48,7 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EditorScrollbar } from 'vs/editor/browser/viewparts/editorScrollbar/editorScrollbar';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -57,6 +58,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private listenersToDispose: IDisposable[];
 
 	private layoutProvider: LayoutProvider;
+	private _scrollbar: EditorScrollbar;
 	public _context: ViewContext;
 
 	// The view lines
@@ -124,8 +126,10 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// - scrolling (i.e. viewport / full size) & co.
 		// - whitespaces (a.k.a. view zones) management & co.
 		// - line heights updating & co.
-		this.layoutProvider = new LayoutProvider(configuration, model, this.eventDispatcher, this.linesContent, this.domNode, this.overflowGuardContainer);
+		this.layoutProvider = new LayoutProvider(configuration, model, this.eventDispatcher);
 		this.eventDispatcher.addEventHandler(this.layoutProvider);
+
+		this._scrollbar = new EditorScrollbar(this.layoutProvider.getScrollable(), configuration, this.eventDispatcher, this.linesContent, this.domNode, this.overflowGuardContainer);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(
@@ -269,11 +273,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		// -------------- Wire dom nodes up
 
-		this.linesContentContainer = this.layoutProvider.getScrollbarContainerDomNode();
+		this.linesContentContainer = this._scrollbar.getScrollbarContainerDomNode();
 		this.linesContentContainer.style.position = 'absolute';
 
 		if (decorationsOverviewRuler) {
-			let overviewRulerData = this.layoutProvider.getOverviewRulerInsertData();
+			let overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
 			overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
 		}
 
@@ -533,6 +537,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		}
 		this.viewParts = [];
 
+		this._scrollbar.dispose();
 		this.layoutProvider.dispose();
 	}
 
@@ -590,7 +595,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.delegateVerticalScrollbarMouseDown: View is disposed');
 					}
-					this.layoutProvider.delegateVerticalScrollbarMouseDown(browserEvent);
+					this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 				},
 				getOffsetForColumn: (modelLineNumber: number, modelColumn: number) => {
 					if (this._isDisposed) {
@@ -897,7 +902,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		}
 
 		// Render the scrollbar
-		this.layoutProvider.renderScrollbar();
+		this._scrollbar.renderScrollbar();
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {

@@ -9,7 +9,6 @@ import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { EditorScrollbar } from 'vs/editor/browser/viewLayout/scrollManager';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
@@ -56,10 +55,6 @@ export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProv
 
 export interface IScrollingProvider {
 
-	getOverviewRulerInsertData(): { parent: HTMLElement; insertBefore: HTMLElement; };
-	getScrollbarContainerDomNode(): HTMLElement;
-	delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
-
 	// This is for the glyphs, line numbers, etc.
 	getScrolledTopFromAbsoluteTop(top: number): number;
 
@@ -103,11 +98,10 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	private _configuration: editorCommon.IConfiguration;
 	private _privateViewEventBus: IViewEventBus;
 	private _model: IViewModel;
-	private _scrollManager: EditorScrollbar;
 	private _linesLayout: LinesLayout;
 	private _scrollable: Scrollable;
 
-	constructor(configuration: editorCommon.IConfiguration, model: IViewModel, privateViewEventBus: IViewEventBus, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
+	constructor(configuration: editorCommon.IConfiguration, model: IViewModel, privateViewEventBus: IViewEventBus) {
 		super();
 
 		this._scrollable = new Scrollable();
@@ -122,8 +116,6 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 		this._privateViewEventBus = privateViewEventBus;
 		this._model = model;
 
-		this._scrollManager = new EditorScrollbar(this._scrollable, configuration, privateViewEventBus, linesContent, viewDomNode, overflowGuardDomNode);
-
 		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
 
 		this._linesLayout = new LinesLayout(this._model.getLineCount(), this._configuration.editor.lineHeight);
@@ -133,7 +125,10 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
-		this._scrollManager.dispose();
+	}
+
+	public getScrollable(): Scrollable {
+		return this._scrollable;
 	}
 
 	private _updateLineCount(): void {
@@ -347,22 +342,5 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getScrolledTopFromAbsoluteTop(top: number): number {
 		const scrollState = this._scrollable.getState();
 		return top - scrollState.scrollTop;
-	}
-
-	public getOverviewRulerInsertData(): { parent: HTMLElement; insertBefore: HTMLElement; } {
-		let layoutInfo = this._scrollManager.getOverviewRulerLayoutInfo();
-		return {
-			parent: layoutInfo.parent,
-			insertBefore: layoutInfo.insertBefore
-		};
-	}
-	public getScrollbarContainerDomNode(): HTMLElement {
-		return this._scrollManager.getScrollbarContainerDomNode();
-	}
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
-		this._scrollManager.delegateVerticalScrollbarMouseDown(browserEvent);
-	}
-	public renderScrollbar(): void {
-		this._scrollManager.renderScrollbar();
 	}
 }
