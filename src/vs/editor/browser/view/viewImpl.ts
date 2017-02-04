@@ -588,7 +588,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 					return this.layoutProvider.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 				},
 				delegateVerticalScrollbarMouseDown: (browserEvent: MouseEvent) => {
@@ -605,7 +605,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 					this._flushAccumulatedAndRenderNow();
 					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0);
 					if (!visibleRanges) {

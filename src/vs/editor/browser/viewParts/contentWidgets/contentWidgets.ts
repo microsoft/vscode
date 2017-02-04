@@ -333,7 +333,7 @@ export class ViewContentWidgets extends ViewPart {
 			return null;
 		}
 
-		let position = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column);
+		let position = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(validModelPosition);
 
 		let placement: IBoxLayoutResult = null;
 		let fetchPlacement = () => {
