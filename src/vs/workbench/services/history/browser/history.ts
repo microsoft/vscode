@@ -7,9 +7,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
-import platform = require('vs/base/common/platform');
-import nls = require('vs/nls');
-import labels = require('vs/base/common/labels');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -27,9 +24,6 @@ import { Registry } from 'vs/platform/platform';
 import { once } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
@@ -82,37 +76,18 @@ export abstract class BaseHistoryService {
 	protected toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
-	private isPure: boolean;
-	private showFullPath: boolean;
 
 	protected excludes: ParsedExpression;
 	private lastKnownExcludesConfig: IExpression;
-
-	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 
 	constructor(
 		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
 		protected contextService: IWorkspaceContextService,
-		private configurationService: IConfigurationService,
-		private environmentService: IEnvironmentService,
-		integrityService: IIntegrityService,
-		private titleService: ITitleService
+		private configurationService: IConfigurationService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
-		this.isPure = true;
-
-		// Window Title
-		this.titleService.updateTitle(this.getWindowTitle(null));
-
-		// Integrity
-		integrityService.isPure().then(r => {
-			if (!r.isPure) {
-				this.isPure = false;
-				this.titleService.updateTitle(this.getWindowTitle(this.editorService.getActiveEditorInput()));
-			}
-		});
 
 		// Editor Input Changes
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
@@ -123,13 +98,6 @@ export abstract class BaseHistoryService {
 	}
 
 	private onConfigurationChanged(update?: boolean): void {
-		const currentShowPath = this.showFullPath;
-		this.showFullPath = this.configurationService.lookup<boolean>('window.showFullPath').value;
-
-		if (update && currentShowPath !== this.showFullPath) {
-			this.updateWindowTitle(this.editorService.getActiveEditorInput());
-		}
-
 		const excludesConfig = getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>());
 		if (!objects.equals(excludesConfig, this.lastKnownExcludesConfig)) {
 			const configChanged = !!this.lastKnownExcludesConfig;
@@ -150,21 +118,9 @@ export abstract class BaseHistoryService {
 		this.activeEditorListeners = [];
 
 		const activeEditor = this.editorService.getActiveEditor();
-		const activeInput = activeEditor ? activeEditor.input : void 0;
 
 		// Propagate to history
-		this.onEditorEvent(activeEditor);
-
-		// Apply listener for dirty and label changes
-		if (activeInput instanceof EditorInput) {
-			this.activeEditorListeners.push(activeInput.onDidChangeDirty(() => {
-				this.updateWindowTitle(activeInput); // Calculate New Window Title when dirty state changes
-			}));
-
-			this.activeEditorListeners.push(activeInput.onDidChangeLabel(() => {
-				this.updateWindowTitle(activeInput); // Calculate New Window Title when label changes
-			}));
-		}
+		this.handleActiveEditorChange(activeEditor);
 
 		// Apply listener for selection changes if this is a text editor
 		const control = getCodeEditor(activeEditor);
@@ -175,96 +131,11 @@ export abstract class BaseHistoryService {
 		}
 	}
 
-	private onEditorEvent(editor: IBaseEditor): void {
-		const input = editor ? editor.input : null;
-
-		// Calculate New Window Title
-		this.updateWindowTitle(input);
-
-		// Delegate to implementors
-		this.handleActiveEditorChange(editor);
-	}
-
-	private updateWindowTitle(input?: IEditorInput): void {
-		let windowTitle: string = null;
-		if (input && input.getName()) {
-			windowTitle = this.getWindowTitle(input);
-		} else {
-			windowTitle = this.getWindowTitle(null);
-		}
-
-		this.titleService.updateTitle(windowTitle);
-	}
-
 	protected abstract handleExcludesChange(): void;
 
 	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor): void;
 
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
-
-	protected getWindowTitle(input?: IEditorInput): string {
-		let title = this.doGetWindowTitle(input);
-		if (!this.isPure) {
-			title = `${title} ${BaseHistoryService.NLS_UNSUPPORTED}`;
-		}
-
-		// Extension Development Host gets a special title to identify itself
-		if (this.environmentService.isExtensionDevelopment) {
-			return nls.localize('devExtensionWindowTitle', "[Extension Development Host] - {0}", title);
-		}
-
-		return title;
-	}
-
-	private doGetWindowTitle(input?: IEditorInput): string {
-		const appName = this.environmentService.appNameLong;
-
-		let prefix: string;
-		const file = toResource(input, { filter: 'file' });
-		if (file && this.showFullPath) {
-			prefix = labels.getPathLabel(file);
-			if ((platform.isMacintosh || platform.isLinux) && prefix.indexOf(this.environmentService.userHome) === 0) {
-				prefix = `~${prefix.substr(this.environmentService.userHome.length)}`;
-			}
-		} else {
-			prefix = input && input.getName();
-		}
-
-		if (prefix && input) {
-			if (input.isDirty() && !platform.isMacintosh /* Mac has its own decoration in window */) {
-				prefix = nls.localize('prefixDecoration', "\u25cf {0}", prefix);
-			}
-		}
-
-		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
-			const wsName = workspace.name;
-
-			if (prefix) {
-				if (platform.isMacintosh) {
-					return nls.localize('prefixWorkspaceTitleMac', "{0} - {1}", prefix, wsName); // Mac: do not append base title
-				}
-
-				return nls.localize('prefixWorkspaceTitle', "{0} - {1} - {2}", prefix, wsName, appName);
-			}
-
-			if (platform.isMacintosh) {
-				return wsName; // Mac: do not append base title
-			}
-
-			return nls.localize('workspaceTitle', "{0} - {1}", wsName, appName);
-		}
-
-		if (prefix) {
-			if (platform.isMacintosh) {
-				return prefix; // Mac: do not append base title
-			}
-
-			return nls.localize('prefixTitle', "{0} - {1}", prefix, appName);
-		}
-
-		return appName;
-	}
 
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
@@ -305,17 +176,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	constructor(
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IIntegrityService integrityService: IIntegrityService,
-		@ITitleService titleService: ITitleService,
 		@IFileService private fileService: IFileService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService, titleService);
+		super(editorGroupService, editorService, contextService, configurationService);
 
 		this.index = -1;
 		this.stack = [];

@@ -135,3 +135,89 @@ export function shorten(paths: string[]): string[] {
 
 	return shortenedPaths;
 }
+
+export interface ISeparator {
+	label: string;
+}
+
+enum Type {
+	TEXT,
+	VARIABLE,
+	SEPARATOR
+}
+
+interface ISegment {
+	value: string;
+	type: Type;
+}
+
+/**
+ * Helper to insert values for specific template variables into the string. E.g. "this {is} a {template}" can be
+ * passed to this function together with an object that mapes "is" and "template" to strings to have them replaced.
+ * @param value string to which templating is applied
+ * @param values the values of the templates to use
+ */
+export function template(template: string, values: { [key: string]: string | ISeparator } = Object.create(null)): string {
+	const segments: ISegment[] = [];
+
+	let inVariable = false;
+	let char: string;
+	let curVal = '';
+	for (let i = 0; i < template.length; i++) {
+		char = template[i];
+
+		// Beginning of variable
+		if (char === '{') {
+			if (curVal) {
+				segments.push({ value: curVal, type: Type.TEXT });
+			}
+
+			curVal = '';
+			inVariable = true;
+		}
+
+		// End of variable
+		else if (char === '}' && inVariable) {
+			const resolved = values[curVal];
+
+			// Variable
+			if (typeof resolved === 'string') {
+				if (resolved.length) {
+					segments.push({ value: resolved, type: Type.VARIABLE });
+				}
+			}
+
+			// Separator
+			else if (resolved) {
+				segments.push({ value: resolved.label, type: Type.SEPARATOR });
+			}
+
+			curVal = '';
+			inVariable = false;
+		}
+
+		// Text or Variable Name
+		else {
+			curVal += char;
+		}
+	}
+
+	// Tail
+	if (curVal && !inVariable) {
+		segments.push({ value: curVal, type: Type.TEXT });
+	}
+
+	return segments.filter((segment, index) => {
+
+		// Only keep separator if we have values to the left and right
+		if (segment.type === Type.SEPARATOR) {
+			const left = segments[index - 1];
+			const right = segments[index + 1];
+
+			return [left, right].every(segment => segment && segment.type === Type.VARIABLE && segment.value.length > 0);
+		}
+
+		// accept any TEXT and VARIABLE
+		return true;
+	}).map(segment => segment.value).join('');
+}

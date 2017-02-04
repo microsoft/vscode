@@ -12,7 +12,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import platform = require('vs/base/common/platform');
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -68,7 +68,7 @@ workbenchActionsRegistry.registerWorkbenchAction(
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, MessagesVisibleContext), 'Close Notification Messages');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, closeEditorOrWindowKeybindings), 'View: Close Editor', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
-if (platform.isWindows || platform.isLinux) {
+if (isWindows || isLinux) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
 
@@ -234,10 +234,18 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'default': 0,
 		'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
 	},
-	'window.showFullPath': {
-		'type': 'boolean',
-		'default': false,
-		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
+	'window.title': {
+		'type': 'string',
+		'default': isMacintosh ? '{activeEditorName}{separator}{rootName}' : '{dirty}{activeEditorName}{separator}{rootName}{separator}{appName}',
+		'description': nls.localize('title',
+			`Controls the window title based on the active editor. Variables are substituted based on the context:
+{activeEditorName}: e.g. myFile.txt
+{activeFilePath}: e.g. /Users/Development/myProject/myFile.txt
+{rootName}: e.g. myProject
+{rootPath}: e.g. /Users/Development/myProject
+{appName}: e.g. VS Code
+{dirty}: a dirty indicator if the active editor is dirty
+{separator}: a conditional separator that only shows when surrounded by variables with values`)
 	},
 	'window.newWindowDimensions': {
 		'type': 'string',
@@ -253,7 +261,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 };
 
-if (platform.isWindows || platform.isLinux) {
+if (isWindows || isLinux) {
 	properties['window.menuBarVisibility'] = {
 		'type': 'string',
 		'enum': ['default', 'visible', 'toggle', 'hidden'],
@@ -268,7 +276,7 @@ if (platform.isWindows || platform.isLinux) {
 	};
 }
 
-if (platform.isWindows) {
+if (isWindows) {
 	properties['window.autoDetectHighContrast'] = {
 		'type': 'boolean',
 		'default': true,
@@ -276,7 +284,7 @@ if (platform.isWindows) {
 	};
 }
 
-if (platform.isMacintosh) {
+if (isMacintosh) {
 	properties['window.titleBarStyle'] = {
 		'type': 'string',
 		'enum': ['native', 'custom'],
