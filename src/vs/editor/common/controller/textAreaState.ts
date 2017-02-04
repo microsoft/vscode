@@ -56,7 +56,10 @@ export interface ISimpleModel {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getModelLineContent(lineNumber: number): string;
 	getLineCount(): number;
-	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;
+
+	coordinatesConverter: {
+		convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;
+	};
 }
 
 export interface ITypeData {

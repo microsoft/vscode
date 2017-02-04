@@ -7,12 +7,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { InlineDecoration, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-
-export interface IModelRangeToViewRangeConverter {
-	convertModelRangeToViewRange(modelRange: Range, isWholeLine: boolean): Range;
-	convertViewRangeToModelRange(viewRange: Range): Range;
-}
+import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IDecorationsViewportData {
 	/**
@@ -30,18 +25,18 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly editorId: number;
 	private readonly model: editorCommon.IModel;
 	private readonly configuration: editorCommon.IConfiguration;
-	private readonly converter: IModelRangeToViewRangeConverter;
+	private readonly _coordinatesConverter: ICoordinatesConverter;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData;
 	private _cachedModelDecorationsResolverViewRange: Range;
 
-	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, converter: IModelRangeToViewRangeConverter) {
+	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
-		this.converter = converter;
+		this._coordinatesConverter = coordinatesConverter;
 		this._decorationsCache = Object.create(null);
 
 		this._clearCachedModelDecorationsResolver();
@@ -99,7 +94,11 @@ export class ViewModelDecorations implements IDisposable {
 			this._decorationsCache[id] = r;
 		}
 		if (r.range === null) {
-			r.range = this.converter.convertModelRangeToViewRange(modelDecoration.range, modelDecoration.options.isWholeLine);
+			if (modelDecoration.options.isWholeLine) {
+				r.range = this._coordinatesConverter.convertWholeLineModelRangeToViewRange(modelDecoration.range);
+			} else {
+				r.range = this._coordinatesConverter.convertModelRangeToViewRange(modelDecoration.range);
+			}
 		}
 		return r;
 	}
@@ -133,7 +132,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		let viewportModelRange = this.converter.convertViewRangeToModelRange(viewportRange);
+		let viewportModelRange = this._coordinatesConverter.convertViewRangeToModelRange(viewportRange);
 		let startLineNumber = viewportRange.startLineNumber;
 		let endLineNumber = viewportRange.endLineNumber;
 		let modelDecorations = this.model.getDecorationsInRange(viewportModelRange, this.editorId, this.configuration.editor.readOnly);

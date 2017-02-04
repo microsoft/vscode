@@ -328,12 +328,12 @@ export class ViewContentWidgets extends ViewPart {
 		// Do not trust that widgets have a valid position
 		let validModelPosition = this._context.model.validateModelPosition(widgetData.position);
 
-		if (!this._context.model.modelPositionIsVisible(validModelPosition)) {
+		if (!this._context.model.coordinatesConverter.modelPositionIsVisible(validModelPosition)) {
 			// this position is hidden by the view model
 			return null;
 		}
 
-		let position = this._context.model.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column);
+		let position = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column);
 
 		let placement: IBoxLayoutResult = null;
 		let fetchPlacement = () => {

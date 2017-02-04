@@ -815,28 +815,28 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
 				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
-					return this.viewModel.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
+					return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
 				},
 				getCurrentCompletelyVisibleModelLinesRangeInViewport: () => {
 					return this.getCompletelyVisibleLinesRangeInViewport();
 				},
 				convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.convertModelPositionToViewPosition(lineNumber, column);
+					return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(lineNumber, column);
 				},
 				convertModelRangeToViewRange: (modelRange: Range) => {
-					return this.viewModel.convertModelRangeToViewRange(modelRange);
+					return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 				},
 				convertViewToModelPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.convertViewPositionToModelPosition(lineNumber, column);
+					return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(lineNumber, column);
 				},
-				convertViewSelectionToModelSelection: (viewSelection: editorCommon.ISelection) => {
-					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
+				convertViewSelectionToModelSelection: (viewSelection: Selection) => {
+					return this.viewModel.coordinatesConverter.convertViewSelectionToModelSelection(viewSelection);
 				},
 				validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
-					return this.viewModel.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
+					return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
 				},
 				validateViewRange: (viewRange: Range, modelRange: Range): Range => {
-					return this.viewModel.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
+					return this.viewModel.coordinatesConverter.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
 				}
 			};
 

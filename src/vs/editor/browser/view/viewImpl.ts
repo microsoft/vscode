@@ -588,7 +588,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					let viewPosition = this._context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 					return this.layoutProvider.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 				},
 				delegateVerticalScrollbarMouseDown: (browserEvent: MouseEvent) => {
@@ -605,7 +605,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					let viewPosition = this._context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 					this._flushAccumulatedAndRenderNow();
 					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0);
 					if (!visibleRanges) {
@@ -641,7 +641,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this._context.model.getLineMaxColumn(endLineNumber)
 		);
 
-		return this._context.model.convertViewRangeToModelRange(completelyVisibleLinesRange);
+		return this._context.model.coordinatesConverter.convertViewRangeToModelRange(completelyVisibleLinesRange);
 	}
 
 	public getInternalEventBus(): IEventEmitter {
@@ -723,17 +723,16 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				}
 			};
 
-			let r: any = safeInvoke1Arg(callback, changeAccessor);
+			safeInvoke1Arg(callback, changeAccessor);
 
 			// Invalidate changeAccessor
 			changeAccessor.addZone = null;
 			changeAccessor.removeZone = null;
 
 			if (zonesHaveChanged) {
+				this.layoutProvider.onHeightMaybeChanged();
 				this._context.privateViewEventBus.emit(editorCommon.EventType.ViewZonesChanged, null);
 			}
-
-			return r;
 		});
 		return zonesHaveChanged;
 	}
