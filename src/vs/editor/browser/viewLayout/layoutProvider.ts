@@ -79,11 +79,6 @@ export interface IVerticalLayoutProvider {
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 
 	/**
-	 * Returns the height in pixels for `lineNumber`.
-	 */
-	heightInPxForLine(lineNumber: number): number;
-
-	/**
 	 * Return line number at `verticalOffset` or closest line number
 	 */
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
@@ -121,7 +116,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 		this.configuration.setMaxLineNumber(this.model.getMaxLineNumber());
 
-		this.linesLayout = new LinesLayout(configuration, this.model.getLineCount());
+		this.linesLayout = new LinesLayout(this.model.getLineCount(), this.configuration.editor.lineHeight);
 
 		this._updateHeight();
 	}
@@ -149,21 +144,23 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	}
 
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		this.linesLayout.onModelLinesDeleted(e);
+		this.linesLayout.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		this.updateLineCount();
 		this._updateHeight();
 		return false;
 	}
 
 	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		this.linesLayout.onModelLinesInserted(e);
+		this.linesLayout.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 		this.updateLineCount();
 		this._updateHeight();
 		return false;
 	}
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		this.linesLayout.onConfigurationChanged(e);
+		if (e.lineHeight) {
+			this.linesLayout.setLineHeight(this.configuration.editor.lineHeight);
+		}
 		if (e.layoutInfo) {
 			this.scrollManager.onLayoutInfoChanged();
 			this._emitLayoutChangedEvent();
@@ -251,15 +248,34 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
 		return this.linesLayout.getVerticalOffsetForLineNumber(lineNumber);
 	}
-	public heightInPxForLine(lineNumber: number): number {
-		return this.linesLayout.getHeightForLineNumber(lineNumber);
-	}
 	public isAfterLines(verticalOffset: number): boolean {
 		return this.linesLayout.isAfterLines(verticalOffset);
 	}
 	public getLineNumberAtVerticalOffset(verticalOffset: number): number {
 		return this.linesLayout.getLineNumberAtOrAfterVerticalOffset(verticalOffset);
 	}
+
+	/**
+	 * Get the sum of heights for all objects and compute basically the `scrollHeight` for the editor content.
+	 *
+	 * Take into account the `scrollBeyondLastLine` and `reserveHorizontalScrollbarHeight` and produce a scrollHeight that is at least as large as `viewport`.height.
+	 *
+	 * @param viewport The viewport.
+	 * @param reserveHorizontalScrollbarHeight The height of the horizontal scrollbar.
+	 * @return Basically, the `scrollHeight` for the editor content.
+	 */
+	private _getTotalHeight(viewport: editorCommon.Viewport, reserveHorizontalScrollbarHeight: number): number {
+		var totalLinesHeight = this.linesLayout.getLinesTotalHeight();
+
+		if (this.configuration.editor.viewInfo.scrollBeyondLastLine) {
+			totalLinesHeight += viewport.height - this.configuration.editor.lineHeight;
+		} else {
+			totalLinesHeight += reserveHorizontalScrollbarHeight;
+		}
+
+		return Math.max(viewport.height, totalLinesHeight);
+	}
+
 	public getTotalHeight(): number {
 		let reserveHorizontalScrollbarHeight = 0;
 		if (this.scrollManager.getScrollWidth() > this.scrollManager.getWidth()) {
@@ -267,16 +283,18 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 				reserveHorizontalScrollbarHeight = this.configuration.editor.viewInfo.scrollbar.horizontalScrollbarSize;
 			}
 		}
-		return this.linesLayout.getTotalHeight(this.getCurrentViewport(), reserveHorizontalScrollbarHeight);
+		return this._getTotalHeight(this.getCurrentViewport(), reserveHorizontalScrollbarHeight);
 	}
 	public getWhitespaceAtVerticalOffset(verticalOffset: number): editorCommon.IViewWhitespaceViewportData {
 		return this.linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
 	public getLinesViewportData(): IPartialViewLinesViewportData {
-		return this.linesLayout.getLinesViewportData(this.getCurrentViewport());
+		const visibleBox = this.getCurrentViewport();
+		return this.linesLayout.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
 	public getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[] {
-		return this.linesLayout.getWhitespaceViewportData(this.getCurrentViewport());
+		const visibleBox = this.getCurrentViewport();
+		return this.linesLayout.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
 	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
 		return this.linesLayout.getWhitespaces();
