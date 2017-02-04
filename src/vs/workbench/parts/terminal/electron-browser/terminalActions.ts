@@ -202,7 +202,7 @@ export class RunSelectedTextInTerminalAction extends Action {
 			let selection = editor.getSelection();
 			let text: string;
 			if (selection.isEmpty()) {
-				text = editor.getValue();
+				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
 			} else {
 				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
