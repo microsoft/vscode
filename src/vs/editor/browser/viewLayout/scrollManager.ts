@@ -84,12 +84,13 @@ export class EditorScrollbar implements IDisposable {
 		// changing the .scrollTop of this.linesContent
 
 		let onBrowserDesperateReveal = (domNode: HTMLElement, lookAtScrollTop: boolean, lookAtScrollLeft: boolean) => {
+			const scrollState = this.scrollable.getState();
 			let newScrollPosition: INewScrollPosition = {};
 
 			if (lookAtScrollTop) {
 				let deltaTop = domNode.scrollTop;
 				if (deltaTop) {
-					newScrollPosition.scrollTop = this.scrollable.getScrollTop() + deltaTop;
+					newScrollPosition.scrollTop = scrollState.scrollTop + deltaTop;
 					domNode.scrollTop = 0;
 				}
 			}
@@ -97,7 +98,7 @@ export class EditorScrollbar implements IDisposable {
 			if (lookAtScrollLeft) {
 				let deltaLeft = domNode.scrollLeft;
 				if (deltaLeft) {
-					newScrollPosition.scrollLeft = this.scrollable.getScrollLeft() + deltaLeft;
+					newScrollPosition.scrollLeft = scrollState.scrollLeft + deltaLeft;
 					domNode.scrollLeft = 0;
 				}
 			}
