@@ -486,7 +486,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 		// Have a box that includes one extra line height (for the horizontal scrollbar)
 		boxStartY = this._layoutProvider.getVerticalOffsetForLineNumber(range.startLineNumber);
-		boxEndY = this._layoutProvider.getVerticalOffsetForLineNumber(range.endLineNumber) + this._layoutProvider.heightInPxForLine(range.endLineNumber);
+		boxEndY = this._layoutProvider.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
 		if (verticalType === editorCommon.VerticalRevealType.Simple || verticalType === editorCommon.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
 			boxEndY += this._lineHeight;
