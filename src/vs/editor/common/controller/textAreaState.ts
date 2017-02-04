@@ -58,7 +58,7 @@ export interface ISimpleModel {
 	getLineCount(): number;
 
 	coordinatesConverter: {
-		convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;
+		convertViewPositionToModelPosition(viewPosition: Position): Position;
 	};
 }
 

@@ -6,6 +6,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 
@@ -94,10 +95,13 @@ export class ViewModelDecorations implements IDisposable {
 			this._decorationsCache[id] = r;
 		}
 		if (r.range === null) {
+			const modelRange = modelDecoration.range;
 			if (modelDecoration.options.isWholeLine) {
-				r.range = this._coordinatesConverter.convertWholeLineModelRangeToViewRange(modelDecoration.range);
+				let start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1));
+				let end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)));
+				r.range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 			} else {
-				r.range = this._coordinatesConverter.convertModelRangeToViewRange(modelDecoration.range);
+				r.range = this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
 			}
 		}
 		return r;

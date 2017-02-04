@@ -13,17 +13,16 @@ import { Selection } from 'vs/editor/common/core/selection';
 
 export interface ICoordinatesConverter {
 	// View -> Model conversion and related methods
-	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;
+	convertViewPositionToModelPosition(viewPosition: Position): Position;
 	convertViewRangeToModelRange(viewRange: Range): Range;
 	convertViewSelectionToModelSelection(viewSelection: Selection): Selection;
-	validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position;
-	validateViewRange(viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range): Range;
+	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
+	validateViewRange(viewRange: Range, modelRange: Range): Range;
 
 	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelLineNumber: number, modelColumn: number): Position;
+	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
-	convertWholeLineModelRangeToViewRange(modelRange: Range): Range;
-	modelPositionIsVisible(position: Position): boolean;
+	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
 export interface IViewModel extends IEventEmitter {

@@ -20,8 +20,8 @@ class SingleLineTestModel implements ISimpleModel {
 	private _eol: string;
 
 	public coordinatesConverter = {
-		convertViewPositionToModelPosition: (viewLineNumber: number, viewColumn: number): Position => {
-			return new Position(viewLineNumber, viewColumn);
+		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
+			return viewPosition;
 		}
 	};
 

@@ -814,30 +814,13 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
+				coordinatesConverter: this.viewModel.coordinatesConverter,
 				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
 					return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
 				},
 				getCurrentCompletelyVisibleModelLinesRangeInViewport: () => {
 					return this.getCompletelyVisibleLinesRangeInViewport();
 				},
-				convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(lineNumber, column);
-				},
-				convertModelRangeToViewRange: (modelRange: Range) => {
-					return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
-				},
-				convertViewToModelPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(lineNumber, column);
-				},
-				convertViewSelectionToModelSelection: (viewSelection: Selection) => {
-					return this.viewModel.coordinatesConverter.convertViewSelectionToModelSelection(viewSelection);
-				},
-				validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
-					return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
-				},
-				validateViewRange: (viewRange: Range, modelRange: Range): Range => {
-					return this.viewModel.coordinatesConverter.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
-				}
 			};
 
 			this.cursor = new Cursor(
