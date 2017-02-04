@@ -21,7 +21,7 @@ interface MarkdownIt {
 	utils: any;
 }
 
-const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
+const FrontMatterRegex = /^---\s*[^]*?---\s*/;
 
 export class MarkdownEngine {
 	private md: MarkdownIt;
@@ -59,7 +59,6 @@ export class MarkdownEngine {
 	private stripFrontmatter(text: string): { text: string, offset: number } {
 		let offset = 0;
 		const frontMatterMatch = FrontMatterRegex.exec(text);
-
 		if (frontMatterMatch) {
 			const frontMatter = frontMatterMatch[0];
 
