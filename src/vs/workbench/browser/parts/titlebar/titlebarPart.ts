@@ -66,7 +66,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.isPure = true;
 		this.activeEditorListeners = [];
-		this.workspacePath = contextService.hasWorkspace ? this.tildify(labels.getPathLabel(contextService.getWorkspace().resource)) : '';
+		this.workspacePath = contextService.hasWorkspace() ? this.tildify(labels.getPathLabel(contextService.getWorkspace().resource)) : '';
 
 		this.init();
 
