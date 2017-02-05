@@ -220,13 +220,15 @@
 /* No Tab Close Button */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
-	padding-right: 28px; /* make room for dirty indication when we are running without close button */
+	padding-right: 12px;
+	transition: padding-right ease-in-out 100ms;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
 	background-repeat: no-repeat;
 	background-position-y: center;
 	background-position-x: calc(100% - 6px); /* to the right of the tab label */
+	padding-right: 28px; /* make room for dirty indication when we are running without close button */
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
