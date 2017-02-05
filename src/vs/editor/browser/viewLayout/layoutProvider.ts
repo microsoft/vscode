@@ -8,89 +8,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
-import { ILayoutProvider as IRenderingLayoutProvider } from 'vs/editor/common/view/renderingContext';
 
-export interface IWhitespaceManager {
-	/**
-	 * Reserve rendering space.
-	 * @param height is specified in pixels.
-	 * @return an identifier that can be later used to remove or change the whitespace.
-	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number): number;
-
-	/**
-	 * Change the properties of a whitespace.
-	 * @param height is specified in pixels.
-	 */
-	changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean;
-
-	/**
-	 * Remove rendering space
-	 */
-	removeWhitespace(id: number): boolean;
-
-	/**
-	 * Get the layout information for whitespaces currently in the viewport
-	 */
-	getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[];
-
-	getWhitespaces(): editorCommon.IEditorWhitespace[];
-}
-
-export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProvider {
-
-	dispose(): void;
-
-	getCurrentViewport(): editorCommon.Viewport;
-
-	onMaxLineWidthChanged(width: number): void;
-
-	saveState(): editorCommon.IViewState;
-	restoreState(state: editorCommon.IViewState): void;
-}
-
-export interface IScrollingProvider {
-
-	// This is for the glyphs, line numbers, etc.
-	getScrolledTopFromAbsoluteTop(top: number): number;
-
-	getScrollWidth(): number;
-	getScrollLeft(): number;
-
-	getScrollHeight(): number;
-	getScrollTop(): number;
-
-	setScrollPosition(position: editorCommon.INewScrollPosition): void;
-}
-
-export interface IVerticalLayoutProvider {
-	/**
-	 * Compute vertical offset (top) of line number
-	 */
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
-
-	/**
-	 * Return line number at `verticalOffset` or closest line number
-	 */
-	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-
-	/**
-	 * Compute content height (including one extra scroll page if necessary)
-	 */
-	getTotalHeight(): number;
-
-	/**
-	 * Compute the lines that need to be rendered in the current viewport position.
-	 */
-	getLinesViewportData(): IPartialViewLinesViewportData;
-
-}
-
-export class LayoutProvider extends ViewEventHandler implements IDisposable, ILayoutProvider, IWhitespaceManager, IRenderingLayoutProvider {
+export class LayoutProvider implements IDisposable, IViewLayout {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
@@ -102,8 +24,6 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	private _scrollable: Scrollable;
 
 	constructor(configuration: editorCommon.IConfiguration, model: IViewModel, privateViewEventBus: IViewEventBus) {
-		super();
-
 		this._scrollable = new Scrollable();
 		this._scrollable.updateState({
 			width: configuration.editor.layoutInfo.contentWidth,
@@ -131,38 +51,31 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 		return this._scrollable;
 	}
 
-	private _updateLineCount(): void {
-		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
-	}
-
 	public onHeightMaybeChanged(): void {
 		this._updateHeight();
 	}
 
 	// ---- begin view event handlers
 
-	public onModelFlushed(): boolean {
+	public onModelFlushed(): void {
 		this._linesLayout.onModelFlushed(this._model.getLineCount());
-		this._updateLineCount();
+		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
 		this._updateHeight();
-		return false;
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
 		this._linesLayout.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
-		this._updateLineCount();
+		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
 		this._updateHeight();
-		return false;
 	}
 
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): void {
 		this._linesLayout.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
-		this._updateLineCount();
+		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
 		this._updateHeight();
-		return false;
 	}
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void {
 		if (e.lineHeight) {
 			this._linesLayout.setLineHeight(this._configuration.editor.lineHeight);
 		}
@@ -174,7 +87,6 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 			this._emitLayoutChangedEvent();
 		}
 		this._updateHeight();
-		return false;
 	}
 
 	private _updateHeight(): void {

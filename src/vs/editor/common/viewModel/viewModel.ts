@@ -5,11 +5,49 @@
 'use strict';
 
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, IViewWhitespaceViewportData, Viewport, IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+// import { Viewport } from 'vs/editor/common/editorCommon';
+
+export interface IViewLayout {
+
+	onMaxLineWidthChanged(width: number): void;
+
+	getScrollLeft(): number;
+	getScrollWidth(): number;
+	getScrollHeight(): number;
+	getScrollTop(): number;
+	getCurrentViewport(): Viewport;
+	getTotalHeight(): number;
+	getScrolledTopFromAbsoluteTop(top: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	setScrollPosition(position: INewScrollPosition): void;
+
+	// --------------- Begin vertical whitespace management
+
+	/**
+	 * Reserve rendering space.
+	 * @return an identifier that can be later used to remove or change the whitespace.
+	 */
+	addWhitespace(afterLineNumber: number, ordinal: number, height: number): number;
+	/**
+	 * Change the properties of a whitespace.
+	 */
+	changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean;
+	/**
+	 * Remove rendering space
+	 */
+	removeWhitespace(id: number): boolean;
+	/**
+	 * Get the layout information for whitespaces currently in the viewport
+	 */
+	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
+
+	// --------------- End vertical whitespace management
+}
 
 export interface ICoordinatesConverter {
 	// View -> Model conversion and related methods
@@ -17,7 +55,7 @@ export interface ICoordinatesConverter {
 	convertViewRangeToModelRange(viewRange: Range): Range;
 	convertViewSelectionToModelSelection(viewSelection: Selection): Selection;
 	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
-	validateViewRange(viewRange: Range, modelRange: Range): Range;
+	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
@@ -52,9 +90,9 @@ export interface IViewModel extends IEventEmitter {
 	getEOL(): string;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
-	getModelLineContent(lineNumber: number): string;
+	getModelLineContent(modelLineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
-	validateModelPosition(position: IPosition): Position;
+	validateModelPosition(modelPosition: IPosition): Position;
 }
 
 export class ViewLineRenderingData {

@@ -12,21 +12,21 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
 	private _dynamicOverlays: DynamicViewOverlay[];
 	private _isFocused: boolean;
-	_layoutProvider: ILayoutProvider;
+	protected _viewLayout: IViewLayout;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext, viewLayout: IViewLayout) {
 		super(context);
 
 		this._dynamicOverlays = [];
 		this._isFocused = false;
-		this._layoutProvider = layoutProvider;
+		this._viewLayout = viewLayout;
 
 		this.domNode.setClassName('view-overlays');
 	}
@@ -48,7 +48,7 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
 	public dispose(): void {
 		super.dispose();
-		this._layoutProvider = null;
+		this._viewLayout = null;
 
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			let dynamicOverlay = this._dynamicOverlays[i];
@@ -183,10 +183,10 @@ export class ContentViewOverlays extends ViewOverlays {
 	private _scrollWidth: number;
 	private _contentWidth: number;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
-		super(context, layoutProvider);
+	constructor(context: ViewContext, viewLayout: IViewLayout) {
+		super(context, viewLayout);
 
-		this._scrollWidth = this._layoutProvider.getScrollWidth();
+		this._scrollWidth = this._viewLayout.getScrollWidth();
 		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 
 		this.domNode.setWidth(this._scrollWidth);
@@ -216,8 +216,8 @@ export class MarginViewOverlays extends ViewOverlays {
 	private _contentLeft: number;
 	private _canUseTranslate3d: boolean;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
-		super(context, layoutProvider);
+	constructor(context: ViewContext, viewLayout: IViewLayout) {
+		super(context, viewLayout);
 
 		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
 		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
@@ -250,7 +250,7 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		let height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
+		let height = Math.min(this._viewLayout.getTotalHeight(), 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);
 	}

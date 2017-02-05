@@ -4,20 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { Viewport } from 'vs/editor/common/editorCommon';
-
-export interface ILayoutProvider {
-	getScrollWidth(): number;
-	getScrollHeight(): number;
-	getCurrentViewport(): Viewport;
-
-	getScrolledTopFromAbsoluteTop(top: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
-}
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
@@ -41,21 +31,21 @@ export class RenderingContext implements IRenderingContext {
 	public readonly viewportHeight: number;
 	public readonly viewportLeft: number;
 
-	private readonly _layoutProvider: ILayoutProvider;
+	private readonly _viewLayout: IViewLayout;
 	private readonly _viewLines: IViewLines;
 
-	constructor(viewLines: IViewLines, layoutProvider: ILayoutProvider, viewportData: ViewportData) {
+	constructor(viewLines: IViewLines, viewLayout: IViewLayout, viewportData: ViewportData) {
 		this._viewLines = viewLines;
-		this._layoutProvider = layoutProvider;
+		this._viewLayout = viewLayout;
 		this.viewportData = viewportData;
 
-		this.scrollWidth = this._layoutProvider.getScrollWidth();
-		this.scrollHeight = this._layoutProvider.getScrollHeight();
+		this.scrollWidth = this._viewLayout.getScrollWidth();
+		this.scrollHeight = this._viewLayout.getScrollHeight();
 
 		this.visibleRange = this.viewportData.visibleRange;
 		this.bigNumbersDelta = this.viewportData.bigNumbersDelta;
 
-		const vInfo = this._layoutProvider.getCurrentViewport();
+		const vInfo = this._viewLayout.getCurrentViewport();
 		this.viewportWidth = vInfo.width;
 		this.viewportHeight = vInfo.height;
 		this.viewportLeft = vInfo.left;
@@ -63,12 +53,12 @@ export class RenderingContext implements IRenderingContext {
 	}
 
 	public getScrolledTopFromAbsoluteTop(absoluteTop: number): number {
-		return this._layoutProvider.getScrolledTopFromAbsoluteTop(absoluteTop);
+		return this._viewLayout.getScrolledTopFromAbsoluteTop(absoluteTop);
 	}
 
 	public getViewportVerticalOffsetForLineNumber(lineNumber: number): number {
-		const verticalOffset = this._layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
-		const scrolledTop = this._layoutProvider.getScrolledTopFromAbsoluteTop(verticalOffset);
+		const verticalOffset = this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
+		const scrolledTop = this._viewLayout.getScrolledTopFromAbsoluteTop(verticalOffset);
 		return scrolledTop;
 	}
 
