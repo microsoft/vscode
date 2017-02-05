@@ -46,9 +46,9 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
 	}
 
-	public validateViewRange(viewRange: Range, modelRange: Range): Range {
-		var validViewStart = this._lines.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, modelRange.getStartPosition());
-		var validViewEnd = this._lines.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, modelRange.getEndPosition());
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		var validViewStart = this._lines.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, expectedModelRange.getStartPosition());
+		var validViewEnd = this._lines.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, expectedModelRange.getEndPosition());
 		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
 	}
 

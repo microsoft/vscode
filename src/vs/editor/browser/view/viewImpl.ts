@@ -127,7 +127,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// - whitespaces (a.k.a. view zones) management & co.
 		// - line heights updating & co.
 		this.layoutProvider = new LayoutProvider(configuration, model, this.eventDispatcher);
-		this.eventDispatcher.addEventHandler(this.layoutProvider);
 
 		this._scrollbar = new EditorScrollbar(this.layoutProvider.getScrollable(), configuration, this.eventDispatcher, this.linesContent, this.domNode, this.overflowGuardContainer);
 
@@ -448,6 +447,18 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	// --- begin event handlers
 
+	public onModelFlushed(): boolean {
+		this.layoutProvider.onModelFlushed();
+		return false;
+	}
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+		this.layoutProvider.onModelLinesDeleted(e);
+		return false;
+	}
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+		this.layoutProvider.onModelLinesInserted(e);
+		return false;
+	}
 	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		if (browser.isChrome) {
 			/* tslint:disable:no-unused-variable */
@@ -479,6 +490,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (e.viewInfo.ariaLabel) {
 			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
 		}
+		this.layoutProvider.onConfigurationChanged(e);
 		return false;
 	}
 	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {

@@ -17,7 +17,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewLines, VisibleRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
 class LastRenderedData {
@@ -58,7 +58,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	private static HORIZONTAL_EXTRA_PX = 30;
 
 
-	private _layoutProvider: ILayoutProvider;
+	private _viewLayout: IViewLayout;
 	private _textRangeRestingSpot: HTMLElement;
 
 	// --- config
@@ -75,14 +75,14 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	private _lastCursorRevealRangeHorizontallyEvent: editorCommon.IViewRevealRangeEvent;
 	private _lastRenderedData: LastRenderedData;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext, viewLayout: IViewLayout) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
 		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 		this._viewLineOptions = new ViewLineOptions(this._context.configuration);
-		this._layoutProvider = layoutProvider;
+		this._viewLayout = viewLayout;
 
 		PartFingerprints.write(this.domNode.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName(ClassNames.VIEW_LINES);
@@ -103,7 +103,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 	public dispose(): void {
 		this._asyncUpdateLineWidths.dispose();
-		this._layoutProvider = null;
+		this._viewLayout = null;
 		super.dispose();
 	}
 
@@ -175,13 +175,13 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	}
 
 	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
-		let newScrollTop = this._computeScrollTopToRevealRange(this._layoutProvider.getCurrentViewport(), e.range, e.verticalType);
+		let newScrollTop = this._computeScrollTopToRevealRange(this._viewLayout.getCurrentViewport(), e.range, e.verticalType);
 
 		if (e.revealHorizontal) {
 			this._lastCursorRevealRangeHorizontallyEvent = e;
 		}
 
-		this._layoutProvider.setScrollPosition({
+		this._viewLayout.setScrollPosition({
 			scrollTop: newScrollTop
 		});
 
@@ -189,9 +189,9 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	}
 
 	public onCursorScrollRequest(e: editorCommon.IViewScrollRequestEvent): boolean {
-		let currentScrollTop = this._layoutProvider.getScrollTop();
+		let currentScrollTop = this._viewLayout.getScrollTop();
 		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
-		this._layoutProvider.setScrollPosition({
+		this._viewLayout.setScrollPosition({
 			scrollTop: newScrollTop
 		});
 		return true;
@@ -371,7 +371,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 				continue;
 			}
 
-			let adjustedLineNumberVerticalOffset = this._layoutProvider.getVerticalOffsetForLineNumber(lineNumber) - bigNumbersDelta + deltaTop;
+			let adjustedLineNumberVerticalOffset = this._viewLayout.getVerticalOffsetForLineNumber(lineNumber) - bigNumbersDelta + deltaTop;
 			for (let i = 0, len = visibleRangesForLine.length; i < len; i++) {
 				result.push(new VisibleRange(adjustedLineNumberVerticalOffset, visibleRangesForLine[i].left, visibleRangesForLine[i].width));
 			}
@@ -420,8 +420,8 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		super._renderLines(viewportData);
 		this._lastRenderedData.setBigNumbersDelta(viewportData.bigNumbersDelta);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
-		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
-		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
+		this.domNode.setWidth(this._viewLayout.getScrollWidth());
+		this.domNode.setHeight(Math.min(this._viewLayout.getTotalHeight(), 1000000));
 
 		// (2) execute DOM writing that forces sync layout (e.g. textArea manipulation)
 		onAfterLinesRendered();
@@ -446,21 +446,21 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			}
 
 			// set `scrollLeft`
-			this._layoutProvider.setScrollPosition({
+			this._viewLayout.setScrollPosition({
 				scrollLeft: newScrollLeft.scrollLeft
 			});
 		}
 
 		// (4) handle scrolling
 		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + viewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(' + -this._viewLayout.getScrollLeft() + 'px, ' + viewportData.visibleRangesDeltaTop + 'px, 0px)';
 			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform);
 			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
 			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
 		} else {
 			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, '');
 			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, viewportData.visibleRangesDeltaTop); // TODO@Alex
-			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
+			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._viewLayout.getScrollLeft()); // TODO@Alex
 		}
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
@@ -473,7 +473,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		let iLineWidth = Math.ceil(lineWidth);
 		if (this._maxLineWidth < iLineWidth) {
 			this._maxLineWidth = iLineWidth;
-			this._layoutProvider.onMaxLineWidthChanged(this._maxLineWidth);
+			this._viewLayout.onMaxLineWidthChanged(this._maxLineWidth);
 		}
 	}
 
@@ -485,8 +485,8 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		let boxEndY: number;
 
 		// Have a box that includes one extra line height (for the horizontal scrollbar)
-		boxStartY = this._layoutProvider.getVerticalOffsetForLineNumber(range.startLineNumber);
-		boxEndY = this._layoutProvider.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
+		boxStartY = this._viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
+		boxEndY = this._viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
 		if (verticalType === editorCommon.VerticalRevealType.Simple || verticalType === editorCommon.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
 			boxEndY += this._lineHeight;
@@ -522,7 +522,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			};
 		}
 
-		let viewport = this._layoutProvider.getCurrentViewport();
+		let viewport = this._viewLayout.getCurrentViewport();
 		let viewportStartX = viewport.left;
 		let viewportEndX = viewportStartX + viewport.width;
 
