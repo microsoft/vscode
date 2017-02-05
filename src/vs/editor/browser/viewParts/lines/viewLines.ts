@@ -421,7 +421,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		this._lastRenderedData.setBigNumbersDelta(viewportData.bigNumbersDelta);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
 		this.domNode.setWidth(this._viewLayout.getScrollWidth());
-		this.domNode.setHeight(Math.min(this._viewLayout.getTotalHeight(), 1000000));
+		this.domNode.setHeight(Math.min(this._viewLayout.getScrollHeight(), 1000000));
 
 		// (2) execute DOM writing that forces sync layout (e.g. textArea manipulation)
 		onAfterLinesRendered();

@@ -96,6 +96,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
+		this.configuration.setMaxLineNumber(this.model.getLineCount());
 
 		this.coordinatesConverter = new CoordinatesConverter(this.lines);
 
@@ -235,6 +236,11 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 	private _onEvents(events: EmitterEvent[]): void {
 
+		const containsModelContentChangeEvent = ViewModel._containsModelContentChangeEvent(events);
+		if (containsModelContentChangeEvent) {
+			this.configuration.setMaxLineNumber(this.model.getLineCount());
+		}
+
 		// We might need to restore the current centered view range in the following circumstances:
 		// All of these changes might lead to a new line mapping:
 		// (a) model tabSize changed
@@ -245,7 +251,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		// because we cannot convert the view range to a model range.
 
 		let previousCenteredModelRange: Range = null;
-		if (!ViewModel._containsModelContentChangeEvent(events) && ViewModel._containsWrappingRelatedEvents(events)) {
+		if (!containsModelContentChangeEvent && ViewModel._containsWrappingRelatedEvents(events)) {
 			previousCenteredModelRange = this.getCenteredRangeInViewport();
 		}
 
@@ -502,11 +508,6 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 
 		return String(modelLineNumber);
-	}
-
-	public getMaxLineNumber(): number {
-		// The largest value for a line number will be that of the model line count
-		return this.model.getLineCount();
 	}
 
 	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {

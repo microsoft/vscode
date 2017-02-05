@@ -531,6 +531,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
+		if (this._maxLineNumber === maxLineNumber) {
+			return;
+		}
 		this._maxLineNumber = maxLineNumber;
 		this._recomputeOptions();
 	}

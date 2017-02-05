@@ -10,7 +10,6 @@ import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-// import { Viewport } from 'vs/editor/common/editorCommon';
 
 export interface IViewLayout {
 
@@ -21,7 +20,6 @@ export interface IViewLayout {
 	getScrollHeight(): number;
 	getScrollTop(): number;
 	getCurrentViewport(): Viewport;
-	getTotalHeight(): number;
 	getScrolledTopFromAbsoluteTop(top: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	setScrollPosition(position: INewScrollPosition): void;
@@ -82,10 +80,6 @@ export interface IViewModel extends IEventEmitter {
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getLineRenderLineNumber(lineNumber: number): string;
-	/**
-	 * Get the maximum line number that will appear next to a line
-	 */
-	getMaxLineNumber(): number;
 	getAllOverviewRulerDecorations(): ViewModelDecoration[];
 	getEOL(): string;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
