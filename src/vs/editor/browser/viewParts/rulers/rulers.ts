@@ -11,19 +11,16 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 
 export class Rulers extends ViewPart {
 
 	public domNode: HTMLElement;
-	private _viewLayout: IViewLayout;
 	private _rulers: number[];
 	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
-	constructor(context: ViewContext, viewLayout: IViewLayout) {
+	constructor(context: ViewContext) {
 		super(context);
-		this._viewLayout = viewLayout;
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'view-rulers';
 		this._rulers = this._context.configuration.editor.viewInfo.rulers;
@@ -79,7 +76,7 @@ export class Rulers extends ViewPart {
 				this.domNode.appendChild(node);
 			}
 
-			StyleMutator.setHeight(node, Math.min(this._viewLayout.getTotalHeight(), 1000000));
+			StyleMutator.setHeight(node, Math.min(ctx.scrollHeight, 1000000));
 			StyleMutator.setLeft(node, this._rulers[i] * this._typicalHalfwidthCharacterWidth);
 		}
 	}

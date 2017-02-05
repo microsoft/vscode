@@ -4,47 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Scrollable, ScrollState, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
-import { IViewLayout, IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
 
-export class LayoutProvider implements IDisposable, IViewLayout {
+export class LayoutProvider extends Disposable implements IViewLayout {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
-	private _toDispose: IDisposable[];
 	private _configuration: editorCommon.IConfiguration;
 	private _privateViewEventBus: IViewEventBus;
-	private _model: IViewModel;
 	private _linesLayout: LinesLayout;
 	private _scrollable: Scrollable;
 
-	constructor(configuration: editorCommon.IConfiguration, model: IViewModel, privateViewEventBus: IViewEventBus) {
-		this._scrollable = new Scrollable();
+	constructor(configuration: editorCommon.IConfiguration, lineCount: number, privateViewEventBus: IViewEventBus) {
+		super();
+
+		this._configuration = configuration;
+		this._privateViewEventBus = privateViewEventBus;
+		this._linesLayout = new LinesLayout(lineCount, this._configuration.editor.lineHeight);
+
+		this._scrollable = this._register(new Scrollable());
 		this._scrollable.updateState({
 			width: configuration.editor.layoutInfo.contentWidth,
 			height: configuration.editor.layoutInfo.contentHeight
 		});
-		this._toDispose = [];
-		this._toDispose.push(this._scrollable);
-
-		this._configuration = configuration;
-		this._privateViewEventBus = privateViewEventBus;
-		this._model = model;
-
-		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
-
-		this._linesLayout = new LinesLayout(this._model.getLineCount(), this._configuration.editor.lineHeight);
+		this._register(this._scrollable.onScroll((e: ScrollEvent) => {
+			this._privateViewEventBus.emit(editorCommon.EventType.ViewScrollChanged, e);
+		}));
 
 		this._updateHeight();
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		super.dispose();
 	}
 
 	public getScrollable(): Scrollable {
@@ -57,21 +54,18 @@ export class LayoutProvider implements IDisposable, IViewLayout {
 
 	// ---- begin view event handlers
 
-	public onModelFlushed(): void {
-		this._linesLayout.onModelFlushed(this._model.getLineCount());
-		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
+	public onModelFlushed(lineCount: number): void {
+		this._linesLayout.onModelFlushed(lineCount);
 		this._updateHeight();
 	}
 
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
 		this._linesLayout.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
-		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
 		this._updateHeight();
 	}
 
 	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): void {
 		this._linesLayout.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
-		this._configuration.setMaxLineNumber(this._model.getMaxLineNumber());
 		this._updateHeight();
 	}
 
@@ -89,13 +83,38 @@ export class LayoutProvider implements IDisposable, IViewLayout {
 		this._updateHeight();
 	}
 
-	private _updateHeight(): void {
-		this._scrollable.updateState({
-			scrollHeight: this.getTotalHeight()
-		});
+	// ---- end view event handlers
+
+	private _getHorizontalScrollbarHeight(scrollState: ScrollState): number {
+		if (this._configuration.editor.viewInfo.scrollbar.horizontal === ScrollbarVisibility.Hidden) {
+			// horizontal scrollbar not visible
+			return 0;
+		}
+		if (scrollState.width <= scrollState.scrollWidth) {
+			// horizontal scrollbar not visible
+			return 0;
+		}
+		return this._configuration.editor.viewInfo.scrollbar.horizontalScrollbarSize;
 	}
 
-	// ---- end view event handlers
+	private _getTotalHeight(): number {
+		const scrollState = this._scrollable.getState();
+
+		let result = this._linesLayout.getLinesTotalHeight();
+		if (this._configuration.editor.viewInfo.scrollBeyondLastLine) {
+			result += scrollState.height - this._configuration.editor.lineHeight;
+		} else {
+			result += this._getHorizontalScrollbarHeight(scrollState);
+		}
+
+		return Math.max(scrollState.height, result);
+	}
+
+	private _updateHeight(): void {
+		this._scrollable.updateState({
+			scrollHeight: this._getTotalHeight()
+		});
+	}
 
 	// ---- Layouting logic
 
@@ -181,37 +200,6 @@ export class LayoutProvider implements IDisposable, IViewLayout {
 		return this._linesLayout.getLineNumberAtOrAfterVerticalOffset(verticalOffset);
 	}
 
-	/**
-	 * Get the sum of heights for all objects and compute basically the `scrollHeight` for the editor content.
-	 *
-	 * Take into account the `scrollBeyondLastLine` and `reserveHorizontalScrollbarHeight` and produce a scrollHeight that is at least as large as `viewport`.height.
-	 *
-	 * @param viewport The viewport.
-	 * @param reserveHorizontalScrollbarHeight The height of the horizontal scrollbar.
-	 * @return Basically, the `scrollHeight` for the editor content.
-	 */
-	private _getTotalHeight(viewport: editorCommon.Viewport, reserveHorizontalScrollbarHeight: number): number {
-		var totalLinesHeight = this._linesLayout.getLinesTotalHeight();
-
-		if (this._configuration.editor.viewInfo.scrollBeyondLastLine) {
-			totalLinesHeight += viewport.height - this._configuration.editor.lineHeight;
-		} else {
-			totalLinesHeight += reserveHorizontalScrollbarHeight;
-		}
-
-		return Math.max(viewport.height, totalLinesHeight);
-	}
-
-	public getTotalHeight(): number {
-		const scrollState = this._scrollable.getState();
-		let reserveHorizontalScrollbarHeight = 0;
-		if (scrollState.scrollWidth > scrollState.width) {
-			if (this._configuration.editor.viewInfo.scrollbar.horizontal !== ScrollbarVisibility.Hidden) {
-				reserveHorizontalScrollbarHeight = this._configuration.editor.viewInfo.scrollbar.horizontalScrollbarSize;
-			}
-		}
-		return this._getTotalHeight(this.getCurrentViewport(), reserveHorizontalScrollbarHeight);
-	}
 	public getWhitespaceAtVerticalOffset(verticalOffset: number): editorCommon.IViewWhitespaceViewportData {
 		return this._linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}

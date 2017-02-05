@@ -126,9 +126,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// - scrolling (i.e. viewport / full size) & co.
 		// - whitespaces (a.k.a. view zones) management & co.
 		// - line heights updating & co.
-		this.layoutProvider = new LayoutProvider(configuration, model, this.eventDispatcher);
+		this.layoutProvider = new LayoutProvider(configuration, model.getLineCount(), this.eventDispatcher);
 
-		this._scrollbar = new EditorScrollbar(this.layoutProvider.getScrollable(), configuration, this.eventDispatcher, this.linesContent, this.domNode, this.overflowGuardContainer);
+		this._scrollbar = new EditorScrollbar(this.layoutProvider.getScrollable(), configuration, this.linesContent, this.domNode, this.overflowGuardContainer);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(
@@ -236,22 +236,22 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		let scrollDecoration = new ScrollDecorationViewPart(this._context);
 		this.viewParts.push(scrollDecoration);
 
-		let contentViewOverlays = new ContentViewOverlays(this._context, this.layoutProvider);
+		let contentViewOverlays = new ContentViewOverlays(this._context);
 		this.viewParts.push(contentViewOverlays);
-		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context, this.layoutProvider));
+		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 
-		let marginViewOverlays = new MarginViewOverlays(this._context, this.layoutProvider);
+		let marginViewOverlays = new MarginViewOverlays(this._context);
 		this.viewParts.push(marginViewOverlays);
-		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context, this.layoutProvider));
+		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
 
-		let margin = new Margin(this._context, this.layoutProvider);
+		let margin = new Margin(this._context);
 		margin.domNode.appendChild(this.viewZones.marginDomNode);
 		margin.domNode.appendChild(marginViewOverlays.getDomNode());
 		this.viewParts.push(margin);
@@ -267,7 +267,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.overlayWidgets = new ViewOverlayWidgets(this._context);
 		this.viewParts.push(this.overlayWidgets);
 
-		let rulers = new Rulers(this._context, this.layoutProvider);
+		let rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
 		// -------------- Wire dom nodes up
@@ -448,7 +448,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	// --- begin event handlers
 
 	public onModelFlushed(): boolean {
-		this.layoutProvider.onModelFlushed();
+		this.layoutProvider.onModelFlushed(this._context.model.getLineCount());
 		return false;
 	}
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {

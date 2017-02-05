@@ -8,9 +8,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { IConfiguration, IConfigurationChangedEvent, INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
-import { IViewEventBus } from 'vs/editor/common/view/viewContext';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { Scrollable } from 'vs/base/common/scrollable';
 
@@ -24,17 +23,15 @@ export class EditorScrollbar implements IDisposable {
 
 	private scrollable: Scrollable;
 	private configuration: IConfiguration;
-	private privateViewEventBus: IViewEventBus;
 
 	private toDispose: IDisposable[];
 	private linesContent: HTMLElement;
 	private scrollbar: ScrollableElement;
 
-	constructor(scrollable: Scrollable, configuration: IConfiguration, privateViewEventBus: IViewEventBus, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
+	constructor(scrollable: Scrollable, configuration: IConfiguration, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
 		this.toDispose = [];
 		this.scrollable = scrollable;
 		this.configuration = configuration;
-		this.privateViewEventBus = privateViewEventBus;
 		this.linesContent = linesContent;
 
 		let configScrollbarOpts = this.configuration.editor.viewInfo.scrollbar;
@@ -63,9 +60,6 @@ export class EditorScrollbar implements IDisposable {
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.toDispose.push(this.scrollbar);
-		this.toDispose.push(this.scrollbar.onScroll((e: IScrollEvent) => {
-			this.privateViewEventBus.emit(EventType.ViewScrollChanged, e);
-		}));
 
 		this.toDispose.push(this.configuration.onDidChange((e: IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme);
