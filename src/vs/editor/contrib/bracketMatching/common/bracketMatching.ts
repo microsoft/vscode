@@ -13,6 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -67,7 +68,10 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _decorations: string[];
 	private _updateBracketsSoon: RunOnceScheduler;
 
-	constructor(editor: editorCommon.ICommonCodeEditor) {
+	constructor(
+		editor: editorCommon.ICommonCodeEditor,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super();
 		this._editor = editor;
 		this._lastBracketsData = [];
@@ -125,7 +129,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = [], newDecorationsLen = 0;
 		for (let i = 0, len = this._lastBracketsData.length; i < len; i++) {
 			let brackets = this._lastBracketsData[i].brackets;
-			if (brackets) {
+			if (this.configurationService.lookup<boolean>('editor.highlightMatchingBrackets').value && brackets) {
 				newDecorations[newDecorationsLen++] = { range: brackets[0], options: BracketMatchingController._DECORATION_OPTIONS };
 				newDecorations[newDecorationsLen++] = { range: brackets[1], options: BracketMatchingController._DECORATION_OPTIONS };
 			}

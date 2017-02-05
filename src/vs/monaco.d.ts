@@ -1382,6 +1382,11 @@ declare module monaco.editor {
          */
         folding?: boolean;
         /**
+         * Enable to highlight matching brackets
+         * Defaults to true
+         */
+        highlightMatchingBrackets?: boolean;
+        /**
          * Enable rendering of whitespace.
          * Defaults to none.
          */
@@ -1563,6 +1568,7 @@ declare module monaco.editor {
         readonly selectionHighlight: boolean;
         readonly codeLens: boolean;
         readonly folding: boolean;
+        readonly highlightMatchingBrackets: boolean;
     }
 
     /**
