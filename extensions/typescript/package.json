@@ -36,6 +36,7 @@
     "onCommand:typescript.selectTypeScriptVersion"
   ],
   "main": "./out/typescriptMain",
+  "enableProposedApi": true,
   "contributes": {
     "languages": [
       {
