@@ -49,7 +49,6 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
-const QUICK_OPEN_MODE = new RawContextKey<boolean>('inQuickOpen', false);
 
 interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
@@ -116,7 +115,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.promisesToCompleteOnHide = [];
 
-		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(contextKeyService);
+		this.inQuickOpenMode = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
@@ -144,9 +143,13 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return this._onHide.event;
 	}
 
-	public quickNavigate(configuration: IQuickNavigateConfiguration, next: boolean): void {
+	public navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
 		if (this.quickOpenWidget) {
-			this.quickOpenWidget.quickNavigate(configuration, next);
+			this.quickOpenWidget.navigate(next, quickNavigate);
+		}
+
+		if (!quickNavigate && this.pickOpenWidget) {
+			this.pickOpenWidget.navigate(next); // quick-navigate is only supported in quick open, not picker
 		}
 	}
 
@@ -208,6 +211,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				if (valid && item) {
 					return lastValue || options.value || '';
 				}
+				return undefined;
 			});
 		});
 	}
@@ -342,9 +346,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 				// Model
 				const model = new QuickOpenModel();
-				const entries = picks.map(e => this.instantiationService.createInstance(PickOpenEntry, e, () => progress(e)));
+				const entries = picks.map((e, index) => this.instantiationService.createInstance(PickOpenEntry, e, index, () => progress(e)));
 				if (picks.length === 0) {
-					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, null));
+					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, 0, null));
 				}
 
 				model.setEntries(entries);
@@ -358,9 +362,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 						let index = -1;
 						let context: IEntryRunContext;
-						entries.forEach((entry, i) => {
+						entries.forEach(entry => {
 							if (entry.shouldRunWithContext) {
-								index = i;
+								index = entry.index;
 								context = entry.shouldRunWithContext;
 							}
 						});
@@ -413,6 +417,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 								}
 							});
 						}
+
+						// Sort by value
+						const normalizedSearchValue = value ? strings.stripWildcards(value.toLowerCase()) : value;
+						model.entries.sort((pickA: PickOpenEntry, pickB: PickOpenEntry) => {
+							if (!value) {
+								return pickA.index - pickB.index; // restore natural order
+							}
+
+							return QuickOpenEntry.compare(pickA, pickB, normalizedSearchValue);
+						});
 
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
 					},
@@ -814,7 +828,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 
 		// Sort
-		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+		const normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 	}
 
 	private mergeResults(quickOpenModel: QuickOpenModel, handlerResults: QuickOpenEntry[], groupLabel: string): void {
@@ -1001,6 +1016,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	constructor(
 		item: IPickOpenEntry,
+		private _index: number,
 		private onPreview: () => void,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService
@@ -1016,6 +1032,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
 		this.isFolder = fileItem.isFolder;
+	}
+
+	public get index(): number {
+		return this._index;
 	}
 
 	public getLabelOptions(): IIconLabelOptions {

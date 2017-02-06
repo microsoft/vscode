@@ -185,5 +185,9 @@ suite('Editor Modes - Link Computer', () => {
 			'Some text, then http://www.bing.com.',
 			'                http://www.bing.com '
 		);
+		assertLink(
+			'let url = `http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items`;',
+			'           http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items  '
+		);
 	});
 });

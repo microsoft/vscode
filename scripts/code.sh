@@ -41,4 +41,7 @@ function code() {
 	exec "$CODE" . "$@"
 }
 
+# Use the following to get v8 tracing:
+# code --js-flags="--trace-hydrogen --trace-phase=Z --trace-deopt --code-comments --hydrogen-track-positions --redirect-code-traces" "$@"
+
 code "$@"

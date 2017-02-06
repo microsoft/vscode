@@ -126,6 +126,10 @@ class TestViewletService implements IViewletService {
 	public getViewlet(id: string): ViewletDescriptor {
 		return null;
 	}
+
+	public getProgressIndicator(id: string) {
+		return null;
+	}
 }
 
 class TestPanelService implements IPanelService {
@@ -136,6 +140,10 @@ class TestPanelService implements IPanelService {
 
 	public openPanel(id: string, focus?: boolean): Promise {
 		return TPromise.as(null);
+	}
+
+	public getPanels(): any[] {
+		return [];
 	}
 
 	public getActivePanel(): IViewlet {

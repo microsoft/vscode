@@ -15,7 +15,7 @@ function createModuleDescription(name, exclude) {
 	return result;
 }
 
-exports.collectModules = function(excludes) {
+exports.collectModules = function (excludes) {
 	var modules = [
 		createModuleDescription('vs/workbench/parts/git/node/gitApp', []),
 		createModuleDescription('vs/workbench/parts/git/node/askpass', []),

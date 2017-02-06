@@ -325,7 +325,7 @@ export class ExtensionEditor extends BaseEditor {
 				webview.contents = [body];
 
 				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.themeService.onDidColorThemeChange(themeId => webview.style(themeId), null, this.contentDisposables);
+				this.themeService.onDidColorThemeChange(theme => webview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {
@@ -391,7 +391,8 @@ export class ExtensionEditor extends BaseEditor {
 			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies, this.instantiationService);
 			const layout = () => {
 				scrollableContent.scanDomNode();
-				tree.layout(scrollableContent.getHeight());
+				const scrollState = scrollableContent.getScrollState();
+				tree.layout(scrollState.height);
 			};
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 			this.contentDisposables.push(toDisposable(removeLayoutParticipant));

@@ -97,7 +97,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 	}
 
 	protected _getScrollPosition(): number {
-		return this._scrollable.getScrollLeft();
+		const scrollState = this._scrollable.getState();
+		return scrollState.scrollLeft;
 	}
 
 	protected _setScrollPosition(scrollPosition: number) {

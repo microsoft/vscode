@@ -16,10 +16,7 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 
@@ -46,10 +43,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService private themeService: IThemeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IRequestService private requestService: IRequestService,
 		@IOpenerService private openerService: IOpenerService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IModeService private modeService: IModeService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService);

@@ -6,9 +6,11 @@
 {
 	"error.cannotloadicontheme": "Не удается загрузить {0}.",
 	"error.cannotloadtheme": "Не удается загрузить {0}.",
-	"error.cannotparse": "Проблемы при анализе файла PLIST: {0}.",
+	"error.cannotparse": "Ошибка при анализе файла темы: {0}",
 	"error.cannotparseicontheme": "Проблемы при анализе файла значков файлов: {0}",
 	"error.cannotparsejson": "Возникли проблемы при анализе файла JSON THEME: {0}.",
+	"error.invalidformat": "Ошибка при анализе файла темы JSON: {0}. settings не является массивом.",
+	"error.plist.invalidformat": "Ошибка при анализе файла темы: {0}. settings не является массивом.",
 	"invalid.path.1": "Следует включить contributes.{0}.path ({1}) в папку расширения ({2}). От этого расширение может стать непереносимым.",
 	"reqarray": "Точка расширения \"{0}\" должна быть массивом.",
 	"reqid": "Ожидалась строка в \"contributes.{0}.id\". Указанное значение: {1}",

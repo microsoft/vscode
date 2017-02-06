@@ -102,7 +102,7 @@ export class ListView<T> implements IDisposable {
 		return this._domNode;
 	}
 
-	splice(start: number, deleteCount: number, ...elements: T[]): T[] {
+	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		each(previousRenderRange, i => this.removeItemFromDOM(this.items[i]));
 
@@ -133,7 +133,8 @@ export class ListView<T> implements IDisposable {
 	}
 
 	get renderHeight(): number {
-		return this.scrollableElement.getHeight();
+		const scrollState = this.scrollableElement.getScrollState();
+		return scrollState.height;
 	}
 
 	element(index: number): T {
@@ -209,7 +210,8 @@ export class ListView<T> implements IDisposable {
 	}
 
 	getScrollTop(): number {
-		return this.scrollableElement.getScrollTop();
+		const scrollState = this.scrollableElement.getScrollState();
+		return scrollState.scrollTop;
 	}
 
 	setScrollTop(scrollTop: number): void {
@@ -240,7 +242,7 @@ export class ListView<T> implements IDisposable {
 		return DOM.addDisposableListener(domNode, type, handler, useCapture);
 	}
 
-	private fireScopedEvent(handler: (event: any) => void, index) {
+	private fireScopedEvent(handler: (event: any) => void, index: number) {
 		if (index < 0) {
 			return;
 		}

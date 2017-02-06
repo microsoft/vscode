@@ -5,14 +5,13 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EndOfLinePreference, IModel, IRawText } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IModel, ITextSource2 } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { RawText } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
@@ -24,8 +23,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	private modelDisposeListener: IDisposable;
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@IModelService protected modelService: IModelService,
+		@IModeService protected modeService: IModeService,
 		textEditorModelHandle?: URI
 	) {
 		super();
@@ -67,7 +66,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string | IRawText, resource?: URI, modeId?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: string | ITextSource2, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
@@ -77,7 +76,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	private doCreateTextEditorModel(value: string | IRawText, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: string | ITextSource2, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
@@ -86,12 +85,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			// Make sure we clean up when this model gets disposed
 			this.registerModelDisposeListener(model);
 		} else {
-			if (typeof value === 'string') {
-				model.setValue(value);
-			} else {
-				model.setValueFromRawText(value);
-			}
-
+			this.modelService.updateModel(model, value);
 			this.modelService.setMode(model, mode);
 		}
 
@@ -100,7 +94,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	private getFirstLineText(value: string | IRawText): string {
+	protected getFirstLineText(value: string | ITextSource2): string {
 		if (typeof value === 'string') {
 			const firstLineText = value.substr(0, 100);
 
@@ -132,39 +126,12 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string | IRawText): void {
+	protected updateTextEditorModel(newValue: string | ITextSource2): void {
 		if (!this.textEditorModel) {
 			return;
 		}
 
-		let rawText: IRawText;
-		if (typeof newValue === 'string') {
-			rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
-		} else {
-			rawText = newValue;
-		}
-
-		// Return early if the text is already set in that form
-		if (this.textEditorModel.equals(rawText)) {
-			return;
-		}
-
-		// Otherwise update model
-		this.textEditorModel.setValueFromRawText(rawText);
-	}
-
-	/**
-	 * Updates the text editor model mode based on the settings and configuration.
-	 */
-	protected updateTextEditorModelMode(modeId?: string): void {
-		if (!this.textEditorModel) {
-			return;
-		}
-
-		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
-		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
-
-		this.modelService.setMode(this.textEditorModel, mode);
+		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
 	/**
@@ -177,6 +144,10 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		}
 
 		return null;
+	}
+
+	public isResolved(): boolean {
+		return !!this.textEditorModelHandle;
 	}
 
 	public dispose(): void {
@@ -193,9 +164,5 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.createdEditorModel = false;
 
 		super.dispose();
-	}
-
-	public isResolved(): boolean {
-		return !!this.textEditorModelHandle;
 	}
 }

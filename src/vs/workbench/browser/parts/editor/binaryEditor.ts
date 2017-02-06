@@ -41,10 +41,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	}
 
 	public getTitle(): string {
-		return this.getInput() ? this.getInput().getName() : nls.localize('binaryEditor', "Binary Viewer");
+		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 
 		// Container for Binary
 		const binaryContainerElement = document.createElement('div');
@@ -58,7 +58,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.getInput();
+		const oldInput = this.input;
 		super.setInput(input, options);
 
 		// Detect options
@@ -78,7 +78,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-			if (!this.getInput() || this.getInput() !== input) {
+			if (!this.input || this.input !== input) {
 				return null;
 			}
 

@@ -143,7 +143,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let patternMatch: ITextMimeAssociationItem;
 	let extensionMatch: ITextMimeAssociationItem;
 
-	for (var i = 0; i < associations.length; i++) {
+	for (let i = 0; i < associations.length; i++) {
 		let association = associations[i];
 
 		// First exact name match
@@ -243,7 +243,7 @@ export function isUnspecific(mime: string[] | string): boolean {
 }
 
 export function suggestFilename(langId: string, prefix: string): string {
-	for (var i = 0; i < registeredAssociations.length; i++) {
+	for (let i = 0; i < registeredAssociations.length; i++) {
 		let association = registeredAssociations[i];
 		if (association.userConfigured) {
 			continue; // only support registered ones

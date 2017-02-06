@@ -16,24 +16,7 @@ const ipc = electron.ipcRenderer;
 
 
 process.lazyEnv = new Promise(function (resolve) {
-
-	const origEnv = process.env;
-
-	// warn about missing environment variables
-	// while we are resolve lazyEnv
-	process.env = new Proxy(origEnv, {
-		get: function (target, name) {
-			const result = target[name];
-			if (typeof result === 'undefined') {
-				console.warn('process.env[\'' + name + '\'] is undefined AND \'process.lazyEnv\' is NOT READY yet.');
-			}
-			return result;
-		}
-	});
-
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
-		// store process.env, mixin shellEnv, done
-		process.env = origEnv;
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});
@@ -202,6 +185,7 @@ function main() {
 			isInitialStartup: !!configuration.isInitialStartup,
 			hasAccessibilitySupport: !!configuration.accessibilitySupport,
 			start: new Date(configuration.perfStartTime),
+			appReady: new Date(configuration.perfAppReady),
 			windowLoad: new Date(configuration.perfWindowLoadTime),
 			beforeLoadWorkbenchMain: new Date()
 		};

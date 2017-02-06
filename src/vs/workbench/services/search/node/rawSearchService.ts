@@ -6,6 +6,7 @@
 'use strict';
 
 import fs = require('fs');
+import { isAbsolute, sep } from 'path';
 
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
@@ -13,7 +14,6 @@ gracefulFs.gracefulify(fs);
 import arrays = require('vs/base/common/arrays');
 import { compareByScore } from 'vs/base/common/comparers';
 import objects = require('vs/base/common/objects');
-import paths = require('vs/base/common/paths');
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
@@ -55,7 +55,7 @@ export class SearchService implements IRawSearchService {
 			}),
 			this.textSearchWorkerProvider);
 
-		return this.doSearchWithBatchTimeout(engine, SearchService.BATCH_SIZE);
+		return this.doTextSearch(engine, SearchService.BATCH_SIZE);
 	}
 
 	public doFileSearch(EngineClass: { new (config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
@@ -100,7 +100,7 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {
-		return { path: match.base ? [match.base, match.relativePath].join(paths.nativeSep) : match.relativePath };
+		return { path: match.base ? [match.base, match.relativePath].join(sep) : match.relativePath };
 	}
 
 	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
@@ -162,7 +162,7 @@ export class SearchService implements IRawSearchService {
 	private trySortedSearchFromCache(config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
-			return;
+			return undefined;
 		}
 
 		const cacheLookupStartTime = Date.now();
@@ -201,6 +201,7 @@ export class SearchService implements IRawSearchService {
 				cached.cancel();
 			});
 		}
+		return undefined;
 	}
 
 	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): IRawFileMatch[] {
@@ -221,19 +222,19 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress> {
-		if (paths.isAbsolute(searchValue)) {
+		if (isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
 
 		// Find cache entries by prefix of search value
-		const hasPathSep = searchValue.indexOf(paths.nativeSep) >= 0;
+		const hasPathSep = searchValue.indexOf(sep) >= 0;
 		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>;
 		let wasResolved: boolean;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
 			// If we narrow down, we might be able to reuse the cached results
 			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(paths.nativeSep) < 0) {
+				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
@@ -278,12 +279,13 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
-	private doSearchWithBatchTimeout(engine: ISearchEngine<ISerializedFileMatch>, batchSize: number): PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>> {
+	private doTextSearch(engine: TextSearchEngine, batchSize: number): PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>> {
 		return new PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>>((c, e, p) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
-			const collector = new BatchedCollector(batchSize, p);
-			engine.search((match) => {
-				collector.addItem(match, match.numMatches);
+			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, p);
+			engine.search((matches) => {
+				const totalMatches = matches.reduce((acc, m) => acc + m.numMatches, 0);
+				collector.addItems(matches, totalMatches);
 			}, (progress) => {
 				p(progress);
 			}, (error, stats) => {
@@ -378,57 +380,51 @@ interface CacheStats {
 }
 
 /**
- * Collects a batch of items that each have a size. When the cumulative size of the batch reaches 'maxBatchSize', it calls the callback.
+ * Collects items that have a size - before the cumulative size of collected items reaches START_BATCH_AFTER_COUNT, the callback is called for every
+ * set of items collected.
+ * But after that point, the callback is called with batches of maxBatchSize.
  * If the batch isn't filled within some time, the callback is also called.
- * And after 'runTimeoutUntilCount' items, the timeout is ignored, and the callback is called only when the batch is full.
  */
 class BatchedCollector<T> {
-	// Use INIT_TIMEOUT for INIT_TIMEOUT_DURATION ms, then switch to LONGER_TIMEOUT
-	private static INIT_TIMEOUT = 500;
-	private static INIT_TIMEOUT_DURATION = 5000;
-	private static LONGER_TIMEOUT = 2000;
+	private static TIMEOUT = 4000;
 
 	// After RUN_TIMEOUT_UNTIL_COUNT items have been collected, stop flushing on timeout
-	private static RUN_TIMEOUT_UNTIL_COUNT = 50;
+	private static START_BATCH_AFTER_COUNT = 50;
 
 	private totalNumberCompleted = 0;
 	private batch: T[] = [];
 	private batchSize = 0;
 	private timeoutHandle: number;
 
-	private startTime: number;
-
 	constructor(private maxBatchSize: number, private cb: (items: T | T[]) => void) {
 	}
 
-	addItem(item: T, size: number): void {
-		if (!item) {
+	addItems(items: T[], size: number): void {
+		if (!items) {
 			return;
 		}
 
 		if (this.maxBatchSize > 0) {
-			this.addItemToBatch(item, size);
+			this.addItemsToBatch(items, size);
 		} else {
-			this.cb(item);
+			this.cb(items);
 		}
 	}
 
-	private addItemToBatch(item: T, size: number): void {
-		if (!this.startTime) {
-			this.startTime = Date.now();
-		}
-
-		this.batch.push(item);
+	private addItemsToBatch(items: T[], size: number): void {
+		this.batch = this.batch.concat(items);
 		this.batchSize += size;
-		if (this.batchSize >= this.maxBatchSize) {
+		if (this.totalNumberCompleted < BatchedCollector.START_BATCH_AFTER_COUNT) {
+			// Flush because we aren't batching yet
+			this.flush();
+		} else if (this.batchSize >= this.maxBatchSize) {
 			// Flush because the batch is full
 			this.flush();
-		} else if (!this.timeoutHandle && this.totalNumberCompleted < BatchedCollector.RUN_TIMEOUT_UNTIL_COUNT) {
+		} else if (!this.timeoutHandle) {
 			// No timeout running, start a timeout to flush
-			const t = this.getTimeout();
 			this.timeoutHandle = setTimeout(() => {
 				this.flush();
-			}, t);
+			}, BatchedCollector.TIMEOUT);
 		}
 	}
 
@@ -444,11 +440,5 @@ class BatchedCollector<T> {
 				this.timeoutHandle = 0;
 			}
 		}
-	}
-
-	private getTimeout(): number {
-		return Date.now() - this.startTime < BatchedCollector.INIT_TIMEOUT_DURATION ?
-			BatchedCollector.INIT_TIMEOUT :
-			BatchedCollector.LONGER_TIMEOUT;
 	}
 }

@@ -25,7 +25,6 @@ export abstract class FastDomNode {
 	private _position: string;
 	private _visibility: string;
 	private _transform: string;
-	private _lineNumber: string;
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
@@ -49,7 +48,6 @@ export abstract class FastDomNode {
 		this._position = '';
 		this._visibility = '';
 		this._transform = '';
-		this._lineNumber = '';
 	}
 
 	public setMaxWidth(maxWidth: number): void {
@@ -186,14 +184,6 @@ export abstract class FastDomNode {
 	}
 
 	protected abstract _setTransform(domNode: HTMLElement, transform: string): void;
-
-	public setLineNumber(lineNumber: string): void {
-		if (this._lineNumber === lineNumber) {
-			return;
-		}
-		this._lineNumber = lineNumber;
-		this._domNode.setAttribute('lineNumber', this._lineNumber);
-	}
 
 	public setAttribute(name: string, value: string): void {
 		this._domNode.setAttribute(name, value);

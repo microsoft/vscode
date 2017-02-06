@@ -6,7 +6,7 @@
 
 import { globals } from 'vs/base/common/platform';
 
-var hasPerformanceNow = (globals.performance && typeof globals.performance.now === 'function');
+const hasPerformanceNow = (globals.performance && typeof globals.performance.now === 'function');
 
 export class StopWatch {
 

@@ -8,80 +8,164 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
+import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { IGrammar, StackElement } from 'vscode-textmate';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { ThemeRule, findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
 
+interface IToken {
+	c: string;
+	t: string;
+	r: { [themeName: string]: string; };
+}
 
-interface Data {
-	c: string; // content
-	t: string; // token
-	r: { [theme: string]: string };
+interface IThemedToken {
+	text: string;
+	color: string;
+}
+
+interface IThemesResult {
+	[themeName: string]: {
+		document: ThemeDocument;
+		tokens: IThemedToken[];
+	};
+}
+
+class ThemeDocument {
+	private readonly _theme: IColorTheme;
+	private readonly _cache: { [scopes: string]: ThemeRule; };
+	private readonly _defaultColor: string;
+
+	constructor(theme: IColorTheme) {
+		this._theme = theme;
+		this._cache = Object.create(null);
+		this._defaultColor = '#000000';
+		for (let i = 0, len = this._theme.settings.length; i < len; i++) {
+			let rule = this._theme.settings[i];
+			if (!rule.scope) {
+				this._defaultColor = rule.settings.foreground;
+			}
+		}
+	}
+
+	private _generateExplanation(selector: string, color: string): string {
+		return `${selector}: ${color}`;
+	}
+
+	public explainTokenColor(scopes: string, color: string): string {
+
+		let matchingRule = this._findMatchingThemeRule(scopes);
+		if (!matchingRule) {
+			let actual = color.toUpperCase();
+			let expected = this._defaultColor.toUpperCase();
+			// No matching rule
+			if (actual !== expected) {
+				throw new Error(`[${this._theme.label}]: Unexpected color ${actual} for ${scopes}. Expected default ${expected}`);
+			}
+			return this._generateExplanation('default', color);
+		}
+
+		let actual = color.toUpperCase();
+		let expected = matchingRule.settings.foreground.toUpperCase();
+		if (actual !== expected) {
+			throw new Error(`[${this._theme.label}]: Unexpected color ${actual} for ${scopes}. Expected ${expected} coming in from ${matchingRule.rawSelector}`);
+		}
+		return this._generateExplanation(matchingRule.rawSelector, color);
+	}
+
+	private _findMatchingThemeRule(scopes: string): ThemeRule {
+		if (!this._cache[scopes]) {
+			this._cache[scopes] = findMatchingThemeRule(this._theme, scopes.split(' '));
+		}
+		return this._cache[scopes];
+	}
 }
 
 class Snapper {
 
 	constructor(
 		@IModeService private modeService: IModeService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@ITextMateService private textMateService: ITextMateService
 	) {
 	}
 
-	private getTestNode(themeId: string): Element {
-		let editorNode = document.createElement('div');
-		editorNode.className = 'monaco-editor ' + themeId;
-		document.body.appendChild(editorNode);
+	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
+		let colorMap = TokenizationRegistry.getColorMap();
+		let state: StackElement = null;
+		let result: IThemedToken[] = [], resultLen = 0;
+		for (let i = 0, len = lines.length; i < len; i++) {
+			let line = lines[i];
 
-		let element = document.createElement('span');
+			let tokenizationResult = grammar.tokenizeLine2(line, state);
 
-		editorNode.appendChild(element);
+			for (let j = 0, lenJ = tokenizationResult.tokens.length >>> 1; j < lenJ; j++) {
+				let startOffset = tokenizationResult.tokens[(j << 1)];
+				let metadata = tokenizationResult.tokens[(j << 1) + 1];
+				let endOffset = j + 1 < lenJ ? tokenizationResult.tokens[((j + 1) << 1)] : line.length;
+				let tokenText = line.substring(startOffset, endOffset);
 
-		return element;
-	}
+				let color = TokenMetadata.getForeground(metadata);
+				let colorStr = colorMap[color];
 
-	private normalizeType(type: string): string {
-		return type.split('.').sort().join('.');
-	}
+				result[resultLen++] = {
+					text: tokenText,
+					color: colorStr
+				};
+			}
 
-	private getStyle(testNode: Element, scope: string): string {
-
-		testNode.className = 'token ' + scope.replace(/\./g, ' ');
-
-		let cssStyles = window.getComputedStyle(testNode);
-		if (cssStyles) {
-			return cssStyles.color;
+			state = tokenizationResult.ruleStack;
 		}
-		return '';
+
+		return result;
 	}
 
-	private getMatchedCSSRule(testNode: Element, scope: string): string {
+	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
+		let state: StackElement = null;
+		let result: IToken[] = [], resultLen = 0;
+		for (let i = 0, len = lines.length; i < len; i++) {
+			let line = lines[i];
 
-		testNode.className = 'token ' + scope.replace(/\./g, ' ');
+			let tokenizationResult = grammar.tokenizeLine(line, state);
+			let lastScopes: string = null;
 
-		let rulesList = window.getMatchedCSSRules(testNode);
+			for (let j = 0, lenJ = tokenizationResult.tokens.length; j < lenJ; j++) {
+				let token = tokenizationResult.tokens[j];
+				let tokenText = line.substring(token.startIndex, token.endIndex);
+				let tokenScopes = token.scopes.join(' ');
 
-		if (rulesList) {
-			for (let i = rulesList.length - 1; i >= 0; i--) {
-				let selectorText = <string>rulesList.item(i)['selectorText'];
-				if (selectorText && selectorText.match(/\.monaco-editor\..+token/)) {
-					return selectorText.substr(14);
+				if (lastScopes === tokenScopes) {
+					result[resultLen - 1].c += tokenText;
+				} else {
+					lastScopes = tokenScopes;
+					result[resultLen++] = {
+						c: tokenText,
+						t: tokenScopes,
+						r: {
+							dark_plus: null,
+							light_plus: null,
+							dark_vs: null,
+							light_vs: null,
+							hc_black: null,
+						}
+					};
 				}
 			}
-		} else {
-			console.log('no match ' + scope);
-		}
 
-		return '';
+			state = tokenizationResult.ruleStack;
+		}
+		return result;
 	}
 
-
-	public appendThemeInformation(data: Data[]): TPromise<Data[]> {
+	private _getThemesResult(grammar: IGrammar, lines: string[]): TPromise<IThemesResult> {
 		let currentTheme = this.themeService.getColorTheme();
 
 		let getThemeName = (id: string) => {
@@ -93,48 +177,64 @@ class Snapper {
 			return void 0;
 		};
 
+		let result: IThemesResult = {};
+
 		return this.themeService.getColorThemes().then(themeDatas => {
 			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
 			return TPromise.join(defaultThemes.map(defaultTheme => {
 				let themeId = defaultTheme.id;
 				return this.themeService.setColorTheme(themeId, false).then(success => {
 					if (success) {
-						let testNode = this.getTestNode(themeId);
 						let themeName = getThemeName(themeId);
-						data.forEach(entry => {
-							entry.r[themeName] = this.getMatchedCSSRule(testNode, entry.t) + ' ' + this.getStyle(testNode, entry.t);
-						});
+						result[themeName] = {
+							document: new ThemeDocument(this.themeService.getColorTheme()),
+							tokens: this._themedTokenize(grammar, lines)
+						};
 					}
 				});
 			}));
 		}).then(_ => {
-			return this.themeService.setColorTheme(currentTheme, false).then(_ => {
-				return data;
+			return this.themeService.setColorTheme(currentTheme.id, false).then(_ => {
+				return result;
 			});
 		});
 	}
 
-	public captureSyntaxTokens(fileName: string, content: string): TPromise<Data[]> {
-		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
-			let result: Data[] = [];
-			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId());
-			for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-				let lineTokens = model.getLineTokens(lineNumber, false);
-				let lineContent = model.getLineContent(lineNumber);
+	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
+		let index: { [themeName: string]: number; } = {};
+		let themeNames = Object.keys(themesResult);
+		for (let t = 0; t < themeNames.length; t++) {
+			let themeName = themeNames[t];
+			index[themeName] = 0;
+		}
 
-				for (let i = 0, len = lineTokens.getTokenCount(); i < len; i++) {
-					let tokenType = lineTokens.getTokenType(i);
-					let tokenStartOffset = lineTokens.getTokenStartOffset(i);
-					let tokenEndOffset = lineTokens.getTokenEndOffset(i);
+		for (let i = 0, len = result.length; i < len; i++) {
+			let token = result[i];
 
-					result.push({
-						c: lineContent.substring(tokenStartOffset, tokenEndOffset),
-						t: this.normalizeType(tokenType),
-						r: {}
-					});
+			for (let t = 0; t < themeNames.length; t++) {
+				let themeName = themeNames[t];
+				let themedToken = themesResult[themeName].tokens[index[themeName]];
+
+				themedToken.text = themedToken.text.substr(token.c.length);
+				token.r[themeName] = themesResult[themeName].document.explainTokenColor(token.t, themedToken.color);
+				if (themedToken.text.length === 0) {
+					index[themeName]++;
 				}
 			}
-			return this.appendThemeInformation(result);
+		}
+	}
+
+	public captureSyntaxTokens(fileName: string, content: string): TPromise<IToken[]> {
+		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
+			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
+				let lines = content.split(/\r\n|\r|\n/);
+
+				let result = this._tokenize(grammar, lines);
+				return this._getThemesResult(grammar, lines).then((themesResult) => {
+					this._enrichResult(result, themesResult);
+					return result.filter(t => t.c.length > 0);
+				});
+			});
 		});
 	}
 }
@@ -164,5 +264,6 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 	} else {
 		return process(resource);
 	}
+	return undefined;
 });
 

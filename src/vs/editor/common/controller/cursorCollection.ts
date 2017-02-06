@@ -19,7 +19,6 @@ export interface ICursorCollectionState {
 
 export class CursorCollection {
 
-	private editorId: number;
 	private model: IModel;
 	private configuration: IConfiguration;
 	private modeConfiguration: IModeConfiguration;
@@ -32,14 +31,13 @@ export class CursorCollection {
 
 	private viewModelHelper: IViewModelHelper;
 
-	constructor(editorId: number, model: IModel, configuration: IConfiguration, viewModelHelper: IViewModelHelper) {
-		this.editorId = editorId;
+	constructor(model: IModel, configuration: IConfiguration, viewModelHelper: IViewModelHelper) {
 		this.model = model;
 		this.configuration = configuration;
 		this.viewModelHelper = viewModelHelper;
 		this.modeConfiguration = this.getModeConfiguration();
 
-		this.primaryCursor = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
+		this.primaryCursor = new OneCursor(this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
 		this.secondaryCursors = [];
 		this.lastAddedCursorIndex = 0;
 	}
@@ -158,15 +156,10 @@ export class CursorCollection {
 
 	public normalize(): void {
 		this._mergeCursorsIfNecessary();
-
-		this.primaryCursor.adjustBracketDecorations();
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			this.secondaryCursors[i].adjustBracketDecorations();
-		}
 	}
 
 	public addSecondaryCursor(selection: ISelection): void {
-		var newCursor = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
+		var newCursor = new OneCursor(this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
 		if (selection) {
 			newCursor.setSelection(selection);
 		}
@@ -330,7 +323,7 @@ export class CursorCollection {
 
 		let electricChars: string[] = null;
 		try {
-			electricChars = LanguageConfigurationRegistry.getElectricCharacters(this.model.getMode().getId());
+			electricChars = LanguageConfigurationRegistry.getElectricCharacters(this.model.getLanguageIdentifier().id);
 		} catch (e) {
 			onUnexpectedError(e);
 			electricChars = null;
@@ -343,7 +336,7 @@ export class CursorCollection {
 
 		let autoClosingPairs: IAutoClosingPair[];
 		try {
-			autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(this.model.getMode().getId());
+			autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(this.model.getLanguageIdentifier().id);
 		} catch (e) {
 			onUnexpectedError(e);
 			autoClosingPairs = null;
@@ -357,7 +350,7 @@ export class CursorCollection {
 
 		let surroundingPairs: IAutoClosingPair[];
 		try {
-			surroundingPairs = LanguageConfigurationRegistry.getSurroundingPairs(this.model.getMode().getId());
+			surroundingPairs = LanguageConfigurationRegistry.getSurroundingPairs(this.model.getLanguageIdentifier().id);
 		} catch (e) {
 			onUnexpectedError(e);
 			surroundingPairs = null;

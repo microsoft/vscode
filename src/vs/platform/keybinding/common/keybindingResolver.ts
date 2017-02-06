@@ -66,13 +66,11 @@ export class KeybindingResolver {
 	private _defaultBoundCommands: IBoundCommands;
 	private _map: ICommandMap;
 	private _chords: IChordsMap;
-	private _lookupMap: {
-		[commandId: string]: NormalizedKeybindingItem[];
-	};
-	private _lookupMapUnreachable: {
-		// The value contains the keybinding or first part of a chord
-		[commandId: string]: number[];
-	};
+	private _lookupMap: Map<string, ArrayBuffer>;
+	/**
+	 * The value contains the keybinding or first part of a chord
+	 */
+	private _lookupMapUnreachable: Map<string, ArrayBuffer>;
 	private _shouldWarnOnConflict: boolean;
 
 	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict: boolean = true) {
@@ -87,8 +85,8 @@ export class KeybindingResolver {
 		}
 
 		this._map = Object.create(null);
-		this._lookupMap = Object.create(null);
-		this._lookupMapUnreachable = Object.create(null);
+		this._lookupMap = new Map<string, ArrayBuffer>();
+		this._lookupMapUnreachable = new Map<string, ArrayBuffer>();
 		this._chords = Object.create(null);
 
 		let allKeybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
@@ -194,8 +192,7 @@ export class KeybindingResolver {
 				if (this._shouldWarnOnConflict && item.isDefault) {
 					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + KeybindingLabels.toUserSettingsLabel(keypress) + ' due to ' + item.command);
 				}
-				this._lookupMapUnreachable[conflict.commandId] = this._lookupMapUnreachable[conflict.commandId] || [];
-				this._lookupMapUnreachable[conflict.commandId].push(conflict.keybinding);
+				KeybindingResolver._push(this._lookupMapUnreachable, conflict.commandId, conflict.keybinding);
 			}
 		}
 
@@ -237,12 +234,40 @@ export class KeybindingResolver {
 		return true;
 	}
 
+	private static _push(map: Map<string, ArrayBuffer>, key: string, value: number): void {
+		let oldRawEntries = map.get(key);
+		if (typeof oldRawEntries === 'undefined') {
+			let entries = new Uint32Array(1);
+			entries[0] = value;
+			map.set(key, entries.buffer);
+		} else {
+			let oldEntries = new Uint32Array(oldRawEntries);
+			let newEntries = new Uint32Array(oldEntries.length + 1);
+			newEntries.set(oldEntries, 0);
+			newEntries[newEntries.length - 1] = value;
+			map.set(key, newEntries.buffer);
+		}
+	}
+
+	private static _read(map: Map<string, ArrayBuffer>, key: string): number[] {
+		let arrBuff = map.get(key);
+		if (typeof arrBuff === 'undefined') {
+			return null;
+		}
+
+		let arr = new Uint32Array(arrBuff);
+		let result: number[] = [];
+		for (let i = 0, len = arr.length; i < len; i++) {
+			result[i] = arr[i];
+		}
+		return result;
+	}
+
 	private _addToLookupMap(item: NormalizedKeybindingItem): void {
 		if (!item.command) {
 			return;
 		}
-		this._lookupMap[item.command] = this._lookupMap[item.command] || [];
-		this._lookupMap[item.command].push(item);
+		KeybindingResolver._push(this._lookupMap, item.command, item.keybinding);
 	}
 
 	public getDefaultBoundCommands(): IBoundCommands {
@@ -267,14 +292,12 @@ export class KeybindingResolver {
 	}
 
 	public lookupKeybinding(commandId: string): Keybinding[] {
-		let rawPossibleTriggers = this._lookupMap[commandId];
-		if (!rawPossibleTriggers) {
+		let possibleTriggers = KeybindingResolver._read(this._lookupMap, commandId);
+		if (!possibleTriggers) {
 			return [];
 		}
 
-		let possibleTriggers = rawPossibleTriggers.map(possibleTrigger => possibleTrigger.keybinding);
-
-		let remove = this._lookupMapUnreachable[commandId];
+		let remove = KeybindingResolver._read(this._lookupMapUnreachable, commandId);
 		if (remove) {
 			possibleTriggers = possibleTriggers.filter((possibleTrigger) => {
 				return remove.indexOf(possibleTrigger) === -1;

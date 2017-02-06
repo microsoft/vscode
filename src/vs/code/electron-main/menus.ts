@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
+import { IWindowsMainService, OpenContext } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/code/electron-main/storage';
@@ -21,6 +21,10 @@ import { Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import Event, { Emitter, once } from 'vs/base/common/event';
+import { ConfigWatcher } from 'vs/base/node/config';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 
 interface IResolvedKeybinding {
 	id: string;
@@ -46,9 +50,99 @@ interface IConfiguration extends IFilesConfiguration {
 	};
 }
 
-export class VSCodeMenu {
+class KeybindingsResolver {
 
 	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
+
+	private commandIds: Set<string>;
+	private keybindings: { [commandId: string]: string };
+	private keybindingsWatcher: ConfigWatcher<IUserFriendlyKeybinding[]>;
+
+	private _onKeybindingsChanged = new Emitter<void>();
+	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
+
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWindowsMainService private windowsService: IWindowsMainService
+	) {
+		this.commandIds = new Set<string>();
+		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 1000 /* update after 1s */ });
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Resolve keybindings when any first window is loaded
+		const onceOnWindowReady = once(this.windowsService.onWindowReady);
+		onceOnWindowReady(win => this.resolveKeybindings(win));
+
+		// Listen to resolved keybindings from window
+		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
+			let keybindings: IResolvedKeybinding[] = [];
+			try {
+				keybindings = JSON.parse(rawKeybindings);
+			} catch (error) {
+				// Should not happen
+			}
+
+			// Fill hash map of resolved keybindings and check for changes
+			let keybindingsChanged = false;
+			let keybindingsCount = 0;
+			const resolvedKeybindings: { [commandId: string]: string } = Object.create(null);
+			keybindings.forEach(keybinding => {
+				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
+				if (accelerator) {
+					keybindingsCount++;
+
+					resolvedKeybindings[keybinding.id] = accelerator;
+
+					if (accelerator !== this.keybindings[keybinding.id]) {
+						keybindingsChanged = true;
+					}
+				}
+			});
+
+			// A keybinding might have been unassigned, so we have to account for that too
+			if (Object.keys(this.keybindings).length !== keybindingsCount) {
+				keybindingsChanged = true;
+			}
+
+			if (keybindingsChanged) {
+				this.keybindings = resolvedKeybindings;
+				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
+
+				this._onKeybindingsChanged.fire();
+			}
+		});
+
+		// Resolve keybindings again when keybindings.json changes
+		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
+
+		// Resolve keybindings when window reloads because an installed extension could have an impact
+		this.windowsService.onWindowReload(() => this.resolveKeybindings());
+	}
+
+	private resolveKeybindings(win: VSCodeWindow = this.windowsService.getLastActiveWindow()): void {
+		if (this.commandIds.size && win) {
+			const commandIds = [];
+			this.commandIds.forEach(id => commandIds.push(id));
+			win.sendWhenReady('vscode:resolveKeybindings', JSON.stringify(commandIds));
+		}
+	}
+
+	public getKeybinding(commandId: string): string {
+		if (!this.commandIds.has(commandId)) {
+			this.commandIds.add(commandId);
+		}
+
+		return this.keybindings[commandId];
+	}
+}
+
+export class VSCodeMenu {
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
@@ -62,35 +156,28 @@ export class VSCodeMenu {
 
 	private menuUpdater: RunOnceScheduler;
 
-	private actionIdKeybindingRequests: string[];
-	private mapLastKnownKeybindingToActionId: { [id: string]: string; };
-	private mapResolvedKeybindingToActionId: { [id: string]: string; };
-	private keybindingsResolved: boolean;
+	private keybindingsResolver: KeybindingsResolver;
 
 	private extensionViewlets: IExtensionViewlet[];
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
 		@IUpdateService private updateService: IUpdateService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsMainService private windowsService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		this.actionIdKeybindingRequests = [];
 		this.extensionViewlets = [];
 
-		this.mapResolvedKeybindingToActionId = Object.create(null);
-		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
+		this.keybindingsResolver = instantiationService.createInstance(KeybindingsResolver);
 
 		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
-	}
 
-	public ready(): void {
-		this.registerListeners();
 		this.install();
+
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
@@ -104,43 +191,6 @@ export class VSCodeMenu {
 		this.windowsService.onPathsOpen(paths => this.updateMenu());
 		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
-
-		// Resolve keybindings when any first workbench is loaded
-		this.windowsService.onWindowReady(win => this.resolveKeybindings(win));
-
-		// Listen to resolved keybindings
-		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings) => {
-			let keybindings: IResolvedKeybinding[] = [];
-			try {
-				keybindings = JSON.parse(rawKeybindings);
-			} catch (error) {
-				// Should not happen
-			}
-
-			// Fill hash map of resolved keybindings
-			let needsMenuUpdate = false;
-			keybindings.forEach(keybinding => {
-				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
-				if (accelerator) {
-					this.mapResolvedKeybindingToActionId[keybinding.id] = accelerator;
-					if (this.mapLastKnownKeybindingToActionId[keybinding.id] !== accelerator) {
-						needsMenuUpdate = true; // we only need to update when something changed!
-					}
-				}
-			});
-
-			// A keybinding might have been unassigned, so we have to account for that too
-			if (Object.keys(this.mapLastKnownKeybindingToActionId).length !== Object.keys(this.mapResolvedKeybindingToActionId).length) {
-				needsMenuUpdate = true;
-			}
-
-			if (needsMenuUpdate) {
-				this.storageService.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
-				this.mapLastKnownKeybindingToActionId = this.mapResolvedKeybindingToActionId; // update our last known map
-
-				this.updateMenu();
-			}
-		});
 
 		// Listen to extension viewlets
 		ipc.on('vscode:extensionViewlets', (event, rawExtensionViewlets) => {
@@ -162,6 +212,9 @@ export class VSCodeMenu {
 
 		// Listen to update service
 		this.updateService.onStateChange(() => this.updateMenu());
+
+		// Listen to keybindings change
+		this.keybindingsResolver.onKeybindingsChanged(() => this.updateMenu());
 	}
 
 	private onConfigurationUpdated(config: IConfiguration, handleMenu?: boolean): void {
@@ -198,19 +251,6 @@ export class VSCodeMenu {
 
 		if (handleMenu && updateMenu) {
 			this.updateMenu();
-		}
-	}
-
-	private resolveKeybindings(win: VSCodeWindow): void {
-		if (this.keybindingsResolved) {
-			return; // only resolve once
-		}
-
-		this.keybindingsResolved = true;
-
-		// Resolve keybindings when workbench window is up
-		if (this.actionIdKeybindingRequests.length) {
-			win.send('vscode:resolveKeybindings', JSON.stringify(this.actionIdKeybindingRequests));
 		}
 	}
 
@@ -315,7 +355,7 @@ export class VSCodeMenu {
 			this.appMenuInstalled = true;
 
 			const dockMenu = new Menu();
-			dockMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow() }));
+			dockMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow(OpenContext.DOCK) }));
 
 			app.dock.setMenu(dockMenu);
 		}
@@ -351,19 +391,19 @@ export class VSCodeMenu {
 
 		let newFile: Electron.MenuItem;
 		if (hasNoWindows) {
-			newFile = new MenuItem(this.likeAction('workbench.action.files.newUntitledFile', { label: mnemonicLabel(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")), click: () => this.windowsService.openNewWindow() }));
+			newFile = new MenuItem(this.likeAction('workbench.action.files.newUntitledFile', { label: mnemonicLabel(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")), click: () => this.windowsService.openNewWindow(OpenContext.MENU) }));
 		} else {
 			newFile = this.createMenuItem(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File"), 'workbench.action.files.newUntitledFile');
 		}
 
-		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: () => this.windowsService.openFileFolderPicker() }));
-		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: () => this.windowsService.openFolderPicker() }));
+		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.openFileFolderPicker(this.isOptionClick(event)) }));
+		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.openFolderPicker(this.isOptionClick(event)) }));
 
 		let openFile: Electron.MenuItem;
 		if (hasNoWindows) {
-			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: () => this.windowsService.openFilePicker() }));
+			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsService.openFilePicker(this.isOptionClick(event)) }));
 		} else {
-			openFile = this.createMenuItem(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File..."), 'workbench.action.files.openFile');
+			openFile = this.createMenuItem(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File..."), ['workbench.action.files.openFile', 'workbench.action.files.openFileInNewWindow']);
 		}
 
 		const openRecentMenu = new Menu();
@@ -379,7 +419,7 @@ export class VSCodeMenu {
 
 		const preferences = this.getPreferencesMenu();
 
-		const newWindow = new MenuItem(this.likeAction('workbench.action.newWindow', { label: mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow() }));
+		const newWindow = new MenuItem(this.likeAction('workbench.action.newWindow', { label: mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow(OpenContext.MENU) }));
 		const revertFile = this.createMenuItem(nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"), 'workbench.action.files.revert', this.windowsService.getWindowCount() > 0);
 		const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")), click: () => this.windowsService.getLastActiveWindow().win.close(), enabled: this.windowsService.getWindowCount() > 0 }));
 
@@ -415,8 +455,7 @@ export class VSCodeMenu {
 	}
 
 	private getPreferencesMenu(): Electron.MenuItem {
-		const userSettings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&User Settings"), 'workbench.action.openGlobalSettings');
-		const workspaceSettings = this.createMenuItem(nls.localize({ key: 'miOpenWorkspaceSettings', comment: ['&& denotes a mnemonic'] }, "&&Workspace Settings"), 'workbench.action.openWorkspaceSettings');
+		const settings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"), 'workbench.action.openGlobalSettings');
 		const kebindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
 		const keymapExtensions = this.createMenuItem(nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions"), 'workbench.extensions.action.showRecommendedKeymapExtensions');
 		const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
@@ -424,8 +463,7 @@ export class VSCodeMenu {
 		const iconThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme"), 'workbench.action.selectIconTheme');
 
 		const preferencesMenu = new Menu();
-		preferencesMenu.append(userSettings);
-		preferencesMenu.append(workspaceSettings);
+		preferencesMenu.append(settings);
 		preferencesMenu.append(__separator__());
 		preferencesMenu.append(kebindingSettings);
 		preferencesMenu.append(keymapExtensions);
@@ -468,15 +506,24 @@ export class VSCodeMenu {
 	}
 
 	private createOpenRecentMenuItem(path: string, actionId: string): Electron.MenuItem {
+		let label = path;
+		if ((platform.isMacintosh || platform.isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
+			label = `~${path.substr(this.environmentService.userHome.length)}`;
+		}
+
 		return new MenuItem(this.likeAction(actionId, {
-			label: unMnemonicLabel(path), click: (menuItem, win, event) => {
-				const openInNewWindow = event && ((!platform.isMacintosh && event.ctrlKey) || (platform.isMacintosh && event.metaKey));
-				const success = !!this.windowsService.open({ cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
+			label: unMnemonicLabel(label), click: (menuItem, win, event) => {
+				const openInNewWindow = this.isOptionClick(event);
+				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
 					this.windowsService.removeFromRecentPathsList(path);
 				}
 			}
 		}, false));
+	}
+
+	private isOptionClick(event: Electron.Event): boolean {
+		return event && ((!platform.isMacintosh && (event.ctrlKey || event.shiftKey)) || (platform.isMacintosh && (event.metaKey || event.altKey)));
 	}
 
 	private createRoleMenuItem(label: string, actionId: string, role: Electron.MenuItemRole): Electron.MenuItem {
@@ -587,6 +634,7 @@ export class VSCodeMenu {
 		const explorer = this.createMenuItem(nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"), 'workbench.view.explorer');
 		const search = this.createMenuItem(nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"), 'workbench.view.search');
 		const git = this.createMenuItem(nls.localize({ key: 'miViewGit', comment: ['&& denotes a mnemonic'] }, "&&Git"), 'workbench.view.git');
+		// const scm = this.createMenuItem(nls.localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"), 'workbench.view.scm');
 		const debug = this.createMenuItem(nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"), 'workbench.view.debug');
 		const extensions = this.createMenuItem(nls.localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"), 'workbench.view.extensions');
 		const output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
@@ -655,6 +703,7 @@ export class VSCodeMenu {
 			explorer,
 			search,
 			git,
+			// scm,
 			debug,
 			extensions,
 			additionalViewlets,
@@ -800,11 +849,12 @@ export class VSCodeMenu {
 
 		const keyboardShortcutsUrl = platform.isLinux ? product.keyboardShortcutsUrlLinux : platform.isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
-			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.openUrl(product.documentationUrl, 'openDocumentationUrl') }) : null,
+			new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.showWelcomePage') }),
+			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openDocumentationUrl') }) : null,
 			product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
-			(product.documentationUrl || product.releaseNotesUrl) ? __separator__() : null,
+			__separator__(),
 			keyboardShortcutsUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.keybindingsReference') }) : null,
-			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.openUrl(product.introductoryVideosUrl, 'openIntroductoryVideosUrl') }) : null,
+			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openIntroductoryVideosUrl') }) : null,
 			(product.introductoryVideosUrl || keyboardShortcutsUrl) ? __separator__() : null,
 			product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') }) : null,
 			product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
@@ -890,11 +940,18 @@ export class VSCodeMenu {
 		}
 	}
 
-	private createMenuItem(label: string, actionId: string, enabled?: boolean, checked?: boolean): Electron.MenuItem;
+	private createMenuItem(label: string, actionId: string | string[], enabled?: boolean, checked?: boolean): Electron.MenuItem;
 	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): Electron.MenuItem;
 	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
 		const label = mnemonicLabel(arg1);
-		const click: () => void = (typeof arg2 === 'function') ? arg2 : () => this.windowsService.sendToFocused('vscode:runAction', arg2);
+		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem, win, event) => {
+			let actionId = arg2;
+			if (Array.isArray(arg2)) {
+				actionId = this.isOptionClick(event) ? arg2[1] : arg2[0]; // support alternative action if we got multiple action Ids and the option key was pressed while invoking
+			}
+
+			this.windowsService.sendToFocused('vscode:runAction', actionId);
+		};
 		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsService.getWindowCount() > 0;
 		const checked = typeof arg4 === 'boolean' ? arg4 : false;
 
@@ -954,19 +1011,7 @@ export class VSCodeMenu {
 
 	private getAccelerator(actionId: string, fallback?: string): string {
 		if (actionId) {
-			const resolvedKeybinding = this.mapResolvedKeybindingToActionId[actionId];
-			if (resolvedKeybinding) {
-				return resolvedKeybinding; // keybinding is fully resolved
-			}
-
-			if (!this.keybindingsResolved) {
-				this.actionIdKeybindingRequests.push(actionId); // keybinding needs to be resolved
-			}
-
-			const lastKnownKeybinding = this.mapLastKnownKeybindingToActionId[actionId];
-			if (lastKnownKeybinding) {
-				return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
-			}
+			return this.keybindingsResolver.getKeybinding(actionId);
 		}
 
 		return fallback;

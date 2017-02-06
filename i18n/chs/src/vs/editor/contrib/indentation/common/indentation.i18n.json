@@ -6,11 +6,10 @@
 {
 	"configuredTabSize": "已配置制表符大小",
 	"detectIndentation": "检查内容中的缩进",
+	"editor.reindentlines": "重新缩进行",
 	"indentUsingSpaces": "使用空格缩进",
 	"indentUsingTabs": "使用 \"Tab\" 缩进",
 	"indentationToSpaces": "将缩进转换为空格",
 	"indentationToTabs": "将缩进转换为制表符",
-	"selectTabWidth": "选择当前文件的制表符大小",
-	"toggleRenderControlCharacters": "切换控制字符",
-	"toggleRenderWhitespace": "切换显示空格"
+	"selectTabWidth": "选择当前文件的制表符大小"
 }

@@ -93,7 +93,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get extensionsPath(): string { return path.normalize(this._args['extensions-dir'] || path.join(this.userProductHome, 'extensions')); }
+	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || path.join(this.userProductHome, 'extensions'); }
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
@@ -131,17 +131,22 @@ export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { po
 	return { port, break: brk };
 }
 
-export function parseUserDataDir(args: ParsedArgs, process: NodeJS.Process) {
-	const arg = args['user-data-dir'];
-	if (arg) {
-		// Determine if the arg is relative or absolute, if relative use the original CWD
-		// (VSCODE_CWD), not the potentially overridden one (process.cwd()).
-		const resolved = path.resolve(arg);
-		if (path.normalize(arg) === resolved) {
-			return resolved;
-		} else {
-			return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
-		}
+function parsePathArg(arg: string, process: NodeJS.Process): string {
+	if (!arg) {
+		return undefined;
 	}
-	return path.resolve(paths.getDefaultUserDataPath(process.platform));
+
+	// Determine if the arg is relative or absolute, if relative use the original CWD
+	// (VSCODE_CWD), not the potentially overridden one (process.cwd()).
+	const resolved = path.resolve(arg);
+
+	if (path.normalize(arg) === resolved) {
+		return resolved;
+	} else {
+		return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
+	}
+}
+
+export function parseUserDataDir(args: ParsedArgs, process: NodeJS.Process): string {
+	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath(process.platform));
 }

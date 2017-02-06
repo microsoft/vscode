@@ -148,8 +148,11 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 
 	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
 	private _wordenize(content: string, wordDefinition: RegExp): editorCommon.IWordRange[] {
-		var result: editorCommon.IWordRange[] = [];
-		var match: RegExpExecArray;
+		const result: editorCommon.IWordRange[] = [];
+		let match: RegExpExecArray;
+
+		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
+
 		while (match = wordDefinition.exec(content)) {
 			if (match[0].length === 0) {
 				// it did match the empty string
@@ -394,6 +397,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 			return TPromise.as({ suggestions });
 		}
+		return undefined;
 	}
 
 

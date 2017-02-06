@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-var gulp = require('gulp');
-var tsb = require('gulp-tsb');
-var es = require('event-stream');
+var gulp = require("gulp");
+var tsb = require("gulp-tsb");
+var es = require("event-stream");
 var watch = require('./watch');
-var nls = require('./nls');
-var util = require('./util');
-var reporter_1 = require('./reporter');
-var path = require('path');
-var bom = require('gulp-bom');
-var sourcemaps = require('gulp-sourcemaps');
-var _ = require('underscore');
-var monacodts = require('../monaco/api');
-var fs = require('fs');
+var nls = require("./nls");
+var util = require("./util");
+var reporter_1 = require("./reporter");
+var path = require("path");
+var bom = require("gulp-bom");
+var sourcemaps = require("gulp-sourcemaps");
+var _ = require("underscore");
+var monacodts = require("../monaco/api");
+var fs = require("fs");
 var reporter = reporter_1.createReporter();
 var rootDir = path.join(__dirname, '../../src');
 var options = require('../../src/tsconfig.json').compilerOptions;

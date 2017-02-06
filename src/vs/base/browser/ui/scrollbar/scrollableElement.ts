@@ -14,7 +14,7 @@ import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScro
 import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
 import { ScrollableElementCreationOptions, ScrollableElementChangeOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollEvent, INewScrollState, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollState, ScrollEvent, INewScrollState, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
@@ -54,12 +54,17 @@ export class ScrollableElement extends Widget {
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
 	public onScroll: Event<ScrollEvent> = this._onScroll.event;
 
-	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
+	constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
 		super();
 		element.style.overflow = 'hidden';
 		this._options = resolveOptions(options);
 
-		this._scrollable = this._register(new Scrollable());
+		if (typeof scrollable === 'undefined') {
+			this._scrollable = this._register(new Scrollable());
+		} else {
+			this._scrollable = scrollable;
+		}
+
 		this._register(this._scrollable.onScroll((e) => {
 			this._onDidScroll(e);
 			this._onScroll.fire(e);
@@ -144,24 +149,8 @@ export class ScrollableElement extends Widget {
 		this._scrollable.updateState(newState);
 	}
 
-	public getWidth(): number {
-		return this._scrollable.getWidth();
-	}
-	public getScrollWidth(): number {
-		return this._scrollable.getScrollWidth();
-	}
-	public getScrollLeft(): number {
-		return this._scrollable.getScrollLeft();
-	}
-
-	public getHeight(): number {
-		return this._scrollable.getHeight();
-	}
-	public getScrollHeight(): number {
-		return this._scrollable.getScrollHeight();
-	}
-	public getScrollTop(): number {
-		return this._scrollable.getScrollTop();
+	public getScrollState(): ScrollState {
+		return this._scrollable.getState();
 	}
 
 	/**
@@ -258,15 +247,16 @@ export class ScrollableElement extends Widget {
 				}
 			}
 
+			const scrollState = this._scrollable.getState();
 			if (deltaY) {
-				let currentScrollTop = this._scrollable.getScrollTop();
+				let currentScrollTop = scrollState.scrollTop;
 				desiredScrollTop = this._verticalScrollbar.validateScrollPosition((desiredScrollTop !== -1 ? desiredScrollTop : currentScrollTop) - SCROLL_WHEEL_SENSITIVITY * deltaY);
 				if (desiredScrollTop === currentScrollTop) {
 					desiredScrollTop = -1;
 				}
 			}
 			if (deltaX) {
-				let currentScrollLeft = this._scrollable.getScrollLeft();
+				let currentScrollLeft = scrollState.scrollLeft;
 				desiredScrollLeft = this._horizontalScrollbar.validateScrollPosition((desiredScrollLeft !== -1 ? desiredScrollLeft : currentScrollLeft) - SCROLL_WHEEL_SENSITIVITY * deltaX);
 				if (desiredScrollLeft === currentScrollLeft) {
 					desiredScrollLeft = -1;
@@ -329,8 +319,9 @@ export class ScrollableElement extends Widget {
 		this._verticalScrollbar.render();
 
 		if (this._options.useShadows) {
-			let enableTop = this._scrollable.getScrollTop() > 0;
-			let enableLeft = this._scrollable.getScrollLeft() > 0;
+			const scrollState = this._scrollable.getState();
+			let enableTop = scrollState.scrollTop > 0;
+			let enableLeft = scrollState.scrollLeft > 0;
 
 			this._leftShadowDomNode.setClassName('shadow' + (enableLeft ? ' left' : ''));
 			this._topShadowDomNode.setClassName('shadow' + (enableTop ? ' top' : ''));

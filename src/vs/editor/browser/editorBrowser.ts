@@ -44,6 +44,7 @@ export interface ICodeEditorHelper {
 	getVerticalOffsetForPosition(lineNumber: number, column: number): number;
 	delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
 	getOffsetForColumn(lineNumber: number, column: number): number;
+	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
 }
 
 /**
@@ -57,7 +58,6 @@ export interface IView extends IDisposable {
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
 
-	getCenteredRangeInViewport(): Range;
 	/**
 	 * Returns the range of lines in the view port which are completely visible.
 	 */
@@ -521,6 +521,14 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 	 */
 	getTopForPosition(lineNumber: number, column: number): number;
+
+	/**
+	 * Get the hit test target at coordinates `clientX` and `clientY`.
+	 * The coordinates are relative to the top-left of the viewport.
+	 *
+	 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
+	 */
+	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
 
 	/**
 	 * Get the visible position for `position`.

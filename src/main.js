@@ -120,6 +120,26 @@ function getNodeCachedDataDir() {
 
 	var dir = path.join(app.getPath('userData'), 'CachedData');
 
+	return mkdirp(dir).then(undefined, function (err) { /*ignore*/ });
+}
+
+function mkdirp(dir) {
+	return mkdir(dir)
+		.then(null, function (err) {
+			if (err && err.code === 'ENOENT') {
+				var parent = path.dirname(dir);
+				if (parent !== dir) { // if not arrived at root
+					return mkdirp(parent)
+						.then(function () {
+							return mkdir(dir);
+						});
+				}
+			}
+			throw err;
+		});
+}
+
+function mkdir(dir) {
 	return new Promise(function (resolve, reject) {
 		fs.mkdir(dir, function (err) {
 			if (err && err.code !== 'EEXIST') {
@@ -180,10 +200,11 @@ var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 
 // Load our code once ready
 app.once('ready', function () {
+	global.perfAppReady = Date.now();
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
 	nodeCachedDataDir.then(function () {
 		require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
-	});
+	}, console.error);
 });

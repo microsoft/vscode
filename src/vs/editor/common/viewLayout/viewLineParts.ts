@@ -4,270 +4,97 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { CharCode } from 'vs/base/common/charCode';
-import { LineParts } from 'vs/editor/common/core/lineParts';
+import { Constants } from 'vs/editor/common/core/uint';
 
-function cmpLineDecorations(a: InlineDecoration, b: InlineDecoration): number {
-	let r = Range.compareRangesUsingStarts(a.range, b.range);
-	if (r === 0) {
-		if (a.inlineClassName < b.inlineClassName) {
-			return -1;
+export class Decoration {
+	_decorationBrand: void;
+
+	public readonly startColumn: number;
+	public readonly endColumn: number;
+	public readonly className: string;
+	public readonly insertsBeforeOrAfter: boolean;
+
+	constructor(startColumn: number, endColumn: number, className: string, insertsBeforeOrAfter: boolean) {
+		this.startColumn = startColumn;
+		this.endColumn = endColumn;
+		this.className = className;
+		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
+	}
+
+	private static _equals(a: Decoration, b: Decoration): boolean {
+		return (
+			a.startColumn === b.startColumn
+			&& a.endColumn === b.endColumn
+			&& a.className === b.className
+			&& a.insertsBeforeOrAfter === b.insertsBeforeOrAfter
+		);
+	}
+
+	public static equalsArr(a: Decoration[], b: Decoration[]): boolean {
+		let aLen = a.length;
+		let bLen = b.length;
+		if (aLen !== bLen) {
+			return false;
 		}
-		if (a.inlineClassName > b.inlineClassName) {
-			return 1;
-		}
-		return 0;
-	}
-	return r;
-}
-
-export function createLineParts(lineNumber: number, minLineColumn: number, lineContent: string, tabSize: number, lineTokens: ViewLineTokens, rawLineDecorations: InlineDecoration[], renderWhitespace: 'none' | 'boundary' | 'all'): LineParts {
-	if (renderWhitespace !== 'none') {
-		rawLineDecorations = insertWhitespaceLineDecorations(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), renderWhitespace, rawLineDecorations);
-	}
-
-	if (rawLineDecorations.length > 0) {
-		rawLineDecorations.sort(cmpLineDecorations);
-		return createViewLineParts(lineNumber, minLineColumn, lineTokens, lineContent, rawLineDecorations);
-	} else {
-		return createFastViewLineParts(lineTokens, lineContent);
-	}
-}
-
-export function getColumnOfLinePartOffset(stopRenderingLineAfter: number, lineParts: ViewLineToken[], lineMaxColumn: number, charOffsetInPart: number[], partIndex: number, partLength: number, offset: number): number {
-	if (partIndex >= lineParts.length) {
-		return stopRenderingLineAfter;
-	}
-
-	if (offset === 0) {
-		return lineParts[partIndex].startIndex + 1;
-	}
-
-	if (offset === partLength) {
-		return (partIndex + 1 < lineParts.length ? lineParts[partIndex + 1].startIndex + 1 : lineMaxColumn);
-	}
-
-	let originalMin = lineParts[partIndex].startIndex;
-	let originalMax = (partIndex + 1 < lineParts.length ? lineParts[partIndex + 1].startIndex : lineMaxColumn - 1);
-
-	let min = originalMin;
-	let max = originalMax;
-
-	// invariant: offsetOf(min) <= offset <= offsetOf(max)
-	while (min + 1 < max) {
-		let mid = Math.floor((min + max) / 2);
-		let midOffset = charOffsetInPart[mid];
-
-		if (midOffset === offset) {
-			return mid + 1;
-		} else if (midOffset > offset) {
-			max = mid;
-		} else {
-			min = mid;
-		}
-	}
-
-	if (min === max) {
-		return min + 1;
-	}
-
-	let minOffset = charOffsetInPart[min];
-	let maxOffset = (max < originalMax ? charOffsetInPart[max] : partLength);
-
-	let distanceToMin = offset - minOffset;
-	let distanceToMax = maxOffset - offset;
-
-	if (distanceToMin <= distanceToMax) {
-		return min + 1;
-	} else {
-		return max + 1;
-	}
-}
-
-function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): ViewLineToken[] {
-	if (parts.length <= 1) {
-		return parts;
-	}
-	var lastPartStartIndex = parts[parts.length - 1].startIndex;
-	if (lastPartStartIndex < lineContent.length) {
-		// All is good
-		return parts;
-	}
-	// Remove last line part
-	return parts.slice(0, parts.length - 1);
-}
-
-function insertOneCustomLineDecoration(dest: InlineDecoration[], lineNumber: number, startColumn: number, endColumn: number, className: string): void {
-	dest.push(new InlineDecoration(new Range(lineNumber, startColumn, lineNumber, endColumn), className));
-}
-
-function insertWhitespaceLineDecorations(lineNumber: number, lineContent: string, tabSize: number, fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
-	let lineLength = lineContent.length;
-	if (lineLength === fauxIndentLength) {
-		return rawLineDecorations;
-	}
-
-	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-	let lastNonWhitespaceIndex: number;
-	if (firstNonWhitespaceIndex === -1) {
-		// The entire line is whitespace
-		firstNonWhitespaceIndex = lineLength;
-		lastNonWhitespaceIndex = lineLength;
-	} else {
-		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
-	}
-
-	let sm_endIndex: number[] = [];
-	let sm_decoration: string[] = [];
-
-	if (fauxIndentLength > 0) {
-		// add faux indent state
-		sm_endIndex.push(fauxIndentLength - 1);
-		sm_decoration.push(null);
-	}
-	if (firstNonWhitespaceIndex > fauxIndentLength) {
-		// add leading whitespace state
-		sm_endIndex.push(firstNonWhitespaceIndex - 1);
-		sm_decoration.push('vs-whitespace');
-
-	}
-
-	let startOfWhitespace = -1;
-	let hasTab = false;
-
-	for (let i = Math.max(firstNonWhitespaceIndex, fauxIndentLength); i <= lastNonWhitespaceIndex; ++i) {
-		let currentCharIsTab = lineContent.charCodeAt(i) === CharCode.Tab;
-		if (currentCharIsTab || lineContent.charCodeAt(i) === CharCode.Space) {
-			if (currentCharIsTab) {
-				hasTab = true;
-			}
-			if (startOfWhitespace === -1) {
-				startOfWhitespace = i;
-			}
-		} else if (startOfWhitespace !== -1) {
-			if (renderWhitespace === 'all' || renderWhitespace === 'boundary' && (hasTab || i - startOfWhitespace >= 2)) {
-				sm_endIndex.push(startOfWhitespace - 1);
-				sm_decoration.push(null);
-
-				sm_endIndex.push(i - 1);
-				sm_decoration.push('vs-whitespace');
-			}
-
-			startOfWhitespace = -1;
-			hasTab = false;
-		}
-	}
-
-	// add content state
-	sm_endIndex.push(lastNonWhitespaceIndex);
-	sm_decoration.push(null);
-
-	// add trailing whitespace state
-	sm_endIndex.push(lineLength - 1);
-	sm_decoration.push('vs-whitespace');
-
-	// add dummy state to avoid array length checks
-	sm_endIndex.push(lineLength);
-	sm_decoration.push(null);
-
-	return insertCustomLineDecorationsWithStateMachine(lineNumber, lineContent, tabSize, rawLineDecorations, sm_endIndex, sm_decoration);
-}
-
-function insertCustomLineDecorationsWithStateMachine(lineNumber: number, lineContent: string, tabSize: number, rawLineDecorations: InlineDecoration[], sm_endIndex: number[], sm_decoration: string[]): InlineDecoration[] {
-	let lineLength = lineContent.length;
-	let currentStateIndex = 0;
-	let stateEndIndex = sm_endIndex[currentStateIndex];
-	let stateDecoration = sm_decoration[currentStateIndex];
-
-	let result = rawLineDecorations.slice(0);
-	let tmpIndent = 0;
-	let whitespaceStartColumn = 1;
-
-	for (let index = 0; index < lineLength; index++) {
-		let chCode = lineContent.charCodeAt(index);
-
-		if (chCode === CharCode.Tab) {
-			tmpIndent = tabSize;
-		} else {
-			tmpIndent++;
-		}
-
-		if (index === stateEndIndex) {
-			if (stateDecoration !== null) {
-				insertOneCustomLineDecoration(result, lineNumber, whitespaceStartColumn, index + 2, stateDecoration);
-			}
-			whitespaceStartColumn = index + 2;
-			tmpIndent = tmpIndent % tabSize;
-
-			currentStateIndex++;
-			stateEndIndex = sm_endIndex[currentStateIndex];
-			stateDecoration = sm_decoration[currentStateIndex];
-		} else {
-			if (stateDecoration !== null && tmpIndent >= tabSize) {
-				insertOneCustomLineDecoration(result, lineNumber, whitespaceStartColumn, index + 2, stateDecoration);
-				whitespaceStartColumn = index + 2;
-				tmpIndent = tmpIndent % tabSize;
+		for (let i = 0; i < aLen; i++) {
+			if (!Decoration._equals(a[i], b[i])) {
+				return false;
 			}
 		}
+		return true;
 	}
 
-	return result;
-}
-
-function createFastViewLineParts(lineTokens: ViewLineTokens, lineContent: string): LineParts {
-	let parts = lineTokens.getTokens();
-	parts = trimEmptyTrailingPart(parts, lineContent);
-	return new LineParts(parts, lineContent.length + 1);
-}
-
-function createViewLineParts(lineNumber: number, minLineColumn: number, lineTokens: ViewLineTokens, lineContent: string, rawLineDecorations: InlineDecoration[]): LineParts {
-	// lineDecorations might overlap on top of each other, so they need to be normalized
-	var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, minLineColumn, rawLineDecorations),
-		lineDecorationsIndex = 0,
-		lineDecorationsLength = lineDecorations.length;
-
-	var actualLineTokens = lineTokens.getTokens(),
-		nextStartOffset: number,
-		currentTokenEndOffset: number,
-		currentTokenClassName: string;
-
-	var parts: ViewLineToken[] = [];
-
-	for (var i = 0, len = actualLineTokens.length; i < len; i++) {
-		nextStartOffset = actualLineTokens[i].startIndex;
-		currentTokenEndOffset = (i + 1 < len ? actualLineTokens[i + 1].startIndex : lineTokens.getTextLength());
-		currentTokenClassName = actualLineTokens[i].type;
-
-		while (lineDecorationsIndex < lineDecorationsLength && lineDecorations[lineDecorationsIndex].startOffset < currentTokenEndOffset) {
-			if (lineDecorations[lineDecorationsIndex].startOffset > nextStartOffset) {
-				// the first decorations starts after the token
-				parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName));
-				nextStartOffset = lineDecorations[lineDecorationsIndex].startOffset;
-			}
-
-			parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName + ' ' + lineDecorations[lineDecorationsIndex].className));
-
-			if (lineDecorations[lineDecorationsIndex].endOffset >= currentTokenEndOffset) {
-				// this decoration goes on to the next token
-				nextStartOffset = currentTokenEndOffset;
-				break;
-			} else {
-				// this decorations stops inside this token
-				nextStartOffset = lineDecorations[lineDecorationsIndex].endOffset + 1;
-				lineDecorationsIndex++;
-			}
+	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): Decoration[] {
+		if (lineDecorations.length === 0) {
+			return [];
 		}
 
-		if (nextStartOffset < currentTokenEndOffset) {
-			parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName));
+		let result: Decoration[] = [], resultLen = 0;
+
+		for (let i = 0, len = lineDecorations.length; i < len; i++) {
+			let d = lineDecorations[i];
+			let range = d.range;
+
+			if (range.endLineNumber < lineNumber || range.startLineNumber > lineNumber) {
+				// Ignore decorations that sit outside this line
+				continue;
+			}
+
+			if (range.isEmpty()) {
+				// Ignore empty range decorations
+				continue;
+			}
+
+			let startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
+			let endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
+
+			if (endColumn <= 1) {
+				// An empty decoration (endColumn === 1)
+				continue;
+			}
+
+			result[resultLen++] = new Decoration(startColumn, endColumn, d.inlineClassName, d.insertsBeforeOrAfter);
 		}
+
+		return result;
 	}
 
-	return new LineParts(parts, lineContent.length + 1);
+	public static compare(a: Decoration, b: Decoration): number {
+		if (a.startColumn === b.startColumn) {
+			if (a.endColumn === b.endColumn) {
+				if (a.className < b.className) {
+					return -1;
+				}
+				if (a.className > b.className) {
+					return 1;
+				}
+				return 0;
+			}
+			return a.endColumn - b.endColumn;
+		}
+		return a.startColumn - b.startColumn;
+	}
 }
 
 export class DecorationSegment {
@@ -343,62 +170,35 @@ class Stack {
 
 export class LineDecorationsNormalizer {
 	/**
-	 * A number that is guaranteed to be larger than the maximum line column
-	 */
-	private static MAX_LINE_LENGTH = 10000000;
-
-	/**
 	 * Normalize line decorations. Overlapping decorations will generate multiple segments
 	 */
-	public static normalize(lineNumber: number, minLineColumn: number, lineDecorations: InlineDecoration[]): DecorationSegment[] {
-
-		var result: DecorationSegment[] = [];
-
+	public static normalize(lineDecorations: Decoration[]): DecorationSegment[] {
 		if (lineDecorations.length === 0) {
-			return result;
+			return [];
 		}
 
-		var stack = new Stack(),
-			nextStartOffset = 0,
-			d: InlineDecoration,
-			currentStartOffset: number,
-			currentEndOffset: number,
-			i: number,
-			len: number;
+		let result: DecorationSegment[] = [];
 
-		for (i = 0, len = lineDecorations.length; i < len; i++) {
-			d = lineDecorations[i];
+		let stack = new Stack();
+		let nextStartOffset = 0;
 
-			if (d.range.endLineNumber < lineNumber || d.range.startLineNumber > lineNumber) {
-				// Ignore decorations that sit outside this line
-				continue;
-			}
+		for (let i = 0, len = lineDecorations.length; i < len; i++) {
+			let d = lineDecorations[i];
 
-			if (d.range.startLineNumber === d.range.endLineNumber && d.range.startColumn === d.range.endColumn) {
-				// Ignore empty range decorations
-				continue;
-			}
-
-			currentStartOffset = (d.range.startLineNumber === lineNumber ? d.range.startColumn - 1 : minLineColumn - 1);
-			currentEndOffset = (d.range.endLineNumber === lineNumber ? d.range.endColumn - 2 : LineDecorationsNormalizer.MAX_LINE_LENGTH - 1);
-
-			if (currentEndOffset < 0) {
-				// An empty decoration (endColumn === 1)
-				continue;
-			}
+			let currentStartOffset = d.startColumn - 1;
+			let currentEndOffset = d.endColumn - 2;
 
 			nextStartOffset = stack.consumeLowerThan(currentStartOffset, nextStartOffset, result);
 
 			if (stack.count === 0) {
 				nextStartOffset = currentStartOffset;
 			}
-			stack.insert(currentEndOffset, d.inlineClassName);
+			stack.insert(currentEndOffset, d.className);
 		}
 
-		stack.consumeLowerThan(LineDecorationsNormalizer.MAX_LINE_LENGTH, nextStartOffset, result);
+		stack.consumeLowerThan(Constants.MAX_SAFE_SMALL_INTEGER, nextStartOffset, result);
 
 		return result;
 	}
 
 }
-

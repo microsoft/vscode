@@ -39,6 +39,7 @@ export function renderHtml(content: RenderableContent, options: RenderOptions = 
 	} else if (content) {
 		return _renderHtml(content, options);
 	}
+	return undefined;
 }
 
 function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}): Node {
@@ -91,7 +92,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 
 		const renderer = new marked.Renderer();
 		renderer.image = (href: string, title: string, text: string) => {
-			let dimensions = [];
+			let dimensions: string[] = [];
 			if (href) {
 				const splitted = href.split('|').map(s => s.trim());
 				href = splitted[0];

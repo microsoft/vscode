@@ -63,7 +63,10 @@ function editorLoaderConfig() {
 	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
 
 	// force css inlining to use base64 -- see https://github.com/Microsoft/monaco-editor/issues/148
-	result['vs/css'] = { inlineResources: 'base64' };
+	result['vs/css'] = {
+		inlineResources: 'base64',
+		inlineResourcesLimit: 3000 // see https://github.com/Microsoft/monaco-editor/issues/336
+	};
 
 	return result;
 }

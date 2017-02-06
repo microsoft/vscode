@@ -6,7 +6,8 @@
 
 import {
 	createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType
+	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
+	DocumentRangeFormattingRequest, Disposable
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -18,6 +19,7 @@ import Strings = require('./utils/strings');
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
 import { ProjectJSONContribution } from './jsoncontributions/projectJSONContribution';
 import { GlobPatternContribution } from './jsoncontributions/globPatternContribution';
+import { WindowTitleContribution } from './jsoncontributions/windowTitleContribution';
 import { FileAssociationContribution } from './jsoncontributions/fileAssociationContribution';
 import { getLanguageModelCache } from './languageModelCache';
 
@@ -29,11 +31,11 @@ interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations, any> = { get method() { return 'json/schemaAssociations'; }, _: null };
+	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
 }
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any, any> = { get method() { return 'vscode/content'; }, _: null };
+	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
 }
 
 // Create a connection for the server
@@ -49,6 +51,9 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
+
 const filesAssociationContribution = new FileAssociationContribution();
 
 // After the server has started the client sends an initilize request. The server receives
@@ -59,14 +64,24 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	if (params.initializationOptions) {
 		filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
 	}
+	function hasClientCapability(...keys: string[]) {
+		let c = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			c = c[keys[i]];
+		}
+		return !!c;
+	}
+
+	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
+	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
+			completionProvider: clientDynamicRegisterSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: !params.initializationOptions || params.initializationOptions['format.enable']
+			documentRangeFormattingProvider: false
 		}
 	};
 });
@@ -114,6 +129,7 @@ let languageService = getLanguageService({
 	contributions: [
 		new ProjectJSONContribution(),
 		new GlobPatternContribution(),
+		new WindowTitleContribution(),
 		filesAssociationContribution
 	]
 });
@@ -122,6 +138,7 @@ let languageService = getLanguageService({
 interface Settings {
 	json: {
 		schemas: JSONSchemaSettings[];
+		format: { enable: boolean; };
 	};
 	http: {
 		proxy: string;
@@ -137,6 +154,7 @@ interface JSONSchemaSettings {
 
 let jsonConfigurationSettings: JSONSchemaSettings[] = void 0;
 let schemaAssociations: ISchemaAssociations = void 0;
+let formatterRegistration: Thenable<Disposable> = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -145,6 +163,21 @@ connection.onDidChangeConfiguration((change) => {
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
 	updateConfiguration();
+
+	// dynamically enable & disable the formatter
+	if (clientDynamicRegisterSupport) {
+		let enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
+		if (enableFormatter) {
+			if (!formatterRegistration) {
+				console.log('enable');
+				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }] });
+			}
+		} else if (formatterRegistration) {
+			console.log('enable');
+			formatterRegistration.then(r => r.dispose());
+			formatterRegistration = null;
+		}
+	}
 });
 
 // The jsonValidation extension configuration has changed

@@ -12,8 +12,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDocuments, ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
-import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind, TextEditorLineNumbersStyle } from './extHostTypes';
-import { ISingleEditOperation, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
+import { ISingleEditOperation, TextEditorCursorStyle, IRange } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorAddData, ITextEditorPositionData } from './extHost.protocol';
@@ -620,6 +620,34 @@ class ExtHostTextEditor implements vscode.TextEditor {
 		});
 	}
 
+	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+
+		let ranges: IRange[];
+
+		if (!where || (Array.isArray(where) && where.length === 0)) {
+			ranges = this._selections.map(TypeConverters.fromRange);
+
+		} else if (where instanceof Position) {
+			const {lineNumber, column} = TypeConverters.fromPosition(where);
+			ranges = [{ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column }];
+
+		} else if (where instanceof Range) {
+			ranges = [TypeConverters.fromRange(where)];
+		} else {
+			ranges = [];
+			for (const posOrRange of where) {
+				if (posOrRange instanceof Range) {
+					ranges.push(TypeConverters.fromRange(posOrRange));
+				} else {
+					const {lineNumber, column} = TypeConverters.fromPosition(posOrRange);
+					ranges.push({ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column });
+				}
+			}
+		}
+
+		return this._proxy.$tryInsertSnippet(this._id, snippet.value, ranges, options);
+	}
+
 	// ---- util
 
 	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
@@ -628,6 +656,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 				return TPromise.wrapError(silent);
 			}
 			console.warn(err);
+			return undefined;
 		});
 	}
 }

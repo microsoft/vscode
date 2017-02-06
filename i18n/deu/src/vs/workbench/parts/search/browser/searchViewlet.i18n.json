@@ -28,5 +28,6 @@
 	"searchMaxResultsWarning": "Das Resultset enthält nur eine Teilmenge aller Übereinstimmungen. Verfeinern Sie Ihre Suche, um die Ergebnisse einzugrenzen.",
 	"searchScope.excludes": "Auszuschließende Dateien",
 	"searchScope.includes": "Einzuschließende Dateien",
+	"searchWithoutFolder": "Sie haben noch keinen Ordner geöffnet. Nur offene Dateien werden momentan durchsucht - ",
 	"treeAriaLabel": "Suchergebnisse"
 }

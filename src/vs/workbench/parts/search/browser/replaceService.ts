@@ -13,6 +13,7 @@ import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
@@ -48,6 +49,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 class ReplacePreviewModel extends Disposable {
 	constructor(
 		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IReplaceService private replaceService: IReplaceService,
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
@@ -61,7 +63,8 @@ class ReplacePreviewModel extends Disposable {
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
 			ref = this._register(ref);
 			const sourceModel = ref.object.textEditorModel;
-			const replacePreviewModel = this.modelService.createModel(sourceModel.getValue(), sourceModel.getMode(), replacePreviewUri);
+			const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
+			const replacePreviewModel = this.modelService.createModel(sourceModel.getValue(), this.modeService.getOrCreateMode(sourceModelModeId), replacePreviewUri);
 			this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
 			this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
 			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose()));
@@ -97,7 +100,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		let bulkEdit: BulkEdit = createBulkEdit(this.fileService, this.textModelResolverService, null);
+		let bulkEdit: BulkEdit = createBulkEdit(this.textModelResolverService, null, this.fileService);
 		bulkEdit.progress(progress);
 
 		if (arg instanceof Match) {

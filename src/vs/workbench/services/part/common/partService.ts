@@ -23,15 +23,7 @@ export enum Position {
 }
 
 export interface ILayoutOptions {
-	forceStyleRecompute?: boolean;
 	toggleMaximizedPanel?: boolean;
-}
-
-export interface IZenModeOptions {
-	noFullScreen?: boolean;
-	keepStatusBar?: boolean;
-	keepTabs?: boolean;
-	keepActivityBar?: boolean;
 }
 
 export const IPartService = createDecorator<IPartService>('partService');
@@ -87,12 +79,12 @@ export interface IPartService {
 	/**
 	 * Set sidebar hidden or not
 	 */
-	setSideBarHidden(hidden: boolean): void;
+	setSideBarHidden(hidden: boolean): TPromise<void>;
 
 	/**
 	 * Set panel part hidden or not
 	 */
-	setPanelHidden(hidden: boolean): void;
+	setPanelHidden(hidden: boolean): TPromise<void>;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -123,5 +115,5 @@ export interface IPartService {
 	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
-	toggleZenMode(options?: IZenModeOptions): void;
+	toggleZenMode(): void;
 }

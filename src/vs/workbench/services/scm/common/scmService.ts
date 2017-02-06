@@ -5,38 +5,87 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, IBaselineResourceProvider } from './scm';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { RawText } from 'vs/editor/common/model/textModel';
+import { Model } from 'vs/editor/common/model/model';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { ISCMService, ISCMProvider } from './scm';
 
 export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
-	private providers: IBaselineResourceProvider[] = [];
+	private activeProviderContextKey: IContextKey<string | undefined>;
 
-	getBaselineResource(resource: URI): TPromise<URI> {
-		const promises = this.providers
-			.map(p => p.getBaselineResource(resource));
+	private _activeProvider: ISCMProvider | undefined;
 
-		return TPromise.join(promises).then(originalResources => {
-			// TODO@Joao: just take the first
-			return originalResources.filter(uri => !!uri)[0];
-		});
+	get activeProvider(): ISCMProvider | undefined {
+		return this._activeProvider;
 	}
 
-	registerBaselineResourceProvider(provider: IBaselineResourceProvider): IDisposable {
-		this.providers = [provider, ...this.providers];
+	set activeProvider(provider: ISCMProvider | undefined) {
+		if (!provider) {
+			throw new Error('invalid provider');
+		}
+
+		if (provider && this._providers.indexOf(provider) === -1) {
+			throw new Error('Provider not registered');
+		}
+
+		this._activeProvider = provider;
+		this.activeProviderContextKey.set(provider ? provider.id : void 0);
+		this._onDidChangeProvider.fire(provider);
+	}
+
+	private _providers: ISCMProvider[] = [];
+	get providers(): ISCMProvider[] { return [...this._providers]; }
+
+	private _onDidChangeProvider = new Emitter<ISCMProvider>();
+	get onDidChangeProvider(): Event<ISCMProvider> { return this._onDidChangeProvider.event; }
+
+	private _inputBoxModel: IModel;
+	get inputBoxModel(): IModel { return this._inputBoxModel; }
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService
+	) {
+		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scm.provider', void 0);
+
+		const options = modelService.getCreationOptions('git-commit');
+		const rawText = RawText.fromString('', options);
+
+		this._inputBoxModel = new Model(rawText, PLAINTEXT_LANGUAGE_IDENTIFIER);
+
+		modeService.getOrCreateMode('git-commit')
+			.done(mode => this._inputBoxModel.setMode(mode.getLanguageIdentifier()));
+	}
+
+	registerSCMProvider(provider: ISCMProvider): IDisposable {
+		this._providers = [provider, ...this._providers];
+
+		if (this._providers.length === 1) {
+			this.activeProvider = provider;
+		}
 
 		return toDisposable(() => {
-			const index = this.providers.indexOf(provider);
+			const index = this._providers.indexOf(provider);
 
 			if (index < 0) {
 				return;
 			}
 
-			this.providers.splice(index, 1);
+			this._providers.splice(index, 1);
+
+			if (this.activeProvider === provider) {
+				this.activeProvider = this._providers[0];
+			}
 		});
 	}
 }

@@ -26,3 +26,49 @@ export abstract class ViewPart extends ViewEventHandler {
 	public abstract prepareRender(ctx: IRenderingContext): void;
 	public abstract render(ctx: IRestrictedRenderingContext): void;
 }
+
+export const enum PartFingerprint {
+	None,
+	ContentWidgets,
+	OverflowingContentWidgets,
+	OverflowGuard,
+	OverlayWidgets,
+	ScrollableElement,
+	TextArea,
+	ViewLines,
+}
+
+export class PartFingerprints {
+
+	public static write(target: Element, partId: PartFingerprint) {
+		target.setAttribute('data-mprt', String(partId));
+	}
+
+	public static read(target: Element): PartFingerprint {
+		let r = target.getAttribute('data-mprt');
+		if (r === null) {
+			return PartFingerprint.None;
+		}
+		return parseInt(r, 10);
+	}
+
+	public static collect(child: Element, stopAt: Element): Uint8Array {
+		let result: PartFingerprint[] = [], resultLen = 0;
+
+		while (child && child !== document.body) {
+			if (child === stopAt) {
+				break;
+			}
+			if (child.nodeType === child.ELEMENT_NODE) {
+				result[resultLen++] = this.read(child);
+			}
+			child = child.parentElement;
+		}
+
+		let r = new Uint8Array(resultLen);
+		for (let i = 0; i < resultLen; i++) {
+			r[i] = result[resultLen - i - 1];
+		}
+		return r;
+	}
+}

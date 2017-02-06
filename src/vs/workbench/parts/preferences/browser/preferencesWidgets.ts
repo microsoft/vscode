@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
 import { Dimension } from 'vs/base/browser/builder';
+import * as DOM from 'vs/base/browser/dom';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -17,6 +18,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -57,7 +62,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._domNode = DOM.$('.settings-group-title-widget');
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		this.titleContainer.tabIndex = 1;
+		this.titleContainer.tabIndex = 0;
 		this.onclick(this.titleContainer, () => this.toggle());
 		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
 		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
@@ -91,8 +96,11 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	private layout(): void {
-		this.titleContainer.style.lineHeight = this.editor.getConfiguration().lineHeight + 3 + 'px';
-		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 'px';
+		const configuration = this.editor.getConfiguration();
+		const layoutInfo = this.editor.getLayoutInfo();
+		this.titleContainer.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
+		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
+		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
 		const iconSize = this.getIconSize();
 		this.icon.style.height = `${iconSize}px`;
 		this.icon.style.width = `${iconSize}px`;
@@ -173,11 +181,53 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class DefaultSettingsHeaderWidget extends Widget {
+export class SettingsTabsWidget extends Widget {
+
+	private settingsSwitcherBar: ActionBar;
+	private userSettings: Action;
+	private workspaceSettings: Action;
+
+	private _onSwitch: Emitter<void> = new Emitter<void>();
+	public readonly onSwitch: Event<void> = this._onSwitch.event;
+
+	constructor(parent: HTMLElement, @IWorkspaceContextService private contextService: IWorkspaceContextService, ) {
+		super();
+		this.create(parent);
+	}
+
+	private create(parent: HTMLElement): void {
+		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
+		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
+			animated: false
+		}));
+		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettings));
+		this.userSettings.tooltip = this.userSettings.label;
+		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettings));
+		this.workspaceSettings.tooltip = this.workspaceSettings.label;
+
+		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings]);
+	}
+
+	public show(configurationTarget: ConfigurationTarget): void {
+		this.userSettings.checked = ConfigurationTarget.USER === configurationTarget;
+		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
+	}
+
+	private onClick(action: Action): TPromise<any> {
+		if (!action.checked) {
+			this._onSwitch.fire();
+		}
+		return TPromise.as(null);
+	}
+}
+
+export class SearchWidget extends Widget {
 
 	public domNode: HTMLElement;
 
-	private headerContainer: HTMLElement;
+	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
 
@@ -198,38 +248,50 @@ export class DefaultSettingsHeaderWidget extends Widget {
 
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
-		this.headerContainer = DOM.append(this.domNode, DOM.$('div.settings-header-container'));
-		const titleContainer = DOM.append(this.headerContainer, DOM.$('div.settings-title-container'));
-		this.createInfoContainer(DOM.append(titleContainer, DOM.$('div.settings-info-container')));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
-	}
-
-	private createInfoContainer(infoContainer: HTMLElement) {
-		DOM.append(infoContainer, DOM.$('span.title-label')).textContent = localize('defaultSettingsTitle', "Default Settings");
-		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', " - Overwrite these by placing them into your settings file to the right");
+		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
+		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this._register(new InputBox(searchInput, this.contextViewService, {
-			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search default settings"),
-			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Default Settings")
+			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search settings"),
+			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Settings")
 		}));
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
+	}
+
+	public showMessage(message: string, count: number): void {
+		this.countElement.textContent = message;
+		this.inputBox.inputElement.setAttribute('aria-label', message);
+		DOM.toggleClass(this.countElement, 'no-results', count === 0);
+		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+	}
+
+	public layout(dimension: Dimension) {
+		if (dimension.width < 400) {
+			DOM.addClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = '0px';
+		} else {
+			DOM.removeClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		}
+
 	}
 
 	public focus() {
 		this.inputBox.focus();
 	}
 
-	public layout(dimension: Dimension): void {
-		this.inputBox.width = dimension.width - 62;
-	}
-
 	public clear() {
 		this.inputBox.value = '';
+	}
+
+	public value(): string {
+		return this.inputBox.value;
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
@@ -297,33 +359,33 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	}
 }
 
-export class SettingsCountWidget extends Widget implements IOverlayWidget {
+export class EditPreferenceWidget<T> extends Widget implements IOverlayWidget {
+
+	private static counter: number = 1;
 
 	private _domNode: HTMLElement;
+	private _visible: boolean;
+	private _line: number;
+	private _id: string;
+	private _preferences: T[];
 
-	constructor(private editor: ICodeEditor, private total: number
+	private _onClick: Emitter<void> = new Emitter<void>();
+	public get onClick(): Event<void> { return this._onClick.event; }
+
+	private _onMouseOver: Emitter<void> = new Emitter<void>();
+	public get onMouseOver(): Event<void> { return this._onMouseOver.event; }
+
+	constructor(private editor: ICodeEditor,
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super();
-	}
-
-	public render() {
-		this._domNode = DOM.$('.settings-count-widget');
+		this._id = 'preferences.editPreferenceWidget' + EditPreferenceWidget.counter++;
 		this.editor.addOverlayWidget(this);
-	}
-
-	public show(count: number) {
-		if (count === this.total) {
-			DOM.removeClass(this._domNode, 'show');
-		} else {
-			if (count === 0) {
-				this._domNode.textContent = localize('noSettings', "No settings found");
-				DOM.addClass(this._domNode, 'no-results');
-			} else {
-				this._domNode.textContent = localize('showCount', "Showing {0} of {1} Settings", count, this.total);
-				DOM.removeClass(this._domNode, 'no-results');
+		this._register(this.editor.onDidScrollChange(() => {
+			if (this._visible) {
+				this._layout();
 			}
-			DOM.addClass(this._domNode, 'show');
-		}
+		}));
 	}
 
 	public dispose(): void {
@@ -331,17 +393,56 @@ export class SettingsCountWidget extends Widget implements IOverlayWidget {
 		super.dispose();
 	}
 
-	public getId(): string {
-		return 'editor.overlayWidget.settingsCountWidget';
+	getId(): string {
+		return this._id;
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
+		if (!this._domNode) {
+			this._domNode = document.createElement('div');
+			this._domNode.style.width = '20px';
+			this._domNode.style.height = '20px';
+			this._domNode.className = 'edit-preferences-widget hidden';
+			this.onclick(this._domNode, e => this._onClick.fire());
+			this.onmouseover(this._domNode, e => this._onMouseOver.fire());
+		}
 		return this._domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: null
-		};
+	getPosition(): IOverlayWidgetPosition {
+		return null;
+	}
+
+	getLine(): number {
+		return this._line;
+	}
+
+	show(line: number, preferences: T[]): void {
+		this._preferences = preferences;
+		if (!this._visible || this._line !== line) {
+			this._line = line;
+			this._visible = true;
+			this._layout();
+		}
+	}
+
+	get preferences(): T[] {
+		return this._preferences;
+	}
+
+	hide(): void {
+		if (this._visible) {
+			this._visible = false;
+			this._domNode.classList.add('hidden');
+		}
+	}
+
+	private _layout(): void {
+		const topForLineNumber = this.editor.getTopForLineNumber(this._line);
+		const editorScrollTop = this.editor.getScrollTop();
+
+		this._domNode.style.top = `${topForLineNumber - editorScrollTop - 2}px`;
+		this._domNode.style.left = '0px';
+		this._domNode.classList.remove('hidden');
 	}
 }

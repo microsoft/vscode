@@ -23,7 +23,7 @@ export interface ICommandAndKeybindingRule extends IKeybindingRule {
 }
 
 export interface IKeybindingsRegistry {
-	registerKeybindingRule(rule: IKeybindingRule);
+	registerKeybindingRule(rule: IKeybindingRule): void;
 	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
 	getDefaultKeybindings(): IKeybindingItem[];
 

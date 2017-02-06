@@ -21,7 +21,7 @@ const NO_TAB_SIZE = 0;
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	let model = Model.createFromString(lines.join('\n'));
 	let config = new MockConfiguration(null);
-	let cursor = new Cursor(0, config, model, viewModelHelper(model), false);
+	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
 	cursor.setSelections('tests', selections);
 

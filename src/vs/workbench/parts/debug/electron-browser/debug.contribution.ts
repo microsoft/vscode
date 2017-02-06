@@ -65,7 +65,7 @@ class OpenDebugPanelAction extends TogglePanelAction {
 }
 
 // register viewlet
-(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/debug/browser/debugViewlet',
 	'DebugViewlet',
 	VIEWLET_ID,
@@ -82,15 +82,16 @@ const openPanelKb: IKeybindings = {
 };
 
 // register repl panel
-(<PanelRegistry>Registry.as(PanelExtensions.Panels)).registerPanel(new PanelDescriptor(
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
 	'vs/workbench/parts/debug/electron-browser/repl',
 	'Repl',
 	REPL_ID,
 	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
 	'repl',
-	30
+	30,
+	OpenDebugPanelAction.ID
 ));
-(<PanelRegistry>Registry.as(PanelExtensions.Panels)).setDefaultPanelId(REPL_ID);
+Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
 DebugViewRegistry.registerDebugView(VariablesView, 10);
@@ -99,12 +100,12 @@ DebugViewRegistry.registerDebugView(CallStackView, 30);
 DebugViewRegistry.registerDebugView(BreakpointsView, 40);
 
 // register action to open viewlet
-const registry = (<IWorkbenchActionRegistry>Registry.as(WorkbenchActionRegistryExtensions.WorkbenchActions));
+const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDebugPanelAction, OpenDebugPanelAction.ID, OpenDebugPanelAction.LABEL, openPanelKb), 'View: Debug Console', nls.localize('view', "View"));
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDebugViewletAction, OpenDebugViewletAction.ID, OpenDebugViewletAction.LABEL, openViewletKb), 'View: Show Debug', nls.localize('view', "View"));
 
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(DebugEditorModelManager);
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(DebugActionsWidget);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugEditorModelManager);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugActionsWidget);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider);
 
 const debugCategory = nls.localize('debugCategory', "Debug");
@@ -133,9 +134,28 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(IDebugService);
+		if (!configurationOrName) {
+			configurationOrName = debugService.getViewModel().selectedConfigurationName;
+		}
+
 		return debugService.createProcess(configurationOrName);
 	},
 	when: CONTEXT_NOT_IN_DEBUG_MODE,
+	primary: undefined
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.customDebugRequest',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
+		const process = accessor.get(IDebugService).getViewModel().focusedProcess;
+		if (process) {
+			return process.session.custom(request, requestArgs);
+		}
+
+		return undefined;
+	},
+	when: CONTEXT_IN_DEBUG_MODE,
 	primary: undefined
 });
 
@@ -143,7 +163,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 registerSingleton(IDebugService, service.DebugService);
 
 // Register configuration
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'debug',
 	order: 20,
@@ -158,6 +178,11 @@ configurationRegistry.registerConfiguration({
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer view on the end of a debug session"),
+			default: false
+		},
+		'debug.inlineValues': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
 			default: false
 		}
 	}

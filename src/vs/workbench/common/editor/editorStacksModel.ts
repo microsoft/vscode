@@ -559,7 +559,7 @@ export class EditorGroup implements IEditorGroup {
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
 			// So we need to do ref counting on the resource to provide the correct picture
 			let counter = this.mapResourceToEditorCount[resource.toString()] || 0;
-			let newCounter;
+			let newCounter: number;
 			if (remove) {
 				if (counter > 1) {
 					newCounter = counter - 1;

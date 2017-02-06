@@ -31,71 +31,30 @@ export interface ScrollEvent {
 	scrollTopChanged: boolean;
 }
 
-export interface INewScrollState {
-	width?: number;
-	scrollWidth?: number;
-	scrollLeft?: number;
+export class ScrollState {
+	_scrollStateBrand: void;
 
-	height?: number;
-	scrollHeight?: number;
-	scrollTop?: number;
-}
+	public readonly width: number;
+	public readonly scrollWidth: number;
+	public readonly scrollLeft: number;
+	public readonly height: number;
+	public readonly scrollHeight: number;
+	public readonly scrollTop: number;
 
-export class Scrollable extends Disposable {
-
-	_scrollableBrand: void;
-
-	private _width: number;
-	private _scrollWidth: number;
-	private _scrollLeft: number;
-
-	private _height: number;
-	private _scrollHeight: number;
-	private _scrollTop: number;
-
-	private _onScroll = this._register(new Emitter<ScrollEvent>());
-	public onScroll: Event<ScrollEvent> = this._onScroll.event;
-
-	constructor() {
-		super();
-
-		this._width = 0;
-		this._scrollWidth = 0;
-		this._scrollLeft = 0;
-
-		this._height = 0;
-		this._scrollHeight = 0;
-		this._scrollTop = 0;
-	}
-
-	public getWidth(): number {
-		return this._width;
-	}
-	public getScrollWidth(): number {
-		return this._scrollWidth;
-	}
-	public getScrollLeft(): number {
-		return this._scrollLeft;
-	}
-
-	public getHeight(): number {
-		return this._height;
-	}
-	public getScrollHeight(): number {
-		return this._scrollHeight;
-	}
-	public getScrollTop(): number {
-		return this._scrollTop;
-	}
-
-	public updateState(newState: INewScrollState): void {
-		let width = (typeof newState.width !== 'undefined' ? newState.width | 0 : this._width);
-		let scrollWidth = (typeof newState.scrollWidth !== 'undefined' ? newState.scrollWidth | 0 : this._scrollWidth);
-		let scrollLeft = (typeof newState.scrollLeft !== 'undefined' ? newState.scrollLeft | 0 : this._scrollLeft);
-
-		let height = (typeof newState.height !== 'undefined' ? newState.height | 0 : this._height);
-		let scrollHeight = (typeof newState.scrollHeight !== 'undefined' ? newState.scrollHeight | 0 : this._scrollHeight);
-		let scrollTop = (typeof newState.scrollTop !== 'undefined' ? newState.scrollTop | 0 : this._scrollTop);
+	constructor(
+		width: number,
+		scrollWidth: number,
+		scrollLeft: number,
+		height: number,
+		scrollHeight: number,
+		scrollTop: number
+	) {
+		width = width | 0;
+		scrollWidth = scrollWidth | 0;
+		scrollLeft = scrollLeft | 0;
+		height = height | 0;
+		scrollHeight = scrollHeight | 0;
+		scrollTop = scrollTop | 0;
 
 		if (width < 0) {
 			width = 0;
@@ -117,34 +76,42 @@ export class Scrollable extends Disposable {
 			scrollTop = 0;
 		}
 
-		let widthChanged = (this._width !== width);
-		let scrollWidthChanged = (this._scrollWidth !== scrollWidth);
-		let scrollLeftChanged = (this._scrollLeft !== scrollLeft);
+		this.width = width;
+		this.scrollWidth = scrollWidth;
+		this.scrollLeft = scrollLeft;
+		this.height = height;
+		this.scrollHeight = scrollHeight;
+		this.scrollTop = scrollTop;
+	}
 
-		let heightChanged = (this._height !== height);
-		let scrollHeightChanged = (this._scrollHeight !== scrollHeight);
-		let scrollTopChanged = (this._scrollTop !== scrollTop);
+	public equals(other: ScrollState): boolean {
+		return (
+			this.width === other.width
+			&& this.scrollWidth === other.scrollWidth
+			&& this.scrollLeft === other.scrollLeft
+			&& this.height === other.height
+			&& this.scrollHeight === other.scrollHeight
+			&& this.scrollTop === other.scrollTop
+		);
+	}
 
-		if (!widthChanged && !scrollWidthChanged && !scrollLeftChanged && !heightChanged && !scrollHeightChanged && !scrollTopChanged) {
-			return;
-		}
+	public createScrollEvent(previous: ScrollState): ScrollEvent {
+		let widthChanged = (this.width !== previous.width);
+		let scrollWidthChanged = (this.scrollWidth !== previous.scrollWidth);
+		let scrollLeftChanged = (this.scrollLeft !== previous.scrollLeft);
 
-		this._width = width;
-		this._scrollWidth = scrollWidth;
-		this._scrollLeft = scrollLeft;
+		let heightChanged = (this.height !== previous.height);
+		let scrollHeightChanged = (this.scrollHeight !== previous.scrollHeight);
+		let scrollTopChanged = (this.scrollTop !== previous.scrollTop);
 
-		this._height = height;
-		this._scrollHeight = scrollHeight;
-		this._scrollTop = scrollTop;
+		return {
+			width: this.width,
+			scrollWidth: this.scrollWidth,
+			scrollLeft: this.scrollLeft,
 
-		this._onScroll.fire({
-			width: this._width,
-			scrollWidth: this._scrollWidth,
-			scrollLeft: this._scrollLeft,
-
-			height: this._height,
-			scrollHeight: this._scrollHeight,
-			scrollTop: this._scrollTop,
+			height: this.height,
+			scrollHeight: this.scrollHeight,
+			scrollTop: this.scrollTop,
 
 			widthChanged: widthChanged,
 			scrollWidthChanged: scrollWidthChanged,
@@ -153,6 +120,57 @@ export class Scrollable extends Disposable {
 			heightChanged: heightChanged,
 			scrollHeightChanged: scrollHeightChanged,
 			scrollTopChanged: scrollTopChanged,
-		});
+		};
+	}
+
+}
+
+export interface INewScrollState {
+	width?: number;
+	scrollWidth?: number;
+	scrollLeft?: number;
+
+	height?: number;
+	scrollHeight?: number;
+	scrollTop?: number;
+}
+
+export class Scrollable extends Disposable {
+
+	_scrollableBrand: void;
+
+	private _state: ScrollState;
+
+	private _onScroll = this._register(new Emitter<ScrollEvent>());
+	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+
+	constructor() {
+		super();
+
+		this._state = new ScrollState(0, 0, 0, 0, 0, 0);
+	}
+
+	public getState(): ScrollState {
+		return this._state;
+	}
+
+	public updateState(update: INewScrollState): void {
+		const oldState = this._state;
+		const newState = new ScrollState(
+			(typeof update.width !== 'undefined' ? update.width : oldState.width),
+			(typeof update.scrollWidth !== 'undefined' ? update.scrollWidth : oldState.scrollWidth),
+			(typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : oldState.scrollLeft),
+			(typeof update.height !== 'undefined' ? update.height : oldState.height),
+			(typeof update.scrollHeight !== 'undefined' ? update.scrollHeight : oldState.scrollHeight),
+			(typeof update.scrollTop !== 'undefined' ? update.scrollTop : oldState.scrollTop)
+		);
+
+		if (oldState.equals(newState)) {
+			// no change
+			return;
+		}
+
+		this._state = newState;
+		this._onScroll.fire(this._state.createScrollEvent(oldState));
 	}
 }

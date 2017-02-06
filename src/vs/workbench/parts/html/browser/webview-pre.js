@@ -87,7 +87,9 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			'	while (node) {',
 			'		if (node.tagName === "A" && node.href) {',
 			'			let baseElement = window.document.getElementsByTagName("base")[0];',
-			'			if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {',
+			'			if (node.getAttribute("href") === "#") {',
+			'				window.scrollTo(0, 0);',
+			'			} else if (node.hash && (node.getAttribute("href") === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {',
 			'				let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));',
 			'				if (scrollTarget) {',
 			'					scrollTarget.scrollIntoView();',
@@ -106,26 +108,43 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		newDocument.body.appendChild(defaultScripts);
 		styleBody(newDocument.body);
 
+		const frame = getTarget();
+		frame.setAttribute('id', '_oldTarget')
+
 		// keep current scrollTop around and use later
-		const scrollTop = getTarget().contentDocument.body.scrollTop;
+		const scrollTop = frame.contentDocument.body.scrollTop;
+
+		const newFrame = document.createElement('iframe');
+		newFrame.setAttribute('id', '_target');
+		newFrame.setAttribute('frameborder', '0');
+		newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
+		document.body.appendChild(newFrame);
 
 		// write new content onto iframe
-		getTarget().contentDocument.open('text/html', 'replace');
+		newFrame.contentDocument.open('text/html', 'replace');
 		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 		// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-		getTarget().contentDocument.write('<!DOCTYPE html>');
-		getTarget().contentDocument.write(newDocument.documentElement.innerHTML);
-		getTarget().contentDocument.close();
+		newFrame.contentDocument.write('<!DOCTYPE html>');
+		newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+		newFrame.contentDocument.close();
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
 		setTimeout(function () {
-			if (scrollTop !== getTarget().contentDocument.body.scrollTop) {
-				getTarget().contentDocument.body.scrollTop = scrollTop;
+			if (scrollTop !== newFrame.contentDocument.body.scrollTop) {
+				newFrame.contentDocument.body.scrollTop = scrollTop;
 			}
+			document.body.removeChild(frame);
+			newFrame.style.display = 'block';
 		}, 0);
 
 		ipcRenderer.sendToHost('did-set-content', stats);
+	});
+
+	// Forward message to the embedded iframe
+	ipcRenderer.on('message', function (event, data) {
+		const target = getTarget();
+		target.contentWindow.postMessage(data, 'file://');
 	});
 
 	// forward messages from the embedded iframe

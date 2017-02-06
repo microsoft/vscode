@@ -42,7 +42,7 @@ export interface JSONScanner {
 	/**
 	 * Sets the scan position to a new offset. A call to 'scan' is needed to get the first token.
 	 */
-	setPosition(pos: number);
+	setPosition(pos: number): void;
 	/**
 	 * Read the next token. Returns the tolen code.
 	 */
@@ -817,6 +817,7 @@ export function getLocation(text: string, position: number): Location {
 
 export interface ParseOptions {
 	disallowComments?: boolean;
+	allowTrailingComma?: boolean;
 }
 
 /**
@@ -885,7 +886,6 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 
 	function onValue(valueNode: Node): Node {
 		currentParent.children.push(valueNode);
-		ensurePropertyComplete(valueNode.offset + valueNode.length);
 		return valueNode;
 	}
 
@@ -898,9 +898,9 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 			currentParent.children.push({ type: 'string', value: name, offset, length, parent: currentParent });
 		},
 		onObjectEnd: (offset: number, length: number) => {
-			ensurePropertyComplete(offset);
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
+			ensurePropertyComplete(offset + length);
 		},
 		onArrayBegin: (offset: number, length: number) => {
 			currentParent = onValue({ type: 'array', offset, length: -1, parent: currentParent, children: [] });
@@ -908,9 +908,11 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 		onArrayEnd: (offset: number, length: number) => {
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
+			ensurePropertyComplete(offset + length);
 		},
 		onLiteralValue: (value: any, offset: number, length: number) => {
 			onValue({ type: getLiteralNodeType(value), offset, length, parent: currentParent, value });
+			ensurePropertyComplete(offset + length);
 		},
 		onSeparator: (sep: string, offset: number, length: number) => {
 			if (currentParent.type === 'property') {
@@ -1004,6 +1006,7 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 		onError = toOneArgVisit(visitor.onError);
 
 	let disallowComments = options && options.disallowComments;
+	let allowTrailingComma = options && options.allowTrailingComma;
 	function scanNext(): SyntaxKind {
 		while (true) {
 			let token = _scanner.scan();
@@ -1043,9 +1046,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseString(isValue: boolean): boolean {
-		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
-			return false;
-		}
 		let value = _scanner.getTokenValue();
 		if (isValue) {
 			onLiteralValue(value);
@@ -1088,10 +1088,11 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseProperty(): boolean {
-		if (!parseString(false)) {
+		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
 			handleError(ParseErrorCode.PropertyNameExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken]);
 			return false;
 		}
+		parseString(false);
 		if (_scanner.getToken() === SyntaxKind.ColonToken) {
 			onSeparator(':');
 			scanNext(); // consume colon
@@ -1106,9 +1107,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseObject(): boolean {
-		if (_scanner.getToken() !== SyntaxKind.OpenBraceToken) {
-			return false;
-		}
 		onObjectBegin();
 		scanNext(); // consume open brace
 
@@ -1120,6 +1118,9 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 				}
 				onSeparator(',');
 				scanNext(); // consume comma
+				if (_scanner.getToken() === SyntaxKind.CloseBraceToken && allowTrailingComma) {
+					break;
+				}
 			} else if (needsComma) {
 				handleError(ParseErrorCode.CommaExpected, [], []);
 			}
@@ -1138,9 +1139,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseArray(): boolean {
-		if (_scanner.getToken() !== SyntaxKind.OpenBracketToken) {
-			return false;
-		}
 		onArrayBegin();
 		scanNext(); // consume open bracket
 
@@ -1170,7 +1168,16 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseValue(): boolean {
-		return parseArray() || parseObject() || parseString(true) || parseLiteral();
+		switch (_scanner.getToken()) {
+			case SyntaxKind.OpenBracketToken:
+				return parseArray();
+			case SyntaxKind.OpenBraceToken:
+				return parseObject();
+			case SyntaxKind.StringLiteral:
+				return parseString(true);
+			default:
+				return parseLiteral();
+		}
 	}
 
 	scanNext();

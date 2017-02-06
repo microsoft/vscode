@@ -12,6 +12,8 @@ import * as descriptors from './descriptors';
 
 export namespace _util {
 
+	export const serviceIds = new Map<string, ServiceIdentifier<any>>();
+
 	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
 
@@ -98,7 +100,7 @@ export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
 	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
 }
 
-export var IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
+export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
 
 export interface IInstantiationService {
 
@@ -185,7 +187,11 @@ function storeServiceDependency(id: Function, target: Function, index: number, o
  */
 export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
 
-	let id = function (target: Function, key: string, index: number): any {
+	if (_util.serviceIds.has(serviceId)) {
+		return _util.serviceIds.get(serviceId);
+	}
+
+	const id = <any>function (target: Function, key: string, index: number): any {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
@@ -194,7 +200,8 @@ export function createDecorator<T>(serviceId: string): { (...args: any[]): void;
 
 	id.toString = () => serviceId;
 
-	return <any>id;
+	_util.serviceIds.set(serviceId, id);
+	return id;
 }
 
 /**

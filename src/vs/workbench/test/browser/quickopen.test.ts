@@ -56,7 +56,7 @@ export class TestQuickOpenService implements IQuickOpenService {
 	}
 
 	public dispose() { }
-	public quickNavigate(): void { }
+	public navigate(): void { }
 }
 
 suite('Workbench QuickOpen', () => {

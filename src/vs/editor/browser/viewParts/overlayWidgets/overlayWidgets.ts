@@ -9,7 +9,7 @@ import 'vs/css!./overlayWidgets';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { EditorLayoutInfo } from 'vs/editor/common/editorCommon';
 import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 
@@ -42,6 +42,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._editorWidth = 0;
 
 		this.domNode = document.createElement('div');
+		PartFingerprints.write(this.domNode, PartFingerprint.OverlayWidgets);
 		this.domNode.className = ClassNames.OVERLAY_WIDGETS;
 	}
 

@@ -6,8 +6,8 @@
 {
 	"showViewlet": "{0} を表示",
 	"view": "表示",
-	"vscode.extension.contributes.explorer": "カスタム ツリー エクスプローラー Viewlet をサイドバーに追加します",
+	"vscode.extension.contributes.explorer": "カスタム Tree Explorer Viewlet をサイドバーに追加します",
 	"vscode.extension.contributes.explorer.icon": "アクティビティ バーの Viewlet アイコンへのパス",
 	"vscode.extension.contributes.explorer.treeExplorerNodeProviderId": "vscode.workspace.registerTreeExplorerNodeProvider を介して登録したプロバイダーを識別するための一意の ID",
-	"vscode.extension.contributes.explorer.treeLabel": "カスタム ツリー エクスプローラーの表示に使用される、人が判別できる文字列"
+	"vscode.extension.contributes.explorer.treeLabel": "カスタム Tree Explorer の表示に使用される、人が判別できる文字列"
 }

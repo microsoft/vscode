@@ -28,6 +28,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { GitSCMProvider } from './gitScm';
 
 import IGitService = git.IGitService;
 
@@ -39,6 +40,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution {
 	private messageService: IMessageService;
 	private configurationService: IConfigurationService;
 	private progressBadgeDelayer: async.Delayer<void>;
+	private badgeHandle: lifecycle.IDisposable;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(
@@ -60,14 +62,17 @@ export class StatusUpdater implements ext.IWorkbenchContribution {
 	}
 
 	private onGitServiceChange(): void {
+
+		lifecycle.dispose(this.badgeHandle);
+
 		if (this.gitService.getState() !== git.ServiceState.OK) {
 			this.progressBadgeDelayer.cancel();
-			this.activityBarService.showActivity('workbench.view.git', null, 'git-viewlet-label');
+
 		} else if (this.gitService.isIdle()) {
 			this.showChangesBadge();
 		} else {
 			this.progressBadgeDelayer.trigger(() => {
-				this.activityBarService.showActivity('workbench.view.git', new ProgressBadge(() => nls.localize('gitProgressBadge', 'Running git status')), 'git-viewlet-label-progress');
+				this.badgeHandle = this.activityBarService.showActivity('workbench.view.git', new ProgressBadge(() => nls.localize('gitProgressBadge', 'Running git status')), 'git-viewlet-label-progress');
 			});
 		}
 	}
@@ -91,7 +96,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution {
 			.filter(filter);
 
 		const badge = new NumberBadge(statuses.length, num => nls.localize('gitPendingChangesBadge', '{0} pending changes', num));
-		this.activityBarService.showActivity('workbench.view.git', badge, 'git-viewlet-label');
+		this.badgeHandle = this.activityBarService.showActivity('workbench.view.git', badge, 'git-viewlet-label');
 	}
 
 	public getId(): string {
@@ -100,6 +105,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution {
 
 	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
+		lifecycle.dispose(this.badgeHandle);
 	}
 }
 
@@ -159,6 +165,11 @@ export function registerContributions(): void {
 		StatusUpdater
 	);
 
+	// Register GitSCMProvider
+	(<ext.IWorkbenchContributionsRegistry>platform.Registry.as(ext.Extensions.Workbench)).registerWorkbenchContribution(
+		GitSCMProvider
+	);
+
 	// Register Quick Open for git
 	(<quickopen.IQuickOpenRegistry>platform.Registry.as(quickopen.Extensions.Quickopen)).registerQuickOpenHandler(
 		new quickopen.QuickOpenHandlerDescriptor(
@@ -185,7 +196,8 @@ export function registerContributions(): void {
 			'git.path': {
 				type: ['string', 'null'],
 				description: nls.localize('gitPath', "Path to the git executable"),
-				default: null
+				default: null,
+				isExecutable: true
 			},
 			'git.autorefresh': {
 				type: 'boolean',

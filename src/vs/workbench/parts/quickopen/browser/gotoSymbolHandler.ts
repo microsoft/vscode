@@ -46,7 +46,7 @@ class OutlineModel extends QuickOpenModel {
 		this.outline = outline;
 	}
 
-	public dofilter(searchValue: string): void {
+	public applyFilter(searchValue: string): void {
 
 		// Normalize search
 		let normalizedSearchValue = searchValue;
@@ -389,10 +389,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.getActiveOutline().then((outline) => {
+		return this.getActiveOutline().then(outline => {
 
 			// Filter by search
-			outline.dofilter(searchValue);
+			outline.applyFilter(searchValue);
 
 			return outline;
 		});
@@ -420,7 +420,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
+			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
 				canRun = DocumentSymbolProviderRegistry.has(<IModel>model);
 			}
 		}
@@ -476,7 +476,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
+			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
 
 				// Ask cache first
 				const modelId = (<IModel>model).id;
@@ -548,7 +548,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
-			this.editorService.getVisibleEditors().forEach((editor) => {
+			this.editorService.getVisibleEditors().forEach(editor => {
 				if (editor.position === this.rangeHighlightDecorationId.position) {
 					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {

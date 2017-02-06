@@ -16,6 +16,7 @@
 	"install": "在 PATH 中安裝 '{0}' 命令",
 	"later": "稍後",
 	"laterInfo": "請記住，您一律可以從命令選擇區執行 '{0}' 動作。",
+	"not available": "此命令無法使用",
 	"ok": "確定",
 	"shellCommand": "殼層命令",
 	"successFrom": "已成功從 PATH 解除安裝殼層命令 '{0}'。",

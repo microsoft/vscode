@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.8.0",
+  "version": "1.10.0",
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
@@ -332,10 +332,10 @@
       "from": "process-nextick-args@>=1.0.6 <1.1.0",
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
-    "pty.js": {
-      "version": "0.3.0",
-      "from": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
-      "resolved": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
+    "node-pty": {
+      "version": "0.6.1",
+      "from": "node-pty@0.6.1",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.1.tgz",
       "dependencies": {
         "extend": {
           "version": "1.2.1",
@@ -405,14 +405,14 @@
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.15.0",
-      "from": "vscode-debugprotocol@1.15.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.15.0.tgz"
+      "version": "1.16.0",
+      "from": "vscode-debugprotocol@1.16.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.16.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.3.2",
-      "from": "vscode-textmate@2.3.2",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.3.2.tgz"
+      "version": "3.1.0",
+      "from": "vscode-textmate@3.1.0",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.0.tgz"
     },
     "windows-foreground-love": {
       "version": "0.1.0",
@@ -430,9 +430,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.2.0",
-      "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.9",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#618e6bbd0a0ebaabc4b06ab10bea89768ded62b5"
+      "version": "2.2.3",
+      "from": "Tyriar/xterm.js#vscode-release/1.10",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#90cd66bf353b86ad52d7b650760d8d879dd1c7b8"
     },
     "yauzl": {
       "version": "2.3.1",

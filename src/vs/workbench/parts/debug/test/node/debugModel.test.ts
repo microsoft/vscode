@@ -94,7 +94,7 @@ suite('Debug - Model', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
 
-		model.addProcess('mockProcess', rawSession);
+		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		assert.equal(model.getProcesses().length, 1);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -125,7 +125,7 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		model.addProcess('mockProcess', rawSession);
+		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId1,
@@ -215,7 +215,7 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		model.addProcess('mockProcess', rawSession);
+		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		// Add the threads
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -308,7 +308,7 @@ suite('Debug - Model', () => {
 
 	test('watch expressions', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
-		const process = new Process('mockProcess', rawSession);
+		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		const thread = new Thread(process, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(process, stackFrame, 'console').done();
@@ -336,7 +336,7 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const process = new Process('mockProcess', rawSession);
+		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		const thread = new Thread(process, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addReplExpression(process, stackFrame, 'myVariable').done();

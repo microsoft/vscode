@@ -493,7 +493,7 @@ suite('Keybinding Service', () => {
 			let lookupResult = resolver.lookupKeybinding(commandId);
 			assert.equal(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId + '; GOT: ' + JSON.stringify(lookupResult, null, '\t'));
 			for (let i = 0, len = lookupResult.length; i < len; i++) {
-				assert.equal(lookupResult[i].value, expectedKeys[i]);
+				assert.equal(lookupResult[i].value, expectedKeys[i], 'value mismatch @ commandId ' + commandId);
 			}
 		};
 

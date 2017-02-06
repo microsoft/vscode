@@ -50,19 +50,11 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderId);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
 		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId);
-		const sorter = null;
-		const filter = null;
-		const dnd = null;
-		const accessibilityProvider = null;
 
 		return new Tree(container.getHTMLElement(), {
 			dataSource,
 			renderer,
-			controller,
-			sorter,
-			filter,
-			dnd,
-			accessibilityProvider
+			controller
 		});
 	}
 
@@ -97,6 +89,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 						this.tree.setInput(tree);
 					});
 				}
+				return undefined;
 			});
 
 			return TPromise.as(null);

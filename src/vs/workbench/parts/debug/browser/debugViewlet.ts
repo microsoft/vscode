@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/debugViewlet';
-import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
-import { $, Builder, Dimension } from 'vs/base/browser/builder';
+import { Builder, Dimension } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -23,9 +21,6 @@ import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/p
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import env = require('vs/base/common/platform');
-import { Button } from 'vs/base/browser/ui/button/button';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 
 export class DebugViewlet extends Viewlet {
 
@@ -38,7 +33,6 @@ export class DebugViewlet extends Viewlet {
 	private $el: Builder;
 	private splitView: SplitView;
 	private views: IViewletView[];
-	private openFolderButton: Button;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -65,40 +59,16 @@ export class DebugViewlet extends Viewlet {
 		super.create(parent);
 		this.$el = parent.div().addClass('debug-viewlet');
 
-		if (this.contextService.hasWorkspace()) {
-			const actionRunner = this.getActionRunner();
-			this.views = DebugViewRegistry.getDebugViews().map(viewConstructor => this.instantiationService.createInstance(
-				viewConstructor,
-				actionRunner,
-				this.viewletSettings)
-			);
+		const actionRunner = this.getActionRunner();
+		this.views = DebugViewRegistry.getDebugViews().map(viewConstructor => this.instantiationService.createInstance(
+			viewConstructor,
+			actionRunner,
+			this.viewletSettings)
+		);
 
-			this.splitView = new SplitView(this.$el.getHTMLElement());
-			this.toDispose.push(this.splitView);
-			this.views.forEach(v => this.splitView.addView(v));
-		} else {
-			const noworkspace = $([
-				'<div class="noworkspace-view">',
-				'<p>', nls.localize('noWorkspaceHelp', "You have not yet opened a folder."), '</p>',
-				'<p>', nls.localize('pleaseRestartToDebug', "Open a folder in order to start debugging."), '</p>',
-				'</div>'
-			].join(''));
-
-			this.openFolderButton = new Button(noworkspace);
-			this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
-			this.openFolderButton.addListener2('click', () => {
-				const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
-				const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
-				this.actionRunner.run(action).done(() => {
-					action.dispose();
-				}, err => {
-					action.dispose();
-					errors.onUnexpectedError(err);
-				});
-			});
-
-			this.$el.append(noworkspace);
-		}
+		this.splitView = new SplitView(this.$el.getHTMLElement());
+		this.toDispose.push(this.splitView);
+		this.views.forEach(v => this.splitView.addView(v));
 
 		return TPromise.as(null);
 	}
@@ -118,9 +88,8 @@ export class DebugViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		if (this.openFolderButton) {
-			this.openFolderButton.getElement().focus();
-			return;
+		if (!this.contextService.getWorkspace()) {
+			this.views[0].focusBody();
 		}
 
 		if (this.startDebugActionItem) {
@@ -129,16 +98,13 @@ export class DebugViewlet extends Viewlet {
 	}
 
 	public getActions(): IAction[] {
-		if (this.debugService.state === State.Disabled) {
-			return [];
-		}
-
 		if (!this.actions) {
-			this.actions = [
-				this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL),
-				this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL),
-				this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)
-			];
+			this.actions = [];
+			this.actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
+			if (this.contextService.getWorkspace()) {
+				this.actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
+			}
+			this.actions.push(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL));
 
 			this.actions.forEach(a => {
 				this.toDispose.push(a);
@@ -149,7 +115,7 @@ export class DebugViewlet extends Viewlet {
 	}
 
 	public getActionItem(action: IAction): IActionItem {
-		if (action.id === StartAction.ID) {
+		if (action.id === StartAction.ID && this.contextService.getWorkspace()) {
 			if (!this.startDebugActionItem) {
 				this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			}

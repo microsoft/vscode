@@ -23,6 +23,7 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: editorCommon.TextEditorCursorBlinkingStyle;
 	private _cursorStyle: editorCommon.TextEditorCursorStyle;
+	private _selectionIsEmpty: boolean;
 
 	private _isVisible: boolean;
 
@@ -43,6 +44,7 @@ export class ViewCursors extends ViewPart {
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		this._selectionIsEmpty = true;
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
@@ -140,6 +142,11 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+		let selectionIsEmpty = e.selection.isEmpty();
+		if (this._selectionIsEmpty !== selectionIsEmpty) {
+			this._selectionIsEmpty = selectionIsEmpty;
+			this._updateDomClassName();
+		}
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
@@ -229,6 +236,9 @@ export class ViewCursors extends ViewPart {
 
 	private _getClassName(): string {
 		let result = ClassNames.VIEW_CURSORS_LAYER;
+		if (!this._selectionIsEmpty) {
+			result += ' has-selection';
+		}
 		switch (this._cursorStyle) {
 			case editorCommon.TextEditorCursorStyle.Line:
 				result += ' cursor-line-style';

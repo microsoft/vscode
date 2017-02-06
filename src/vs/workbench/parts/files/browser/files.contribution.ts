@@ -16,7 +16,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
@@ -32,6 +32,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -106,6 +107,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(
 
 interface ISerializedFileInput {
 	resource: string;
+	resourceJSON: any;
 	encoding?: string;
 }
 
@@ -131,9 +133,10 @@ class FileEditorInputFactory implements IEditorInputFactory {
 
 	public serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
-
+		const resource = fileEditorInput.getResource();
 		const fileInput: ISerializedFileInput = {
-			resource: fileEditorInput.getResource().toString()
+			resource: resource.toString(), // Keep for backwards compatibility
+			resourceJSON: resource.toJSON()
 		};
 
 		const encoding = fileEditorInput.getPreferredEncoding();
@@ -147,7 +150,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), fileInput.encoding);
+		return instantiationService.createInstance(FileEditorInput, !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource), fileInput.encoding);
 	}
 }
 
@@ -161,6 +164,11 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register Save Error Handler
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	SaveErrorHandler
+);
+
+// Register Dirty Files Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	DirtyFilesTracker
 );
 
 // Configuration
@@ -218,16 +226,24 @@ configurationRegistry.registerConfiguration({
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file.")
+			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
+			'overridable': true
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it.")
+			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
+			'overridable': true
 		},
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],
+			'enumDescriptions': [
+				nls.localize('files.autoSave.off', "\"off\": A dirty file is never automatically saved."),
+				nls.localize('files.autoSave.afterDelay', "\"afterDelay\": A dirty file is automatically saved after the configured \"files.autoSaveDelay\"."),
+				nls.localize('files.autoSave.onFocusChange', "\"onFocusChange\": A dirty file is automatically saved when the editor loses focus."),
+				nls.localize('files.autoSave.onWindowChange', "\"onWindowChange\": A dirty file is automatically saved when the window loses focus.")
+			],
 			'default': AutoSaveConfiguration.OFF,
 			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\" (editor loses focus), \"{3}\" (window loses focus). If set to \"{4}\", you can configure the delay in \"files.autoSaveDelay\".", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
@@ -242,9 +258,15 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
 		},
 		'files.hotExit': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('hotExit', "Controls whether unsaved files are restored after relaunching. If this is enabled there will be no prompt to save when exiting the editor.")
+			'type': 'string',
+			'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
+			'default': HotExitConfiguration.ON_EXIT,
+			'enumDescriptions': [
+				nls.localize('hotExit.off', 'Disable hot exit.'),
+				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command pallete, keybinding, menu). All windows with backups will be restored upon next launch.'),
+				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command pallete, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.reopenFolders" to "all".')
+			],
+			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 		}
 	}
 });
@@ -258,7 +280,8 @@ configurationRegistry.registerConfiguration({
 		'editor.formatOnSave': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down.")
+			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down."),
+			'overridable': true
 		}
 	}
 });

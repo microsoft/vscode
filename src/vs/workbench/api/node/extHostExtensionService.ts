@@ -123,6 +123,7 @@ class ExtensionStoragePath {
 		if (this._value) {
 			return paths.join(this._value, extension.id);
 		}
+		return undefined;
 	}
 
 	private _getOrCreateWorkspaceStoragePath(): TPromise<string> {
@@ -145,7 +146,7 @@ class ExtensionStoragePath {
 				return storagePath;
 			}
 
-			mkdirp(storagePath).then(success => {
+			return mkdirp(storagePath).then(success => {
 				return storagePath;
 			}, err => {
 				return undefined;
@@ -303,6 +304,15 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 				this._loadExtensionContext(extensionDescription)
 			]).then(values => {
 				return ExtHostExtensionService._callActivate(<IExtensionModule>values[0], <IExtensionContext>values[1]);
+			}, (errors: any[]) => {
+				// Avoid failing with an array of errors, fail with a single error
+				if (errors[0]) {
+					return TPromise.wrapError(errors[0]);
+				}
+				if (errors[1]) {
+					return TPromise.wrapError(errors[1]);
+				}
+				return undefined;
 			});
 		});
 	}

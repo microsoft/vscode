@@ -102,8 +102,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	public getTitle(): string {
-		let markerStatistics = this.markerService.getStatistics();
-		return this.markersModel.getTitle(markerStatistics);
+		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
 	public layout(dimension: builder.Dimension): void {
@@ -140,11 +139,8 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
-	private refreshPanel(updateTitleArea: boolean = false): TPromise<any> {
+	private refreshPanel(): TPromise<any> {
 		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
-		if (updateTitleArea) {
-			this.updateTitleArea();
-		}
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
 		this.renderMessage();
 		if (this.markersModel.hasFilteredResources()) {
@@ -216,7 +212,7 @@ export class MarkersPanel extends Panel {
 	private onMarkerChanged(changedResources: URI[]) {
 		this.updateResources(changedResources);
 		this.delayedRefresh.trigger(() => {
-			this.refreshPanel(true);
+			this.refreshPanel();
 			this.updateRangeHighlights();
 			this.autoReveal();
 		});

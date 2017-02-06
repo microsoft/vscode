@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-var fs = require('fs');
-var ts = require('typescript');
-var path = require('path');
+var fs = require("fs");
+var ts = require("typescript");
+var path = require("path");
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
@@ -188,21 +188,21 @@ function format(text) {
     }
     function getDefaultOptions() {
         return {
-            IndentSize: 4,
-            TabSize: 4,
-            NewLineCharacter: '\r\n',
-            ConvertTabsToSpaces: true,
-            IndentStyle: ts.IndentStyle.Block,
-            InsertSpaceAfterCommaDelimiter: true,
-            InsertSpaceAfterSemicolonInForStatements: true,
-            InsertSpaceBeforeAndAfterBinaryOperators: true,
-            InsertSpaceAfterKeywordsInControlFlowStatements: true,
-            InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
-            InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
-            InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
-            InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
-            PlaceOpenBraceOnNewLineForFunctions: false,
-            PlaceOpenBraceOnNewLineForControlBlocks: false,
+            indentSize: 4,
+            tabSize: 4,
+            newLineCharacter: '\r\n',
+            convertTabsToSpaces: true,
+            indentStyle: ts.IndentStyle.Block,
+            insertSpaceAfterCommaDelimiter: true,
+            insertSpaceAfterSemicolonInForStatements: true,
+            insertSpaceBeforeAndAfterBinaryOperators: true,
+            insertSpaceAfterKeywordsInControlFlowStatements: true,
+            insertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
+            insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
+            insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+            insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
+            placeOpenBraceOnNewLineForFunctions: false,
+            placeOpenBraceOnNewLineForControlBlocks: false,
         };
     }
 }

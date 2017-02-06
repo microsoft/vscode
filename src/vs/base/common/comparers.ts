@@ -7,9 +7,23 @@
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 
-const FileNameMatch = /^([^.]*)(\.(.*))?$/;
+let intlFileNameComparer: Intl.Collator;
+
+export function setFileNameComparer(collator: Intl.Collator): void {
+	intlFileNameComparer = collator;
+}
 
 export function compareFileNames(one: string, other: string): number {
+	if (intlFileNameComparer) {
+		return intlFileNameComparer.compare(one || '', other || '');
+	}
+
+	return noIntlCompareFileNames(one, other);
+}
+
+const FileNameMatch = /^([^.]*)(\.(.*))?$/;
+
+export function noIntlCompareFileNames(one: string, other: string): number {
 	let oneMatch = FileNameMatch.exec(one.toLowerCase());
 	let otherMatch = FileNameMatch.exec(other.toLowerCase());
 
@@ -83,8 +97,8 @@ export function compareByPrefix(one: string, other: string, lookFor: string): nu
 }
 
 export interface IScorableResourceAccessor<T> {
-	getLabel(T): string;
-	getResourcePath(T): string;
+	getLabel(t: T): string;
+	getResourcePath(t: T): string;
 }
 
 export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableResourceAccessor<T>, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
@@ -101,10 +115,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	const labelAScore = scorer.score(labelA, lookFor, scorerCache);
 	const labelBScore = scorer.score(labelB, lookFor, scorerCache);
 
-	// Useful for understanding the scoring
-	// elementA.setPrefix(labelAScore + ' ');
-	// elementB.setPrefix(labelBScore + ' ');
-
 	if (labelAScore !== labelBScore) {
 		return labelAScore > labelBScore ? -1 : 1;
 	}
@@ -115,10 +125,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	if (resourcePathA && resourcePathB) {
 		const resourceAScore = scorer.score(resourcePathA, lookFor, scorerCache);
 		const resourceBScore = scorer.score(resourcePathB, lookFor, scorerCache);
-
-		// Useful for understanding the scoring
-		// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-		// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
 
 		if (resourceAScore !== resourceBScore) {
 			return resourceAScore > resourceBScore ? -1 : 1;

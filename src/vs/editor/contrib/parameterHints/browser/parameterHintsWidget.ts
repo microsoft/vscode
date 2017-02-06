@@ -21,6 +21,7 @@ import { ICommonCodeEditor, ICursorSelectionChangedEvent, IConfigurationChangedE
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 
 const $ = dom.$;
 
@@ -57,7 +58,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
-		this._register(this.editor.onDidChangeModelMode(_ => this.onModelChanged()));
+		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 
@@ -88,7 +89,7 @@ export class ParameterHintsModel extends Disposable {
 		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
 			.then<SignatureHelp>(null, onUnexpectedError)
 			.then(result => {
-				if (!result || result.signatures.length === 0) {
+				if (!result || !result.signatures || result.signatures.length === 0) {
 					this.cancel();
 					this._onCancel.fire(void 0);
 					return false;
@@ -117,22 +118,21 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		const allTriggerCharacters: string[] = [];
+		const triggerChars = new CharacterSet();
 		for (const support of SignatureHelpProviderRegistry.ordered(model)) {
 			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
-				allTriggerCharacters.push(...support.signatureHelpTriggerCharacters);
+				for (const ch of support.signatureHelpTriggerCharacters) {
+					triggerChars.add(ch.charCodeAt(0));
+				}
 			}
 		}
 
-		allTriggerCharacters.sort();
-		this.triggerCharactersListeners.length = 0;
-		let lastCh: string;
-		for (const ch of allTriggerCharacters) {
-			if (ch !== lastCh) {
-				lastCh = ch;
-				this.triggerCharactersListeners.push(this.editor.addTypingListener(ch, () => this.trigger()));
+		this.triggerCharactersListeners.push(this.editor.onDidType((text: string) => {
+			let lastCharCode = text.charCodeAt(text.length - 1);
+			if (triggerChars.has(lastCharCode)) {
+				this.trigger();
 			}
-		}
+		}));
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {

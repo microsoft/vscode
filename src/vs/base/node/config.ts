@@ -28,6 +28,7 @@ export interface IConfigWatcher<T> {
 export interface IConfigOptions<T> {
 	defaultConfig?: T;
 	changeBufferDelay?: number;
+	parse?: (content: string, errors: any[]) => T;
 }
 
 /**
@@ -104,7 +105,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		let res: T;
 		try {
 			this.parseErrors = [];
-			res = json.parse(raw, this.parseErrors);
+			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
 		} catch (error) {
 			// Ignore parsing errors
 		}

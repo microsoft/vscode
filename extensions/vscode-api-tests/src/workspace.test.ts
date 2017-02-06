@@ -24,7 +24,7 @@ suite('workspace-namespace', () => {
 		assert.equal(config['config0'], true);
 		assert.equal(config['config4'], '');
 
-		assert.throws(() => config['config4'] = 'valuevalue');
+		assert.throws(() => (<any>config)['config4'] = 'valuevalue');
 
 		assert.ok(config.has('nested.config1'));
 		assert.equal(config.get('nested.config1'), 42);
@@ -60,7 +60,7 @@ suite('workspace-namespace', () => {
 
 	test('openTextDocument', () => {
 		let len = workspace.textDocuments.length;
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			assert.ok(doc);
 			assert.equal(workspace.textDocuments.length, len + 1);
 		});
@@ -79,14 +79,29 @@ suite('workspace-namespace', () => {
 			return; // TODO@Joh this test fails on windows
 		}
 
-		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
+		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath || '', './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 		});
 	});
 
+	test('openTextDocument, untitled without path', function () {
+		return workspace.openTextDocument().then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.ok(doc.isDirty);
+		});
+	});
+
+	test('openTextDocument, untitled without path but language ID', function () {
+		return workspace.openTextDocument({ language: 'xml' }).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.equal(doc.languageId, 'xml');
+			assert.ok(doc.isDirty);
+		});
+	});
+
 	test('openTextDocument, untitled closes on save', function (done) {
-		const path = join(workspace.rootPath, './newfile.txt');
+		const path = join(workspace.rootPath || '', './newfile.txt');
 
 		return workspace.openTextDocument(Uri.parse('untitled:' + path)).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
@@ -103,7 +118,7 @@ suite('workspace-namespace', () => {
 
 					d0.dispose();
 
-					return deleteFile(Uri.file(join(workspace.rootPath, './newfile.txt'))).then(() => done(null));
+					return deleteFile(Uri.file(join(workspace.rootPath || '', './newfile.txt'))).then(() => done(null));
 				});
 			});
 
@@ -169,7 +184,10 @@ suite('workspace-namespace', () => {
 							assert.ok(onDidSaveTextDocument);
 
 							while (disposables.length) {
-								disposables.pop().dispose();
+								const item = disposables.pop();
+								if (item) {
+									item.dispose();
+								}
 							}
 
 							return deleteFile(file);
@@ -391,7 +409,7 @@ suite('workspace-namespace', () => {
 
 	test('applyEdit', () => {
 
-		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './new2.txt'))).then(doc => {
+		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath || '', './new2.txt'))).then(doc => {
 			let edit = new WorkspaceEdit();
 			edit.insert(doc.uri, new Position(0, 0), new Array(1000).join('Hello World'));
 			return workspace.applyEdit(edit);

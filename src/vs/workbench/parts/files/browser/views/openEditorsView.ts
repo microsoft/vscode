@@ -19,13 +19,15 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { AdaptiveCollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-import { IFilesConfiguration, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, OpenEditor, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -46,6 +48,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private groupToRefresh: IEditorGroup;
 	private fullRefreshNeeded: boolean;
 
+	private openEditorsFocussedContext: IContextKey<boolean>;
+	private explorerFocussedContext: IContextKey<boolean>;
+
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -54,12 +59,16 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
+
+		this.openEditorsFocussedContext = OpenEditorsFocussedContext.bindTo(contextKeyService);
+		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
@@ -104,9 +113,24 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			dnd
 		}, {
 				indentPixels: 0,
-				twistiePixels: 20,
-				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors")
+				twistiePixels: 22,
+				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors: List of Active Files"),
+				showTwistie: false
 			});
+
+		// Update open editors focus context
+		const viewerFocusTracker = dom.trackFocus(this.tree.getHTMLElement());
+		viewerFocusTracker.addFocusListener(() => {
+			setTimeout(() => {
+				this.openEditorsFocussedContext.set(true);
+				this.explorerFocussedContext.set(true);
+			}, 0 /* wait for any BLUR to happen */);
+		});
+		viewerFocusTracker.addBlurListener(() => {
+			this.openEditorsFocussedContext.reset();
+			this.explorerFocussedContext.reset();
+		});
+		this.toDispose.push(viewerFocusTracker);
 
 		this.fullRefreshNeeded = true;
 		this.structuralTreeUpdate();

@@ -223,7 +223,7 @@ export class FileChangesEvent extends events.Event {
 			return false;
 		}
 
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			if (change.type !== type) {
 				return false;
 			}
@@ -280,11 +280,11 @@ export class FileChangesEvent extends events.Event {
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this._changes.filter((change) => change.type === type);
+		return this._changes.filter(change => change.type === type);
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			return change.type === type;
 		});
 	}
@@ -490,6 +490,12 @@ export const AutoSaveConfiguration = {
 	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
+export const HotExitConfiguration = {
+	OFF: 'off',
+	ON_EXIT: 'onExit',
+	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
+};
+
 export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
 
 export interface IFilesConfiguration {
@@ -502,7 +508,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
-		hotExit: boolean;
+		hotExit: string;
 	};
 }
 

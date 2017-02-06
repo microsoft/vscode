@@ -11,12 +11,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
@@ -125,9 +124,17 @@ export class ContextMenuController implements IEditorContribution {
 
 	private _getMenuActions(): IAction[] {
 		const result: IAction[] = [];
-		const contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		fillInActions(contextMenu, this._editor.getModel().uri, result);
+
+		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
+		const groups = contextMenu.getActions(this._editor.getModel().uri);
 		contextMenu.dispose();
+
+		for (let group of groups) {
+			const [, actions] = group;
+			result.push(...actions);
+			result.push(new Separator());
+		}
+		result.pop(); // remove last separator
 		return result;
 	}
 

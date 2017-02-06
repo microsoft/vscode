@@ -10,24 +10,20 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	private _layoutProvider: ILayoutProvider;
 	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _contentLeft: number;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
-
-		this._layoutProvider = layoutProvider;
 
 		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
@@ -93,7 +89,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
 				return (
-					'<div class="current-line" style="width:'
+					'<div class="current-line-margin" style="width:'
 					+ String(this._contentLeft)
 					+ 'px; height:'
 					+ String(this._lineHeight)

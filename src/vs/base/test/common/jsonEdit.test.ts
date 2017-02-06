@@ -83,6 +83,13 @@ suite('JSON - edits', () => {
 		edits = setProperty(content, ['x', 'c'], 'bar', formatterOptions, () => 2);
 		assertEdit(content, edits, '{\n  "x": {\n    "a": 1,\n    "b": true,\n    "c": "bar"\n  }\n}\n');
 
+		edits = setProperty(content, ['c'], 'bar', formatterOptions);
+		assertEdit(content, edits, '{\n  "x": {\n    "a": 1,\n    "b": true\n  },\n  "c": "bar"\n}\n');
+
+		content = '{\n  "a": [\n    {\n    } \n  ]  \n}';
+		edits = setProperty(content, ['foo'], 'bar', formatterOptions);
+		assertEdit(content, edits, '{\n  "a": [\n    {\n    } \n  ],\n  "foo": "bar"\n}');
+
 		content = '';
 		edits = setProperty(content, ['foo', 0], 'bar', formatterOptions);
 		assertEdit(content, edits, '{\n  "foo": [\n    "bar"\n  ]\n}');

@@ -16,7 +16,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextSource2 } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export interface IBackupFilesModel {
@@ -93,6 +94,7 @@ export class BackupFileService implements IBackupFileService {
 
 	private static readonly META_MARKER = '\n';
 
+	private isShuttingDown: boolean;
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
 
@@ -102,6 +104,7 @@ export class BackupFileService implements IBackupFileService {
 		@IWindowService windowService: IWindowService,
 		@IBackupService private backupService: IBackupService
 	) {
+		this.isShuttingDown = false;
 		this.ready = this.init(windowService.getCurrentWindowId());
 	}
 
@@ -153,6 +156,10 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public backupResource(resource: Uri, content: string, versionId?: number): TPromise<void> {
+		if (this.isShuttingDown) {
+			return TPromise.as(void 0);
+		}
+
 		return this.ready.then(model => {
 			const backupResource = this.getBackupResource(resource);
 			if (!backupResource) {
@@ -182,6 +189,8 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
+		this.isShuttingDown = true;
+
 		return this.ready.then(model => {
 			if (!this.backupEnabled) {
 				return void 0;
@@ -211,8 +220,8 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public parseBackupContent(rawText: IRawTextContent): string {
-		return rawText.value.lines.slice(1).join(rawText.value.EOL); // The first line of a backup text file is the file name
+	public parseBackupContent(textSource: ITextSource2): string {
+		return textSource.lines.slice(1).join(TextModel.getEndOfLine(textSource) || ''); // The first line of a backup text file is the file name
 	}
 
 	protected getBackupResource(resource: Uri): Uri {

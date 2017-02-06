@@ -21,6 +21,7 @@ import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+
 import Webview from './webview';
 
 /**
@@ -40,7 +41,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	private _baseUrl: URI;
 
 	private _modelRef: IReference<ITextEditorModel>;
-	private get _model(): IModel { return this._modelRef.object.textEditorModel; }
+	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
@@ -72,7 +73,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.dispose();
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
 		this._container.style.paddingLeft = '20px';
 		parent.getHTMLElement().appendChild(this._container);
@@ -101,7 +102,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.changePosition(position);
 	}
 
-	public setEditorVisible(visible: boolean, position?: Position): void {
+	protected setEditorVisible(visible: boolean, position?: Position): void {
 		this._doSetVisible(visible);
 		super.setEditorVisible(visible, position);
 	}
@@ -117,14 +118,14 @@ export class HtmlPreviewPart extends BaseEditor {
 			this.webview.style(this._themeService.getColorTheme());
 
 			if (this._hasValidModel()) {
-				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
-				this.webview.contents = this._model.getLinesContent();
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
+				this.webview.contents = this.model.getLinesContent();
 			}
 		}
 	}
 
 	private _hasValidModel(): boolean {
-		return this._modelRef && this._model && !this._model.isDisposed();
+		return this._modelRef && this.model && !this.model.isDisposed();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -142,6 +143,10 @@ export class HtmlPreviewPart extends BaseEditor {
 		dispose(this._modelRef);
 		this._modelRef = undefined;
 		super.clearInput();
+	}
+
+	public sendMessage(data: any): void {
+		this.webview.sendMessage(data);
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
@@ -168,13 +173,15 @@ export class HtmlPreviewPart extends BaseEditor {
 					this._modelRef = ref;
 				}
 
-				if (!this._model) {
+				if (!this.model) {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
 
-				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
 				this.webview.baseUrl = resourceUri.toString(true);
-				this.webview.contents = this._model.getLinesContent();
+				this.webview.contents = this.model.getLinesContent();
+
+				return undefined;
 			});
 		});
 	}

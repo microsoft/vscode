@@ -12,12 +12,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
-import { OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits } from '../common/format';
 import { EditOperationsCommand } from './formatCommand';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { Range } from 'vs/editor/common/core/range';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -40,7 +42,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
 		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModelMode(() => this.update()));
+		this.callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
 		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
 	}
 
@@ -68,9 +70,16 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		}
 
 		// register typing listeners that will trigger the format
-		support.autoFormatTriggerCharacters.forEach(ch => {
-			this.callOnModel.push(this.editor.addTypingListener(ch, this.trigger.bind(this, ch)));
-		});
+		let triggerChars = new CharacterSet();
+		for (let ch of support.autoFormatTriggerCharacters) {
+			triggerChars.add(ch.charCodeAt(0));
+		}
+		this.callOnModel.push(this.editor.onDidType((text: string) => {
+			let lastCharCode = text.charCodeAt(text.length - 1);
+			if (triggerChars.has(lastCharCode)) {
+				this.trigger(String.fromCharCode(lastCharCode));
+			}
+		}));
 	}
 
 	private trigger(ch: string): void {
@@ -134,6 +143,86 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 	public getId(): string {
 		return FormatOnType.ID;
+	}
+
+	public dispose(): void {
+		this.callOnDispose = dispose(this.callOnDispose);
+		this.callOnModel = dispose(this.callOnModel);
+	}
+}
+
+@commonEditorContribution
+class FormatOnPaste implements editorCommon.IEditorContribution {
+
+	private static ID = 'editor.contrib.formatOnPaste';
+
+	private editor: editorCommon.ICommonCodeEditor;
+	private workerService: IEditorWorkerService;
+	private callOnDispose: IDisposable[];
+	private callOnModel: IDisposable[];
+
+	constructor(editor: editorCommon.ICommonCodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
+		this.editor = editor;
+		this.workerService = workerService;
+		this.callOnDispose = [];
+		this.callOnModel = [];
+
+		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
+		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
+		this.callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
+		this.callOnDispose.push(DocumentRangeFormattingEditProviderRegistry.onDidChange(this.update, this));
+	}
+
+	private update(): void {
+
+		// clean up
+		this.callOnModel = dispose(this.callOnModel);
+
+		// we are disabled
+		if (!this.editor.getConfiguration().contribInfo.formatOnPaste) {
+			return;
+		}
+
+		// no model
+		if (!this.editor.getModel()) {
+			return;
+		}
+
+		let model = this.editor.getModel();
+
+		// no support
+		let [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+		if (!support || !support.provideDocumentRangeFormattingEdits) {
+			return;
+		}
+
+		this.callOnModel.push(this.editor.onDidPaste((range: Range) => {
+			this.trigger(range);
+		}));
+	}
+
+	private trigger(range: Range): void {
+		if (this.editor.getSelections().length > 1) {
+			return;
+		}
+
+		const model = this.editor.getModel();
+		const { tabSize, insertSpaces } = model.getOptions();
+		const state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+
+		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }).then(edits => {
+			return this.workerService.computeMoreMinimalEdits(model.uri, edits, []);
+		}).then(edits => {
+			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
+				return;
+			}
+			const command = new EditOperationsCommand(edits, this.editor.getSelection());
+			this.editor.executeCommand(this.getId(), command);
+		});
+	}
+
+	public getId(): string {
+		return FormatOnPaste.ID;
 	}
 
 	public dispose(): void {
@@ -247,4 +336,5 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			}
 		}().run(accessor, editor);
 	}
+	return undefined;
 });

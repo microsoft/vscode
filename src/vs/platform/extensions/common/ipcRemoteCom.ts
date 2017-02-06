@@ -6,8 +6,8 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import marshalling = require('vs/base/common/marshalling');
-import remote = require('vs/base/common/remote');
 import errors = require('vs/base/common/errors');
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 
 interface IRPCFunc {
 	(rpcId: string, method: string, args: any[]): winjs.TPromise<any>;
@@ -159,13 +159,18 @@ function createRPC(serializeAndSend: (value: string) => void): IRPCFunc {
 	};
 }
 
-export interface IMainProcessExtHostIPC extends remote.IRemoteCom {
-	handle(msg: string[]): void;
+export interface IManyHandler {
+	handle(rpcId: string, method: string, args: any[]): any;
 }
 
-export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
+export interface IRemoteCom {
+	callOnRemote(proxyId: string, path: string, args: any[]): winjs.TPromise<any>;
+	setManyHandler(handler: IManyHandler): void;
+}
+
+export function createProxyProtocol(protocol: IMessagePassingProtocol): IRemoteCom {
 	let rpc = createRPC(sendDelayed);
-	let bigHandler: remote.IManyHandler = null;
+	let bigHandler: IManyHandler = null;
 	let invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
 	let messagesToSend: string[] = [];
 
@@ -234,18 +239,19 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 		});
 	};
 
-	let r: IMainProcessExtHostIPC = {
-		callOnRemote: rpc,
-		setManyHandler: (_bigHandler: remote.IManyHandler): void => {
-			bigHandler = _bigHandler;
-		},
-		handle: (rawmsg) => {
-			// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
-			if (messagesToReceive.length === 0) {
-				process.nextTick(receiveOneMessage);
-			}
+	protocol.onMessage(data => {
+		// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
+		if (messagesToReceive.length === 0) {
+			process.nextTick(receiveOneMessage);
+		}
 
-			messagesToReceive = messagesToReceive.concat(rawmsg);
+		messagesToReceive = messagesToReceive.concat(data);
+	});
+
+	let r: IRemoteCom = {
+		callOnRemote: rpc,
+		setManyHandler: (_bigHandler: IManyHandler): void => {
+			bigHandler = _bigHandler;
 		}
 	};
 
@@ -254,7 +260,7 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 		messagesToSend = [];
 
 		// console.log('SENDING ' + tmp.length + ' MESSAGES.');
-		send(tmp);
+		protocol.send(tmp);
 	}
 
 	function sendDelayed(value: string): void {

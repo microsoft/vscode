@@ -50,6 +50,7 @@ export function wireCancellationToken<T>(token: CancellationToken, promise: TPro
 			if (!errors.isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
+			return undefined;
 		});
 	}
 	return always(promise, () => subscription.dispose());
@@ -71,8 +72,8 @@ export interface ITask<T> {
  * The throttler implements this via the queue() method, by providing it a task
  * factory. Following the example:
  *
- * 		var throttler = new Throttler();
- * 		var letters = [];
+ * 		const throttler = new Throttler();
+ * 		const letters = [];
  *
  * 		function deliver() {
  * 			const lettersToDeliver = letters;
@@ -166,8 +167,8 @@ export class SimpleThrottler {
  * to be executed and the waiting period (delay) must be passed in as arguments. Following
  * the example:
  *
- * 		var delayer = new Delayer(WAITING_PERIOD);
- * 		var letters = [];
+ * 		const delayer = new Delayer(WAITING_PERIOD);
+ * 		const letters = [];
  *
  * 		function letterReceived(l) {
  * 			letters.push(l);
@@ -402,7 +403,7 @@ export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[
 export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
 	promiseFactories = [...promiseFactories.reverse()];
 
-	const loop = () => {
+	const loop: () => TPromise<T> = () => {
 		if (promiseFactories.length === 0) {
 			return TPromise.as(null);
 		}
@@ -420,23 +421,6 @@ export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t:
 	};
 
 	return loop();
-}
-
-export function once<T extends Function>(fn: T): T {
-	const _this = this;
-	let didCall = false;
-	let result: any;
-
-	return function () {
-		if (didCall) {
-			return result;
-		}
-
-		didCall = true;
-		result = fn.apply(_this, arguments);
-
-		return result;
-	} as any as T;
 }
 
 interface ILimitedTaskFactory {

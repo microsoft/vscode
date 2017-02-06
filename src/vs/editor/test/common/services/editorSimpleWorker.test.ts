@@ -26,6 +26,7 @@ suite('EditorSimpleWorker', () => {
 					lines,
 					BOM: undefined,
 					containsRTL: undefined,
+					isBasicASCII: undefined,
 					length: undefined,
 					options: undefined
 				}

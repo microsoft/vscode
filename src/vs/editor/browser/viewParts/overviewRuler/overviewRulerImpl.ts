@@ -24,6 +24,7 @@ export class OverviewRulerImpl {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
+
 		this._domNode.className = cssClassName;
 		this._domNode.style.position = 'absolute';
 

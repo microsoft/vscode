@@ -19,15 +19,16 @@ import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { createLineParts } from 'vs/editor/common/viewLayout/viewLineParts';
-import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { IAddedAction } from 'vs/editor/common/commonCodeEditor';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -132,8 +133,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
 	}
-	public onDidChangeModelMode(listener: (e: editorCommon.IModelModeChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
+	public onDidChangeModelLanguage(listener: (e: editorCommon.IModelLanguageChangedEvent) => void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelLanguageChanged, listener);
 	}
 	public onDidChangeModelOptions(listener: (e: editorCommon.IModelOptionsChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
@@ -611,8 +612,12 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this.modifiedEditor.revealRangeInCenterIfOutsideViewport(range);
 	}
 
-	public addAction(descriptor: editorCommon.IActionDescriptor): void {
-		this.modifiedEditor.addAction(descriptor);
+	public revealRangeAtTop(range: editorCommon.IRange): void {
+		this.modifiedEditor.revealRangeAtTop(range);
+	}
+
+	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
+		return this.modifiedEditor._addAction(descriptor);
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
@@ -734,7 +739,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		let changed = false;
 		for (let i = 0; !changed && i < events.length; i++) {
 			let type = events[i].getType();
-			changed = changed || type === editorCommon.EventType.ModelRawContentChanged || type === editorCommon.EventType.ModelModeChanged;
+			changed = changed || type === editorCommon.EventType.ModelRawContentChanged;
 		}
 		if (changed && this._isVisible) {
 			// Clear previous timeout if necessary
@@ -1842,7 +1847,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				if (isChangeOrDelete(charChange)) {
 					decorations.push(new InlineDecoration(
 						new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
-						'char-delete'
+						'char-delete',
+						false
 					));
 				}
 			}
@@ -1885,17 +1891,20 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private renderOriginalLine(count: number, originalModel: editorCommon.IModel, config: editorCommon.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
-		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
-		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.viewInfo.renderWhitespace);
+		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
-		let r = renderLine(new RenderLineInput(
+		let r = renderViewLine(new RenderLineInput(
+			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
+			originalModel.mightContainRTL(),
+			0,
+			[new ViewLineToken(lineContent.length, '')],
+			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,
 			config.viewInfo.stopRenderingLineAfter,
 			config.viewInfo.renderWhitespace,
-			config.viewInfo.renderControlCharacters,
-			parts
+			config.viewInfo.renderControlCharacters
 		));
 
 		let myResult: string[] = [];
@@ -1907,7 +1916,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		myResult.push('" style="top:');
 		myResult.push(String(count * config.lineHeight));
 		myResult.push('px;width:1000000px;">');
-		myResult = myResult.concat(r.output);
+		myResult = myResult.concat(r.html);
 		myResult.push('</div>');
 
 		return myResult;

@@ -11,7 +11,8 @@ import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/w
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService } from 'vs/platform/search/common/search';
-import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments, defaultExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -22,7 +23,6 @@ import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestEditorService, TestEditorGroupService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import * as Timer from 'vs/base/common/timer';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -30,6 +30,23 @@ import { SimpleConfigurationService } from 'vs/editor/browser/standalone/simpleS
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
+
+
+namespace Timer {
+	export interface ITimerEvent {
+		id: number;
+		topic: string;
+		name: string;
+		description: string;
+		data: any;
+
+		startTime: Date;
+		stopTime: Date;
+
+		stop(stopTime?: Date): void;
+		timeTaken(): number;
+	}
+}
 
 declare var __dirname: string;
 
@@ -55,7 +72,7 @@ suite('QuickOpen performance', () => {
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, new SimpleConfigurationService()],
-			[IModelService, new ModelServiceImpl(null, configurationService, null)],
+			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new WorkspaceContextService({ resource: URI.file(testWorkspacePath) })],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
@@ -122,7 +139,7 @@ suite('QuickOpen performance', () => {
 					let i = n;
 					return (function iterate(): TPromise<Timer.ITimerEvent> {
 						if (!i--) {
-							return;
+							return undefined;
 						}
 						return measure()
 							.then(([uncachedEvent, cachedEvent]) => {
@@ -137,6 +154,7 @@ suite('QuickOpen performance', () => {
 						});
 					});
 				}
+				return undefined;
 			});
 	});
 });

@@ -9,14 +9,14 @@ import { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import Telemetry = require('vs/platform/telemetry/common/telemetry');
+import { NullAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import Errors = require('vs/base/common/errors');
 import * as sinon from 'sinon';
 import { getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
 const optInStatusEventName: string = 'optInStatus';
 
-class TestTelemetryAppender implements Telemetry.ITelemetryAppender {
+class TestTelemetryAppender implements ITelemetryAppender {
 
 	public events: any[];
 	public isDisposed: boolean;
@@ -174,7 +174,7 @@ suite('TelemetryService', () => {
 
 	test('TelemetryInfo comes from properties', function () {
 		let service = new TelemetryService({
-			appender: Telemetry.NullAppender,
+			appender: NullAppender,
 			commonProperties: TPromise.as({
 				sessionID: 'one',
 				['common.instanceId']: 'two',

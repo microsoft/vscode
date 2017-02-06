@@ -25,16 +25,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
-export interface ISidebar {
-	onDidViewletOpen: Event<IViewlet>;
-	onDidViewletClose: Event<IViewlet>;
-	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
-	getActiveViewlet(): IViewlet;
-	getLastActiveViewletId(): string;
-	hideActiveViewlet(): TPromise<void>;
-}
-
-export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
+export class SidebarPart extends CompositePart<Viewlet> {
 
 	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -65,7 +56,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
 			'sideBar',
 			'viewlet',
 			Scope.VIEWLET,
-			id
+			id,
+			{ hasTitle: true }
 		);
 	}
 
@@ -83,16 +75,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
 		}
 
 		// First check if sidebar is hidden and show if so
+		let promise = TPromise.as(null);
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
-				this.partService.setSideBarHidden(false);
+				promise = this.partService.setSideBarHidden(false);
 			} finally {
 				this.blockOpeningViewlet = false;
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return promise.then(() => this.openComposite(id, focus));
 	}
 
 	public getActiveViewlet(): IViewlet {
@@ -122,26 +115,23 @@ class FocusSideBarAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): TPromise<any> {
 
 		// Show side bar
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
-			this.partService.setSideBarHidden(false);
+			return this.partService.setSideBarHidden(false);
 		}
 
 		// Focus into active viewlet
-		else {
-			let viewlet = this.viewletService.getActiveViewlet();
-			if (viewlet) {
-				viewlet.focus();
-			}
+		let viewlet = this.viewletService.getActiveViewlet();
+		if (viewlet) {
+			viewlet.focus();
 		}
-
 		return TPromise.as(true);
 	}
 }
 
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
 }), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));

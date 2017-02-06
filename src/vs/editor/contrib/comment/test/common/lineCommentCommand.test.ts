@@ -8,18 +8,20 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/common/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
-import { CommentMode } from 'vs/editor/test/common/testModes';
+import { CommentMode } from 'vs/editor/test/common/commentMode';
 
 suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	test('comment single line', function () {
@@ -520,8 +522,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	test('fall back to block comment command', function () {
@@ -630,8 +633,9 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	test('no selection => uses indentation', function () {

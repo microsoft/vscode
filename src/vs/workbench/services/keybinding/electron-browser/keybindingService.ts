@@ -21,7 +21,8 @@ import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingS
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
-import { ITelemetryService, keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
@@ -295,7 +296,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {
-			return;
+			return undefined;
 		}
 
 		return desc;

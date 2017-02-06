@@ -7,9 +7,12 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { Registry } from 'vs/platform/platform';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import nls = require('vs/nls');
+import URI from 'vs/base/common/uri';
 
 /**
  * Mime type used by the output editor.
@@ -17,14 +20,14 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 export const OUTPUT_MIME = 'text/x-code-output';
 
 /**
+ * Output resource scheme.
+ */
+export const OUTPUT_SCHEME = 'output';
+
+/**
  * Id used by the output editor.
  */
 export const OUTPUT_MODE_ID = 'Log';
-
-/**
- * Output editor input id.
- */
-export const OUTPUT_EDITOR_INPUT_ID = 'vs.output';
 
 /**
  * Output panel id
@@ -62,6 +65,11 @@ export interface IOutputService {
 	 * Channel should be first registered via OutputChannelRegistry.
 	 */
 	getChannel(id: string): IOutputChannel;
+
+	/**
+	 * Returns an array of all known output channels as identifiers.
+	 */
+	getChannels(): IOutputChannelIdentifier[];
 
 	/**
 	 * Returns the currently active channel.
@@ -103,6 +111,11 @@ export interface IOutputChannel {
 	output: string;
 
 	/**
+	 * Returns the value indicating whether the channel has scroll locked.
+	 */
+	scrollLock: boolean;
+
+	/**
 	 * Appends output to the channel.
 	 */
 	append(output: string): void;
@@ -118,6 +131,11 @@ export interface IOutputChannel {
 	clear(): void;
 }
 
+export interface IOutputChannelIdentifier {
+	id: string;
+	label: string;
+}
+
 export interface IOutputChannelRegistry {
 
 	/**
@@ -128,11 +146,11 @@ export interface IOutputChannelRegistry {
 	/**
 	 * Returns the list of channels known to the output world.
 	 */
-	getChannels(): { id: string, label: string }[];
+	getChannels(): IOutputChannelIdentifier[];
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: { id: string, label: string }[];
+	private channels: IOutputChannelIdentifier[];
 
 	constructor() {
 		this.channels = [];
@@ -144,9 +162,26 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 		}
 	}
 
-	public getChannels(): { id: string, label: string }[] {
+	public getChannels(): IOutputChannelIdentifier[] {
 		return this.channels;
 	}
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
+
+export class OutputEditors {
+
+	private static instances: { [channel: string]: ResourceEditorInput; } = Object.create(null);
+
+	public static getInstance(instantiationService: IInstantiationService, channel: IOutputChannel): ResourceEditorInput {
+		if (OutputEditors.instances[channel.id]) {
+			return OutputEditors.instances[channel.id];
+		}
+
+		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
+
+		OutputEditors.instances[channel.id] = instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "Output"), channel ? nls.localize('channel', "for '{0}'", channel.label) : '', resource);
+
+		return OutputEditors.instances[channel.id];
+	}
+}

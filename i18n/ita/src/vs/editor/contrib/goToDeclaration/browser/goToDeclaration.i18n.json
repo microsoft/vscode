@@ -6,6 +6,7 @@
 {
 	"actions.goToDecl.label": "Vai alla definizione",
 	"actions.goToDeclToSide.label": "Apri definizione lateralmente",
+	"actions.goToImplementation.label": "Vai all'implementazione",
 	"actions.previewDecl.label": "Visualizza la definizione",
 	"meta.title": " - Definizioni di {0}",
 	"multipleResults": "Fare clic per visualizzare {0} definizioni."

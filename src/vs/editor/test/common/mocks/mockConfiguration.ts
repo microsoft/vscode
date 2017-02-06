@@ -5,7 +5,8 @@
 'use strict';
 
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions, FontInfo, BareFontInfo } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export class MockConfiguration extends CommonEditorConfiguration {
 
@@ -35,6 +36,7 @@ export class MockConfiguration extends CommonEditorConfiguration {
 			fontWeight: 'normal',
 			fontSize: 14,
 			lineHeight: 19,
+			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
 			spaceWidth: 10,

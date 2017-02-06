@@ -14,6 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -202,12 +203,44 @@ export class RunSelectedTextInTerminalAction extends Action {
 			let selection = editor.getSelection();
 			let text: string;
 			if (selection.isEmpty()) {
-				text = editor.getValue();
+				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
 			} else {
 				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			terminalInstance.sendText(text, true);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class RunActiveFileInTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.runActiveFile';
+	public static LABEL = nls.localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ICodeEditorService private codeEditorService: ICodeEditorService,
+		@ITerminalService private terminalService: ITerminalService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			terminalInstance = this.terminalService.createInstance();
+		}
+		const editor = this.codeEditorService.getFocusedCodeEditor();
+		if (editor) {
+			const uri = editor.getModel().uri;
+			if (uri.scheme === 'file') {
+				terminalInstance.sendText(uri.fsPath, true);
+			} else {
+				this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			}
 		}
 		return TPromise.as(void 0);
 	}
@@ -227,7 +260,7 @@ export class SwitchTerminalInstanceAction extends Action {
 	}
 
 	public run(item?: string): TPromise<any> {
-		if (!item) {
+		if (!item || !item.split) {
 			return TPromise.as(null);
 		}
 		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;

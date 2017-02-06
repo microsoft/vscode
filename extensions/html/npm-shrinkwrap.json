@@ -13,24 +13,24 @@
       "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.5.tgz"
     },
     "vscode-jsonrpc": {
-      "version": "3.0.1-alpha.2",
-      "from": "vscode-jsonrpc@>=3.0.1-alpha.2 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.0.1-alpha.2.tgz"
+      "version": "3.0.2-beta.5",
+      "from": "vscode-jsonrpc@>=3.0.2-beta.5 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.0.2-beta.5.tgz"
     },
     "vscode-languageclient": {
-      "version": "3.0.1-alpha.2",
+      "version": "3.0.2-beta.5",
       "from": "vscode-languageclient@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.0.1-alpha.2.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.0.2-beta.5.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "3.0.1-alpha.2",
+      "version": "3.0.2-beta.5",
       "from": "vscode-languageserver-types@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.1-alpha.2.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.2-beta.5.tgz"
     },
     "vscode-nls": {
-      "version": "1.0.7",
-      "from": "vscode-nls@>=1.0.7 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+      "version": "2.0.1",
+      "from": "vscode-nls@>=2.0.1 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.1.tgz"
     },
     "winreg": {
       "version": "0.0.13",

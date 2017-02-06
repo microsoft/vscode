@@ -14,7 +14,7 @@ import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extens
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
-import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
+import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -44,10 +44,10 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		StringEditor.ID,
+		TextResourceEditor.ID,
 		nls.localize('textEditor', "Text Editor"),
-		'vs/workbench/browser/parts/editor/stringEditor',
-		'StringEditor'
+		'vs/workbench/browser/parts/editor/textResourceEditor',
+		'TextResourceEditor'
 	),
 	[
 		new SyncDescriptor(StringEditorInput),
@@ -96,6 +96,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 interface ISerializedUntitledEditorInput {
 	resource: string;
+	resourceJSON: any;
 	modeId: string;
 }
 
@@ -120,7 +121,11 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 			resource = URI.file(resource.fsPath); // untitled with associated file path use the file schema
 		}
 
-		const serialized: ISerializedUntitledEditorInput = { resource: resource.toString(), modeId: untitledEditorInput.getModeId() };
+		const serialized: ISerializedUntitledEditorInput = {
+			resource: resource.toString(), // Keep for backwards compatibility
+			resourceJSON: resource.toJSON(),
+			modeId: untitledEditorInput.getModeId()
+		};
 
 		return JSON.stringify(serialized);
 	}
@@ -128,7 +133,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 
-		return this.untitledEditorService.createOrGet(URI.parse(deserialized.resource), deserialized.modeId);
+		return this.untitledEditorService.createOrGet(!!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource), deserialized.modeId);
 	}
 }
 
@@ -260,6 +265,16 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 				prefix: NAVIGATE_IN_GROUP_ONE_PREFIX,
 				needsEditor: false,
 				description: nls.localize('groupOnePicker', "Show Editors in First Group")
+			},
+			{
+				prefix: NAVIGATE_IN_GROUP_TWO_PREFIX,
+				needsEditor: false,
+				description: nls.localize('groupTwoPicker', "Show Editors in Second Group")
+			},
+			{
+				prefix: NAVIGATE_IN_GROUP_THREE_PREFIX,
+				needsEditor: false,
+				description: nls.localize('groupThreePicker', "Show Editors in Third Group")
 			}
 		]
 	)
@@ -270,13 +285,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/browser/parts/editor/editorPicker',
 		'GroupTwoPicker',
 		NAVIGATE_IN_GROUP_TWO_PREFIX,
-		[
-			{
-				prefix: NAVIGATE_IN_GROUP_TWO_PREFIX,
-				needsEditor: false,
-				description: nls.localize('groupTwoPicker', "Show Editors in Second Group")
-			}
-		]
+		[]
 	)
 );
 
@@ -285,13 +294,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/browser/parts/editor/editorPicker',
 		'GroupThreePicker',
 		NAVIGATE_IN_GROUP_THREE_PREFIX,
-		[
-			{
-				prefix: NAVIGATE_IN_GROUP_THREE_PREFIX,
-				needsEditor: false,
-				description: nls.localize('groupThreePicker', "Show Editors in Third Group")
-			}
-		]
+		[]
 	)
 );
 
@@ -377,6 +380,7 @@ for (let i = 0; i < 9; i++) {
 					return editorService.openEditor(editor);
 				}
 			}
+			return undefined;
 		}
 	});
 }
@@ -394,6 +398,7 @@ function toKeyCode(index: number): KeyCode {
 		case 8: return KeyCode.KEY_8;
 		case 9: return KeyCode.KEY_9;
 	}
+	return undefined;
 }
 
 // Editor Commands

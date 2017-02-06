@@ -63,7 +63,7 @@ suite('commands namespace tests', () => {
 			args = arguments;
 		});
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc).then(editor => {
 				return commands.executeCommand('t1', 12345, commands);
 			}).then(() => {
@@ -121,7 +121,7 @@ suite('commands namespace tests', () => {
 	});
 
 	test('api-command: vscode.open', function () {
-		let uri = Uri.file(join(workspace.rootPath, './image.png'));
+		let uri = Uri.file(join(workspace.rootPath || '', './image.png'));
 		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
 		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
 		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));

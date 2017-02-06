@@ -31,6 +31,7 @@ export class ContextValuesContainer {
 			this._value[key] = value;
 			return true;
 		}
+		return false;
 	}
 
 	public removeValue(key: string): boolean {
@@ -258,17 +259,22 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget;
 
-	constructor(parent: AbstractContextKeyService, emitter: Emitter<string>, domNode: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, emitter: Emitter<string>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
 		this._onDidChangeContextKey = emitter;
-		this._domNode = domNode;
-		this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
+
+		if (domNode) {
+			this._domNode = domNode;
+			this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
+		}
 	}
 
 	public dispose(): void {
 		this._parent.disposeContext(this._myContextId);
-		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+		if (this._domNode) {
+			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+		}
 	}
 
 	public get onDidChangeContext(): Event<string[]> {

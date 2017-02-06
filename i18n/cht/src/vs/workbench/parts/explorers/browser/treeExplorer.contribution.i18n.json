@@ -6,8 +6,8 @@
 {
 	"showViewlet": "顯示 {0}",
 	"view": "檢視",
-	"vscode.extension.contributes.explorer": "提供自訂樹狀總管 viewlet 到資訊看板",
+	"vscode.extension.contributes.explorer": "提供自訂 Tree Explorer viewlet 到資訊看板",
 	"vscode.extension.contributes.explorer.icon": "活動列上 viewlet 圖示的路徑",
 	"vscode.extension.contributes.explorer.treeExplorerNodeProviderId": "用以識別透過 vscode.workspace.registerTreeExplorerNodeProvider 所註冊之提供者的唯一識別碼",
-	"vscode.extension.contributes.explorer.treeLabel": "用以轉譯自訂樹狀總管的易讀字串"
+	"vscode.extension.contributes.explorer.treeLabel": "用以轉譯自訂 Tree Explorer 的易讀字串"
 }

@@ -67,6 +67,7 @@ suite('TextModel.toRawText', () => {
 				'Hello world!'
 			],
 			containsRTL: false,
+			isBasicASCII: true,
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -89,6 +90,27 @@ suite('TextModel.toRawText', () => {
 				'you?'
 			],
 			containsRTL: false,
+			isBasicASCII: true,
+			options: {
+				defaultEOL: DefaultEndOfLine.LF,
+				insertSpaces: true,
+				tabSize: 4,
+				trimAutoWhitespace: true,
+			}
+		});
+	});
+
+	test('Non Basic ASCII 1', () => {
+		testToRawText('Hello,\nZürich', {
+			BOM: '',
+			EOL: '\n',
+			length: 13,
+			'lines': [
+				'Hello,',
+				'Zürich'
+			],
+			containsRTL: false,
+			isBasicASCII: false,
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -108,6 +130,7 @@ suite('TextModel.toRawText', () => {
 				'זוהי עובדה מבוססת שדעתו'
 			],
 			containsRTL: true,
+			isBasicASCII: false,
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -127,6 +150,7 @@ suite('TextModel.toRawText', () => {
 				'هناك حقيقة مثبتة منذ زمن طويل'
 			],
 			containsRTL: true,
+			isBasicASCII: false,
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -700,6 +724,7 @@ suite('Editor Model - TextModel', () => {
 			BOM: '',
 			EOL: '\n',
 			containsRTL: false,
+			isBasicASCII: true,
 			options: {
 				tabSize: 4,
 				insertSpaces: false,
@@ -740,6 +765,7 @@ suite('Editor Model - TextModel', () => {
 			BOM: '',
 			EOL: '\n',
 			containsRTL: false,
+			isBasicASCII: true,
 			options: {
 				tabSize: 4,
 				insertSpaces: true,

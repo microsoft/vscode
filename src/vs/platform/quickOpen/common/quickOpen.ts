@@ -121,9 +121,9 @@ export interface IQuickOpenService {
 	pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions, token?: CancellationToken): TPromise<T>;
 
 	/**
-	 * Should not be used by clients. Will cause any opened quick open widget to navigate in the result set.
+	 * Allows to navigate from the outside in an opened picker.
 	 */
-	quickNavigate(configuration: IQuickNavigateConfiguration, next: boolean): void;
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
 
 	/**
 	 * Opens the quick open box for user input and returns a promise with the user typed value if any.

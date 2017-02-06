@@ -319,9 +319,6 @@
 					"include": "#preprocessor-rule-other-block"
 				},
 				{
-					"include": "#sizeof"
-				},
-				{
 					"include": "#access"
 				},
 				{
@@ -458,7 +455,7 @@
 		"line_continuation_character": {
 			"patterns": [
 				{
-					"match": "(\\\\)\\s*\\n",
+					"match": "(\\\\)\\n",
 					"captures": {
 						"1": {
 							"name": "constant.character.escape.line-continuation.c"
@@ -892,6 +889,15 @@
 					},
 					"patterns": [
 						{
+							"include": "#access"
+						},
+						{
+							"include": "#libc"
+						},
+						{
+							"include": "#c_function_call"
+						},
+						{
 							"include": "$self"
 						}
 					]
@@ -976,5 +982,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-c/commit/2a5fafe1d86f690b5ab2c877cea2fc6a598e001a"
+	"version": "https://github.com/atom/language-c/commit/0d0f32388e73fc91a86f4c31ff59c36191869d63"
 }
