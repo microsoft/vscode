@@ -131,7 +131,7 @@
 	"miViewDebug": "디버그(&&D)",
 	"miViewExplorer": "탐색기(&&E)",
 	"miViewExtensions": "확장(&&X)",
-	"miViewSCM": "SCM(&&C)",
+	"miViewGit": "Git(&&G)",
 	"miViewSearch": "검색(&&S)",
 	"miWelcome": "시작(&&W)",
 	"miZoomIn": "확대(&&Z)",
