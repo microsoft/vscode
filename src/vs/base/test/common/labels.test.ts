@@ -103,26 +103,26 @@ suite('Labels', () => {
 
 		// simple
 		assert.strictEqual(labels.template('Foo Bar'), 'Foo Bar');
-		assert.strictEqual(labels.template('Foo$()Bar'), 'FooBar');
+		assert.strictEqual(labels.template('Foo${}Bar'), 'FooBar');
 		assert.strictEqual(labels.template('$FooBar'), '');
-		assert.strictEqual(labels.template(')FooBar'), ')FooBar');
-		assert.strictEqual(labels.template('Foo $(one) Bar', { one: 'value' }), 'Foo value Bar');
-		assert.strictEqual(labels.template('Foo $(one) Bar $(two)', { one: 'value', two: 'other value' }), 'Foo value Bar other value');
+		assert.strictEqual(labels.template('}FooBar'), '}FooBar');
+		assert.strictEqual(labels.template('Foo ${one} Bar', { one: 'value' }), 'Foo value Bar');
+		assert.strictEqual(labels.template('Foo ${one} Bar ${two}', { one: 'value', two: 'other value' }), 'Foo value Bar other value');
 
 		// conditional separator
-		assert.strictEqual(labels.template('Foo$(separator)Bar'), 'FooBar');
-		assert.strictEqual(labels.template('Foo$(separator)Bar', { separator: { label: ' - ' } }), 'FooBar');
-		assert.strictEqual(labels.template('$(separator)Foo$(separator)Bar', { value: 'something', separator: { label: ' - ' } }), 'FooBar');
-		assert.strictEqual(labels.template('$(value) Foo$(separator)Bar', { value: 'something', separator: { label: ' - ' } }), 'something FooBar');
+		assert.strictEqual(labels.template('Foo${separator}Bar'), 'FooBar');
+		assert.strictEqual(labels.template('Foo${separator}Bar', { separator: { label: ' - ' } }), 'FooBar');
+		assert.strictEqual(labels.template('${separator}Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'FooBar');
+		assert.strictEqual(labels.template('${value} Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'something FooBar');
 
 		// // real world example (macOS)
-		let t = '$(activeEditorName)$(separator)$(rootName)';
+		let t = '${activeEditorName}${separator}${rootName}';
 		assert.strictEqual(labels.template(t, { activeEditorName: '', rootName: '', separator: { label: ' - ' } }), '');
 		assert.strictEqual(labels.template(t, { activeEditorName: '', rootName: 'root', separator: { label: ' - ' } }), 'root');
 		assert.strictEqual(labels.template(t, { activeEditorName: 'markdown.txt', rootName: 'root', separator: { label: ' - ' } }), 'markdown.txt - root');
 
 		// // real world example (other)
-		t = '$(dirty)$(activeEditorName)$(separator)$(rootName)$(separator)$(appName)';
+		t = '${dirty}${activeEditorName}${separator}${rootName}${separator}${appName}';
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: '', rootName: '', appName: '', separator: { label: ' - ' } }), '');
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: '', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');

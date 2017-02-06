@@ -236,16 +236,16 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 	'window.title': {
 		'type': 'string',
-		'default': isMacintosh ? '$(activeEditorName)$(separator)$(rootName)' : '$(dirty)$(activeEditorName)$(separator)$(rootName)$(separator)$(appName)',
+		'default': isMacintosh ? '${activeEditorName}${separator}${rootName}' : '${dirty}${activeEditorName}${separator}${rootName}${separator}${appName}',
 		'description': nls.localize('title',
 			`Controls the window title based on the active editor. Variables are substituted based on the context:
-$(activeEditorName): e.g. myFile.txt
-$(activeFilePath): e.g. /Users/Development/myProject/myFile.txt
-$(rootName): e.g. myProject
-$(rootPath): e.g. /Users/Development/myProject
-$(appName): e.g. VS Code
-$(dirty): a dirty indicator if the active editor is dirty
-$(separator): a conditional separator (" - ") that only shows when surrounded by variables with values`)
+\${activeEditorName}: e.g. myFile.txt
+\${activeFilePath}: e.g. /Users/Development/myProject/myFile.txt
+\${rootName}: e.g. myProject
+\${rootPath}: e.g. /Users/Development/myProject
+\${appName}: e.g. VS Code
+\${dirty}: a dirty indicator if the active editor is dirty
+\${separator}: a conditional separator (" - ") that only shows when surrounded by variables with values`)
 	},
 	'window.newWindowDimensions': {
 		'type': 'string',
