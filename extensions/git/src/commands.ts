@@ -103,7 +103,12 @@ export class CommandCenter {
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					default:
-						message = (err.stderr || err.message || String(err)).replace(/^error: /, '');
+						const lines = (err.stderr || err.message || String(err))
+							.replace(/^error: /, '')
+							.split(/[\r\n]/)
+							.filter(line => !!line);
+
+						message = lines[0] || 'Git error';
 						break;
 				}
 
