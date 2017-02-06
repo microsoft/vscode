@@ -71,7 +71,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this.setSymbolRange(symbolRange);
 
 		this._domNode = document.createElement('span');
-		this._domNode.style.height = `${editor.getConfiguration().lineHeight}px`;
+		const lineHeight = editor.getConfiguration().lineHeight;
+		this._domNode.style.height = `${lineHeight}px`;
+		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.innerHTML = '&nbsp;';
 		dom.addClass(this._domNode, 'codelens-decoration');
 		dom.addClass(this._domNode, 'invisible-cl');
