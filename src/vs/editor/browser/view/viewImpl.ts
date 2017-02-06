@@ -48,7 +48,7 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorScrollbar } from 'vs/editor/browser/viewparts/editorScrollbar/editorScrollbar';
+import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
