@@ -30,7 +30,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	private getMediaPath(mediaFile: string): string {
-		return this.context.asAbsolutePath(path.join('media', mediaFile));
+		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).toString();
 	}
 
 	private isAbsolute(p: string): boolean {
