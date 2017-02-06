@@ -213,7 +213,7 @@ export class ElectronWindow {
 			}
 
 			// Resolve keys using the keybinding service and send back to browser process
-			this.resolveKeybindings(actionIds).done((keybindings) => {
+			this.resolveKeybindings(actionIds).done(keybindings => {
 				if (keybindings.length) {
 					ipc.send('vscode:keybindingsResolved', JSON.stringify(keybindings));
 				}
@@ -247,25 +247,25 @@ export class ElectronWindow {
 		});
 
 		// Support toggling auto save
-		ipc.on('vscode.toggleAutoSave', (event) => {
+		ipc.on('vscode.toggleAutoSave', event => {
 			this.toggleAutoSave();
 		});
 
 		// Fullscreen Events
-		ipc.on('vscode:enterFullScreen', (event) => {
+		ipc.on('vscode:enterFullScreen', event => {
 			this.partService.joinCreation().then(() => {
 				browser.setFullscreen(true);
 			});
 		});
 
-		ipc.on('vscode:leaveFullScreen', (event) => {
+		ipc.on('vscode:leaveFullScreen', event => {
 			this.partService.joinCreation().then(() => {
 				browser.setFullscreen(false);
 			});
 		});
 
 		// High Contrast Events
-		ipc.on('vscode:enterHighContrast', (event) => {
+		ipc.on('vscode:enterHighContrast', event => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
@@ -274,7 +274,7 @@ export class ElectronWindow {
 			}
 		});
 
-		ipc.on('vscode:leaveHighContrast', (event) => {
+		ipc.on('vscode:leaveHighContrast', event => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
@@ -308,7 +308,7 @@ export class ElectronWindow {
 		});
 
 		// Context menu support in input/textarea
-		window.document.addEventListener('contextmenu', (e) => {
+		window.document.addEventListener('contextmenu', e => {
 			if (e.target instanceof HTMLElement) {
 				const target = <HTMLElement>e.target;
 				if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
@@ -318,7 +318,7 @@ export class ElectronWindow {
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => target,
 						getActions: () => TPromise.as(TextInputActions),
-						getKeyBinding: (action) => {
+						getKeyBinding: action => {
 							const opts = this.keybindingService.lookupKeybindings(action.id);
 							if (opts.length > 0) {
 								return opts[0]; // only take the first one
@@ -344,20 +344,25 @@ export class ElectronWindow {
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent', fileCategory);
 	}
 
-	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
+	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
 		return this.partService.joinCreation().then(() => {
-			return arrays.coalesce(actionIds.map((id) => {
+			return arrays.coalesce(actionIds.map(id => {
 				const bindings = this.keybindingService.lookupKeybindings(id);
 
 				// return the first binding that can be represented by electron
 				for (let i = 0; i < bindings.length; i++) {
 					const binding = bindings[i];
+
+					// first try to resolve a native accelerator
 					const electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
 					if (electronAccelerator) {
-						return {
-							id: id,
-							binding: binding.value
-						};
+						return { id, label: electronAccelerator, isNative: true };
+					}
+
+					// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
+					const acceleratorLabel = this.keybindingService.getLabelFor(binding);
+					if (acceleratorLabel) {
+						return { id, label: acceleratorLabel, isNative: false };
 					}
 				}
 
@@ -445,7 +450,7 @@ export class ElectronWindow {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue }).done(null, (error) => this.messageService.show(Severity.Error, error));
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue }).done(null, error => this.messageService.show(Severity.Error, error));
 	}
 
 	private includesFolder(resources: URI[]): TPromise<boolean> {
