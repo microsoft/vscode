@@ -994,6 +994,8 @@ export class VSCodeMenu {
 
 	private withKeybinding(commandId: string, options: Electron.MenuItemOptions): Electron.MenuItemOptions {
 		const binding = this.keybindingsResolver.getKeybinding(commandId);
+
+		// Apply binding if there is one
 		if (binding && binding.label) {
 
 			// if the binding is native, we can just apply it
@@ -1007,13 +1009,21 @@ export class VSCodeMenu {
 				if (platform.isWindows) {
 					options.sublabel = binding.label; // leverage sublabel support on Windows (only)
 				} else {
-					const tabIndex = options.label.indexOf('\t');
-					if (tabIndex >= 0) {
-						options.label = `${options.label.substr(0, tabIndex)}\t${binding.label}`;
+					const bindingIndex = options.label.indexOf('[');
+					if (bindingIndex >= 0) {
+						options.label = `${options.label.substr(0, bindingIndex)} [${binding.label}]`;
 					} else {
-						options.label = `${options.label}\t${binding.label}`;
+						options.label = `${options.label} [${binding.label}]`;
 					}
 				}
+			}
+		}
+
+		// Unset bindings if there is none
+		else {
+			options.accelerator = void 0;
+			if (platform.isWindows) {
+				options.sublabel = void 0;
 			}
 		}
 
