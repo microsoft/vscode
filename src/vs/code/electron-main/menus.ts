@@ -17,8 +17,6 @@ import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
-import { Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,9 +24,10 @@ import Event, { Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 
-interface IResolvedKeybinding {
+interface IKeybinding {
 	id: string;
-	binding: number;
+	label: string;
+	isNative: boolean;
 }
 
 interface IExtensionViewlet {
@@ -55,7 +54,7 @@ class KeybindingsResolver {
 	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
 
 	private commandIds: Set<string>;
-	private keybindings: { [commandId: string]: string };
+	private keybindings: { [commandId: string]: IKeybinding };
 	private keybindingsWatcher: ConfigWatcher<IUserFriendlyKeybinding[]>;
 
 	private _onKeybindingsChanged = new Emitter<void>();
@@ -81,7 +80,7 @@ class KeybindingsResolver {
 
 		// Listen to resolved keybindings from window
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
-			let keybindings: IResolvedKeybinding[] = [];
+			let keybindings: IKeybinding[] = [];
 			try {
 				keybindings = JSON.parse(rawKeybindings);
 			} catch (error) {
@@ -91,17 +90,14 @@ class KeybindingsResolver {
 			// Fill hash map of resolved keybindings and check for changes
 			let keybindingsChanged = false;
 			let keybindingsCount = 0;
-			const resolvedKeybindings: { [commandId: string]: string } = Object.create(null);
+			const resolvedKeybindings: { [commandId: string]: IKeybinding } = Object.create(null);
 			keybindings.forEach(keybinding => {
-				const accelerator = KeybindingLabels._toElectronAccelerator(new Keybinding(keybinding.binding));
-				if (accelerator) {
-					keybindingsCount++;
+				keybindingsCount++;
 
-					resolvedKeybindings[keybinding.id] = accelerator;
+				resolvedKeybindings[keybinding.id] = keybinding;
 
-					if (accelerator !== this.keybindings[keybinding.id]) {
-						keybindingsChanged = true;
-					}
+				if (!this.keybindings[keybinding.id] || keybinding.label !== this.keybindings[keybinding.id].label) {
+					keybindingsChanged = true;
 				}
 			});
 
@@ -133,7 +129,11 @@ class KeybindingsResolver {
 		}
 	}
 
-	public getKeybinding(commandId: string): string {
+	public getKeybinding(commandId: string): IKeybinding {
+		if (!commandId) {
+			return void 0;
+		}
+
 		if (!this.commandIds.has(commandId)) {
 			this.commandIds.add(commandId);
 		}
@@ -368,7 +368,7 @@ export class VSCodeMenu {
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
-		const quit = new MenuItem(this.likeAction('workbench.action.quit', { label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.windowsService.quit(), accelerator: this.getAccelerator('workbench.action.quit', 'Command+Q') }));
+		const quit = new MenuItem(this.withKeybinding('workbench.action.quit', this.likeAction('workbench.action.quit', { label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.windowsService.quit() })));
 
 		const actions = [about];
 		actions.push(...checkForUpdates);
@@ -505,13 +505,13 @@ export class VSCodeMenu {
 		}
 	}
 
-	private createOpenRecentMenuItem(path: string, actionId: string): Electron.MenuItem {
+	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
 		let label = path;
 		if ((platform.isMacintosh || platform.isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
 			label = `~${path.substr(this.environmentService.userHome.length)}`;
 		}
 
-		return new MenuItem(this.likeAction(actionId, {
+		return new MenuItem(this.likeAction(commandId, {
 			label: unMnemonicLabel(label), click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
@@ -526,15 +526,14 @@ export class VSCodeMenu {
 		return event && ((!platform.isMacintosh && (event.ctrlKey || event.shiftKey)) || (platform.isMacintosh && (event.metaKey || event.altKey)));
 	}
 
-	private createRoleMenuItem(label: string, actionId: string, role: Electron.MenuItemRole): Electron.MenuItem {
+	private createRoleMenuItem(label: string, commandId: string, role: Electron.MenuItemRole): Electron.MenuItem {
 		const options: Electron.MenuItemOptions = {
 			label: mnemonicLabel(label),
-			accelerator: this.getAccelerator(actionId),
 			role,
 			enabled: true
 		};
 
-		return new MenuItem(options);
+		return new MenuItem(this.withKeybinding(commandId, options));
 	}
 
 	private setEditMenu(winLinuxEditMenu: Electron.Menu): void {
@@ -655,7 +654,7 @@ export class VSCodeMenu {
 
 		const commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 
-		const fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
+		const fullscreen = new MenuItem(this.withKeybinding('workbench.action.toggleFullScreen', { label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 }));
 		const toggleZenMode = this.createMenuItem(nls.localize('miToggleZenMode', "Toggle Zen Mode"), 'workbench.action.toggleZenMode', this.windowsService.getWindowCount() > 0);
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
@@ -940,29 +939,28 @@ export class VSCodeMenu {
 		}
 	}
 
-	private createMenuItem(label: string, actionId: string | string[], enabled?: boolean, checked?: boolean): Electron.MenuItem;
+	private createMenuItem(label: string, commandId: string | string[], enabled?: boolean, checked?: boolean): Electron.MenuItem;
 	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): Electron.MenuItem;
 	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
 		const label = mnemonicLabel(arg1);
 		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem, win, event) => {
-			let actionId = arg2;
+			let commandId = arg2;
 			if (Array.isArray(arg2)) {
-				actionId = this.isOptionClick(event) ? arg2[1] : arg2[0]; // support alternative action if we got multiple action Ids and the option key was pressed while invoking
+				commandId = this.isOptionClick(event) ? arg2[1] : arg2[0]; // support alternative action if we got multiple action Ids and the option key was pressed while invoking
 			}
 
-			this.windowsService.sendToFocused('vscode:runAction', actionId);
+			this.windowsService.sendToFocused('vscode:runAction', commandId);
 		};
 		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsService.getWindowCount() > 0;
 		const checked = typeof arg4 === 'boolean' ? arg4 : false;
 
-		let actionId: string;
+		let commandId: string;
 		if (typeof arg2 === 'string') {
-			actionId = arg2;
+			commandId = arg2;
 		}
 
 		const options: Electron.MenuItemOptions = {
 			label,
-			accelerator: this.getAccelerator(actionId),
 			click,
 			enabled
 		};
@@ -972,13 +970,12 @@ export class VSCodeMenu {
 			options['checked'] = checked;
 		}
 
-		return new MenuItem(options);
+		return new MenuItem(this.withKeybinding(commandId, options));
 	}
 
-	private createDevToolsAwareMenuItem(label: string, actionId: string, devToolsFocusedFn: (contents: Electron.WebContents) => void): Electron.MenuItem {
-		return new MenuItem({
+	private createDevToolsAwareMenuItem(label: string, commandId: string, devToolsFocusedFn: (contents: Electron.WebContents) => void): Electron.MenuItem {
+		return new MenuItem(this.withKeybinding(commandId, {
 			label: mnemonicLabel(label),
-			accelerator: this.getAccelerator(actionId),
 			enabled: this.windowsService.getWindowCount() > 0,
 			click: () => {
 				const windowInFocus = this.windowsService.getFocusedWindow();
@@ -989,32 +986,46 @@ export class VSCodeMenu {
 				if (windowInFocus.win.webContents.isDevToolsFocused()) {
 					devToolsFocusedFn(windowInFocus.win.webContents.devToolsWebContents);
 				} else {
-					this.windowsService.sendToFocused('vscode:runAction', actionId);
+					this.windowsService.sendToFocused('vscode:runAction', commandId);
 				}
 			}
-		});
+		}));
 	}
 
-	private likeAction(actionId: string, options: Electron.MenuItemOptions, setAccelerator = !options.accelerator): Electron.MenuItemOptions {
-		if (setAccelerator) {
-			options.accelerator = this.getAccelerator(actionId);
+	private withKeybinding(commandId: string, options: Electron.MenuItemOptions): Electron.MenuItemOptions {
+		const binding = this.keybindingsResolver.getKeybinding(commandId);
+		if (binding && binding.label) {
+			if (binding.isNative) {
+				options.accelerator = binding.label;
+			} else {
+				// the keybinding is not native so we cannot show it as part of the accelerator of
+				// the menu item. we fallback to just append the keybinding to the label.
+				const tabIndex = options.label.indexOf('\t');
+				if (tabIndex >= 0) {
+					options.label = `${options.label.substr(0, tabIndex)}\t${binding.label}`;
+				} else {
+					options.label = `${options.label}\t${binding.label}`;
+				}
+			}
 		}
+
+		return options;
+	}
+
+	private likeAction(commandId: string, options: Electron.MenuItemOptions, setAccelerator = !options.accelerator): Electron.MenuItemOptions {
+		if (setAccelerator) {
+			options = this.withKeybinding(commandId, options);
+		}
+
 		const originalClick = options.click;
 		options.click = (item, window, event) => {
-			this.reportMenuActionTelemetry(actionId);
+			this.reportMenuActionTelemetry(commandId);
 			if (originalClick) {
 				originalClick(item, window, event);
 			}
 		};
+
 		return options;
-	}
-
-	private getAccelerator(actionId: string, fallback?: string): string {
-		if (actionId) {
-			return this.keybindingsResolver.getKeybinding(actionId);
-		}
-
-		return fallback;
 	}
 
 	private openAboutDialog(): void {
