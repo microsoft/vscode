@@ -419,12 +419,13 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						}
 
 						// Sort by value
+						const normalizedSearchValue = value ? strings.stripWildcards(value.toLowerCase()) : value;
 						model.entries.sort((pickA: PickOpenEntry, pickB: PickOpenEntry) => {
 							if (!value) {
 								return pickA.index - pickB.index; // restore natural order
 							}
 
-							return QuickOpenEntry.compare(pickA, pickB, value);
+							return QuickOpenEntry.compare(pickA, pickB, normalizedSearchValue);
 						});
 
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
@@ -827,7 +828,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 
 		// Sort
-		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+		const normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 	}
 
 	private mergeResults(quickOpenModel: QuickOpenModel, handlerResults: QuickOpenEntry[], groupLabel: string): void {
