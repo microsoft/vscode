@@ -24,7 +24,6 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -50,7 +49,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				partService.joinCreation()
 			]).then(([hasBackups]) => {
 				const activeInput = editorService.getActiveEditorInput();
-				if ((!activeInput || (activeInput instanceof UntitledEditorInput && !activeInput.isDirty())) && !hasBackups) {
+				if (!activeInput && !hasBackups) {
 					instantiationService.createInstance(WelcomePage);
 				}
 			}).then(null, onUnexpectedError);
