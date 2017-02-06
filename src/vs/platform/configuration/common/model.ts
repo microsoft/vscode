@@ -220,13 +220,15 @@ export class ConfigModel<T> implements IConfigModel<T> {
 				parseErrors.push({ error: error });
 			}
 		};
-		try {
-			json.visit(content, visitor);
-			this._raw = currentParent[0];
-		} catch (e) {
-			console.error(`Error while parsing settings file ${this.name}: ${e}`);
-			this._raw = <T>{};
-			this._parseErrors = [e];
+		if (content) {
+			try {
+				json.visit(content, visitor);
+				this._raw = currentParent[0] || {};
+			} catch (e) {
+				console.error(`Error while parsing settings file ${this.name}: ${e}`);
+				this._raw = <T>{};
+				this._parseErrors = [e];
+			}
 		}
 		this._unfilteredRaw = this._raw;
 		this._raw = this.filterRaw(this._unfilteredRaw);
