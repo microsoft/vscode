@@ -289,6 +289,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				new ActionBar.Separator(),
 				this.instantiationService.createInstance(GitActions.CommitAction, this),
 				this.instantiationService.createInstance(GitActions.CommitSignedOffAction, this),
+				this.instantiationService.createInstance(GitActions.CommitAmendAction, this),
 				this.instantiationService.createInstance(GitActions.StageAndCommitAction, this, GitActions.StageAndCommitAction.ID, GitActions.StageAndCommitAction.LABEL, GitActions.StageAndCommitAction.CSSCLASS),
 				this.instantiationService.createInstance(GitActions.StageAndCommitSignedOffAction, this),
 				this.instantiationService.createInstance(GitActions.UndoLastCommitAction, GitActions.UndoLastCommitAction.ID, GitActions.UndoLastCommitAction.LABEL),
