@@ -42,7 +42,6 @@
 }
 
 .monaco-editor .parameter-hints-widget.multiple .body {
-	height: 100%;
 	border-left: 1px solid rgba(204, 204, 204, 0.5);
 }
 
