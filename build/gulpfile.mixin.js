@@ -15,7 +15,6 @@ const remote = require('gulp-remote-src');
 const zip = require('gulp-vinyl-zip');
 const assign = require('object-assign');
 const pkg = require('../package.json');
-const rename = require('gulp-rename');
 
 gulp.task('mixin', function () {
 	const repo = process.env['VSCODE_MIXIN_REPO'];
@@ -51,7 +50,6 @@ gulp.task('mixin', function () {
 	if (quality) {
 		const build = all.pipe(filter('build/**'));
 		const productJsonFilter = filter('product.json', { restore: true });
-		const codeIconFilter = filter('resources/code-icon.svg', { restore: true });
 
 		const vsdaFilter = (function () {
 			const filter = [];
@@ -72,10 +70,7 @@ gulp.task('mixin', function () {
 				const original = require('../product.json');
 				return assign(original, patch);
 			}))
-			.pipe(productJsonFilter.restore)
-			.pipe(codeIconFilter)
-			.pipe(rename('src/vs/workbench/parts/welcome/code-icon.svg'))
-			.pipe(codeIconFilter.restore);
+			.pipe(productJsonFilter.restore);
 
 		all = es.merge(build, mixin);
 	}
