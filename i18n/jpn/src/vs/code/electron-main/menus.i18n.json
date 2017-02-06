@@ -131,7 +131,7 @@
 	"miViewDebug": "デバッグ(&&D)",
 	"miViewExplorer": "エクスプローラー(&&E)",
 	"miViewExtensions": "拡張機能(&&X)",
-	"miViewSCM": "SCM(&&C)",
+	"miViewGit": "Git(&&G)",
 	"miViewSearch": "検索(&&S)",
 	"miWelcome": "ようこそ(&&W)",
 	"miZoomIn": "拡大(&&Z)",

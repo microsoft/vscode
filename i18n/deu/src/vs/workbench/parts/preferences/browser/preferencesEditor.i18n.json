@@ -12,5 +12,7 @@
 	"replaceDefaultValue": "In Einstellungen ersetzen",
 	"settingsEditorName": "Standardeinstellungen",
 	"settingsFound": "{0} Einstellungen zugeordnet",
-	"totalSettingsMessage": "Insgesamt {0} Einstellungen"
+	"totalSettingsMessage": "Insgesamt {0} Einstellungen",
+	"unsupportedTypeScriptTsdkSetting": "Diese Einstellung muss eine Benutzereinstellung sein. Öffnen Sie zum Konfigurieren von TypeScript für den Arbeitsbereich eine TypeScript-Datei, und klicken Sie in der Statusleiste auf die TypeScript-Version.",
+	"unsupportedWorkspaceSetting": "Diese Einstellung muss eine Benutzereinstellung sein."
 }

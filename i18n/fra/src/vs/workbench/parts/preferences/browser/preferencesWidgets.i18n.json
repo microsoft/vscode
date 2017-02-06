@@ -6,6 +6,7 @@
 {
 	"SearchSettingsWidget.AriaLabel": "Paramètres de recherche",
 	"SearchSettingsWidget.Placeholder": "Paramètres de recherche",
+	"settingsSwitcherBarAriaLabel": "Sélecteur de paramètres",
 	"userSettings": "Paramètres utilisateur",
 	"workspaceSettings": "Paramètres de l'espace de travail"
 }
