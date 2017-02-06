@@ -31,7 +31,7 @@ class PerformanceContribution implements IWorkbenchContribution {
 		if (dumpFile) {
 			// wait for extensions being loaded
 			extensionService.onReady()
-				.then(() => TPromise.timeout(1000)) // time service isn't ready yet because it listens on the same event...
+				.then(() => TPromise.timeout(15000)) // time service isn't ready yet because it listens on the same event...
 				.then(() => this._dumpTimersAndQuit(dumpFile))
 				.done(undefined, err => console.error(err));
 		}
