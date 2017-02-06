@@ -42,7 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		vscode.window.visibleTextEditors
-			.filter(editor => editor.document.uri.path === sourceUri.path)
+			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
 			.forEach(editor => {
 				const sourceLine = Math.floor(line);
 				const text = editor.document.getText(new vscode.Range(sourceLine, 0, sourceLine + 1, 0));
@@ -294,7 +294,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 					${body}
 					<script>
 						window.initialData = {
-							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
+							source: "${encodeURIComponent(sourceUri.toString(true))}",
 							line: ${initialLine},
 							scrollPreviewWithEditorSelection: ${!!markdownConfig.get('preview.scrollPreviewWithEditorSelection', true)},
 							scrollEditorWithPreview: ${!!markdownConfig.get('preview.scrollEditorWithPreview', true)},

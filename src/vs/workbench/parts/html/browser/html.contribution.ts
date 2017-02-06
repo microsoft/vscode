@@ -106,7 +106,7 @@ CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor
 	const activePreviews = accessor.get(IWorkbenchEditorService).getVisibleEditors()
 		.filter(c => c instanceof HtmlPreviewPart)
 		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.path === uri.path);
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
 	for (const preview of activePreviews) {
 		preview.sendMessage(message);
 	}
