@@ -117,7 +117,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 					${body}
 					<script>
 						window.initialData = {
-							source: "${encodeURIComponent(sourceUri.scheme + '://' + sourceUri.path)}",
+							source: "${encodeURIComponent(sourceUri.toString(true))}",
 							line: ${initialLine},
 							scrollPreviewWithEditorSelection: ${!!markdownConfig.get('preview.scrollPreviewWithEditorSelection', true)},
 							scrollEditorWithPreview: ${!!markdownConfig.get('preview.scrollEditorWithPreview', true)},

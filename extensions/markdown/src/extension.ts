@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		vscode.window.visibleTextEditors
-			.filter(editor => editor.document.uri.path === sourceUri.path)
+			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
 			.forEach(editor => {
 				const sourceLine = Math.floor(line);
 				const text = editor.document.getText(new vscode.Range(sourceLine, 0, sourceLine + 1, 0));
@@ -82,10 +82,10 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		};
-		if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.path === args.path) {
+		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === args.fsPath) {
 			return tryRevealLine(vscode.window.activeTextEditor);
 		} else {
-			const resource = vscode.Uri.file(args.path);
+			const resource = vscode.Uri.file(args.fsPath);
 			vscode.workspace.openTextDocument(resource)
 				.then(vscode.window.showTextDocument)
 				.then(tryRevealLine, _ => vscode.commands.executeCommand('vscode.open', resource));
