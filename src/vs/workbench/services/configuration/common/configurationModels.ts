@@ -65,7 +65,7 @@ export class WorkspaceSettingsConfigModel<T> extends ConfigModel<T> {
 export class WorkspaceConfigModel<T> extends ConfigModel<T> {
 
 	constructor(public readonly workspaceSettingsConfig: WorkspaceSettingsConfigModel<T>, private scopedConfigs: ScopedConfigModel<T>[]) {
-		super(null);
+		super();
 		this.consolidate();
 	}
 
