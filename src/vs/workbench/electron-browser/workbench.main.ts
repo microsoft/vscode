@@ -104,7 +104,7 @@ import 'vs/workbench/parts/update/electron-browser/update.contribution';
 
 import 'vs/workbench/parts/nps/electron-browser/nps.contribution';
 
-import 'vs/workbench/parts/performance/performance.contribution';
+import 'vs/workbench/parts/performance/electron-browser/performance.contribution';
 
 import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 
