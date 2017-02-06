@@ -995,16 +995,24 @@ export class VSCodeMenu {
 	private withKeybinding(commandId: string, options: Electron.MenuItemOptions): Electron.MenuItemOptions {
 		const binding = this.keybindingsResolver.getKeybinding(commandId);
 		if (binding && binding.label) {
+
+			// if the binding is native, we can just apply it
 			if (binding.isNative) {
 				options.accelerator = binding.label;
-			} else {
-				// the keybinding is not native so we cannot show it as part of the accelerator of
-				// the menu item. we fallback to just append the keybinding to the label.
-				const tabIndex = options.label.indexOf('\t');
-				if (tabIndex >= 0) {
-					options.label = `${options.label.substr(0, tabIndex)}\t${binding.label}`;
+			}
+
+			// the keybinding is not native so we cannot show it as part of the accelerator of
+			// the menu item. we fallback to a different strategy so that we always display it
+			else {
+				if (platform.isWindows) {
+					options.sublabel = binding.label; // leverage sublabel support on Windows (only)
 				} else {
-					options.label = `${options.label}\t${binding.label}`;
+					const tabIndex = options.label.indexOf('\t');
+					if (tabIndex >= 0) {
+						options.label = `${options.label.substr(0, tabIndex)}\t${binding.label}`;
+					} else {
+						options.label = `${options.label}\t${binding.label}`;
+					}
 				}
 			}
 		}
