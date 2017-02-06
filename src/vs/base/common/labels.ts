@@ -167,7 +167,7 @@ export function template(template: string, values: { [key: string]: string | ISe
 		char = template[i];
 
 		// Beginning of variable
-		if (char === '$' || (inVariable && char === '(')) {
+		if (char === '$' || (inVariable && char === '{')) {
 			if (curVal) {
 				segments.push({ value: curVal, type: Type.TEXT });
 			}
@@ -177,7 +177,7 @@ export function template(template: string, values: { [key: string]: string | ISe
 		}
 
 		// End of variable
-		else if (char === ')' && inVariable) {
+		else if (char === '}' && inVariable) {
 			const resolved = values[curVal];
 
 			// Variable
