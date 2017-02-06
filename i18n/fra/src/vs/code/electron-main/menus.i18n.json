@@ -131,7 +131,7 @@
 	"miViewDebug": "&&Déboguer",
 	"miViewExplorer": "&&Explorateur",
 	"miViewExtensions": "E&&xtensions",
-	"miViewSCM": "S&&CM",
+	"miViewGit": "&&Git",
 	"miViewSearch": "&&Rechercher",
 	"miWelcome": "&&Bienvenue",
 	"miZoomIn": "&&Zoom avant",

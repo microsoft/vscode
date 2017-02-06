@@ -6,11 +6,10 @@
 {
 	"configuredTabSize": "已設定的定位點大小",
 	"detectIndentation": "偵測內容中的縮排",
+	"editor.reindentlines": "重新將行縮排",
 	"indentUsingSpaces": "使用空格鍵進行縮排",
 	"indentUsingTabs": "使用 Tab 進行縮排",
 	"indentationToSpaces": "將縮排轉換成空格",
 	"indentationToTabs": "將縮排轉換成定位點",
-	"selectTabWidth": "選取目前檔案的定位點大小",
-	"toggleRenderControlCharacters": "切換控制字元",
-	"toggleRenderWhitespace": "切換轉譯空白字元"
+	"selectTabWidth": "選取目前檔案的定位點大小"
 }
