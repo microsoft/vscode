@@ -245,7 +245,7 @@ $(rootName): e.g. myProject
 $(rootPath): e.g. /Users/Development/myProject
 $(appName): e.g. VS Code
 $(dirty): a dirty indicator if the active editor is dirty
-$(separator): a conditional separator that only shows when surrounded by variables with values`)
+$(separator): a conditional separator (" - ") that only shows when surrounded by variables with values`)
 	},
 	'window.newWindowDimensions': {
 		'type': 'string',

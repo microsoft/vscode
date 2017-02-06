@@ -42,7 +42,7 @@ export class WindowTitleContribution implements JSONWorkerContribution {
 				MarkedString.fromPlainText(localize('windowTitle.rootPath', "$(rootPath): e.g. /Users/Development/myProject")),
 				MarkedString.fromPlainText(localize('windowTitle.appName', "$(appName): e.g. VS Code")),
 				MarkedString.fromPlainText(localize('windowTitle.dirty', "$(dirty): a dirty indicator if the active editor is dirty")),
-				MarkedString.fromPlainText(localize('windowTitle.separator', "$(separator): a conditional separator that only shows when surrounded by variables with values"))
+				MarkedString.fromPlainText(localize('windowTitle.separator', "$(separator): a conditional separator (\" - \") that only shows when surrounded by variables with values"))
 			]);
 		}
 

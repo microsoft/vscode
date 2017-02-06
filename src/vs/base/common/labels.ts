@@ -152,8 +152,8 @@ interface ISegment {
 }
 
 /**
- * Helper to insert values for specific template variables into the string. E.g. "this {is} a {template}" can be
- * passed to this function together with an object that mapes "is" and "template" to strings to have them replaced.
+ * Helper to insert values for specific template variables into the string. E.g. "this $(is) a $(template)" can be
+ * passed to this function together with an object that maps "is" and "template" to strings to have them replaced.
  * @param value string to which templating is applied
  * @param values the values of the templates to use
  */
