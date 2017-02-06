@@ -115,10 +115,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	const labelAScore = scorer.score(labelA, lookFor, scorerCache);
 	const labelBScore = scorer.score(labelB, lookFor, scorerCache);
 
-	// Useful for understanding the scoring
-	// elementA.setPrefix(labelAScore + ' ');
-	// elementB.setPrefix(labelBScore + ' ');
-
 	if (labelAScore !== labelBScore) {
 		return labelAScore > labelBScore ? -1 : 1;
 	}
@@ -129,10 +125,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	if (resourcePathA && resourcePathB) {
 		const resourceAScore = scorer.score(resourcePathA, lookFor, scorerCache);
 		const resourceBScore = scorer.score(resourcePathB, lookFor, scorerCache);
-
-		// Useful for understanding the scoring
-		// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-		// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
 
 		if (resourceAScore !== resourceBScore) {
 			return resourceAScore > resourceBScore ? -1 : 1;
