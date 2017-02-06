@@ -23,12 +23,19 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
+	let scriptFileVersion: number = 0;
+	function updateCurrentTextDocument(doc: TextDocument) {
+		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
+			currentTextDocument = jsDocuments.get(doc);
+			scriptFileVersion++;
+		}
+	}
 	let host = {
 		getCompilationSettings: () => compilerOptions,
 		getScriptFileNames: () => [FILE_NAME, JQUERY_D_TS],
 		getScriptVersion: (fileName: string) => {
 			if (fileName === FILE_NAME) {
-				return String(currentTextDocument.version);
+				return String(scriptFileVersion);
 			}
 			return '1'; // default lib an jquery.d.ts are static
 		},
@@ -62,7 +69,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			settings = options && options.javascript;
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			const diagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
 			return diagnostics.map((diag): Diagnostic => {
 				return {
@@ -73,7 +80,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			});
 		},
 		doComplete(document: TextDocument, position: Position): CompletionList {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let offset = currentTextDocument.offsetAt(position);
 			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset);
 			if (!completions) {
@@ -100,7 +107,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			};
 		},
 		doResolve(document: TextDocument, item: CompletionItem): CompletionItem {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label);
 			if (details) {
 				item.detail = ts.displayPartsToString(details.displayParts);
@@ -110,7 +117,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return item;
 		},
 		doHover(document: TextDocument, position: Position): Hover {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let info = jsLanguageService.getQuickInfoAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (info) {
 				let contents = ts.displayPartsToString(info.displayParts);
@@ -122,7 +129,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return null;
 		},
 		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (signHelp) {
 				let ret: SignatureHelp = {
@@ -159,7 +166,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return null;
 		},
 		findDocumentHighlight(document: TextDocument, position: Position): DocumentHighlight[] {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let occurrences = jsLanguageService.getOccurrencesAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (occurrences) {
 				return occurrences.map(entry => {
@@ -172,7 +179,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return null;
 		},
 		findDocumentSymbols(document: TextDocument): SymbolInformation[] {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let items = jsLanguageService.getNavigationBarItems(FILE_NAME);
 			if (items) {
 				let result: SymbolInformation[] = [];
@@ -208,7 +215,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return null;
 		},
 		findDefinition(document: TextDocument, position: Position): Definition {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let definition = jsLanguageService.getDefinitionAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (definition) {
 				return definition.filter(d => d.fileName === FILE_NAME).map(d => {
@@ -221,7 +228,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return null;
 		},
 		findReferences(document: TextDocument, position: Position): Location[] {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let references = jsLanguageService.getReferencesAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (references) {
 				return references.filter(d => d.fileName === FILE_NAME).map(d => {
@@ -234,7 +241,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return null;
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions): TextEdit[] {
-			currentTextDocument = jsDocuments.get(document);
+			updateCurrentTextDocument(document);
 			let initialIndentLevel = computeInitialIndent(document, range, formatParams);
 			let formatSettings = convertOptions(formatParams, settings && settings.format, initialIndentLevel + 1);
 			let start = currentTextDocument.offsetAt(range.start);
