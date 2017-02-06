@@ -355,7 +355,9 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = assign({}, process.env, options.env || {});
+		options.env = assign({}, process.env, options.env || {}, {
+			LANG: 'en_US.UTF-8'
+		});
 
 		if (options.log !== false) {
 			this.log(`git ${args.join(' ')}\n`);
