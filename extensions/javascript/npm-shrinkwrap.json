@@ -28,9 +28,8 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "jsonc-parser": {
-      "version": "0.2.3",
-      "from": "jsonc-parser@>=0.2.2 <0.3.0",
-      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.2.3.tgz"
+      "version": "0.3.1",
+      "from": "jsonc-parser@0.3.1"
     },
     "ms": {
       "version": "0.7.1",
@@ -38,14 +37,13 @@
       "resolved": "https://registry.npmjs.org/ms/-/ms-0.7.1.tgz"
     },
     "request-light": {
-      "version": "0.1.0",
-      "from": "request-light@>=0.1.0 <0.2.0",
-      "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.1.0.tgz"
+      "version": "0.2.0",
+      "from": "request-light@0.2.0"
     },
     "vscode-nls": {
-      "version": "1.0.7",
-      "from": "vscode-nls@>=1.0.4 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+      "version": "2.0.2",
+      "from": "vscode-nls@>=2.0.2 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
     }
   }
 }

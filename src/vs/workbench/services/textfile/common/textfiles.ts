@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import { IRawText } from 'vs/editor/common/editorCommon';
+import { ITextSource2 } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
 import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
@@ -112,7 +112,7 @@ export interface IRawTextContent extends IBaseStat {
 	/**
 	 * The line grouped content of a text file.
 	 */
-	value: IRawText;
+	value: ITextSource2;
 
 	/**
 	 * The line grouped logical hash of a text file.
@@ -261,8 +261,8 @@ export interface ITextFileService extends IDisposable {
 	 * @param resources can be null to save all.
 	 * @param includeUntitled to save all resources and optionally exclude untitled ones.
 	 */
-	saveAll(includeUntitled?: boolean, reason?: SaveReason): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult>;
+	saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
+	saveAll(resources: URI[]): TPromise<ITextFileOperationResult>;
 
 	/**
 	 * Reverts the provided resource.

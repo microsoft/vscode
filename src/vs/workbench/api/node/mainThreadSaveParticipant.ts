@@ -41,7 +41,7 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
-		if (this.configurationService.lookup('files.trimTrailingWhitespace').value) {
+		if (this.configurationService.lookup('files.trimTrailingWhitespace', model.textEditorModel.getLanguageIdentifier().language).value) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -70,23 +70,21 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 }
 
 function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICommonCodeEditor {
+	let candidate: ICommonCodeEditor = null;
+
 	if (model.isAttachedToEditor()) {
-		const allEditors = codeEditorService.listCodeEditors();
-		for (let i = 0, len = allEditors.length; i < len; i++) {
-			const editor = allEditors[i];
-			const editorModel = editor.getModel();
+		for (const editor of codeEditorService.listCodeEditors()) {
+			if (editor.getModel() === model) {
+				if (editor.isFocused()) {
+					return editor; // favour focussed editor if there are multiple
+				}
 
-			if (!editorModel) {
-				continue; // empty editor
-			}
-
-			if (model === editorModel) {
-				return editor;
+				candidate = editor;
 			}
 		}
 	}
 
-	return null;
+	return candidate;
 }
 
 export class FinalNewLineParticipant implements INamedSaveParticpant {
@@ -101,7 +99,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
-		if (this.configurationService.lookup('files.insertFinalNewline').value) {
+		if (this.configurationService.lookup('files.insertFinalNewline', model.textEditorModel.getLanguageIdentifier().language).value) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -142,13 +140,12 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
 
+		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.lookup('editor.formatOnSave').value) {
-
-			return;
+			|| !this._configurationService.lookup('editor.formatOnSave', model.getLanguageIdentifier().language).value) {
+			return undefined;
 		}
 
-		const model = editorModel.textEditorModel;
 		const versionNow = model.getVersionId();
 		const {tabSize, insertSpaces} = model.getOptions();
 
@@ -158,7 +155,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 		}).then(edits => {
 			if (edits && versionNow === model.getVersionId()) {
-				const editor = this._findEditor(model);
+				const editor = findEditor(model, this._editorService);
 				if (editor) {
 					this._editsWithEditor(editor, edits);
 				} else {
@@ -183,6 +180,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
 				}
 			}
+			return undefined;
 		});
 	}
 
@@ -193,24 +191,6 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 			identifier: undefined,
 			forceMoveMarkers: true
 		};
-	}
-
-	private _findEditor(model: IModel) {
-		if (!model.isAttachedToEditor()) {
-			return;
-		}
-
-		let candidate: ICommonCodeEditor;
-		for (const editor of this._editorService.listCodeEditors()) {
-			if (editor.getModel() === model) {
-				if (editor.isFocused()) {
-					return editor;
-				} else {
-					candidate = editor;
-				}
-			}
-		}
-		return candidate;
 	}
 }
 
@@ -233,6 +213,7 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 						return TPromise.wrapError('listener failed');
 					}
 				}
+				return undefined;
 			}).then(resolve, reject);
 		});
 	}

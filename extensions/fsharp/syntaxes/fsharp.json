@@ -59,7 +59,7 @@
 				{
 					"name": "function.anonymous",
 					"begin": "\\b(fun)\\b",
-					"end": "(->)",
+					"end": "[(->)\\n]",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.other.function-definition.fsharp"
@@ -139,7 +139,7 @@
 			"patterns": [
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+private|internal|public)?\\s+(\\([^\\s-]*\\)|[_a-zA-Z]([_a-zA-Z0-9,\\.]|(?<=,)\\s)*)",
+					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+private|internal|public)?\\s+(\\([^\\s-]*\\)|[_[:alpha:]]([_[:alpha:]0-9,\\.]|(?<=,)\\s)*)",
 					"end": "((``.*``)|(with)|=|$)",
 					"beginCaptures": {
 						"1": {
@@ -195,7 +195,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.section.fsharp",
-					"begin": "\\b(namespace|module)(\\s+public|internal|private)?\\s+([a-zA-Z][a-zA-Z0-9'_. ]*)",
+					"begin": "\\b(namespace|module)(\\s+public|internal|private)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -211,7 +211,7 @@
 					"patterns": [
 						{
 							"name": "entity.name.section.fsharp",
-							"match": "(\\.)([A-Z][a-zA-Z0-9'_]*)",
+							"match": "(\\.)([A-Z][[:alpha:]0-9'_]*)",
 							"captures": {
 								"1": {
 									"name": "punctuation.separator.namespace-reference.fsharp"
@@ -225,7 +225,7 @@
 				},
 				{
 					"name": "namespace.open.fsharp",
-					"begin": "\\b(open)\\s+([A-Z][a-zA-Z0-9'_]*)(?=(\\.[A-Z][a-zA-Z0-9_]*)*)",
+					"begin": "\\b(open)\\s+([[:alpha:]][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -238,7 +238,7 @@
 					"patterns": [
 						{
 							"name": "entity.name.section.fsharp",
-							"match": "(\\.)([a-zA-Z][a-zA-Z0-9'_]*)",
+							"match": "(\\.)([[:alpha:]][[:alpha:]0-9'_]*)",
 							"captures": {
 								"1": {
 									"name": "punctuation.separator.namespace-reference.fsharp"
@@ -252,7 +252,7 @@
 				},
 				{
 					"name": "namespace.alias.fsharp",
-					"begin": "^\\s*(module)\\s+([A-Z][a-zA-Z0-9'_]*)\\s*(=)\\s*([A-Z][a-zA-Z0-9'_]*)",
+					"begin": "^\\s*(module)\\s+([A-Z][[:alpha:]0-9'_]*)\\s*(=)\\s*([A-Z][[:alpha:]0-9'_]*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -271,7 +271,7 @@
 					"patterns": [
 						{
 							"name": "entity.name.section.fsharp",
-							"match": "(\\.)([A-Z][a-zA-Z0-9'_]*)",
+							"match": "(\\.)([A-Z][[:alpha:]0-9'_]*)",
 							"captures": {
 								"1": {
 									"name": "punctuation.separator.namespace-reference.fsharp"
@@ -441,7 +441,7 @@
 				},
 				{
 					"name": "variable.parameter.fsharp",
-					"match": "[a-zA-Z']\\w*"
+					"match": "[[:alpha:]']\\w*"
 				}
 			]
 		},
@@ -468,7 +468,7 @@
 			"patterns": [
 				{
 					"name": "record.fsharp",
-					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([a-zA-Z0-9'<>^:,. ]+)[\\s]*(\\([a-zA-Z0-9'<>^:,. ]+\\))?[\\s]*((with)|(as [a-zA-Z0-9']+)|(=)|(\\(\\)))",
+					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([[:alpha:]0-9'<>^:,. ]+)[\\s]*(\\([[:alpha:]0-9'<>^:,. ]+\\))?[\\s]*((with)|(as [[:alpha:]0-9']+)|(=)|(\\(\\)))",
 					"captures": {
 						"1": {
 							"name": "keyword.other.fsharp"
@@ -502,7 +502,7 @@
 			"patterns": [
 				{
 					"name": "cexpr.fsharp",
-					"match": "\\b([a-zA-Z]*\\s+\\{)",
+					"match": "\\b([[:alpha:]]*\\s+\\{)",
 					"captures": {
 						"1": {
 							"name": "keyword.other.fsharp"
@@ -533,5 +533,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/864bfd9a6e7f4bfa648eaddba19e16d5a81103a1"
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/16d4cc8cb0224d8861a7b48107ac102e3f51579a"
 }

@@ -73,7 +73,7 @@ class SyncedBuffer {
 	}
 
 	onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		let filePath = this.client.asAbsolutePath(this.document.uri);
+		let filePath = this.client.normalizePath(this.document.uri);
 		if (!filePath) {
 			return;
 		}
@@ -178,11 +178,8 @@ export default class BufferSyncSupport {
 		if (!this.modeIds[document.languageId]) {
 			return;
 		}
-		if (document.isUntitled) {
-			return;
-		}
 		let resource = document.uri;
-		let filepath = this.client.asAbsolutePath(resource);
+		let filepath = this.client.normalizePath(resource);
 		if (!filepath) {
 			return;
 		}
@@ -194,7 +191,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
-		let filepath = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -211,7 +208,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
-		let filepath = this.client.asAbsolutePath(e.document.uri);
+		let filepath = this.client.normalizePath(e.document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -223,7 +220,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidSaveTextDocument(document: TextDocument): void {
-		let filepath = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return;
 		}

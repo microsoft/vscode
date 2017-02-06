@@ -84,15 +84,12 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 
 	public parse(): TPromise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
-			let errors: json.ParseError[] = [];
-			const extensionDescription = json.parse(manifestContents.toString(), errors);
-			if (errors.length > 0) {
-				errors.forEach((error) => {
-					this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, json.getParseErrorMessage(error.error)));
-				});
-				return null;
+			try {
+				return JSON.parse(manifestContents.toString());
+			} catch (e) {
+				this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, json.getParseErrorMessage(e.message)));
 			}
-			return extensionDescription;
+			return null;
 		}, (err) => {
 			if (err.code === 'ENOENT') {
 				return null;
@@ -165,40 +162,44 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	/**
 	 * This routine make the following assumptions:
 	 * The root element is a object literal
-	 * Strings to replace are one values of a key. So for example string[] are ignored.
-	 * This is done to speed things up.
 	 */
 	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, collector: MessagesCollector, messageScope: string): void {
-		Object.keys(literal).forEach(key => {
-			if (literal.hasOwnProperty(key)) {
-				let value = literal[key];
-				if (Types.isString(value)) {
-					let str = <string>value;
-					let length = str.length;
-					if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
-						let messageKey = str.substr(1, length - 2);
-						let message = messages[messageKey];
-						if (message) {
-							if (nlsConfig.pseudo) {
-								// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
-								message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
-							}
-							literal[key] = message;
-						} else {
-							collector.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
+		function processEntry(obj: any, key: string | number) {
+			let value = obj[key];
+			if (Types.isString(value)) {
+				let str = <string>value;
+				let length = str.length;
+				if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
+					let messageKey = str.substr(1, length - 2);
+					let message = messages[messageKey];
+					if (message) {
+						if (nlsConfig.pseudo) {
+							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
+							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 						}
+						obj[key] = message;
+					} else {
+						collector.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
 					}
-				} else if (Types.isObject(value)) {
-					ExtensionManifestNLSReplacer._replaceNLStrings(value, messages, collector, messageScope);
-				} else if (Types.isArray(value)) {
-					(<any[]>value).forEach(element => {
-						if (Types.isObject(element)) {
-							ExtensionManifestNLSReplacer._replaceNLStrings(element, messages, collector, messageScope);
-						}
-					});
+				}
+			} else if (Types.isObject(value)) {
+				for (let k in value) {
+					if (value.hasOwnProperty(k)) {
+						processEntry(value, k);
+					}
+				}
+			} else if (Types.isArray(value)) {
+				for (let i = 0; i < value.length; i++) {
+					processEntry(value, i);
 				}
 			}
-		});
+		}
+
+		for (let key in literal) {
+			if (literal.hasOwnProperty(key)) {
+				processEntry(literal, key);
+			}
+		};
 	}
 }
 

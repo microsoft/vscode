@@ -15,6 +15,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
+import { realpathSync } from 'vs/base/node/extfs';
+import { isMacintosh } from 'vs/base/common/platform';
 import watcher = require('vs/workbench/services/files/node/watcher/common');
 import { IWatcherRequest, IWatcherService } from './watcher';
 
@@ -36,10 +38,22 @@ export class ChokidarWatcherService implements IWatcherService {
 			binaryInterval: 1000
 		};
 
-		const chokidarWatcher = chokidar.watch(request.basePath, watcherOpts);
+		// Chokidar fails when the basePath does not match case-identical to the path on disk
+		// so we have to find the real casing of the path and do some path massaging to fix this
+		// see https://github.com/paulmillr/chokidar/issues/418
+		const originalBasePath = request.basePath;
+		const realBasePath = isMacintosh ? (realpathSync(originalBasePath) || originalBasePath) : originalBasePath;
+		const realBasePathLength = realBasePath.length;
+		const realBasePathDiffers = (originalBasePath !== realBasePath);
+
+		if (realBasePathDiffers) {
+			console.warn(`Watcher basePath does not match version on disk and was corrected (original: ${originalBasePath}, real: ${realBasePath})`);
+		}
+
+		const chokidarWatcher = chokidar.watch(realBasePath, watcherOpts);
 
 		// Detect if for some reason the native watcher library fails to load
-		if (process.platform === 'darwin' && !chokidarWatcher.options.useFsEvents) {
+		if (isMacintosh && !chokidarWatcher.options.useFsEvents) {
 			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
 		}
 
@@ -48,34 +62,30 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
-				if (path.indexOf(request.basePath) < 0) {
+				if (path.indexOf(realBasePath) < 0) {
 					return; // we really only care about absolute paths here in our basepath context here
+				}
+
+				// Make sure to convert the path back to its original basePath form if the realpath is different
+				if (realBasePathDiffers) {
+					path = originalBasePath + path.substr(realBasePathLength);
 				}
 
 				let event: watcher.IRawFileChange = null;
 
 				// Change
 				if (type === 'change') {
-					event = {
-						type: 0,
-						path: path
-					};
+					event = { type: 0, path };
 				}
 
 				// Add
 				else if (type === 'add' || type === 'addDir') {
-					event = {
-						type: 1,
-						path: path
-					};
+					event = { type: 1, path };
 				}
 
 				// Delete
 				else if (type === 'unlink' || type === 'unlinkDir') {
-					event = {
-						type: 2,
-						path: path
-					};
+					event = { type: 2, path };
 				}
 
 				if (event) {

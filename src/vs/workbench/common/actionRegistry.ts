@@ -165,7 +165,7 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	// don't run the action when not enabled
 	if (!actionInstance.enabled) {
 		actionInstance.dispose();
-		return;
+		return undefined;
 	}
 
 	if (telemetryService) {
@@ -175,7 +175,7 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	// run action when workbench is created
 	return partService.joinCreation().then(() => {
 		try {
-			return TPromise.as(actionInstance.run(args)).then(() => {
+			return TPromise.as(actionInstance.run()).then(() => {
 				actionInstance.dispose();
 			}, (err) => {
 				actionInstance.dispose();

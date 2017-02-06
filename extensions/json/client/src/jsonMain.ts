@@ -14,7 +14,7 @@ import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any, any> = { get method() { return 'vscode/content'; }, _: null };
+	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
 }
 
 export interface ISchemaAssociations {
@@ -22,7 +22,7 @@ export interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations, any> = { get method() { return 'json/schemaAssociations'; }, _: null };
+	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
 }
 
 interface IPackageInfo {
@@ -57,12 +57,11 @@ export function activate(context: ExtensionContext) {
 			documentSelector: ['json'],
 			synchronize: {
 				// Synchronize the setting section 'json' to the server
-				configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
+				configurationSection: ['json', 'http.proxy', 'http.proxyStrictSSL'],
 				fileEvents: workspace.createFileSystemWatcher('**/*.json')
 			},
 			initializationOptions: {
-				languageIds,
-				['format.enable']: workspace.getConfiguration('json').get('format.enable')
+				languageIds
 			}
 		};
 

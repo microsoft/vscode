@@ -7,7 +7,8 @@
 
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryExperiments, defaultExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryAppender, defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -115,6 +116,7 @@ export class TelemetryService implements ITelemetryService {
 				if (typeof value === 'string') {
 					return this._cleanupInfo(value);
 				}
+				return undefined;
 			});
 
 			this._appender.log(eventName, data);

@@ -171,7 +171,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							nls.localize('install', "Yes"),
 							nls.localize('doNotInstall', "No")
 						];
-						return this.choiceService.choose(Severity.Info, message, options)
+						return this.choiceService.choose(Severity.Info, message, options, true)
 							.then(value => {
 								if (value === 0) {
 									return this.installWithDependencies(compatibleVersion);

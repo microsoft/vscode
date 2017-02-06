@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
+import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Keybinding, KeyCode } from 'vs/base/common/keyCodes';
@@ -32,9 +32,7 @@ suite('StandaloneKeybindingService', () => {
 
 		let contextKeyService = new ContextKeyService(configurationService);
 
-		let extensionService = new SimpleExtensionService();
-
-		let commandService = new StandaloneCommandService(instantiationService, extensionService);
+		let commandService = new StandaloneCommandService(instantiationService);
 
 		let messageService = new SimpleMessageService();
 
@@ -43,7 +41,7 @@ suite('StandaloneKeybindingService', () => {
 		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, messageService, domElement);
 
 		let commandInvoked = false;
-		keybindingService.addDynamicKeybinding(KeyCode.F9, () => {
+		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
 			commandInvoked = true;
 		}, null);
 

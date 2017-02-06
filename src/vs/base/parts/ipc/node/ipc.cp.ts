@@ -10,6 +10,7 @@ import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
+import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
@@ -54,6 +55,12 @@ export interface IIPCOptions {
 	 * Allows to assign a debug port for debugging the application and breaking it on the first line.
 	 */
 	debugBrk?: number;
+
+	/**
+	 * Enables our createQueuedSender helper for this Client. Uses a queue when the internal Node.js queue is
+	 * full of messages - see notes on that method.
+	 */
+	useQueue?: boolean;
 }
 
 export class Client implements IChannelClient, IDisposable {
@@ -152,7 +159,8 @@ export class Client implements IChannelClient, IDisposable {
 				}
 			});
 
-			const send = r => this.child && this.child.connected && this.child.send(r);
+			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
+			const send = r => this.child && this.child.connected && sender.send(r);
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 

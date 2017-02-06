@@ -26,6 +26,6 @@
 .monaco-editor.vs-dark			.view-overlays			.selected-text { background: #3A3D41; }
 .monaco-editor.vs-dark			.view-overlays.focused	.selected-text { background: #264F78; }
 .monaco-editor.hc-black			.view-overlays			.selected-text { background: none; }
-.monaco-editor.hc-black			.view-overlays.focused	.selected-text { background: white; }
+.monaco-editor.hc-black			.view-overlays.focused	.selected-text { background: #f3f518; }
 .monaco-editor.ie.hc-black		.view-overlays.focused	.selected-text { background: none; border: 2px solid #f38518; }
 .monaco-editor.edge.hc-black	.view-overlays.focused	.selected-text { background: none; border: 2px solid #f38518; }

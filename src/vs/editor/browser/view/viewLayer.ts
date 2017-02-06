@@ -8,32 +8,36 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
-export interface IVisibleLineData {
+/**
+ * Represents a visible line
+ */
+export interface IVisibleLine {
 	getDomNode(): HTMLElement;
 	setDomNode(domNode: HTMLElement): void;
 
 	onContentChanged(): void;
 	onTokensChanged(): void;
-	onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void;
 
-	getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void;
-	getLineInnerHTML(lineNumber: number): string;
+	/**
+	 * Return null if the HTML should not be touched.
+	 * Return the new HTML otherwise.
+	 */
+	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string;
 
-	shouldUpdateHTML(startLineNumber: number, lineNumber: number, inlineDecorations: InlineDecoration[]): boolean;
+	/**
+	 * Layout the line.
+	 */
 	layoutLine(lineNumber: number, deltaTop: number): void;
 }
 
-interface IRendererContext<T extends IVisibleLineData> {
-	domNode: HTMLElement;
+interface IRendererContext<T extends IVisibleLine> {
+	readonly domNode: HTMLElement;
 	rendLineNumberStart: number;
 	lines: T[];
 	linesLength: number;
-	getInlineDecorationsForLineInViewport(lineNumber: number): InlineDecoration[];
-	viewportTop: number;
-	viewportHeight: number;
+	readonly viewportData: ViewportData;
 	scrollDomNode: HTMLElement;
 	scrollDomNodeIsAbove: boolean;
 }
@@ -238,7 +242,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	}
 }
 
-export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
+export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
 	protected domNode: FastDomNode;
 	protected _linesCollection: RenderedLinesCollection<T>;
@@ -267,16 +271,6 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 	}
 
 	// ---- begin view event handlers
-
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		let startLineNumber = this._linesCollection.getStartLineNumber();
-		let endLineNumber = this._linesCollection.getEndLineNumber();
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let line = this._linesCollection.getLine(lineNumber);
-			line.onConfigurationChanged(e);
-		}
-		return true;
-	}
 
 	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		return true;
@@ -337,7 +331,7 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 
 
 	// ---- end view event handlers
-	public _renderLines(linesViewportData: ViewLinesViewportData): void {
+	public _renderLines(viewportData: ViewportData): void {
 
 		let inp = this._linesCollection._get();
 
@@ -346,22 +340,20 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 			rendLineNumberStart: inp.rendLineNumberStart,
 			lines: inp.lines,
 			linesLength: inp.lines.length,
-			getInlineDecorationsForLineInViewport: (lineNumber: number) => linesViewportData.getInlineDecorationsForLineInViewport(lineNumber),
-			viewportTop: linesViewportData.viewportTop,
-			viewportHeight: linesViewportData.viewportHeight,
+			viewportData: viewportData,
 			scrollDomNode: this._scrollDomNode,
 			scrollDomNodeIsAbove: this._scrollDomNodeIsAbove
 		};
 
 		// Decide if this render will do a single update (single large .innerHTML) or many updates (inserting/removing dom nodes)
-		let resCtx = this._renderer.renderWithManyUpdates(ctx, linesViewportData.startLineNumber, linesViewportData.endLineNumber, linesViewportData.relativeVerticalOffset);
+		let resCtx = this._renderer.renderWithManyUpdates(ctx, viewportData.startLineNumber, viewportData.endLineNumber, viewportData.relativeVerticalOffset);
 
 		this._linesCollection._set(resCtx.rendLineNumberStart, resCtx.lines);
 		this._scrollDomNode = resCtx.scrollDomNode;
 		this._scrollDomNodeIsAbove = resCtx.scrollDomNodeIsAbove;
 	}
 
-	public _createDomNode(): FastDomNode {
+	private _createDomNode(): FastDomNode {
 		let domNode = createFastDomNode(document.createElement('div'));
 		domNode.setClassName('view-layer');
 		domNode.setPosition('absolute');
@@ -373,7 +365,7 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 	protected abstract _createLine(): T;
 }
 
-class ViewLayerRenderer<T extends IVisibleLineData> {
+class ViewLayerRenderer<T extends IVisibleLine> {
 
 	private _createLine: () => T;
 
@@ -392,9 +384,7 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 			rendLineNumberStart: inContext.rendLineNumberStart,
 			lines: inContext.lines.slice(0),
 			linesLength: inContext.linesLength,
-			getInlineDecorationsForLineInViewport: inContext.getInlineDecorationsForLineInViewport,
-			viewportTop: inContext.viewportTop,
-			viewportHeight: inContext.viewportHeight,
+			viewportData: inContext.viewportData,
 			scrollDomNode: inContext.scrollDomNode,
 			scrollDomNodeIsAbove: inContext.scrollDomNodeIsAbove
 		};
@@ -492,12 +482,12 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 	}
 
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
+		const rendLineNumberStart = ctx.rendLineNumberStart;
+		const lines = ctx.lines;
+
 		for (let i = startIndex; i <= endIndex; i++) {
-			let lineNumber = ctx.rendLineNumberStart + i;
-			let lineDomNode = ctx.lines[i].getDomNode();
-			if (lineDomNode) {
-				ctx.lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
-			}
+			let lineNumber = rendLineNumberStart + i;
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
 		}
 	}
 
@@ -575,15 +565,6 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
-	private static _resolveInlineDecorations<T extends IVisibleLineData>(ctx: IRendererContext<T>): InlineDecoration[][] {
-		let result: InlineDecoration[][] = [];
-		for (let i = 0, len = ctx.linesLength; i < len; i++) {
-			let lineNumber = i + ctx.rendLineNumberStart;
-			result[i] = ctx.getInlineDecorationsForLineInViewport(lineNumber);
-		}
-		return result;
-	}
-
 	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string[], wasNew: boolean[]): void {
 		let lastChild = <HTMLElement>ctx.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
@@ -620,8 +601,6 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 
-		let inlineDecorations = ViewLayerRenderer._resolveInlineDecorations(ctx);
-
 		let hadNewLine = false;
 		let wasNew: boolean[] = [];
 		let newLinesHTML: string[] = [];
@@ -633,19 +612,24 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 			let line = ctx.lines[i];
 			let lineNumber = i + ctx.rendLineNumberStart;
 
-			if (line.shouldUpdateHTML(ctx.rendLineNumberStart, lineNumber, inlineDecorations[i])) {
+			wasNew[i] = false;
+			wasInvalid[i] = false;
+
+			let renderResult = line.renderLine(lineNumber, deltaTop[i], ctx.viewportData);
+
+			if (renderResult !== null) {
+				// Line needs rendering
 				let lineDomNode = line.getDomNode();
 				if (!lineDomNode) {
 					// Line is new
-					line.getLineOuterHTML(newLinesHTML, lineNumber, deltaTop[i]);
+					newLinesHTML.push(renderResult);
 					wasNew[i] = true;
 					hadNewLine = true;
 				} else {
 					// Line is invalid
-					line.getLineOuterHTML(invalidLinesHTML, lineNumber, deltaTop[i]);
+					invalidLinesHTML.push(renderResult);
 					wasInvalid[i] = true;
 					hadInvalidLine = true;
-					//					lineDomNode.innerHTML = line.getLineInnerHTML(lineNumber);
 				}
 			}
 		}

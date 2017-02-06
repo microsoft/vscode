@@ -162,21 +162,21 @@ suite('Workbench - Untitled Editor', () => {
 		});
 
 		input.resolve().then((model: UntitledEditorModel) => {
-			model.append('foo');
+			model.textEditorModel.setValue('foo');
 			assert.equal(counter, 0, 'Dirty model should not trigger event immediately');
 
 			TPromise.timeout(3).then(() => {
 				assert.equal(counter, 1, 'Dirty model should trigger event');
 
-				model.append('bar');
+				model.textEditorModel.setValue('bar');
 				TPromise.timeout(3).then(() => {
 					assert.equal(counter, 2, 'Content change when dirty should trigger event');
 
-					model.clearValue();
+					model.textEditorModel.setValue('');
 					TPromise.timeout(3).then(() => {
 						assert.equal(counter, 3, 'Manual revert should trigger event');
 
-						model.append('foo');
+						model.textEditorModel.setValue('foo');
 						TPromise.timeout(3).then(() => {
 							assert.equal(counter, 4, 'Dirty model should trigger event');
 

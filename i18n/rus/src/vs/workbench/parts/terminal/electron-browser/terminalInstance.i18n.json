@@ -6,5 +6,6 @@
 {
 	"terminal.integrated.copySelection.noSelection": "Невозможно скопировать выделение в терминале, когда терминал не имеет фокуса",
 	"terminal.integrated.exitedWithCode": "Процесс терминала завершен с кодом выхода: {0}",
-	"terminal.integrated.launchFailed": "Не удалось запустить команду процесса терминала \"{0}{1}\" (код выхода: {2})"
+	"terminal.integrated.launchFailed": "Не удалось запустить команду процесса терминала \"{0}{1}\" (код выхода: {2})",
+	"terminal.integrated.waitOnExit": "Нажмите любую клавишу, чтобы закрыть терминал."
 }

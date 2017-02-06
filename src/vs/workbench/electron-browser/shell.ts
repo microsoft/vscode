@@ -22,7 +22,8 @@ import pkg from 'vs/platform/node/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
-import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -68,7 +69,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CrashReporter } from 'vs/workbench/electron-browser/crashReporter';
@@ -91,6 +92,11 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
+import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { readFontInfo } from 'vs/editor/browser/config/configuration';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
@@ -281,7 +287,7 @@ export class WorkbenchShell {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: loadExperiments(this.contextService, this.storageService, this.configurationService)
+				experiments: instantiationService.invokeFunction(loadExperiments)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -298,7 +304,7 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = loadExperiments(this.contextService, this.storageService, this.configurationService);
+			NullTelemetryService._experiments = instantiationService.invokeFunction(loadExperiments);
 			this.telemetryService = NullTelemetryService;
 		}
 
@@ -326,7 +332,10 @@ export class WorkbenchShell {
 		serviceCollection.set(IThreadService, this.threadService);
 
 		this.timerService.beforeExtensionLoad = new Date();
-		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
+
+		// TODO@Joao: remove
+		const disabledExtensions = SCMPreview.enabled ? [] : ['vscode.git'];
+		this.extensionService = instantiationService.createInstance(MainProcessExtensionService, disabledExtensions);
 		serviceCollection.set(IExtensionService, this.extensionService);
 		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {
@@ -342,7 +351,7 @@ export class WorkbenchShell {
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
-		serviceCollection.set(IModeService, new SyncDescriptor(MainThreadModeServiceImpl));
+		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
 		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
 
@@ -352,6 +361,8 @@ export class WorkbenchShell {
 
 		this.themeService = instantiationService.createInstance(ThemeService);
 		serviceCollection.set(IThemeService, this.themeService);
+
+		serviceCollection.set(ITextMateService, new SyncDescriptor(MainProcessTextMateSyntax));
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
@@ -377,6 +388,9 @@ export class WorkbenchShell {
 		errors.setUnexpectedErrorHandler((error: any) => {
 			this.onUnexpectedError(error);
 		});
+
+		// Warm up font cache information before building up too many dom elements
+		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor')));
 
 		// Shell Class for CSS Scoping
 		$(this.container).addClass('monaco-shell');

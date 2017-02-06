@@ -48,10 +48,6 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#raw_block</string>
-				</dict>
-				<dict>
-					<key>include</key>
 					<string>#fenced_code_block_css</string>
 				</dict>
 				<dict>
@@ -128,6 +124,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#fenced_code_block_cpp</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#fenced_code_block_diff</string>
 				</dict>
 				<dict>
@@ -141,6 +141,10 @@
 				<dict>
 					<key>include</key>
 					<string>#fenced_code_block_git_rebase</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#fenced_code_block_go</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -188,6 +192,14 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#fenced_code_block_rust</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#fenced_code_block_scala</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#fenced_code_block_shell</string>
 				</dict>
 				<dict>
@@ -201,6 +213,14 @@
 				<dict>
 					<key>include</key>
 					<string>#fenced_code_block_csharp</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#fenced_code_block_unknown</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#raw_block</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -244,7 +264,7 @@
 				<key>heading</key>
 				<dict>
 					<key>begin</key>
-					<string>(?:^|\G)(#{1,6})\s*(?=[\S[^#]])</string>
+					<string>(?:^|\G)[ ]{0,3}(#{1,6})\s*(?=[\S[^#]])</string>
 					<key>captures</key>
 					<dict>
 						<key>1</key>
@@ -258,7 +278,7 @@
 					<key>end</key>
 					<string>\s*(#{1,6})?$\n?</string>
 					<key>name</key>
-					<string>markup.heading.${1/(#)(#)?(#)?(#)?(#)?(#)?/${6:?6:${5:?5:${4:?4:${3:?3:${2:?2:1}}}}}/}.markdown</string>
+					<string>markup.heading.markdown</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -294,8 +314,8 @@
 							<string>(^|\G)\s*(&lt;!--)</string>
 							<key>end</key>
 							<string>(--&gt;)</string>
-							<key>contentName</key>
-							<string>block.comment.html</string>
+							<key>name</key>
+							<string>comment.block.html</string>
 							<key>captures</key>
 							<dict>
 								<key>1</key>
@@ -312,7 +332,29 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(^|\G)\s*(?=&lt;/?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|pre|p|param|script|section|source|style|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\s|$|/?&gt;))</string>
+							<string>(^|\G)\s*(?=&lt;(script|style|pre)(\s|$|&gt;)(?!.*?&lt;/(script|style|pre)&gt;))</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>begin</key>
+									<string>(\s*|$)</string>
+									<key>patterns</key>
+									<array>
+										<dict>
+											<key>include</key>
+											<string>text.html.basic</string>
+										</dict>
+									</array>
+									<key>while</key>
+									<string>^\s*(?!&lt;/(script|style|pre)&gt;)</string>
+								</dict>
+							</array>
+							<key>end</key>
+							<string>(?=&lt;/(script|style|pre)&gt;)</string>
+						</dict>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)\s*(?=&lt;/?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\s|$|/?&gt;))</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -325,7 +367,7 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(^|\G)\s*(?=(&lt;[a-zA-Z0-9\-].*&gt;|&lt;/[a-zA-Z0-9\-]&gt;)\s*$)</string>
+							<string>(^|\G)\s*(?=(&lt;[a-zA-Z0-9\-](/?&gt;|\s.*?&gt;)|&lt;/[a-zA-Z0-9\-]&gt;)\s*$)</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -480,7 +522,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>(^|\G)([ ]{4}|\t)</string>
+							<string>((^|\G)([ ]{4}|\t))|(^[ \t]*$)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
@@ -507,7 +549,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>(^|\G)([ ]{4}|\t)</string>
+							<string>((^|\G)([ ]{4}|\t))|(^[ \t]*$)</string>
 						</dict>
 					</array>
 				</dict>
@@ -533,161 +575,470 @@
 						</dict>
 					</array>
 					<key>while</key>
-					<!-- seperator    [ ]{0,3}([-*_][ ]{0,2}\2){2,}[ \t]*$\n? -->
-					<!-- list         [ ]{0,3}[*+-]([ ]{1,3}|\t) -->
-					<!-- both are folded together in the expression below -->
-					<string>(^|\G)(?!\s*$|#|[ ]{0,3}((([*_][ ]{0,2}\2){2,}[ \t]*$\n?)|([*+-]([ ]{1,3}|\t)))|\s*\[.+?\]:|&gt;)</string>
-				</dict>
-				<key>raw_block</key>
-				<dict>
-					<key>begin</key>
-					<string>(^|\G)([ ]{4}|\t)</string>
-					<key>name</key>
-					<string>markup.raw.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)([ ]{4}|\t)</string>
+					<string>(^|\G)((?=\s*[-=]{3,}\s*$)|[ ]{4,}(?=\S))</string>
 				</dict>
 				<key>fenced_code_block_css</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(css|css.erb)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((css|css.erb)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.css</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.css</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_basic</key>
 				<dict>
 					<key>begin</key>
-						<string>(^|\G)\s*(([`~]){3,})\s*(html|htm|shtml|xhtml|inc|tmpl|tpl)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((html|htm|shtml|xhtml|inc|tmpl|tpl)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>text.html.basic</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>text.html.basic</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_ini</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(ini|conf)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((ini|conf)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.ini</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.ini</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_java</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(java|bsh)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((java|bsh)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.java</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.java</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_lua</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(lua)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((lua)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.lua</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.lua</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_makefile</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(Makefile|makefile|GNUmakefile|OCamlMakefile)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((Makefile|makefile|GNUmakefile|OCamlMakefile)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.makefile</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.makefile</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_perl</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(perl|pl|pm|pod|t|PL|psgi|vcl)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((perl|pl|pm|pod|t|PL|psgi|vcl)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.perl</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.perl</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_r</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(R|r|s|S|Rprofile)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((R|r|s|S|Rprofile)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.r</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.r</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_ruby</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(ruby|rb|rbx|rjs|Rakefile|rake|cgi|fcgi|gemspec|irbrc|Capfile|ru|prawn|Cheffile|Gemfile|Guardfile|Hobofile|Vagrantfile|Appraisals|Rantfile|Berksfile|Berksfile.lock|Thorfile|Puppetfile)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((ruby|rb|rbx|rjs|Rakefile|rake|cgi|fcgi|gemspec|irbrc|Capfile|ru|prawn|Cheffile|Gemfile|Guardfile|Hobofile|Vagrantfile|Appraisals|Rantfile|Berksfile|Berksfile.lock|Thorfile|Puppetfile)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.ruby</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.ruby</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
@@ -706,476 +1057,1766 @@
 					scenarios, and also appears to be consistent with the approach that GitHub takes.
 					</string>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(php|php3|php4|php5|phpt|phtml|aw|ctp)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((php|php3|php4|php5|phpt|phtml|aw|ctp)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>comment</key>
-							<string>
-							Left to its own devices, the PHP grammar will match HTML as a combination of operators
-							and constants. Therefore, HTML must take precedence over PHP in order to get proper
-							syntax highlighting.
-							</string>
-							<key>include</key>
-							<string>text.html.basic</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>text.html.php#language</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>comment</key>
+									<string>
+
+
+									Left to its own devices, the PHP grammar will match HTML as a combination of operators
+									and constants. Therefore, HTML must take precedence over PHP in order to get proper
+									syntax highlighting.
+									</string>
+									<key>include</key>
+									<string>text.html.basic</string>
+								</dict>
+								<dict>
+									<key>include</key>
+									<string>text.html.php#language</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_sql</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(sql|ddl|dml)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((sql|ddl|dml)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.sql</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.sql</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_vs_net</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(vb)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((vb)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.asp.vb.net</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.asp.vb.net</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_xml</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(xml|xsd|tld|jsp|pt|cpt|dtml|rss|opml)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((xml|xsd|tld|jsp|pt|cpt|dtml|rss|opml)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>text.xml</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>text.xml</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_xsl</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(xsl|xslt)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((xsl|xslt)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>text.xml.xsl</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>text.xml.xsl</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_yaml</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(yaml|yml)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((yaml|yml)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.yaml</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.yaml</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_dosbatch</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(bat|batch)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((bat|batch)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.dosbatch</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.dosbatch</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_clojure</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(clj|cljs|clojure)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((clj|cljs|clojure)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.clojure</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.clojure</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_coffee</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(coffee|Cakefile|coffee.erb)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((coffee|Cakefile|coffee.erb)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.coffee</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.coffee</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_c</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(c|h)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((c|h)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.c</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.c</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_cpp</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((cpp|c\+\+|cxx)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.cpp</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_diff</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(patch|diff|rej)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((patch|diff|rej)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.diff</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.diff</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_dockerfile</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(dockerfile|Dockerfile)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((dockerfile|Dockerfile)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.dockerfile</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.dockerfile</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_git_commit</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(COMMIT_EDITMSG|MERGE_MSG)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((COMMIT_EDITMSG|MERGE_MSG)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>text.git-commit</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>text.git-commit</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_git_rebase</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(git-rebase-todo)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((git-rebase-todo)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>text.git-rebase</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>text.git-rebase</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_go</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((go|golang)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.go</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_groovy</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(groovy|gvy)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((groovy|gvy)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.groovy</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.groovy</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_jade</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(jade)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((jade)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>text.jade</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>text.jade</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_js</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(js|jsx|javascript)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((js|jsx|javascript)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.js</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.js</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_js_regexp</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(regexp)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((regexp)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.js.regexp</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.js.regexp</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_json</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(json|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((json|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.json</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.json</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_less</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(less)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((less)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.css.less</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.css.less</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_objc</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(objectivec|mm|objc|obj-c|m|h)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((objectivec|mm|objc|obj-c|m|h)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.objc</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.objc</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_perl6</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(perl6|p6|pl6|pm6|nqp)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((perl6|p6|pl6|pm6|nqp)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.perl.6</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.perl.6</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_powershell</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(powershell|ps1|psm1|psd1)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((powershell|ps1|psm1|psd1)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.powershell</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.powershell</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_python</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(python|py|py3|rpy|pyw|cpy|SConstruct|Sconstruct|sconstruct|SConscript|gyp|gypi)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((python|py|py3|rpy|pyw|cpy|SConstruct|Sconstruct|sconstruct|SConscript|gyp|gypi)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.python</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.python</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_regexp_python</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(re)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((re)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.regexp.python</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.regexp.python</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_rust</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((rust|rs)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.rust</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+                <key>fenced_code_block_scala</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((scala|sbt)(\s+.*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.scala</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_shell</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(shell|sh|bash|zsh|bashrc|bash_profile|bash_login|profile|bash_logout|.textmate_init)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((shell|sh|bash|zsh|bashrc|bash_profile|bash_login|profile|bash_logout|.textmate_init)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.shell</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.shell</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_ts</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(typescript|ts)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((typescript|ts)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.ts</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.ts</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_tsx</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(tsx)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((tsx)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.tsx</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.tsx</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
 				</dict>
 				<key>fenced_code_block_csharp</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)\s*(([`~]){3,})\s*(cs|csharp|c#)(\s+.*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((cs|csharp|c#)(\s+.*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>while</key>
-					<string>(^|\G)(?!\s*\2\3*\s*$)</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.cs</string>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.cs</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
+				</dict>
+				<key>fenced_code_block_unknown</key>
+				<dict>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*(.*)?$</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>4</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+				</dict>
+				<key>raw_block</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)([ ]{4}|\t)</string>
+					<key>name</key>
+					<string>markup.raw.block.markdown</string>
+					<key>while</key>
+					<string>(^|\G)([ ]{4}|\t)</string>
 				</dict>
 				<key>separator</key>
 				<dict>
@@ -1283,9 +2924,9 @@
 												)
 											  | (							# Inline Link
 													\(						# Opening paren
-														[ \t]*+				# Optional whtiespace
+														[ \t]*+				# Optional whitespace
 														&lt;?(.*?)&gt;?			# URL
-														[ \t]*+				# Optional whtiespace
+														[ \t]*+				# Optional whitespace
 														(					# Optional Title
 															(?&lt;title&gt;['"])
 															(.*?)
@@ -1902,7 +3543,7 @@
 					<key>match</key>
 					<string>(`+)([^`]|(?!(?&lt;!`)\1(?!`))`)*+(\1)</string>
 					<key>name</key>
-					<string>markup.raw.inline.markdown</string>
+					<string>markup.inline.raw.markdown</string>
 				</dict>
 			</dict>
 		</dict>

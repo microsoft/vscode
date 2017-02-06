@@ -7,6 +7,8 @@
 	"invalid.properties": "configuration.properties 必须是对象",
 	"invalid.title": "configuration.title 必须是字符串",
 	"invalid.type": "如果进行设置，\"configuration.type\" 必须设置为对象",
+	"overrideSettings.description": "为一组语言标识符配置要被替代的设置。",
+	"overrideSettings.title": "替代设置",
 	"vscode.extension.contributes.configuration": "用于配置字符串。",
 	"vscode.extension.contributes.configuration.properties": "配置属性的描述。",
 	"vscode.extension.contributes.configuration.title": "设置摘要。此标签将在设置文件中用作分隔注释。"

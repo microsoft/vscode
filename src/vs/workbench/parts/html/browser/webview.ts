@@ -14,20 +14,16 @@ import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { isLightTheme, isDarkTheme } from 'vs/platform/theme/common/themes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
 	autoSize: 'on';
 	nodeintegration: 'on';
-	disablewebsecurity: 'on';
 	preload: string;
 
-	getURL(): string;
-	getTitle(): string;
-	executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => any);
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
-	closeDevTools(): any;
 }
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
@@ -126,10 +122,6 @@ export default class Webview {
 		}
 	}
 
-	get domNode(): HTMLElement {
-		return this._webview;
-	}
-
 	get onDidClickLink(): Event<URI> {
 		return this._onDidClickLink.event;
 	}
@@ -157,7 +149,12 @@ export default class Webview {
 		this._send('focus');
 	}
 
-	style(themeId: string): void {
+	public sendMessage(data: any): void {
+		this._send('message', data);
+	}
+
+	style(theme: IColorTheme): void {
+		let themeId = theme.id;
 		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(this._styleElement);
 
 		let value = `

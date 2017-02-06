@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, { Emitter } from 'vs/base/common/event';
+import * as errors from 'vs/base/common/errors';
 import platform = require('vs/base/common/platform');
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, ITerminalService, IShell, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
@@ -60,20 +61,14 @@ export class TerminalService implements ITerminalService {
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
-	public createInstance(name?: string, shellPath?: string, shellArgs?: string[], ignoreCustomCwd?: boolean): ITerminalInstance {
-		let shell: IShell = {
-			executable: shellPath,
-			args: shellArgs,
-			ignoreCustomCwd
-		};
+	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
-			name,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-		terminalInstance.addDisposable(terminalInstance.onClosed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
@@ -183,13 +178,14 @@ export class TerminalService implements ITerminalService {
 				}
 				complete(void 0);
 			}
+			return undefined;
 		});
 	}
 
 	public hidePanel(): void {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true);
+			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
 		}
 	}
 

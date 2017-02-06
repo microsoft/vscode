@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-var es = require('event-stream');
-var debounce = require('debounce');
-var _filter = require('gulp-filter');
-var rename = require('gulp-rename');
-var _ = require('underscore');
-var path = require('path');
-var fs = require('fs');
-var _rimraf = require('rimraf');
-var git = require('./git');
-var VinylFile = require('vinyl');
+var es = require("event-stream");
+var debounce = require("debounce");
+var _filter = require("gulp-filter");
+var rename = require("gulp-rename");
+var _ = require("underscore");
+var path = require("path");
+var fs = require("fs");
+var _rimraf = require("rimraf");
+var git = require("./git");
+var VinylFile = require("vinyl");
 var NoCancellationToken = { isCancellationRequested: function () { return false; } };
 function incremental(streamProvider, initial, supportsCancellation) {
     var input = es.through();

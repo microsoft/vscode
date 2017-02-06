@@ -6,7 +6,6 @@
 'use strict';
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as strings from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -472,15 +471,15 @@ export class SnippetController {
 		this.run(snippet, overwriteBefore, overwriteAfter);
 	}
 
-	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
+	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number): void {
 		this._runAndRestoreController(() => {
 			if (snippet.isInsertOnly || snippet.isSingleTabstopOnly) {
 				// Only inserts text, not placeholders, tabstops etc
 				// Only cursor endposition
-				this._runForAllSelections(snippet, overwriteBefore, overwriteAfter, stripPrefix);
+				this._runForAllSelections(snippet, overwriteBefore, overwriteAfter);
 
 			} else {
-				let prepared = SnippetController._prepareSnippet(this._editor, this._editor.getSelection(), snippet, overwriteBefore, overwriteAfter, stripPrefix);
+				let prepared = SnippetController._prepareSnippet(this._editor, this._editor.getSelection(), snippet, overwriteBefore, overwriteAfter);
 				this._runPreparedSnippetForPrimarySelection(prepared, true);
 			}
 		});
@@ -555,7 +554,7 @@ export class SnippetController {
 		}
 	}
 
-	private _runForAllSelections(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
+	private _runForAllSelections(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number): void {
 
 		const edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		const selections = this._editor.getSelections();
@@ -582,8 +581,7 @@ export class SnippetController {
 				selection,
 				snippet,
 				beforeAfter.overwriteBefore,
-				beforeAfter.overwriteAfter,
-				stripPrefix
+				beforeAfter.overwriteAfter
 			);
 
 			SnippetController._addCommandForSnippet(this._editor.getModel(), adaptedSnippet, typeRange, edits);
@@ -647,25 +645,12 @@ export class SnippetController {
 		model.pushStackElement();
 	}
 
-	private static _prepareSnippet(editor: editorCommon.ICommonCodeEditor, selection: Selection, snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix = true): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
-		var model = editor.getModel();
+	private static _prepareSnippet(editor: editorCommon.ICommonCodeEditor, selection: Selection, snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
+		const model = editor.getModel();
+		const typeRange = SnippetController._getTypeRangeForSelection(model, selection, overwriteBefore, overwriteAfter);
+		const adaptedSnippet = SnippetController._getAdaptedSnippet(model, snippet, typeRange);
 
-		var typeRange = SnippetController._getTypeRangeForSelection(model, selection, overwriteBefore, overwriteAfter);
-		if (snippet.lines.length === 1) {
-			var nextTextOnLine = model.getLineContent(typeRange.endLineNumber).substr(typeRange.endColumn - 1);
-			var nextInSnippet = snippet.lines[0].substr(overwriteBefore);
-			var commonPrefix = strings.commonPrefixLength(nextTextOnLine, nextInSnippet);
-
-			if (commonPrefix > 0 && stripPrefix) {
-				typeRange = typeRange.setEndPosition(typeRange.endLineNumber, typeRange.endColumn + commonPrefix);
-			}
-		}
-
-		var adaptedSnippet = SnippetController._getAdaptedSnippet(model, snippet, typeRange);
-		return {
-			typeRange: typeRange,
-			adaptedSnippet: adaptedSnippet
-		};
+		return { typeRange, adaptedSnippet };
 	}
 
 	private static _getTypeRangeForSelection(model: editorCommon.IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Range {

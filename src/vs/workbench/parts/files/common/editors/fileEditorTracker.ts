@@ -8,9 +8,9 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IEditor } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
-import { EditorInput, IEditorStacksModel, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { toResource, EditorInput, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
@@ -157,11 +157,40 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						}
 
 						// Reopen
-						this.editorService.openEditor({ resource: reopenFileResource, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor({
+							resource: reopenFileResource,
+							options: {
+								preserveFocus: true,
+								pinned: group.isPinned(input),
+								index: group.indexOf(input),
+								inactive: !group.isActive(input),
+								viewState: this.getViewStateFor(oldResource, group)
+							}
+						}, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
 			});
 		});
+	}
+
+	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState {
+		const stacks = this.editorGroupService.getStacksModel();
+		const editors = this.editorService.getVisibleEditors();
+
+		for (let i = 0; i < editors.length; i++) {
+			const editor = editors[i];
+			if (editor && editor.position === stacks.positionOfGroup(group)) {
+				const resource = toResource(editor.input, { filter: 'file' });
+				if (resource && resource.fsPath === resource.fsPath) {
+					const control = editor.getControl();
+					if (isCommonCodeEditor(control)) {
+						return control.saveViewState();
+					}
+				}
+			}
+		}
+
+		return void 0;
 	}
 
 	private handleUpdatesToVisibleEditors(e: FileChangesEvent) {

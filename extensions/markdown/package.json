@@ -13,6 +13,7 @@
 		"Languages"
 	],
 	"activationEvents": [
+		"onLanguage:markdown",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showSource"
@@ -133,7 +134,7 @@
 				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
-					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light', sans-serif, 'Droid Sans Fallback'",
+					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light', sans-serif",
 					"description": "%markdown.preview.fontFamily.desc%"
 				},
 				"markdown.preview.fontSize": {
@@ -145,6 +146,26 @@
 					"type": "number",
 					"default": 1.6,
 					"description": "%markdown.preview.lineHeight.desc%"
+				},
+				"markdown.preview.scrollPreviewWithEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%"
+				},
+				"markdown.preview.markEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.markEditorSelection.desc%"
+				},
+				"markdown.preview.scrollEditorWithPreview": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollEditorWithPreview.desc%"
+				},
+				"markdown.preview.doubleClickToSwitchToEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
 				}
 			}
 		}
@@ -154,8 +175,11 @@
 	},
 	"dependencies": {
 		"highlight.js": "^9.3.0",
-		"markdown-it": "^6.0.1",
+		"markdown-it": "^8.2.2",
 		"markdown-it-named-headers": "0.0.4",
 		"vscode-extension-telemetry": "^0.0.5"
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
 	}
 }

@@ -8,11 +8,11 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorCommon';
-import { TextCompareEditorVisible, TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
@@ -192,30 +192,8 @@ function registerDiffEditorCommands(): void {
 
 function handleCommandDeprecations(): void {
 	const mapDeprecatedCommands = {
-		'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
-		'workbench.action.focusSecondEditor': 'workbench.action.focusSecondEditorGroup',
-		'workbench.action.focusThirdEditor': 'workbench.action.focusThirdEditorGroup',
-		'workbench.action.focusLeftEditor': 'workbench.action.focusPreviousGroup',
-		'workbench.action.focusRightEditor': 'workbench.action.focusNextGroup',
-		'workbench.action.moveActiveEditorLeft': 'workbench.action.moveActiveEditorGroupLeft',
-		'workbench.action.moveActiveEditorRight': 'workbench.action.moveActiveEditorGroupRight',
-		'workbench.action.openPreviousEditor': 'workbench.action.openPreviousEditorFromHistory',
-		'workbench.files.action.addToWorkingFiles': 'workbench.action.keepEditor',
-		'workbench.files.action.closeAllFiles': 'workbench.action.closeAllEditors',
-		'workbench.files.action.closeFile': 'workbench.action.closeActiveEditor',
-		'workbench.files.action.closeOtherFiles': 'workbench.action.closeOtherEditors',
-		'workbench.files.action.focusWorkingFiles': 'workbench.files.action.focusOpenEditorsView',
-		'workbench.files.action.openNextWorkingFile': 'workbench.action.nextEditor',
-		'workbench.files.action.openPreviousWorkingFile': 'workbench.action.previousEditor',
-		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
-		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
-		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
-		'workbench.action.terminal.focus': 'workbench.action.focusPanel',
-		'workbench.action.showEditorsInLeftGroup': 'workbench.action.showEditorsInFirstGroup',
-		'workbench.action.showEditorsInCenterGroup': 'workbench.action.showEditorsInSecondGroup',
-		'workbench.action.showEditorsInRightGroup': 'workbench.action.showEditorsInThirdGroup',
-		'workbench.action.moveEditorToLeftGroup': 'workbench.action.moveEditorToPreviousGroup',
-		'workbench.action.moveEditorToRightGroup': 'workbench.action.moveEditorToNextGroup'
+		'workbench.action.files.newFile': 'explorer.newFile',
+		'workbench.action.files.newFolder': 'explorer.newFolder'
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {

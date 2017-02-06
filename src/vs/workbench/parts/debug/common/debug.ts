@@ -9,11 +9,13 @@ import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModel as EditorIModel, IEditorContribution, IRange } from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
@@ -66,14 +68,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	type?: string;
 }
 
-export enum SessionRequestType {
-	LAUNCH,
-	ATTACH,
-	LAUNCH_NO_DEBUG
-}
-
 export interface ISession {
-	requestType: SessionRequestType;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
@@ -100,7 +95,9 @@ export interface ISession {
 
 export interface IProcess extends ITreeElement {
 	name: string;
+	configuration: IConfig;
 	session: ISession;
+	isAttach(): boolean;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
@@ -168,8 +165,10 @@ export interface IStackFrame extends ITreeElement {
 	frameId: number;
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
+	getMostSpecificScopes(range: IRange): TPromise<IScope[]>;
 	restart(): TPromise<any>;
 	toString(): string;
+	openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -261,12 +260,10 @@ export interface IModel extends ITreeElement {
 // Debug enums
 
 export enum State {
-	Disabled,
 	Inactive,
 	Initializing,
 	Stopped,
-	Running,
-	RunningNoDebug
+	Running
 }
 
 // Debug configuration interfaces
@@ -274,6 +271,7 @@ export enum State {
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openExplorerOnEnd: boolean;
+	inlineValues: boolean;
 }
 
 export interface IGlobalConfig {
@@ -304,6 +302,11 @@ export interface ICompound {
 	configurations: string[];
 }
 
+export interface IAdapterExecutable {
+	command?: string;
+	args?: string[];
+}
+
 export interface IRawEnvAdapter {
 	type?: string;
 	label?: string;
@@ -314,10 +317,13 @@ export interface IRawEnvAdapter {
 }
 
 export interface IRawAdapter extends IRawEnvAdapter {
+	adapterExecutableCommand?: string;
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
 	initialConfigurations?: any[] | string;
+	startSessionCommand?: string;
+	languages?: string[];
 	variables?: { [key: string]: string };
 	aiKey?: string;
 	win?: IRawEnvAdapter;
@@ -330,10 +336,10 @@ export interface IRawAdapter extends IRawEnvAdapter {
 export interface IConfigurationManager {
 
 	/**
-	 * Returns a resolved debug configuration.
-	 * If nameOrConfig is null resolves the first configuration and returns it.
+	 * Returns a configuration with the specified name.
+	 * Returns null if there is no configuration with the specified name.
 	 */
-	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+	getConfiguration(name: string): IConfig;
 
 	/**
 	 * Returns the names of all configurations and compounds.
@@ -342,20 +348,33 @@ export interface IConfigurationManager {
 	getConfigurationNames(): string[];
 
 	/**
+	 * Returns the resolved configuration.
+	 * Replaces os specific values, system variables, interactive variables.
+	 */
+	resloveConfiguration(config: IConfig): TPromise<IConfig>;
+
+	/**
 	 * Returns a compound with the specified name.
 	 * Returns null if there is no compound with the specified name.
 	 */
 	getCompound(name: string): ICompound;
 
 	/**
-	 * Opens the launch.json file
+	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean): TPromise<boolean>;
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
 
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
 	 */
 	canSetBreakpointsIn(model: EditorIModel): boolean;
+
+	/**
+	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
+	 * If no type is specified will try to automatically pick an adapter by looking at
+	 * the active editor language and matching it against the "languages" contribution of an adapter.
+	 */
+	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
 }
 
 // Debug service interfaces
@@ -466,6 +485,11 @@ export interface IDebugService {
 	restartProcess(process: IProcess): TPromise<any>;
 
 	/**
+	 * Deemphasizes all sources with the passed uri. Source will appear as grayed out in callstack view.
+	 */
+	deemphasizeSource(uri: uri): void;
+
+	/**
 	 * Gets the current debug model.
 	 */
 	getModel(): IModel;
@@ -481,6 +505,7 @@ export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): TPromise<void>;
 	showBreakpointWidget(lineNumber: number): void;
 	closeBreakpointWidget(): void;
+	addLaunchConfiguration(): TPromise<any>;
 }
 
 // utils

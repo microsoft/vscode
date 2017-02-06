@@ -38,8 +38,12 @@
 	border-color: #fff;
 	color: #000; /* opposite of #fff */
 }
+.monaco-editor.hc-black .cursors-layer.has-selection .cursor {
+	border-left: 1px solid #000;
+	border-right: 1px solid #000;
+}
 
-@keyframes cursor-blink {
+@keyframes monaco-cursor-blink {
 	50% {
 		opacity: 0;
 	}
@@ -48,7 +52,7 @@
 	}
 }
 
-@keyframes cursor-smooth {
+@keyframes monaco-cursor-smooth {
 	0%,
 	20% {
 		opacity: 1;
@@ -59,7 +63,7 @@
 	}
 }
 
-@keyframes cursor-phase {
+@keyframes monaco-cursor-phase {
 	0%,
 	20% {
 		opacity: 1;
@@ -70,7 +74,7 @@
 	}
 }
 
-@keyframes cursor-expand {
+@keyframes monaco-cursor-expand {
 	0%,
 	20% {
 		transform: scaleY(1);
@@ -82,17 +86,17 @@
 }
 
 .cursor-blink {
-	animation: cursor-blink 1s step-start 0s infinite;
+	animation: monaco-cursor-blink 1s step-start 0s infinite;
 }
 
 .cursor-smooth {
-	animation: cursor-smooth 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-smooth 0.5s ease-in-out 0s infinite alternate;
 }
 
 .cursor-phase {
-	animation: cursor-phase 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-phase 0.5s ease-in-out 0s infinite alternate;
 }
 
 .cursor-expand > .cursor {
-	animation: cursor-expand 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-expand 0.5s ease-in-out 0s infinite alternate;
 }

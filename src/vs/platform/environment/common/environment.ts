@@ -14,6 +14,7 @@ export interface ParsedArgs {
 	diff?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
+	'new-window-if-not-first'?: boolean;
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
@@ -31,6 +32,7 @@ export interface ParsedArgs {
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
 	'open-url'?: string | string[];
+	'prof-startup-timers': string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

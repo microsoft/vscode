@@ -92,7 +92,7 @@ export class ContributableActionProvider implements IActionProvider {
 	private registry: IActionBarRegistry;
 
 	constructor() {
-		this.registry = (<IActionBarRegistry>Registry.as(Extensions.Actionbar));
+		this.registry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 	}
 
 	private toContext(tree: ITree, element: any): any {

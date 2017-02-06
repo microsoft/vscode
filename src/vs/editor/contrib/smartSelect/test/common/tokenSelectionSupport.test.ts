@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { IMode } from 'vs/editor/common/modes';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -17,10 +17,12 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 
 class MockJSMode extends MockMode {
 
-	constructor() {
-		super('mock-js');
+	private static _id = new LanguageIdentifier('mockJSMode', 3);
 
-		LanguageConfigurationRegistry.register(this.getId(), {
+	constructor() {
+		super(MockJSMode._id);
+
+		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -55,25 +57,30 @@ class MockJSMode extends MockMode {
 					action: { indentAction: IndentAction.None, removeText: 1 }
 				}
 			]
-		});
+		}));
 	}
 }
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService: ModelServiceImpl;
+	let modelService: ModelServiceImpl = null;
 	let tokenSelectionSupport: TokenSelectionSupport;
-	let _mode: IMode = new MockJSMode();
+	let mode: MockJSMode = null;
 
 	setup(() => {
-
-		modelService = new ModelServiceImpl(null, new TestConfigurationService(), null);
+		modelService = new ModelServiceImpl(null, new TestConfigurationService());
 		tokenSelectionSupport = new TokenSelectionSupport(modelService);
+		mode = new MockJSMode();
+	});
+
+	teardown(() => {
+		modelService.dispose();
+		mode.dispose();
 	});
 
 	function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): void {
 		let uri = URI.file('test.js');
-		modelService.createModel(text.join('\n'), _mode, uri);
+		modelService.createModel(text.join('\n'), mode, uri);
 
 		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, {
 			lineNumber: lineNumber,

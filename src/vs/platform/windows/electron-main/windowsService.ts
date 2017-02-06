@@ -16,7 +16,7 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
+import { IWindowsMainService, OpenContext } from 'vs/code/electron-main/windows';
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -94,7 +94,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (vscodeWindow) {
-			this.windowsMainService.open({ cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow });
+			this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow, forceReuseWindow: true });
 		}
 
 		return TPromise.as(null);
@@ -193,22 +193,17 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	toggleMenuBar(windowId: number): TPromise<void> {
-		this.windowsMainService.toggleMenuBar(windowId);
-		return TPromise.as(null);
-	}
-
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		if (!paths || !paths.length) {
 			return TPromise.as(null);
 		}
 
-		this.windowsMainService.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
+		this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options && options.forceNewWindow, forceReuseWindow: options && options.forceReuseWindow });
 		return TPromise.as(null);
 	}
 
 	openNewWindow(): TPromise<void> {
-		this.windowsMainService.openNewWindow();
+		this.windowsMainService.openNewWindow(OpenContext.OTHER);
 		return TPromise.as(null);
 	}
 
@@ -271,7 +266,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const pathsToOpen = [filePath];
 
-		this.windowsMainService.open({ cli, pathsToOpen });
+		this.windowsMainService.open({ context: OpenContext.OTHER, cli, pathsToOpen });
 		return TPromise.as(null);
 	}
 

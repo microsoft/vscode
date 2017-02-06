@@ -28,14 +28,14 @@ options.sourceMap = true;
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
 
-function createCompile(build:boolean, emitError?:boolean): (token?:util.ICancellationToken) => NodeJS.ReadWriteStream {
+function createCompile(build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
 	const opts = _.clone(options);
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
 	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
 
-	return function (token?:util.ICancellationToken) {
+	return function (token?: util.ICancellationToken) {
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
@@ -63,7 +63,7 @@ function createCompile(build:boolean, emitError?:boolean): (token?:util.ICancell
 	};
 }
 
-export function compileTask(out:string, build:boolean): () => NodeJS.ReadWriteStream {
+export function compileTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 	const compile = createCompile(build, true);
 
 	return function () {
@@ -79,7 +79,7 @@ export function compileTask(out:string, build:boolean): () => NodeJS.ReadWriteSt
 	};
 }
 
-export function watchTask(out:string, build:boolean): () => NodeJS.ReadWriteStream {
+export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 	const compile = createCompile(build);
 
 	return function () {
@@ -96,21 +96,21 @@ export function watchTask(out:string, build:boolean): () => NodeJS.ReadWriteStre
 	};
 }
 
-function monacodtsTask(out:string, isWatch:boolean): NodeJS.ReadWriteStream {
-	let timer:NodeJS.Timer = null;
+function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
+	let timer: NodeJS.Timer = null;
 
-	const runSoon = function(howSoon:number) {
+	const runSoon = function (howSoon: number) {
 		if (timer !== null) {
 			clearTimeout(timer);
 			timer = null;
 		}
-		timer = setTimeout(function() {
+		timer = setTimeout(function () {
 			timer = null;
 			runNow();
 		}, howSoon);
 	};
 
-	const runNow = function() {
+	const runNow = function () {
 		if (timer !== null) {
 			clearTimeout(timer);
 			timer = null;
@@ -133,16 +133,16 @@ function monacodtsTask(out:string, isWatch:boolean): NodeJS.ReadWriteStream {
 
 	if (isWatch) {
 
-		const filesToWatchMap: {[file:string]:boolean;} = {};
-		monacodts.getFilesToWatch(out).forEach(function(filePath) {
+		const filesToWatchMap: { [file: string]: boolean; } = {};
+		monacodts.getFilesToWatch(out).forEach(function (filePath) {
 			filesToWatchMap[path.normalize(filePath)] = true;
 		});
 
-		watch('build/monaco/*').pipe(es.through(function() {
+		watch('build/monaco/*').pipe(es.through(function () {
 			runSoon(5000);
 		}));
 
-		resultStream = es.through(function(data) {
+		resultStream = es.through(function (data) {
 			const filePath = path.normalize(data.path);
 			if (filesToWatchMap[filePath]) {
 				runSoon(5000);
@@ -152,7 +152,7 @@ function monacodtsTask(out:string, isWatch:boolean): NodeJS.ReadWriteStream {
 
 	} else {
 
-		resultStream = es.through(null, function() {
+		resultStream = es.through(null, function () {
 			runNow();
 			this.emit('end');
 		});

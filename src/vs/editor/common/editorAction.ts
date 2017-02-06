@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IActionDescriptor, ICommonCodeEditor, IEditorAction } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorAction } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -62,10 +62,10 @@ export class DynamicEditorAction extends AbstractInternalEditorAction implements
 
 	private _run: (editor: ICommonCodeEditor) => void;
 
-	constructor(descriptor: IActionDescriptor, editor: ICommonCodeEditor) {
-		super(descriptor.id, descriptor.label, descriptor.label, editor);
+	constructor(id: string, label: string, run: (editor: ICommonCodeEditor) => void | TPromise<void>, editor: ICommonCodeEditor) {
+		super(id, label, label, editor);
 
-		this._run = descriptor.run;
+		this._run = run;
 	}
 
 	public isSupported(): boolean {

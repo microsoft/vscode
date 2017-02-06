@@ -157,7 +157,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	}
 
 	public focusTextArea(): void {
-		this.textAreaHandler.writePlaceholderAndSelectTextAreaSync();
+		this.textAreaHandler.focusTextArea();
 	}
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {

@@ -9,6 +9,9 @@ import assert = require('vs/base/common/assert');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IFileStat, isEqual, isParent } from 'vs/platform/files/common/files';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 
 export enum StatType {
 	FILE,
@@ -127,26 +130,6 @@ export class FileStat implements IFileStat {
 				}
 			});
 		}
-	}
-
-	/**
-	 * Returns a deep copy of this model object.
-	 */
-	public clone(): FileStat {
-		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mtime, this.etag);
-		stat.isDirectoryResolved = this.isDirectoryResolved;
-
-		if (this.parent) {
-			stat.parent = this.parent;
-		}
-
-		if (this.isDirectory) {
-			this.children.forEach((child: FileStat) => {
-				stat.addChild(child.clone());
-			});
-		}
-
-		return stat;
 	}
 
 	/**
@@ -315,16 +298,6 @@ export class NewStatPlaceholder extends FileStat {
 		return this.directoryPlaceholder;
 	}
 
-	/**
-	 * Returns a deep copy of this model object.
-	 */
-	public clone(): NewStatPlaceholder {
-		const stat = new NewStatPlaceholder(this.isDirectory);
-		stat.parent = this.parent;
-
-		return stat;
-	}
-
 	public addChild(child: NewStatPlaceholder): void {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
@@ -359,5 +332,40 @@ export class NewStatPlaceholder extends FileStat {
 		parent.hasChildren = parent.children.length > 0;
 
 		return child;
+	}
+}
+
+export class OpenEditor {
+
+	constructor(private editor: IEditorInput, private group: IEditorGroup) {
+		// noop
+	}
+
+	public get editorInput() {
+		return this.editor;
+	}
+
+	public get editorGroup() {
+		return this.group;
+	}
+
+	public getId(): string {
+		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
+	}
+
+	public isPreview(): boolean {
+		return this.group.isPreview(this.editor);
+	}
+
+	public isUntitled(): boolean {
+		return this.editor instanceof UntitledEditorInput;
+	}
+
+	public isDirty(): boolean {
+		return this.editor.isDirty();
+	}
+
+	public getResource(): URI {
+		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
 	}
 }

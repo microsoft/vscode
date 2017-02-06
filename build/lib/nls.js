@@ -1,11 +1,11 @@
 "use strict";
-var ts = require('./typescript/typescriptServices');
-var lazy = require('lazy.js');
-var event_stream_1 = require('event-stream');
-var File = require('vinyl');
-var sm = require('source-map');
-var assign = require('object-assign');
-var path = require('path');
+var ts = require("./typescript/typescriptServices");
+var lazy = require("lazy.js");
+var event_stream_1 = require("event-stream");
+var File = require("vinyl");
+var sm = require("source-map");
+var assign = require("object-assign");
+var path = require("path");
 var CollectStepResult;
 (function (CollectStepResult) {
     CollectStepResult[CollectStepResult["Yes"] = 0] = "Yes";
@@ -71,7 +71,6 @@ function nls() {
 function isImportNode(node) {
     return node.kind === 212 /* ImportDeclaration */ || node.kind === 211 /* ImportEqualsDeclaration */;
 }
-var nls;
 (function (nls_1) {
     function fileFrom(file, contents, path) {
         if (path === void 0) { path = file.path; }

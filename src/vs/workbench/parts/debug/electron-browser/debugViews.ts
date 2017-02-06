@@ -66,8 +66,10 @@ export class VariablesView extends CollapsibleViewletView {
 						if (scopes.length > 0 && !scopes[0].expensive) {
 							return this.tree.expand(scopes[0]);
 						}
+						return undefined;
 					});
 				}
+				return undefined;
 			}).done(null, errors.onUnexpectedError);
 		}, 700);
 	}

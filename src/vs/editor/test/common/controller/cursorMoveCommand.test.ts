@@ -20,7 +20,7 @@ let H = Handler;
 suite('Cursor move command test', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
-	const LINE3 = '    Third Line💩';
+	const LINE3 = '    Third Line🐶';
 	const LINE4 = '';
 	const LINE5 = '1';
 
@@ -456,7 +456,7 @@ suite('Cursor move command test', () => {
 	});
 
 	function aCursor(viewModelHelper?: IViewModelHelper): Cursor {
-		return new Cursor(1, thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
+		return new Cursor(thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
 	}
 
 });

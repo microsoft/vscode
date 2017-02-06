@@ -6,13 +6,15 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
+import { mixin } from 'vs/base/common/objects';
+import { IExpression } from 'vs/base/common/glob';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'searchService';
 
 export const ISearchService = createDecorator<ISearchService>(ID);
+
 /**
  * A service that enables to search for files or with in files.
  */
@@ -27,8 +29,8 @@ export interface IQueryOptions {
 	folderResources?: uri[];
 	extraFileResources?: uri[];
 	filePattern?: string;
-	excludePattern?: glob.IExpression;
-	includePattern?: glob.IExpression;
+	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	maxResults?: number;
 	sortByScore?: boolean;
 	cacheKey?: string;
@@ -124,6 +126,25 @@ export class LineMatch implements ILineMatch {
 
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
-		exclude: glob.IExpression;
+		exclude: IExpression;
 	};
+}
+
+export function getExcludes(configuration: ISearchConfiguration): IExpression {
+	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
+	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
+
+	if (!fileExcludes && !searchExcludes) {
+		return null;
+	}
+
+	if (!fileExcludes || !searchExcludes) {
+		return fileExcludes || searchExcludes;
+	}
+
+	let allExcludes: IExpression = Object.create(null);
+	allExcludes = mixin(allExcludes, fileExcludes);
+	allExcludes = mixin(allExcludes, searchExcludes, true);
+
+	return allExcludes;
 }

@@ -12,7 +12,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -38,7 +39,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { RawText } from 'vs/editor/common/model/textModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -48,6 +49,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { ITextSource2 } from 'vs/editor/common/editorCommon';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -72,6 +74,10 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
+	}
+
+	public setWorkspace(workspace: any): void {
+		this.workspace = workspace;
 	}
 
 	public getOptions() {
@@ -100,6 +106,8 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends TextFileService {
+	public cleanupBackupsBeforeShutdownCalled: boolean;
+
 	private promptPath: string;
 	private confirmResult: ConfirmResult;
 	private resolveTextContentError: IFileOperationResult;
@@ -110,15 +118,15 @@ export class TestTextFileService extends TextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, editorGroupService, windowsService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -142,15 +150,14 @@ export class TestTextFileService extends TextFileService {
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content) => {
-			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
-
+			const textSource = TextModel.toTextSource(content.value);
 			return <IRawTextContent>{
 				resource: content.resource,
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
 				encoding: content.encoding,
-				value: raw,
+				value: textSource,
 				valueLogicalHash: null
 			};
 		});
@@ -162,6 +169,15 @@ export class TestTextFileService extends TextFileService {
 
 	public confirmSave(resources?: URI[]): ConfirmResult {
 		return this.confirmResult;
+	}
+
+	public onConfigurationChange(configuration: any): void {
+		super.onConfigurationChange(configuration);
+	}
+
+	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
+		this.cleanupBackupsBeforeShutdownCalled = true;
+		return TPromise.as(void 0);
 	}
 
 	public showHotExitMessage(): void { }
@@ -185,9 +201,9 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
-	instantiationService.stub(IWindowsService, new TestWindowsService());
 
 	return instantiationService;
 }
@@ -273,13 +289,13 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setSideBarHidden(hidden: boolean): void { }
+	public setSideBarHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public isPanelHidden(): boolean {
 		return false;
 	}
 
-	public setPanelHidden(hidden: boolean): void { }
+	public setPanelHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public toggleMaximizedPanel(): void { }
 
@@ -698,8 +714,8 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as([]);
 	}
 
-	public parseBackupContent(rawText: IRawTextContent): string {
-		return rawText.value.lines.join('\n');
+	public parseBackupContent(rawText: ITextSource2): string {
+		return rawText.lines.join('\n');
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {
@@ -775,10 +791,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	toggleMenuBar(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	isMaximized(): TPromise<boolean> {
 		return TPromise.as(void 0);
 	}
@@ -824,6 +836,8 @@ export class TestLifecycleService implements ILifecycleService {
 export class TestWindowsService implements IWindowsService {
 
 	_serviceBrand: any;
+
+	public windowCount = 1;
 
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
@@ -880,16 +894,12 @@ export class TestWindowsService implements IWindowsService {
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-	toggleMenuBar(windowId: number): TPromise<void> {
-		return TPromise.as(void 0);
-	}
 	quit(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
 	// Global methods
-	// TODO@joao: rename, shouldn't this be openWindow?
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	openNewWindow(): TPromise<void> {
@@ -902,7 +912,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 	getWindowCount(): TPromise<number> {
-		return TPromise.as(void 0);
+		return TPromise.as(this.windowCount);
 	}
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		return TPromise.as(void 0);

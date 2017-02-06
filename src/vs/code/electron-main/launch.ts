@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
+import { IWindowsMainService, OpenContext } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -49,6 +49,7 @@ export class LaunchChannel implements ILaunchChannel {
 			case 'get-main-process-id':
 				return this.service.getMainProcessId();
 		}
+		return undefined;
 	}
 }
 
@@ -82,6 +83,7 @@ export class LaunchService implements ILaunchService {
 
 		const openUrlArg = args['open-url'] || [];
 		const openUrl = typeof openUrlArg === 'string' ? [openUrlArg] : openUrlArg;
+		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.OTHER;
 
 		if (openUrl.length > 0) {
 			openUrl.forEach(url => this.urlService.open(url));
@@ -91,17 +93,19 @@ export class LaunchService implements ILaunchService {
 		// Otherwise handle in windows service
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsService.openExtensionDevelopmentHostWindow({ cli: args, userEnv });
-		} else if (args._.length === 0 && args['new-window']) {
-			usedWindows = this.windowsService.open({ cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
+			this.windowsService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
+		} else if (args._.length === 0 && (args['new-window'] || args['new-window-if-not-first'])) {
+			usedWindows = this.windowsService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args._.length === 0) {
-			usedWindows = [this.windowsService.focusLastActive(args)];
+			usedWindows = [this.windowsService.focusLastActive(args, context)];
 		} else {
 			usedWindows = this.windowsService.open({
+				context,
 				cli: args,
 				userEnv,
 				forceNewWindow: args.wait || args['new-window'],
 				preferNewWindow: !args['reuse-window'],
+				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff
 			});
 		}

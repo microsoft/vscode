@@ -17,7 +17,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 
 
-export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, ignoreAltKey?: boolean): void {
+export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	const groups = menu.getActions(context);
 	if (groups.length === 0) {
 		return;
@@ -25,12 +25,7 @@ export function fillInActions(menu: IMenu, context: any, target: IAction[] | { p
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
-
-		if (!ignoreAltKey && _altKey.value) {
-			swapWithAltActionsIfPossible(actions);
-		}
-
-		if (group === 'navigation') {
+		if (isPrimaryGroup(group)) {
 
 			const head = Array.isArray<IAction>(target) ? target : target.primary;
 
@@ -67,26 +62,18 @@ export function fillInActions(menu: IMenu, context: any, target: IAction[] | { p
 	}
 }
 
-function swapWithAltActionsIfPossible(actions: MenuItemAction[]): void {
-	for (let i = 0; i < actions.length; i++) {
-		if (actions[i].alt) {
-			actions[i] = actions[i].alt;
-		}
-	}
-}
 
 export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService): ActionItem {
 	if (action instanceof MenuItemAction) {
 		return new MenuItemActionItem(action, keybindingService, messageService);
 	}
+	return undefined;
 }
 
 
 const _altKey = new class extends Emitter<boolean> {
 
 	private _subscriptions: IDisposable[] = [];
-
-	private _value = false;
 
 	constructor() {
 		super();
@@ -95,15 +82,6 @@ const _altKey = new class extends Emitter<boolean> {
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
 		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.fire(false)));
-	}
-
-	fire(value: boolean) {
-		super.fire(value);
-		this._value = value;
-	}
-
-	get value() {
-		return this._value;
 	}
 
 	dispose() {

@@ -235,21 +235,7 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
 	}
 
-	node.addEventListener(type, wrapHandler, useCapture || false);
-	return {
-		dispose: function () {
-			if (!wrapHandler) {
-				// Already removed
-				return;
-			}
-			node.removeEventListener(type, wrapHandler, useCapture || false);
-
-			// Prevent leakers from holding on to the dom node or handler func
-			wrapHandler = null;
-			node = null;
-			handler = null;
-		}
-	};
+	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {

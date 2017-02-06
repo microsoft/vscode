@@ -26,8 +26,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
+import { createServer, Server } from 'net';
 import Event, { Emitter } from 'vs/base/common/event';
-import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -42,25 +43,42 @@ export interface ILogEntry {
 	arguments: any;
 }
 
+export class LazyMessagePassingProtol implements IMessagePassingProtocol {
+
+	private _delegate: IMessagePassingProtocol;
+	private _onMessage = new Emitter<any>();
+	private _buffer: any[] = [];
+
+	readonly onMessage: Event<any> = this._onMessage.event;
+
+	send(msg: any): void {
+		if (this._delegate) {
+			this._delegate.send(msg);
+		} else {
+			this._buffer.push(msg);
+		}
+	}
+
+	resolve(delegate: IMessagePassingProtocol): void {
+		this._delegate = delegate;
+		this._delegate.onMessage(data => this._onMessage.fire(data));
+		this._buffer.forEach(this._delegate.send, this._delegate);
+		this._buffer = null;
+	}
+}
+
 export class ExtensionHostProcessWorker {
-	private initializeExtensionHostProcess: TPromise<ChildProcess>;
-	private extensionHostProcessHandle: ChildProcess;
-	private extensionHostProcessQueuedSender: IQueuedSender;
-	private extensionHostProcessReady: boolean;
-	private initializeTimer: number;
+
+	private extensionHostProcess: ChildProcess;
 
 	private lastExtensionHostError: string;
-	private unsentMessages: any[];
 	private terminating: boolean;
 
 	private isExtensionDevelopmentHost: boolean;
 	private isExtensionDevelopmentTestFromCli: boolean;
 	private isExtensionDevelopmentDebugging: boolean;
 
-	private _onMessage = new Emitter<any>();
-	public get onMessage(): Event<any> {
-		return this._onMessage.event;
-	}
+	public readonly messagingProtocol = new LazyMessagePassingProtol();
 
 	private extensionService: MainProcessExtensionService;
 
@@ -80,83 +98,94 @@ export class ExtensionHostProcessWorker {
 		this.isExtensionDevelopmentDebugging = !!environmentService.debugExtensionHost.break;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
 
-		this.unsentMessages = [];
-		this.extensionHostProcessReady = false;
 		lifecycleService.onWillShutdown(this._onWillShutdown, this);
 		lifecycleService.onShutdown(reason => this.terminate());
 	}
 
 	public start(extensionService: MainProcessExtensionService): void {
 		this.extensionService = extensionService;
-		let opts: any = {
-			env: objects.mixin(objects.clone(process.env), {
-				AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
-				PIPE_LOGGING: 'true',
-				VERBOSE_LOGGING: true,
-				VSCODE_WINDOW_ID: String(this.windowService.getWindowId()),
-				ELECTRON_NO_ASAR: '1'
-			}),
-			// We only detach the extension host on windows. Linux and Mac orphan by default
-			// and detach under Linux and Mac create another process group.
-			// We detach because we have noticed that when the renderer exits, its child processes
-			// (i.e. extension host) is taken down in a brutal fashion by the OS
-			detached: !!isWindows,
-		};
 
-		// Help in case we fail to start it
-		if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
-			this.initializeTimer = setTimeout(() => {
-				const msg = this.isExtensionDevelopmentDebugging ? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+		TPromise.join<any>([this.tryListenOnPipe(), this.tryFindDebugPort()]).then(data => {
+			const [server, hook] = <[Server, string]>data[0];
+			const port = <number>data[1];
 
-				this.messageService.show(Severity.Warning, msg);
-			}, 10000);
-		}
+			let opts = {
+				env: objects.mixin(objects.clone(process.env), {
+					AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
+					PIPE_LOGGING: 'true',
+					VERBOSE_LOGGING: true,
+					VSCODE_WINDOW_ID: String(this.windowService.getWindowId()),
+					VSCODE_IPC_HOOK_EXTHOST: hook,
+					ELECTRON_NO_ASAR: '1'
+				}),
+				// We only detach the extension host on windows. Linux and Mac orphan by default
+				// and detach under Linux and Mac create another process group.
+				// We detach because we have noticed that when the renderer exits, its child processes
+				// (i.e. extension host) is taken down in a brutal fashion by the OS
+				detached: !!isWindows,
+				execArgv: port
+					? ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port]
+					: undefined
+			};
 
-		// Initialize extension host process with hand shakes
-		this.initializeExtensionHostProcess = this.doInitializeExtensionHostProcess(opts);
-	}
+			// Run Extension Host as fork of current process
+			this.extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
 
-	public get messagingProtocol(): IMessagePassingProtocol {
-		return this;
-	}
-
-	private doInitializeExtensionHostProcess(opts: any): TPromise<ChildProcess> {
-		return new TPromise<ChildProcess>((c, e) => {
-			// Resolve additional execution args (e.g. debug)
-			this.resolveDebugPort(this.environmentService.debugExtensionHost.port).then(port => {
-				if (port) {
-					opts.execArgv = ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port];
+			// Support logging from extension host
+			this.extensionHostProcess.on('message', msg => {
+				if (msg && (<ILogEntry>msg).type === '__$console') {
+					this.logExtensionHostMessage(<ILogEntry>msg);
 				}
-
-				// Run Extension Host as fork of current process
-				this.extensionHostProcessHandle = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
-				this.extensionHostProcessQueuedSender = createQueuedSender(this.extensionHostProcessHandle);
-
-				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (this.isExtensionDevelopmentHost && port) {
-					this.windowService.broadcast({
-						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
-						payload: { port }
-					}, this.environmentService.extensionDevelopmentPath /* target */);
-				}
-
-				// Messages from Extension host
-				this.extensionHostProcessHandle.on('message', msg => {
-					if (this.onMessaage(msg)) {
-						c(this.extensionHostProcessHandle);
-					}
-				});
-
-				// Lifecycle
-				let onExit = () => this.terminate();
-				process.once('exit', onExit);
-				this.extensionHostProcessHandle.on('error', (err) => this.onError(err));
-				this.extensionHostProcessHandle.on('exit', (code: any, signal: any) => this.onExit(code, signal, onExit));
 			});
-		}, () => this.terminate());
+
+			// Lifecycle
+			let onExit = () => this.terminate();
+			process.once('exit', onExit);
+			this.extensionHostProcess.on('error', (err) => this.onError(err));
+			this.extensionHostProcess.on('exit', (code: any, signal: any) => this.onExit(code, signal, onExit));
+
+			// Notify debugger that we are ready to attach to the process if we run a development extension
+			if (this.isExtensionDevelopmentHost && port) {
+				this.windowService.broadcast({
+					channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
+					payload: { port }
+				}, this.environmentService.extensionDevelopmentPath /* target */);
+			}
+
+			// Help in case we fail to start it
+			let startupTimeoutHandle: number;
+			if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
+				startupTimeoutHandle = setTimeout(() => {
+					const msg = this.isExtensionDevelopmentDebugging
+						? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
+						: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+
+					this.messageService.show(Severity.Warning, msg);
+				}, 10000);
+			}
+
+			// Initialize extension host process with hand shakes
+			return this.tryExtHostHandshake(server).then(() => clearTimeout(startupTimeoutHandle));
+		}).done(undefined, err => {
+			console.error('ERROR starting extension host');
+			console.error(err);
+		});
 	}
 
-	private resolveDebugPort(extensionHostPort: number): TPromise<number> {
+	private tryListenOnPipe(): TPromise<[Server, string]> {
+		return new TPromise<[Server, string]>((resolve, reject) => {
+			const server = createServer();
+			server.on('error', reject);
+			const hook = generateRandomPipeName();
+			server.listen(hook, () => {
+				server.removeListener('error', reject);
+				resolve([server, hook]);
+			});
+		});
+	}
+
+	private tryFindDebugPort(): TPromise<number> {
+		const extensionHostPort = this.environmentService.debugExtensionHost.port;
 		if (typeof extensionHostPort !== 'number') {
 			return TPromise.wrap(void 0);
 		}
@@ -179,43 +208,36 @@ export class ExtensionHostProcessWorker {
 		});
 	}
 
-	// @return `true` if ready
-	private onMessaage(msg: any): boolean {
-		// 1) Host is ready to receive messages, initialize it
-		if (msg === 'ready') {
-			this.initializeExtensionHost();
-			return false;
-		}
+	private tryExtHostHandshake(server: Server): TPromise<any> {
 
-		// 2) Host is initialized
-		if (msg === 'initialized') {
-			this.unsentMessages.forEach(m => this.send(m));
-			this.unsentMessages = [];
-			this.extensionHostProcessReady = true;
-			return true;
-		}
+		return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
+			let handle = setTimeout(() => reject('timeout'), 5 * 1000);
+			server.on('connection', socket => {
+				clearTimeout(handle);
+				const protocol = new Protocol(socket);
+				resolve(protocol);
+			});
+			// }).then(protocol => {
+			// 	return protocol;
 
-		// Support logging from extension host
-		if (msg && (<ILogEntry>msg).type === '__$console') {
-			this.logExtensionHostMessage(<ILogEntry>msg);
-			return false;
-		}
+		}).then(protocol => {
 
-		// Any other message emits event
-		this._onMessage.fire(msg);
-		return false;
+			protocol.onMessage(msg => {
+				if (msg === 'ready') {
+					// 1) Host is ready to receive messages, initialize it
+					return this.createExtHostInitData().then(data => protocol.send(stringify(data)));
+				} else if (msg === 'initialized') {
+					// 2) Host is initialized
+					this.messagingProtocol.resolve(protocol);
+				}
+				return undefined;
+			});
+		});
 	}
 
-	private initializeExtensionHost() {
-		if (this.initializeTimer) {
-			window.clearTimeout(this.initializeTimer);
-		}
-
-		TPromise.join<any>([
-			this.telemetryService.getTelemetryInfo(),
-			this.extensionService.getExtensions()
-		]).then(([telemetryInfo, extensionDescriptions]) => {
-			let initData: IInitData = {
+	private createExtHostInitData(): TPromise<IInitData> {
+		return TPromise.join<any>([this.telemetryService.getTelemetryInfo(), this.extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
+			return <IInitData>{
 				parentPid: process.pid,
 				environment: {
 					appSettingsHome: this.environmentService.appSettingsHome,
@@ -233,7 +255,6 @@ export class ExtensionHostProcessWorker {
 				configuration: this.configurationService.values(),
 				telemetryInfo
 			};
-			this.extensionHostProcessQueuedSender.send(stringify(initData));
 		});
 	}
 
@@ -312,21 +333,10 @@ export class ExtensionHostProcessWorker {
 		}
 	}
 
-	public send(msg: any): void {
-		if (this.extensionHostProcessReady) {
-			this.extensionHostProcessQueuedSender.send(msg);
-		} else if (this.initializeExtensionHostProcess) {
-			this.initializeExtensionHostProcess.done(() => this.extensionHostProcessQueuedSender.send(msg));
-		} else {
-			this.unsentMessages.push(msg);
-		}
-	}
-
 	public terminate(): void {
 		this.terminating = true;
-
-		if (this.extensionHostProcessHandle) {
-			this.extensionHostProcessQueuedSender.send({
+		if (this.extensionHostProcess) {
+			this.messagingProtocol.send({
 				type: '__$terminate'
 			});
 		}

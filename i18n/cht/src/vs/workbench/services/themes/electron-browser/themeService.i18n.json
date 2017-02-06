@@ -6,9 +6,11 @@
 {
 	"error.cannotloadicontheme": "無法載入 {0}",
 	"error.cannotloadtheme": "無法載入 {0}",
-	"error.cannotparse": "剖析 plist 檔案時發生問題: {0}",
+	"error.cannotparse": "剖析 theme 檔案時發生問題: {0}",
 	"error.cannotparseicontheme": "剖析檔案的圖示檔時發生問題: {0}",
 	"error.cannotparsejson": "剖析 JSON 佈景主題檔案時發生問題: {0}",
+	"error.invalidformat": "剖析 JSON theme 檔案 {0} 時出現問題。'settings' 不是陣列。",
+	"error.plist.invalidformat": "剖析 theme 檔案 {0} 時出現問題。'settings' 不是陣列。",
 	"invalid.path.1": "擴充功能資料夾 ({2}) 應包含 'contributes.{0}.path' ({1})。這可能會導致擴充功能無法移植。",
 	"reqarray": "擴充點 '{0}' 必須是陣列。",
 	"reqid": "`contributes.{0}.id` 中應有字串。提供的值: {1}",

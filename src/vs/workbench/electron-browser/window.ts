@@ -137,7 +137,19 @@ export class ElectronWindow {
 								DOM.EventHelper.stop(e, true);
 
 								this.focus(); // make sure this window has focus so that the open call reaches the right window!
-								this.windowsService.windowOpen(draggedExternalResources.map(r => r.fsPath));
+
+								// Ask the user when opening a potential large number of folders
+								let doOpen = true;
+								if (draggedExternalResources.length > 20) {
+									doOpen = this.messageService.confirm({
+										message: nls.localize('confirmOpen', "Are you sure you want to open '{0}' folders?", draggedExternalResources.length),
+										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open")
+									});
+								}
+
+								if (doOpen) {
+									this.windowsService.openWindow(draggedExternalResources.map(r => r.fsPath), { forceReuseWindow: true });
+								}
 
 								cleanUp();
 							})
@@ -380,7 +392,7 @@ export class ElectronWindow {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
-				return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource });
+				return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
 			}
 
 			// For one file, just put it into the current active editor

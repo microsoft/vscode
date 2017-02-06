@@ -113,7 +113,7 @@ const tscWatch: TaskEntry = {
 		'\t"isShellCommand": true,',
 		'\t"args": ["-w", "-p", "."],',
 		'\t"showOutput": "silent",',
-		'\t"isWatching": true,',
+		'\t"isBackground": true,',
 		'\t"problemMatcher": "$tsc-watch"',
 		'}'
 	].join('\n')

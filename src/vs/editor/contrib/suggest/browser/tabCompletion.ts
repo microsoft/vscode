@@ -57,7 +57,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			}
 
 			if (selectFn) {
-				snippetsRegistry.visitSnippets(editor.getModel().getModeId(), s => {
+				snippetsRegistry.visitSnippets(editor.getModel().getLanguageIdentifier().id, s => {
 					if (selectFn(s)) {
 						this._currentSnippets.push(s);
 					}

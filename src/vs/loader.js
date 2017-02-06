@@ -913,7 +913,6 @@ var AMDLoader;
         function ModuleManager(scriptLoader, loaderAvailableTimestamp) {
             if (loaderAvailableTimestamp === void 0) { loaderAvailableTimestamp = 0; }
             this._recorder = null;
-            this._completingQueue = null;
             this._loaderAvailableTimestamp = loaderAvailableTimestamp;
             this._moduleIdProvider = new ModuleIdProvider();
             this._config = new AMDLoader.Configuration();
@@ -1371,86 +1370,70 @@ var AMDLoader;
                 this._loadModule(dependency.id);
             }
             if (module.unresolvedDependenciesCount === 0) {
-                this._onModuleComplete2(module);
+                this._onModuleComplete(module);
             }
         };
-        ModuleManager.prototype._onModuleComplete2 = function (module) {
-            if (this._completingQueue !== null) {
-                // currently processing
-                this._completingQueue.push(module);
-                return;
-            }
-            this._completingQueue = [module];
-            this._processCompletingQueue();
-        };
-        ModuleManager.prototype._processCompletingQueue = function () {
+        ModuleManager.prototype._onModuleComplete = function (module) {
             var _this = this;
             var recorder = this.getRecorder();
-            var _loop_1 = function () {
-                var module_1 = this_1._completingQueue.shift();
-                if (module_1.isComplete()) {
-                    return "continue";
-                }
-                var dependencies = module_1.dependencies;
-                var dependenciesValues = [];
-                for (var i = 0, len = dependencies.length; i < len; i++) {
-                    var dependency = dependencies[i];
-                    if (dependency === RegularDependency.EXPORTS) {
-                        dependenciesValues[i] = module_1.exports;
-                        continue;
-                    }
-                    if (dependency === RegularDependency.MODULE) {
-                        dependenciesValues[i] = {
-                            id: module_1.strId,
-                            config: function () {
-                                return _this._config.getConfigForModule(module_1.strId);
-                            }
-                        };
-                        continue;
-                    }
-                    if (dependency === RegularDependency.REQUIRE) {
-                        dependenciesValues[i] = this_1._createRequire(module_1.moduleIdResolver);
-                        continue;
-                    }
-                    var dependencyModule = this_1._modules2[dependency.id];
-                    if (dependencyModule) {
-                        dependenciesValues[i] = dependencyModule.exports;
-                        continue;
-                    }
-                    dependenciesValues[i] = null;
-                }
-                module_1.complete(recorder, this_1._config, dependenciesValues);
-                // Fetch and clear inverse dependencies
-                var inverseDeps = this_1._inverseDependencies2[module_1.id];
-                this_1._inverseDependencies2[module_1.id] = null;
-                if (inverseDeps) {
-                    // Resolve one inverse dependency at a time, always
-                    // on the lookout for a completed module.
-                    for (var i = 0, len = inverseDeps.length; i < len; i++) {
-                        var inverseDependencyId = inverseDeps[i];
-                        var inverseDependency = this_1._modules2[inverseDependencyId];
-                        inverseDependency.unresolvedDependenciesCount--;
-                        if (inverseDependency.unresolvedDependenciesCount === 0) {
-                            this_1._completingQueue.push(inverseDependency);
-                        }
-                    }
-                }
-                var inversePluginDeps = this_1._inversePluginDependencies2.get(module_1.id);
-                if (inversePluginDeps) {
-                    // This module is used as a plugin at least once
-                    // Fetch and clear these inverse plugin dependencies
-                    this_1._inversePluginDependencies2.delete(module_1.id);
-                    // Resolve plugin dependencies one at a time
-                    for (var i = 0, len = inversePluginDeps.length; i < len; i++) {
-                        this_1._loadPluginDependency(module_1.exports, inversePluginDeps[i]);
-                    }
-                }
-            };
-            var this_1 = this;
-            while (this._completingQueue.length > 0) {
-                _loop_1();
+            if (module.isComplete()) {
+                // already done
+                return;
             }
-            this._completingQueue = null;
+            var dependencies = module.dependencies;
+            var dependenciesValues = [];
+            for (var i = 0, len = dependencies.length; i < len; i++) {
+                var dependency = dependencies[i];
+                if (dependency === RegularDependency.EXPORTS) {
+                    dependenciesValues[i] = module.exports;
+                    continue;
+                }
+                if (dependency === RegularDependency.MODULE) {
+                    dependenciesValues[i] = {
+                        id: module.strId,
+                        config: function () {
+                            return _this._config.getConfigForModule(module.strId);
+                        }
+                    };
+                    continue;
+                }
+                if (dependency === RegularDependency.REQUIRE) {
+                    dependenciesValues[i] = this._createRequire(module.moduleIdResolver);
+                    continue;
+                }
+                var dependencyModule = this._modules2[dependency.id];
+                if (dependencyModule) {
+                    dependenciesValues[i] = dependencyModule.exports;
+                    continue;
+                }
+                dependenciesValues[i] = null;
+            }
+            module.complete(recorder, this._config, dependenciesValues);
+            // Fetch and clear inverse dependencies
+            var inverseDeps = this._inverseDependencies2[module.id];
+            this._inverseDependencies2[module.id] = null;
+            if (inverseDeps) {
+                // Resolve one inverse dependency at a time, always
+                // on the lookout for a completed module.
+                for (var i = 0, len = inverseDeps.length; i < len; i++) {
+                    var inverseDependencyId = inverseDeps[i];
+                    var inverseDependency = this._modules2[inverseDependencyId];
+                    inverseDependency.unresolvedDependenciesCount--;
+                    if (inverseDependency.unresolvedDependenciesCount === 0) {
+                        this._onModuleComplete(inverseDependency);
+                    }
+                }
+            }
+            var inversePluginDeps = this._inversePluginDependencies2.get(module.id);
+            if (inversePluginDeps) {
+                // This module is used as a plugin at least once
+                // Fetch and clear these inverse plugin dependencies
+                this._inversePluginDependencies2.delete(module.id);
+                // Resolve plugin dependencies one at a time
+                for (var i = 0, len = inversePluginDeps.length; i < len; i++) {
+                    this._loadPluginDependency(module.exports, inversePluginDeps[i]);
+                }
+            }
         };
         return ModuleManager;
     }());

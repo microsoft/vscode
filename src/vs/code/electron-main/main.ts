@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/electron-main/paths';
-import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windows';
+import { IWindowsMainService, WindowsManager, OpenContext } from 'vs/code/electron-main/windows';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
@@ -48,7 +48,8 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -251,17 +252,17 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		windowsMainService.ready(userEnv);
 
 		// Open our first window
+		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.OTHER;
 		if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
-			windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
+			windowsMainService.open({ context, cli: environmentService.args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
 		} else if (global.macOpenFiles && global.macOpenFiles.length && (!environmentService.args._ || !environmentService.args._.length)) {
-			windowsMainService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
+			windowsMainService.open({ context: OpenContext.DOCK, cli: environmentService.args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
-			windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff, initialStartup: true }); // default: read paths from cli
+			windowsMainService.open({ context, cli: environmentService.args, forceNewWindow: environmentService.args['new-window'] || environmentService.args['new-window-if-not-first'], diffMode: environmentService.args.diff, initialStartup: true }); // default: read paths from cli
 		}
 
 		// Install Menu
-		const menu = instantiationService2.createInstance(VSCodeMenu);
-		menu.ready();
+		instantiationService2.createInstance(VSCodeMenu);
 	});
 }
 

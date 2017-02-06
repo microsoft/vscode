@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import types = require('vs/base/common/types');
 import * as Platform from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -128,34 +127,6 @@ export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const canUseTranslate3d = !isFirefox;
 
 export const enableEmptySelectionClipboard = isWebKit;
-
-/**
- * Returns if the browser supports CSS 3 animations.
- */
-export function hasCSSAnimationSupport() {
-	if (this._hasCSSAnimationSupport === true || this._hasCSSAnimationSupport === false) {
-		return this._hasCSSAnimationSupport;
-	}
-
-	let supported = false;
-	let element = document.createElement('div');
-	let properties = ['animationName', 'webkitAnimationName', 'msAnimationName', 'MozAnimationName', 'OAnimationName'];
-	for (let i = 0; i < properties.length; i++) {
-		let property = properties[i];
-		if (!types.isUndefinedOrNull(element.style[property]) || element.style.hasOwnProperty(property)) {
-			supported = true;
-			break;
-		}
-	}
-
-	if (supported) {
-		this._hasCSSAnimationSupport = true;
-	} else {
-		this._hasCSSAnimationSupport = false;
-	}
-
-	return this._hasCSSAnimationSupport;
-}
 
 export function supportsExecCommand(command: string): boolean {
 	return (

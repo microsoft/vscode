@@ -6,7 +6,7 @@
 {
 	"conditionalBreakpointEditorAction": "调试: 添加条件断点...",
 	"debugAddToWatch": "调试: 添加到监视",
-	"debugEvaluate": "调试: 评估",
+	"debugEvaluate": "调试: 求值",
 	"runToCursor": "调试: 运行到光标",
 	"showDebugHover": "调试: 显示悬停",
 	"toggleBreakpointAction": "调试: 切换断点"

@@ -64,7 +64,7 @@ class InstallAction extends Action {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
 				this.messageService.show(Severity.Info, message);
-				return;
+				return undefined;
 			}
 
 			return this.checkLegacy()
@@ -202,7 +202,7 @@ class UninstallAction extends Action {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
 				this.messageService.show(Severity.Info, message);
-				return;
+				return undefined;
 			}
 
 			return pfs.unlink(this.target)
@@ -249,10 +249,10 @@ class DarwinCLIHelper implements IWorkbenchContribution {
 if (process.platform === 'darwin') {
 	const category = nls.localize('shellCommand', "Shell Command");
 
-	const workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+	const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallAction, InstallAction.ID, InstallAction.LABEL), 'Shell Command: Install \'code\' command in PATH', category);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(UninstallAction, UninstallAction.ID, UninstallAction.LABEL), 'Shell Command: Uninstall \'code\' command from PATH', category);
 
-	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
+	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(DarwinCLIHelper);
 }

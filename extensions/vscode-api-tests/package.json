@@ -36,10 +36,11 @@
 	},
 	"scripts": {
 		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json",
-		"postinstall": "node ./node_modules/vscode/bin/install"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
 	},
 	"devDependencies": {
+		"@types/mocha": "^2.2.38",
+		"@types/node": "^7.0.4",
 		"typescript": "^1.6.2",
 		"vscode": "1.0.1"
 	}

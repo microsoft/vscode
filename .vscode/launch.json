@@ -5,6 +5,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Unit Tests",
+			"protocol": "legacy",
 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
 			"runtimeExecutable": "${execPath}",
 			"stopOnEntry": false,
@@ -36,6 +37,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
+			"protocol": "legacy",
 			"port": 5870,
 			"sourceMaps": true,
 			"outFiles": [
@@ -46,6 +48,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Shared Process",
+			"protocol": "legacy",
 			"port": 5871,
 			"sourceMaps": true,
 			"outFiles": [
@@ -56,6 +59,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to CLI Process",
+			"protocol": "legacy",
 			"port": 5874,
 			"sourceMaps": true,
 			"outFiles": [

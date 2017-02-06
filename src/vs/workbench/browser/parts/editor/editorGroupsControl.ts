@@ -22,7 +22,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService, ITabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -139,7 +138,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -213,7 +211,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	}
 
 	private updateTabOptions(tabOptions: ITabOptions, refresh?: boolean): void {
-		const showTabCloseButton = this.tabOptions ? this.tabOptions.showTabCloseButton : false;
+		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
 		this.tabOptions = tabOptions;
 
 		if (!refresh) {
@@ -251,7 +249,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.tabOptions.showIcons || showTabCloseButton !== this.tabOptions.showTabCloseButton) {
+				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton) {
 					titleControl.refresh();
 				}
 			}
@@ -760,7 +758,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 
 			// Trigger layout
-			this.arrangeGroups(GroupArrangement.EVEN);
+			this.arrangeGroups();
 		}
 	}
 
@@ -768,7 +766,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return this.layoutVertically ? 'vertical' : 'horizontal';
 	}
 
-	public arrangeGroups(arrangement: GroupArrangement): void {
+	public arrangeGroups(arrangement?: GroupArrangement): void {
 		if (!this.dimension) {
 			return; // too early
 		}
@@ -780,27 +778,49 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			return; // need more editors
 		}
 
-		// Minimize Others
-		if (arrangement === GroupArrangement.MINIMIZE_OTHERS) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					if (position !== this.lastActivePosition) {
-						this.silosSize[position] = this.minSize;
-						availableSize -= this.minSize;
+		switch (arrangement) {
+			case GroupArrangement.MINIMIZE_OTHERS:
+				// Minimize Others
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (position !== this.lastActivePosition) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						}
 					}
-				}
-			});
+				});
 
-			this.silosSize[this.lastActivePosition] = availableSize;
-		}
+				this.silosSize[this.lastActivePosition] = availableSize;
+				break;
+			case GroupArrangement.EVEN:
+				// Even Sizes
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						this.silosSize[position] = availableSize / visibleEditors;
+					}
+				});
+				break;
+			default:
+				// Minimized editors should remain minimized, others should keep their relative Sizes
+				let oldNonMinimizedTotal = 0;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (this.silosMinimized[position]) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						} else {
+							oldNonMinimizedTotal += this.silosSize[position];
+						}
+					}
+				});
 
-		// Even Sizes
-		else if (arrangement === GroupArrangement.EVEN) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					this.silosSize[position] = availableSize / visibleEditors;
-				}
-			});
+				// Set size for non-minimized editors
+				const scaleFactor = availableSize / oldNonMinimizedTotal;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position] && !this.silosMinimized[position]) {
+						this.silosSize[position] *= scaleFactor;
+					}
+				});
 		}
 
 		// Since we triggered a change in minimized/maximized editors, we need

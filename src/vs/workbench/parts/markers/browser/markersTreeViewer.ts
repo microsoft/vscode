@@ -6,22 +6,30 @@
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
+import * as network from 'vs/base/common/network';
 import { IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter } from 'vs/base/parts/tree/browser/tree';
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-interface IResourceTemplateData {
-	file: FileLabel;
+interface IAnyResourceTemplateData {
 	count: CountBadge;
+}
+
+interface IResourceTemplateData extends IAnyResourceTemplateData {
+	resourceLabel: ResourceLabel;
+}
+
+interface IFileResourceTemplateData extends IAnyResourceTemplateData {
+	fileLabel: FileLabel;
 }
 
 interface IMarkerTemplateData {
@@ -67,6 +75,7 @@ export class DataSource implements IDataSource {
 export class Renderer implements IRenderer {
 
 	private static RESOURCE_TEMPLATE_ID = 'resource-template';
+	private static FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
 	private static MARKER_TEMPLATE_ID = 'marker-template';
 
 	constructor(private actionRunner: IActionRunner,
@@ -82,7 +91,11 @@ export class Renderer implements IRenderer {
 
 	public getTemplateId(tree: ITree, element: any): string {
 		if (element instanceof Resource) {
-			return Renderer.RESOURCE_TEMPLATE_ID;
+			if ((<Resource>element).uri.scheme === network.Schemas.file) {
+				return Renderer.FILE_RESOURCE_TEMPLATE_ID;
+			} else {
+				return Renderer.RESOURCE_TEMPLATE_ID;
+			}
 		}
 		if (element instanceof Marker) {
 			return Renderer.MARKER_TEMPLATE_ID;
@@ -93,6 +106,8 @@ export class Renderer implements IRenderer {
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		dom.addClass(container, 'markers-panel-tree-entry');
 		switch (templateId) {
+			case Renderer.FILE_RESOURCE_TEMPLATE_ID:
+				return this.renderFileResourceTemplate(container);
 			case Renderer.RESOURCE_TEMPLATE_ID:
 				return this.renderResourceTemplate(container);
 			case Renderer.MARKER_TEMPLATE_ID:
@@ -100,12 +115,21 @@ export class Renderer implements IRenderer {
 		}
 	}
 
+	private renderFileResourceTemplate(container: HTMLElement): IFileResourceTemplateData {
+		var data: IFileResourceTemplateData = Object.create(null);
+		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
+		data.fileLabel = this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
+
+		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
+		data.count = new CountBadge(badgeWrapper);
+
+		return data;
+	}
+
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		var data: IResourceTemplateData = Object.create(null);
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.file = this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
-
-		// data.statistics= new MarkersStatisticsWidget(dom.append(container, dom.emmet('.marker-stats')));
+		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, resourceLabelContainer, { supportHighlights: true });
 
 		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
@@ -124,6 +148,7 @@ export class Renderer implements IRenderer {
 
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		switch (templateId) {
+			case Renderer.FILE_RESOURCE_TEMPLATE_ID:
 			case Renderer.RESOURCE_TEMPLATE_ID:
 				return this.renderResourceElement(tree, <Resource>element, templateData);
 			case Renderer.MARKER_TEMPLATE_ID:
@@ -131,9 +156,12 @@ export class Renderer implements IRenderer {
 		}
 	}
 
-	private renderResourceElement(tree: ITree, element: Resource, templateData: IResourceTemplateData) {
-		templateData.file.setFile(element.uri, { matches: element.matches });
-		// templateData.statistics.setStatistics(element.statistics);
+	private renderResourceElement(tree: ITree, element: Resource, templateData: IAnyResourceTemplateData) {
+		if ((<IFileResourceTemplateData>templateData).fileLabel) {
+			(<IFileResourceTemplateData>templateData).fileLabel.setFile(element.uri, { matches: element.matches });
+		} else if ((<IResourceTemplateData>templateData).resourceLabel) {
+			(<IResourceTemplateData>templateData).resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.matches });
+		}
 		templateData.count.setCount(element.markers.length);
 	}
 
@@ -164,8 +192,11 @@ export class Renderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+		if (templateId === Renderer.FILE_RESOURCE_TEMPLATE_ID) {
+			(<IFileResourceTemplateData>templateData).fileLabel.dispose();
+		}
 		if (templateId === Renderer.RESOURCE_TEMPLATE_ID) {
-			(<IResourceTemplateData>templateData).file.dispose();
+			(<IResourceTemplateData>templateData).resourceLabel.dispose();
 		}
 	}
 }

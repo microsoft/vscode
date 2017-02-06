@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
-import * as Lint from 'tslint/lib/lint';
+import * as Lint from 'tslint';
 
 /**
  * Implementation of the no-unexternalized-strings rule.

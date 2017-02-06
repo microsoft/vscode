@@ -52,7 +52,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public keys(): K[] {
-		var keys: K[] = [];
+		const keys: K[] = [];
 		for (let key in this.map) {
 			keys.push(this.map[key].key);
 		}
@@ -60,7 +60,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public values(): T[] {
-		var values: T[] = [];
+		const values: T[] = [];
 		for (let key in this.map) {
 			values.push(this.map[key].value);
 		}
@@ -68,7 +68,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public entries(): Entry<K, T>[] {
-		var entries: Entry<K, T>[] = [];
+		const entries: Entry<K, T>[] = [];
 		for (let key in this.map) {
 			entries.push(this.map[key]);
 		}
@@ -310,7 +310,7 @@ class Node<E> {
  */
 export class TrieMap<E> {
 
-	static PathSplitter = s => s.split(/[\\/]/).filter(s => !!s);
+	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
 
 	private _splitter: (s: string) => string[];
 	private _root = new Node<E>();
@@ -353,7 +353,7 @@ export class TrieMap<E> {
 		for (const part of parts) {
 			node = children[part];
 			if (!node) {
-				return;
+				return undefined;
 			}
 			children = node.children;
 		}
@@ -382,6 +382,7 @@ export class TrieMap<E> {
 		if (lastNode) {
 			return lastNode.element;
 		}
+		return undefined;
 	}
 
 	findSuperstr(path: string): TrieMap<E> {
@@ -392,7 +393,7 @@ export class TrieMap<E> {
 		for (const part of parts) {
 			node = children[part];
 			if (!node) {
-				return;
+				return undefined;
 			}
 			children = node.children;
 		}

@@ -8,7 +8,7 @@
 	"label.find": "Найти",
 	"label.matchesLocation": "{0} из {1}",
 	"label.nextMatchButton": "Следующее соответствие",
-	"label.noResults": "Результаты отсутствуют",
+	"label.noResults": "Нет результатов",
 	"label.previousMatchButton": "Предыдущее соответствие",
 	"label.replace": "Заменить",
 	"label.replaceAllButton": "Заменить все",

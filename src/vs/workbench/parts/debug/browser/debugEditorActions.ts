@@ -35,7 +35,7 @@ class ToggleBreakpointAction extends EditorAction {
 		const position = editor.getPosition();
 		const modelUri = editor.getModel().uri;
 		const bp = debugService.getModel().getBreakpoints()
-			.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === modelUri.toString()).pop();
+			.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
 
 		if (bp) {
 			return debugService.removeBreakpoints(bp.getId());
@@ -43,6 +43,8 @@ class ToggleBreakpointAction extends EditorAction {
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
 			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
 		}
+
+		return TPromise.as(null);
 	}
 }
 
@@ -77,7 +79,7 @@ class RunToCursorAction extends EditorAction {
 			id: 'editor.debug.action.runToCursor',
 			label: nls.localize('runToCursor', "Debug: Run to Cursor"),
 			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.Writable),
 			menuOpts: {
 				group: 'debug',
 				order: 2

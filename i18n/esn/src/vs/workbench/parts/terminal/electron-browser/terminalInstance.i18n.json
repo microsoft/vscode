@@ -6,5 +6,6 @@
 {
 	"terminal.integrated.copySelection.noSelection": "No se puede copiar la selección del terminal cuando el terminal no tiene el foco",
 	"terminal.integrated.exitedWithCode": "El proceso del terminal finalizó con el código de salida: {0}",
-	"terminal.integrated.launchFailed": "No se pudo iniciar el comando de proceso terminal \"{0}{1}\" (código de salida: {2})"
+	"terminal.integrated.launchFailed": "No se pudo iniciar el comando de proceso terminal \"{0}{1}\" (código de salida: {2})",
+	"terminal.integrated.waitOnExit": "Presione cualquier tecla para cerrar el terminar"
 }

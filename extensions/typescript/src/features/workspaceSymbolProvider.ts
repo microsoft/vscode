@@ -10,7 +10,7 @@ import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, Sym
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
-let _kindMapping: { [kind: string]: SymbolKind } = Object.create(null);
+const _kindMapping: { [kind: string]: SymbolKind } = Object.create(null);
 _kindMapping['method'] = SymbolKind.Method;
 _kindMapping['enum'] = SymbolKind.Enum;
 _kindMapping['function'] = SymbolKind.Function;
@@ -19,14 +19,9 @@ _kindMapping['interface'] = SymbolKind.Interface;
 _kindMapping['var'] = SymbolKind.Variable;
 
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
-
-	private client: ITypescriptServiceClient;
-	private modeId: string;
-
-	public constructor(client: ITypescriptServiceClient, modeId: string) {
-		this.client = client;
-		this.modeId = modeId;
-	}
+	public constructor(
+		private client: ITypescriptServiceClient,
+		private modeId: string) { }
 
 	public provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
 		// typescript wants to have a resource even when asking
@@ -54,7 +49,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
 
-		const filepath = this.client.asAbsolutePath(uri);
+		const filepath = this.client.normalizePath(uri);
 		if (!filepath) {
 			return Promise.resolve<SymbolInformation[]>([]);
 		}

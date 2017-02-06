@@ -6,7 +6,7 @@
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
-var ptyJs = require('pty.js');
+var ptyJs = require('node-pty');
 
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38

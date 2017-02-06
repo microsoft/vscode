@@ -46,6 +46,14 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of Location-instances.'
 		});
+		this._register('vscode.executeImplementationProvider', this._executeImplementationProvider, {
+			description: 'Execute all implementation providers.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Location-instance.'
+		});
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
 			description: 'Execute all hover provider.',
 			args: [
@@ -262,6 +270,20 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
+			return undefined;
+		});
+	}
+
+	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+		const args = {
+			resource,
+			position: position && typeConverters.fromPosition(position)
+		};
+		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(typeConverters.location.to);
+			}
+			return undefined;
 		});
 	}
 
@@ -274,6 +296,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toHover);
 			}
+			return undefined;
 		});
 	}
 
@@ -286,6 +309,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toDocumentHighlight);
 			}
+			return undefined;
 		});
 	}
 
@@ -298,6 +322,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
+			return undefined;
 		});
 	}
 
@@ -309,7 +334,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
-				return;
+				return undefined;
 			}
 			if (value.rejectReason) {
 				return TPromise.wrapError(value.rejectReason);
@@ -332,6 +357,7 @@ export class ExtHostApiCommands {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
 			}
+			return undefined;
 		});
 	}
 
@@ -346,6 +372,7 @@ export class ExtHostApiCommands {
 				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
 				return new types.CompletionList(items, result.incomplete);
 			}
+			return undefined;
 		});
 	}
 
@@ -357,6 +384,7 @@ export class ExtHostApiCommands {
 			if (value && Array.isArray(value.entries)) {
 				return value.entries.map(typeConverters.SymbolInformation.fromOutlineEntry);
 			}
+			return undefined;
 		});
 	}
 
@@ -367,7 +395,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.CodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
-				return;
+				return undefined;
 			}
 			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
 		});
@@ -383,6 +411,7 @@ export class ExtHostApiCommands {
 						this._commands.converter.fromInternal(item.symbol.command));
 				});
 			}
+			return undefined;
 		});
 	}
 
@@ -395,6 +424,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -408,6 +438,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -422,6 +453,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -430,6 +462,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.DocumentLink.to);
 			}
+			return undefined;
 		});
 	}
 }

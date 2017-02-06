@@ -6,9 +6,8 @@
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
 	"typescript.tsdk_version.desc": "Specifies the version of the tsserver. Only necessary if the tsserver is not installed using npm.",
 	"typescript.disableAutomaticTypeAcquisition": "Disables automatic type acquisition. Requires TypeScript >= 2.0.6 and a restart after changing it.",
-	"typescript.check.workspaceVersion": "Check if a TypeScript version is available in the workspace.",
 	"typescript.check.tscVersion": "Check if a global install TypeScript compiler (e.g. tsc) differs from the used TypeScript language service.",
-	"typescript.tsserver.trace": "Enables tracing of messages send to the TS server.",
+	"typescript.tsserver.trace": "Enables tracing of messages sent to the TS server.",
 	"typescript.tsserver.experimentalAutoBuild": "Enables experimental auto build. Requires 1.9 dev or 2.x tsserver version and a restart of VS Code after changing it.",
 	"typescript.validate.enable": "Enable/disable TypeScript validation.",
 	"typescript.format.enable": "Enable/disable default TypeScript formatter.",
@@ -16,7 +15,7 @@
 	"format.insertSpaceAfterCommaDelimiter": "Defines space handling after a comma delimiter.",
 	"format.insertSpaceAfterSemicolonInForStatements": " Defines space handling after a semicolon in a for statement.",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "Defines space handling after a binary operator.",
-	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Defines space handling after keywords in control flow statement.",
+	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Defines space handling after keywords in a control flow statement.",
 	"format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": "Defines space handling after function keyword for anonymous functions.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Defines space handling after opening and before closing non empty parenthesis.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Defines space handling after opening and before closing non empty brackets.",
@@ -24,5 +23,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Defines space handling after opening and before closing JSX expression braces. Requires TypeScript >= 2.0.6.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Defines whether an open brace is put onto a new line for functions or not.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Defines whether an open brace is put onto a new line for control blocks or not.",
-	"javascript.validate.enable": "Enable/disable JavaScript validation."
+	"javascript.validate.enable": "Enable/disable JavaScript validation.",
+	"typescript.referencesCodeLens.enabled": "Enable/disable the references code lens.",
+	"typescript.selectTypeScriptVersion.title": "Select TypeScript version."
 }

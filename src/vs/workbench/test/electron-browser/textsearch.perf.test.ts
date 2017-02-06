@@ -12,7 +12,8 @@ import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/w
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
-import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments, defaultExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -44,7 +45,7 @@ suite('TextSearch performance', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
-			return; // TODO@Rob find out why test fails when run from within VS Code
+			return undefined; // TODO@Rob find out why test fails when run from within VS Code
 		}
 
 		const n = 3;
@@ -60,7 +61,7 @@ suite('TextSearch performance', () => {
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, new SimpleConfigurationService()],
-			[IModelService, new ModelServiceImpl(null, configurationService, null)],
+			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new WorkspaceContextService({ resource: URI.file(testWorkspacePath) })],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],

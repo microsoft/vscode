@@ -59,6 +59,8 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
+		// TODO@Joao: remove!
+		forcedDisabledExtensions: string[],
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -72,7 +74,12 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		const disabledExtensions = [...extensionEnablementService.getGloballyDisabledExtensions(), ...extensionEnablementService.getWorkspaceDisabledExtensions()];
+		const disabledExtensions = [
+			...forcedDisabledExtensions,
+			...extensionEnablementService.getGloballyDisabledExtensions(),
+			...extensionEnablementService.getWorkspaceDisabledExtensions()
+		];
+
 		this.scanExtensions().done(extensionDescriptions => {
 			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions);
 		});

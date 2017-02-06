@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BlockCommentCommand } from './blockCommentCommand';
-import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
 
 export interface IInsertionPoint {
@@ -63,31 +63,25 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
 	public static _gatherPreflightCommentStrings(model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
-		var lines: ILinePreflightData[] = [],
-			config: ICommentsConfiguration,
-			commentStr: string,
-			seenModes: { [modeId: string]: string; } = Object.create(null),
-			i: number,
-			lineCount: number,
-			lineNumber: number,
-			modeId: string;
-
-		for (i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
-			lineNumber = startLineNumber + i;
-			modeId = model.getModeIdAtPosition(lineNumber, 1);
+		let commentStrForLanguage: string[] = [];
+		let lines: ILinePreflightData[] = [];
+		for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
+			let lineNumber = startLineNumber + i;
+			let languageId = model.getLanguageIdAtPosition(lineNumber, 1);
 
 			// Find the commentStr for this line, if none is found then bail out: we cannot do line comments
-			if (seenModes[modeId]) {
-				commentStr = seenModes[modeId];
+			let commentStr: string;
+			if (commentStrForLanguage[languageId]) {
+				commentStr = commentStrForLanguage[languageId];
 			} else {
-				config = LanguageConfigurationRegistry.getComments(modeId);
+				let config = LanguageConfigurationRegistry.getComments(languageId);
 				commentStr = (config ? config.lineCommentToken : null);
 				if (!commentStr) {
 					// Mode does not support line comments
 					return null;
 				}
 
-				seenModes[modeId] = commentStr;
+				commentStrForLanguage[languageId] = commentStr;
 			}
 
 			lines.push({
@@ -271,8 +265,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
-		let modeId = model.getModeIdAtPosition(s.startLineNumber, s.startColumn);
-		let config = LanguageConfigurationRegistry.getComments(modeId);
+		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, s.startColumn);
+		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;

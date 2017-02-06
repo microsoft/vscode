@@ -11,6 +11,8 @@ import { IGitService, ModelEvents, StatusType } from 'vs/workbench/parts/git/com
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Delayer } from 'vs/base/common/async';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 
 const pattern = /^<<<<<<<|^=======|^>>>>>>>/;
 
@@ -76,7 +78,6 @@ class MergeDecoratorBoundToModel extends Disposable {
 	}
 }
 
-@editorContribution
 export class MergeDecorator extends Disposable implements IEditorContribution {
 
 	static ID = 'vs.git.editor.merge.decorator';
@@ -144,5 +145,37 @@ export class MergeDecorator extends Disposable implements IEditorContribution {
 		}
 
 		super.dispose();
+	}
+}
+
+// TODO@Joao: remove
+@editorContribution
+export class MergeDecoratorWrapper extends Disposable implements IEditorContribution {
+
+	static ID = 'vs.git.editor.merge.decoratorwrapper';
+	private decorator: MergeDecorator;
+
+	constructor(
+		private editor: ICodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super();
+
+		if (SCMPreview.enabled) {
+			return;
+		}
+
+		this.decorator = instantiationService.createInstance(MergeDecorator, editor);
+	}
+
+	getId(): string {
+		return MergeDecoratorWrapper.ID;
+	}
+
+	dispose(): void {
+		if (this.decorator) {
+			this.decorator.dispose();
+			this.decorator = null;
+		}
 	}
 }

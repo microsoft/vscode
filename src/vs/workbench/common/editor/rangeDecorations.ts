@@ -5,6 +5,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
@@ -21,12 +22,16 @@ export class RangeHighlightDecorations implements IDisposable {
 	private editor: editorCommon.ICommonCodeEditor = null;
 	private editorDisposables: IDisposable[] = [];
 
+	private _onHighlightRemoved: Emitter<void> = new Emitter<void>();
+	public readonly onHighlghtRemoved: Event<void> = this._onHighlightRemoved.event;
+
 	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 	}
 
 	public removeHighlightRange() {
-		if (this.editor && this.rangeHighlightDecorationId) {
-			this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId);
+		if (this.editor && this.editor.getModel() && this.rangeHighlightDecorationId) {
+			this.editor.deltaDecorations([this.rangeHighlightDecorationId], []);
+			this._onHighlightRemoved.fire();
 		}
 		this.rangeHighlightDecorationId = null;
 	}
@@ -62,16 +67,17 @@ export class RangeHighlightDecorations implements IDisposable {
 			this.editor = editor;
 			this.editorDisposables.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
 				if (
-					e.reason === editorCommon.CursorChangeReason.Explicit
+					e.reason === editorCommon.CursorChangeReason.NotSet
+					|| e.reason === editorCommon.CursorChangeReason.Explicit
 					|| e.reason === editorCommon.CursorChangeReason.Undo
 					|| e.reason === editorCommon.CursorChangeReason.Redo
 				) {
-					this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId);
+					this.removeHighlightRange();
 				}
 			}));
-			this.editorDisposables.push(this.editor.onDidChangeModel(() => { this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId); }));
+			this.editorDisposables.push(this.editor.onDidChangeModel(() => { this.removeHighlightRange(); }));
 			this.editorDisposables.push(this.editor.onDidDispose(() => {
-				this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId);
+				this.removeHighlightRange();
 				this.editor = null;
 			}));
 		}
@@ -80,10 +86,6 @@ export class RangeHighlightDecorations implements IDisposable {
 	private disposeEditorListeners() {
 		this.editorDisposables.forEach(disposable => disposable.dispose());
 		this.editorDisposables = [];
-	}
-
-	private doRemoveRangeHighlight(model: editorCommon.ICommonCodeEditor, rangeHighlightDecorationId: string) {
-		model.deltaDecorations([rangeHighlightDecorationId], []);
 	}
 
 	private createRangeHighlightDecoration(isWholeLine: boolean = true): editorCommon.IModelDecorationOptions {
@@ -95,8 +97,10 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	public dispose() {
-		this.removeHighlightRange();
-		this.disposeEditorListeners();
-		this.editor = null;
+		if (this.editor && this.editor.getModel()) {
+			this.removeHighlightRange();
+			this.disposeEditorListeners();
+			this.editor = null;
+		}
 	}
 }

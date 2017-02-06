@@ -15,6 +15,10 @@
 	background: url('configure.svg') center center no-repeat;
 }
 
+.monaco-workbench .debug-action.start {
+	background: url('continue.svg') center center no-repeat;
+}
+
 .monaco-workbench .debug-action.toggle-repl {
 	background: url('repl.svg') center center no-repeat;
 }
@@ -29,6 +33,11 @@
 	right: 5px;
 	border-radius: 10px;
 	border: 1px solid white;
+}
+
+.vs-dark .monaco-workbench .debug-action.start,
+.hc-black .monaco-workbench .debug-action.start {
+	background: url('continue-inverse.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .debug-action.configure,

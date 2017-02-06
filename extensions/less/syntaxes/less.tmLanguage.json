@@ -297,13 +297,13 @@
 			"begin": "{",
 			"beginCaptures": {
 				"0": {
-					"name": "punctuation.section.property-list.begin.css"
+					"name": "punctuation.section.property-list.begin.bracket.curly.css"
 				}
 			},
 			"end": "}",
 			"endCaptures": {
 				"0": {
-					"name": "punctuation.section.property-list.end.css"
+					"name": "punctuation.section.property-list.end.bracket.curly.css"
 				}
 			},
 			"name": "meta.property-list.css",
@@ -487,7 +487,7 @@
 		},
 		"commas": {
 			"match": ",",
-			"name": "punctuation.separator.list.css"
+			"name": "punctuation.separator.list.comma.css"
 		},
 		"brace_round": {
 			"match": "\\(|\\)",
@@ -615,5 +615,5 @@
 			"name": "support.function.any-method.gradient.css"
 		}
 	},
-	"version": "https://github.com/atom/language-less/commit/c5876823ed8ae556c82f76c05de815a72a9df6a4"
+	"version": "https://github.com/atom/language-less/commit/9123663e1a8411f60d3c06fd8a4d1790feccfb77"
 }

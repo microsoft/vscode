@@ -110,13 +110,13 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private getExactExpressionRange(lineContent: string, range: Range): Range {
-		let matchingExpression = undefined;
+		let matchingExpression: string = undefined;
 		let startOffset = 0;
 
 		// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
 		// Match any character except a set of characters which often break interesting sub-expressions
 		let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
-		let result = undefined;
+		let result: RegExpExecArray = undefined;
 
 		// First find the full expression under the cursor
 		while (result = expression.exec(lineContent)) {
@@ -134,7 +134,7 @@ export class DebugHoverWidget implements IContentWidget {
 		// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 		if (matchingExpression) {
 			let subExpression: RegExp = /\w+/g;
-			let subExpressionResult = undefined;
+			let subExpressionResult: RegExpExecArray = undefined;
 			while (subExpressionResult = subExpression.exec(matchingExpression)) {
 				let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
 				if (subEnd >= range.endColumn) {
@@ -171,7 +171,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return promise.then(expression => {
 			if (!expression || (expression instanceof Expression && !expression.available)) {
 				this.hide();
-				return;
+				return undefined;
 			}
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
@@ -188,8 +188,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
 		return container.getChildren().then(children => {
 			// look for our variable in the list. First find the parents of the hovered variable if there are any.
-			// some languages pass the type as part of the name, so need to check if the last word of the name matches.
-			const filtered = children.filter(v => typeof v.name === 'string' && (namesToFind[0] === v.name || namesToFind[0] === v.name.substr(v.name.lastIndexOf(' ') + 1)));
+			const filtered = children.filter(v => namesToFind[0] === v.name);
 			if (filtered.length !== 1) {
 				return null;
 			}
@@ -203,19 +202,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
-		return this.debugService.getViewModel().focusedStackFrame.getScopes()
-			.then(scopes => scopes.filter(scope => !scope.expensive))
-			.then(scopes => {
-				// no expensive scopes and if a range of scope is defined it needs to contain the variable
-				const haveRangeInfo = scopes.some(s => !!s.range);
-				if (!haveRangeInfo) {
-					return scopes;
-				}
-
-				// Find the most specific scope containing the range #16632
-				return [scopes.filter(scope => Range.containsRange(scope.range, expressionRange))
-					.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
-			})
+		return this.debugService.getViewModel().focusedStackFrame.getMostSpecificScopes(expressionRange)
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value

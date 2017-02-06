@@ -22,6 +22,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { rename } from '../common/rename';
 import RenameInputField from './renameInputField';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 // ---  register actions and commands
 
@@ -42,10 +43,10 @@ class RenameController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IMessageService private _messageService: IMessageService,
-		@IFileService private _fileService: IFileService,
 		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
 		@IProgressService private _progressService: IProgressService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@optional(IFileService) private _fileService: IFileService
 	) {
 		this._renameInputField = new RenameInputField(editor);
 		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
@@ -65,7 +66,7 @@ class RenameController implements IEditorContribution {
 			word = this.editor.getModel().getWordAtPosition(selection.getStartPosition());
 
 		if (!word) {
-			return;
+			return undefined;
 		}
 
 		let lineNumber = selection.startLineNumber,
@@ -101,6 +102,7 @@ class RenameController implements IEditorContribution {
 			}, err => {
 				if (typeof err === 'string') {
 					this._messageService.show(Severity.Info, err);
+					return undefined;
 				} else {
 					this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed to execute."));
 					return TPromise.wrapError(err);
@@ -117,6 +119,7 @@ class RenameController implements IEditorContribution {
 			if (!isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
+			return undefined;
 		});
 	}
 
@@ -132,7 +135,7 @@ class RenameController implements IEditorContribution {
 
 		// start recording of file changes so that we can figure out if a file that
 		// is to be renamed conflicts with another (concurrent) modification
-		let edit = createBulkEdit(this._fileService, this._textModelResolverService, <ICodeEditor>this.editor);
+		let edit = createBulkEdit(this._textModelResolverService, <ICodeEditor>this.editor, this._fileService);
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {
@@ -171,6 +174,7 @@ export class RenameAction extends EditorAction {
 		if (controller) {
 			return controller.run();
 		}
+		return undefined;
 	}
 }
 

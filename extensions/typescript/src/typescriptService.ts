@@ -38,10 +38,6 @@ export class API {
 		return this._versionString;
 	}
 
-	public has1xFeatures(): boolean {
-		return semver.gte(this._version, '1.0.0');
-	}
-
 	public has203Features(): boolean {
 		return semver.gte(this._version, '2.0.3');
 	}
@@ -57,10 +53,14 @@ export class API {
 	public has213Features(): boolean {
 		return semver.gte(this._version, '2.1.3');
 	}
+
+	public has220Features(): boolean {
+		return semver.gte(this._version, '2.2.0');
+	}
 }
 
 export interface ITypescriptServiceClient {
-	asAbsolutePath(resource: Uri): string | null;
+	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 
 	info(message: string, data?: any): void;
@@ -87,6 +87,8 @@ export interface ITypescriptServiceClient {
 	execute(commant: 'completionEntryDetails', args: Proto.CompletionDetailsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionDetailsResponse>;
 	execute(commant: 'signatureHelp', args: Proto.SignatureHelpRequestArgs, token?: CancellationToken): Promise<Proto.SignatureHelpResponse>;
 	execute(command: 'definition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DefinitionResponse>;
+	execute(command: 'implementation', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ImplementationResponse>;
+	execute(command: 'typeDefinition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.TypeDefinitionResponse>;
 	execute(command: 'references', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ReferencesResponse>;
 	execute(command: 'navto', args: Proto.NavtoRequestArgs, token?: CancellationToken): Promise<Proto.NavtoResponse>;
 	execute(command: 'navbar', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.NavBarResponse>;

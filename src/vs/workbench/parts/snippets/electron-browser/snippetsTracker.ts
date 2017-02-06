@@ -14,10 +14,11 @@ import { mkdirp, fileExists, readdir } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import lifecycle = require('vs/base/common/lifecycle');
 import { readAndRegisterSnippets } from 'vs/editor/node/textMate/TMSnippets';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { watch, FSWatcher } from 'fs';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private static FILE_WATCH_DELAY = 200;
@@ -28,16 +29,18 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private fileWatchDelayer: async.ThrottledDelayer<void>;
 
 	constructor(
-		@IFileService private fileService: IFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IModeService private modeService: IModeService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		this.snippetFolder = paths.join(environmentService.appSettingsHome, 'snippets');
 
 		this.toDispose = [];
 		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
 
-		mkdirp(this.snippetFolder)
+		extensionService.onReady()
+			.then(() => mkdirp(this.snippetFolder))
 			.then(() => this.scanUserSnippets())
 			.then(() => this.registerListeners())
 			.done(undefined, onUnexpectedError);
@@ -70,7 +73,11 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 			return winjs.TPromise.join(snippetFiles.map(snippetFile => {
 				var modeId = snippetFile.replace(/\.json$/, '').toLowerCase();
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
-				return readAndRegisterSnippets(modeId, snippetPath, localize('userSnippet', "User Snippet"));
+				let languageIdentifier = this.modeService.getLanguageIdentifier(modeId);
+				if (languageIdentifier) {
+					return readAndRegisterSnippets(languageIdentifier, snippetPath, localize('userSnippet', "User Snippet"));
+				}
+				return undefined;
 			}));
 		});
 	}

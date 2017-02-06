@@ -12,14 +12,14 @@ export const WORKSPACE_CONFIG_DEFAULT_PATH = `${WORKSPACE_CONFIG_FOLDER_DEFAULT_
 
 export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigurationService>('configurationService');
 
-export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigurationValue<any> }
+export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigurationValue<any> };
 
 export interface IWorkspaceConfigurationService extends IConfigurationService {
 
 	/**
-	 * Returns iff the workspace has configuration or not.
+	 * Returns untrusted configuration keys for the current workspace.
 	 */
-	hasWorkspaceConfiguration(): boolean;
+	getUnsupportedWorkspaceKeys(): string[];
 
 	/**
 	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, SnippetString } from 'vscode-languageserver';
+import { MarkedString, CompletionItemKind, CompletionItem, InsertTextFormat } from 'vscode-languageserver';
 import Strings = require('../utils/strings');
 import { JSONWorkerContribution, JSONPath, CompletionsCollector } from 'vscode-json-languageservice';
 
@@ -12,8 +12,8 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 let globProperties: CompletionItem[] = [
-	{ kind: CompletionItemKind.Value, label: localize('assocLabelFile', "Files with Extension"), insertText: SnippetString.create('"*.${1:extension}": "${2:language}"'), documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier.") },
-	{ kind: CompletionItemKind.Value, label: localize('assocLabelPath', "Files with Path"), insertText: SnippetString.create('"/${1:path to file}/*.${2:extension}": "${3:language}"'), documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier.") }
+	{ kind: CompletionItemKind.Value, label: localize('assocLabelFile', "Files with Extension"), insertText: '"*.${1:extension}": "${2:language}"', insertTextFormat: InsertTextFormat.Snippet, documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier.") },
+	{ kind: CompletionItemKind.Value, label: localize('assocLabelPath', "Files with Path"), insertText: '"/${1:path to file}/*.${2:extension}": "${3:language}"', insertTextFormat: InsertTextFormat.Snippet, documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier.") }
 ];
 
 export class FileAssociationContribution implements JSONWorkerContribution {
@@ -50,7 +50,8 @@ export class FileAssociationContribution implements JSONWorkerContribution {
 				result.add({
 					kind: CompletionItemKind.Value,
 					label: l,
-					insertText: SnippetString.create(JSON.stringify('${1:' + l + '}')),
+					insertText: JSON.stringify('${1:' + l + '}'),
+					insertTextFormat: InsertTextFormat.Snippet,
 					filterText: JSON.stringify(l)
 				});
 			});

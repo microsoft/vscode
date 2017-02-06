@@ -29,7 +29,6 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
@@ -81,7 +80,6 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
@@ -193,7 +191,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			if (!e.scrollHeightChanged) {
 				return;
 			}
-			this.replInputHeight = Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height);
+			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
 			this.layout(this.dimension);
 		}));
 		this.toDispose.push(this.replInput.onDidChangeCursorPosition(e => {
@@ -273,7 +271,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			theme: this.themeService.getColorTheme(),
+			theme: this.themeService.getColorTheme().id,
 			renderLineHighlight: 'none',
 			fixedOverflowWidgets: true,
 			acceptSuggestionOnEnter: false

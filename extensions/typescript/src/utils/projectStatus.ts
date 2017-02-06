@@ -95,13 +95,13 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 	function onEditor(editor: vscode.TextEditor | undefined): void {
 		if (!editor
 			|| !vscode.languages.match(selector, editor.document)
-			|| !client.asAbsolutePath(editor.document.uri)) {
+			|| !client.normalizePath(editor.document.uri)) {
 
 			item.hide();
 			return;
 		}
 
-		const file = client.asAbsolutePath(editor.document.uri);
+		const file = client.normalizePath(editor.document.uri);
 		if (!file) {
 			return;
 		}

@@ -20,7 +20,8 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -67,6 +68,7 @@ class Main {
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			return this.uninstallExtension(ids);
 		}
+		return undefined;
 	}
 
 	private listExtensions(showVersions: boolean): TPromise<any> {

@@ -11,19 +11,34 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/platform';
 import { CloneAction } from './gitActions';
-import { GitContentProvider } from '../common/gitContentProvider';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerContributions();
+// TODO@joao: remove
+class OpenScmViewletAction extends ToggleViewletAction {
 
-// Register Service
-registerSingleton(IGitService, ElectronGitService);
+	static ID = 'workbench.view.git'; // fake redirect
+	static LABEL = localize('toggleSCMViewlet', "Show SCM");
 
-const category = localize('git', "Git");
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(id, label, 'workbench.view.scm', viewletService, editorService);
+	}
+}
 
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(CloneAction, CloneAction.ID, CloneAction.LABEL), 'Git: Clone', category);
+if (SCMPreview.enabled) {
+	Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(OpenScmViewletAction, OpenScmViewletAction.ID, OpenScmViewletAction.LABEL), 'View: Show SCM', 'View');
+} else {
+	registerContributions();
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(GitContentProvider);
+	// Register Service
+	registerSingleton(IGitService, ElectronGitService);
+
+	const category = localize('git', "Git");
+
+	Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(CloneAction, CloneAction.ID, CloneAction.LABEL), 'Git: Clone', category);
+}

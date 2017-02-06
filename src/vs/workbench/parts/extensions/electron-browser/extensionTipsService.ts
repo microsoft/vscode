@@ -27,6 +27,8 @@ interface IExtensionsContent {
 	recommendations: string[];
 }
 
+const empty: { [key: string]: any; } = Object.create(null);
+
 export class ExtensionTipsService implements IExtensionTipsService {
 
 	_serviceBrand: any;
@@ -97,6 +99,17 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this._availableRecommendations = Object.create(null);
 		forEach(extensionTips, entry => {
 			let {key: id, value: pattern} = entry;
+			let ids = this._availableRecommendations[pattern];
+			if (!ids) {
+				this._availableRecommendations[pattern] = [id];
+			} else {
+				ids.push(id);
+			}
+		});
+
+		forEach(product.extensionImportantTips, entry => {
+			let {key: id, value} = entry;
+			const {pattern} = value;
 			let ids = this._availableRecommendations[pattern];
 			if (!ids) {
 				this._availableRecommendations[pattern] = [id];
@@ -213,7 +226,34 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				});
 			});
 		});
+	}
 
+	getKeywordsForExtension(extension: string): string[] {
+		const keywords = product.extensionKeywords || {};
+		return keywords[extension] || [];
+	}
+
+	getRecommendationsForExtension(extension: string): string[] {
+		const str = `.${extension}`;
+		const result = Object.create(null);
+
+		forEach(product.extensionTips || empty, entry => {
+			let {key: id, value: pattern} = entry;
+
+			if (match(pattern, str)) {
+				result[id] = true;
+			}
+		});
+
+		forEach(product.extensionImportantTips || empty, entry => {
+			let {key: id, value} = entry;
+
+			if (match(value.pattern, str)) {
+				result[id] = true;
+			}
+		});
+
+		return Object.keys(result);
 	}
 
 	dispose() {

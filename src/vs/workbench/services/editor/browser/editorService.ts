@@ -27,7 +27,7 @@ export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
-	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
@@ -164,9 +164,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public replaceEditors(editors: { toReplace: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, replaceWith: IResourceInput | IResourceDiffInput | IResourceSideBySideInput }[]): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[]): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: any[]): TPromise<BaseEditor[]> {
+	public replaceEditors(editors: { toReplace: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, replaceWith: IResourceInput | IResourceDiffInput | IResourceSideBySideInput }[], position?: Position): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: any[], position?: Position): TPromise<BaseEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
 			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
 				const typedReplacements: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
@@ -179,7 +179,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 					};
 				});
 
-				return this.editorPart.replaceEditors(typedReplacements);
+				return this.editorPart.replaceEditors(typedReplacements, position);
 			});
 		});
 	}
@@ -210,7 +210,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
 			return this.createInput({ resource: resourceSideBySideInput.masterResource }).then(masterInput => {
 				return this.createInput({ resource: resourceSideBySideInput.detailResource }).then(detailInput => {
-					return new SideBySideEditorInput(resourceSideBySideInput.label || masterInput.getName(), resourceSideBySideInput.description || masterInput.getDescription(), detailInput, masterInput);
+					return new SideBySideEditorInput(resourceSideBySideInput.label || masterInput.getName(), typeof resourceSideBySideInput.description === 'string' ? resourceSideBySideInput.description : masterInput.getDescription(), detailInput, masterInput);
 				});
 			});
 		}
@@ -245,7 +245,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return TPromise.as(this.instantiationService.createInstance(
 				ResourceEditorInput,
 				resourceInput.label || basename(resourceInput.resource.fsPath),
-				resourceInput.description || dirname(resourceInput.resource.fsPath),
+				typeof resourceInput.description === 'string' ? resourceInput.description : dirname(resourceInput.resource.fsPath),
 				resourceInput.resource
 			));
 		}

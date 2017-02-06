@@ -15,7 +15,7 @@ import {
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
 	AddSelectionToNextFindMatchAction
 } from 'vs/editor/contrib/find/common/findController';
-import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 
 class TestFindController extends CommonFindController {
@@ -350,6 +350,31 @@ suite('FindController', () => {
 		});
 	});
 
+	test('issue #18111: Regex replace with single space replaces with no space', () => {
+		withMockCodeEditor([
+			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			let startFindAction = new StartFindAction();
+			startFindAction.run(null, editor);
+
+			findController.getState().change({ searchString: '\\b\\s{3}\\b', replaceString: ' ', isRegex: true }, false);
+			findController.moveToNextMatch();
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[1, 39, 1, 42]
+			]);
+
+			findController.replace();
+
+			assert.deepEqual(editor.getValue(), 'HRESULT OnAmbientPropertyChange(DISPID dispid);');
+
+			findController.dispose();
+		});
+	});
+
 	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
 		let result = [];
 		historyNavigator.first();
@@ -360,4 +385,160 @@ suite('FindController', () => {
 		}
 		return result;
 	}
+
+	function testAddSelectionToNextFindMatchAction(callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction) => void): void {
+		withMockCodeEditor([
+			'abc pizza',
+			'abc house',
+			'abc bar'
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			let action = new AddSelectionToNextFindMatchAction();
+
+			callback(editor, action);
+
+			findController.dispose();
+		});
+	}
+
+	test('AddSelectionToNextFindMatchAction starting with single collapsed selection', () => {
+		testAddSelectionToNextFindMatchAction((editor, action) => {
+			editor.setSelections([
+				new Selection(1, 2, 1, 2),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+		});
+	});
+
+	test('AddSelectionToNextFindMatchAction starting with two selections, one being collapsed 1)', () => {
+		testAddSelectionToNextFindMatchAction((editor, action) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 2, 2, 2),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+		});
+	});
+
+	test('AddSelectionToNextFindMatchAction starting with two selections, one being collapsed 2)', () => {
+		testAddSelectionToNextFindMatchAction((editor, action) => {
+			editor.setSelections([
+				new Selection(1, 2, 1, 2),
+				new Selection(2, 1, 2, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+		});
+	});
+
+	test('AddSelectionToNextFindMatchAction starting with all collapsed selections', () => {
+		testAddSelectionToNextFindMatchAction((editor, action) => {
+			editor.setSelections([
+				new Selection(1, 2, 1, 2),
+				new Selection(2, 2, 2, 2),
+				new Selection(3, 1, 3, 1),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+		});
+	});
+
+	test('AddSelectionToNextFindMatchAction starting with all collapsed selections on different words', () => {
+		testAddSelectionToNextFindMatchAction((editor, action) => {
+			editor.setSelections([
+				new Selection(1, 6, 1, 6),
+				new Selection(2, 6, 2, 6),
+				new Selection(3, 6, 3, 6),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 5, 1, 10),
+				new Selection(2, 5, 2, 10),
+				new Selection(3, 5, 3, 8),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 5, 1, 10),
+				new Selection(2, 5, 2, 10),
+				new Selection(3, 5, 3, 8),
+			]);
+		});
+	});
 });

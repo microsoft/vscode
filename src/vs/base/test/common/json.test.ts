@@ -38,11 +38,11 @@ function assertInvalidParse(input: string, expected: any, options?: ParseOptions
 	assert.deepEqual(actual, expected);
 }
 
-function assertTree(input: string, expected: any): void {
+function assertTree(input: string, expected: any, expectedErrors: number[] = []): void {
 	var errors: ParseError[] = [];
 	var actual = parseTree(input, errors);
 
-	assert.equal(errors.length, 0);
+	assert.deepEqual(errors.map(e => e.error, expected), expectedErrors);
 	let checkParent = (node: Node) => {
 		if (node.children) {
 			for (let child of node.children) {
@@ -234,6 +234,17 @@ suite('JSON', () => {
 		assertInvalidParse('{ "foo": /*comment*/ true }', { foo: true }, options);
 	});
 
+	test('parse: trailing comma', () => {
+		let options = { allowTrailingComma: true };
+		assertValidParse('{ "hello": [], }', { hello: [] }, options);
+		assertValidParse('{ "hello": [] }', { hello: [] }, options);
+		assertValidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
+		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} }, options);
+
+		assertInvalidParse('{ "hello": [], }', { hello: [] });
+		assertInvalidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} });
+	});
+
 	test('location: properties', () => {
 		assertLocation('|{ "foo": "bar" }', [], void 0, false);
 		assertLocation('{| "foo": "bar" }', [], void 0, true);
@@ -313,7 +324,7 @@ suite('JSON', () => {
 						]
 					},
 					{
-						type: 'property', offset: 12, length: 19, columnOffset: 15, children: [
+						type: 'property', offset: 12, length: 18, columnOffset: 15, children: [
 							{ type: 'string', offset: 12, length: 3, value: 'v' },
 							{
 								type: 'array', offset: 17, length: 13, children: [
@@ -326,6 +337,27 @@ suite('JSON', () => {
 				]
 			}
 		);
+		assertTree('{  "id": { "foo": { } } , }',
+			{
+				type: 'object', offset: 0, length: 27, children: [
+					{
+						type: 'property', offset: 3, length: 20, columnOffset: 7, children: [
+							{ type: 'string', offset: 3, length: 4, value: 'id' },
+							{
+								type: 'object', offset: 9, length: 14, children: [
+									{
+										type: 'property', offset: 11, length: 10, columnOffset: 16, children: [
+											{ type: 'string', offset: 11, length: 5, value: 'foo' },
+											{ type: 'object', offset: 18, length: 3, children: [] }
+										]
+									}
+								]
+							}
+						]
+					}
+				]
+			}
+			, [ParseErrorCode.PropertyNameExpected, ParseErrorCode.ValueExpected]);
 	});
 
 	test('tree: find location', () => {

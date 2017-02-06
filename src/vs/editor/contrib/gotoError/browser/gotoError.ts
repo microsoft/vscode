@@ -145,6 +145,7 @@ class MarkerModel {
 				return marker;
 			}
 		}
+		return undefined;
 	}
 
 	public get total() {

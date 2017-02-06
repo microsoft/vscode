@@ -16,8 +16,6 @@
 
 .monaco-editor .lines-content,
 .monaco-editor .view-line,
-.monaco-editor .view-line > span,
-.monaco-editor .view-line > span > span,
 .monaco-editor .view-lines {
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -29,8 +27,6 @@
 
 .monaco-editor.ie .lines-content,
 .monaco-editor.ie .view-line,
-.monaco-editor.ie .view-line > span,
-.monaco-editor.ie .view-line > span > span,
 .monaco-editor.ie .view-lines {
 	-ms-user-select: none;
 	user-select: none;
@@ -51,14 +47,9 @@
 	width: 100%;
 }
 
-.monaco-editor .lines-content {
-	position: absolute;
-	top: 0;
-}
-
-/* bootstrap fix */
-.monaco-editor .view-line > span > span {
+/* TODO@tokenization bootstrap fix */
+/*.monaco-editor .view-line > span > span {
 	float: none;
 	min-height: inherit;
 	margin-left: inherit;
-}
+}*/

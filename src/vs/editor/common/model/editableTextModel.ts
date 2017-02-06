@@ -13,6 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -49,9 +50,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _trimAutoWhitespaceLines: number[];
 
-	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageId: string) {
+	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageIdentifier: LanguageIdentifier) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
-		super(allowedEventTypes, rawText, languageId);
+		super(allowedEventTypes, rawText, languageIdentifier);
 
 		this._commandManager = new EditStack(this);
 
@@ -68,7 +69,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: editorCommon.ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy my edit history and settings
@@ -281,6 +282,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 
 		let mightContainRTL = this._mightContainRTL;
+		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 
 		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
@@ -289,6 +291,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			if (!mightContainRTL && op.text) {
 				// check if the new inserted text contains RTL
 				mightContainRTL = strings.containsRTL(op.text);
+			}
+			if (!mightContainNonBasicASCII && op.text) {
+				mightContainNonBasicASCII = !strings.isBasicASCII(op.text);
 			}
 			operations[i] = {
 				sortIndex: i,
@@ -359,6 +364,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 
 		this._mightContainRTL = mightContainRTL;
+		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 		this._doApplyEdits(markersTracker, operations);
 
 		this._trimAutoWhitespaceLines = null;
@@ -707,12 +713,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 
 			let markers = line.getMarkers();
-			for (let j = 0, lenJ = markers.length; j < lenJ; j++) {
-				foundMarkersCnt++;
-				let markerId = markers[j].id;
-				let marker = this._markerIdToMarker[markerId];
-				if (marker.position.lineNumber !== line.lineNumber) {
-					throw new Error('Misplaced marker with id ' + markerId);
+			if (markers !== null) {
+				for (let j = 0, lenJ = markers.length; j < lenJ; j++) {
+					foundMarkersCnt++;
+					let markerId = markers[j].id;
+					let marker = this._markerIdToMarker[markerId];
+					if (marker.position.lineNumber !== line.lineNumber) {
+						throw new Error('Misplaced marker with id ' + markerId);
+					}
 				}
 			}
 		}

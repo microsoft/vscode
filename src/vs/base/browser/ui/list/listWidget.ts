@@ -6,11 +6,12 @@
 import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
+import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -65,7 +66,7 @@ class Trait<T> implements IDisposable {
 	splice(start: number, deleteCount: number, insertCount: number): void {
 		const diff = insertCount - deleteCount;
 		const end = start + deleteCount;
-		const indexes = [];
+		const indexes: number[] = [];
 
 		for (let index of indexes) {
 			if (index >= start && index < end) {
@@ -83,7 +84,7 @@ class Trait<T> implements IDisposable {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
-	set(...indexes: number[]): number[] {
+	set(indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
 		this._onChange.fire({ indexes });
@@ -110,13 +111,13 @@ class Trait<T> implements IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	constructor(private getElementId: (number) => string) {
+	constructor(private getElementId: (number: number) => string) {
 		super('focused');
 	}
 
 	renderElement(element: T, index: number, container: HTMLElement): void {
 		super.renderElement(element, index, container);
-		container.setAttribute('role', 'option');
+		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getElementId(index));
 	}
 }
@@ -153,14 +154,14 @@ class Controller<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
-		this.list.setFocus(e.index);
-		this.list.setSelection(e.index);
+		this.list.setFocus([e.index]);
+		this.list.setSelection([e.index]);
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
-		this.list.setSelection(...this.list.getFocus());
+		this.list.setSelection(this.list.getFocus());
 	}
 
 	private onUpArrow(e: StandardKeyboardEvent): void {
@@ -201,6 +202,7 @@ class Controller<T> implements IDisposable {
 }
 
 export interface IListOptions extends IListViewOptions {
+	ariaLabel?: string;
 }
 
 const DefaultOptions: IListOptions = {};
@@ -217,12 +219,19 @@ export class List<T> implements IDisposable {
 	private controller: Controller<T>;
 	private disposables: IDisposable[];
 
+	@memoize
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
 		return this.eventBufferer.wrapEvent(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
 	}
 
+	@memoize
 	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
 		return this.eventBufferer.wrapEvent(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
+	}
+
+	@memoize
+	get onContextMenu(): Event<IListMouseEvent<T>> {
+		return fromCallback(handler => this.view.addListener('contextmenu', handler));
 	}
 
 	private _onDOMFocus: Event<FocusEvent>;
@@ -245,20 +254,24 @@ export class List<T> implements IDisposable {
 		});
 
 		this.view = new ListView(container, delegate, renderers, options);
-		this.view.domNode.setAttribute('role', 'listbox');
+		this.view.domNode.setAttribute('role', 'tree');
 		this.view.domNode.tabIndex = 0;
 		this.controller = new Controller(this, this.view);
 		this.disposables = [this.focus, this.selection, this.view, this.controller];
 
 		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
+
+		if (options.ariaLabel) {
+			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
+		}
 	}
 
-	splice(start: number, deleteCount: number, ...elements: T[]): void {
+	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		this.eventBufferer.bufferEvents(() => {
 			this.focus.splice(start, deleteCount, elements.length);
 			this.selection.splice(start, deleteCount, elements.length);
-			this.view.splice(start, deleteCount, ...elements);
+			this.view.splice(start, deleteCount, elements);
 		});
 	}
 
@@ -282,10 +295,10 @@ export class List<T> implements IDisposable {
 		this.view.layout(height);
 	}
 
-	setSelection(...indexes: number[]): void {
+	setSelection(indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.selection.set(...indexes));
-			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+			indexes = indexes.concat(this.selection.set(indexes));
+			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -293,7 +306,7 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) { return; }
 		const selection = this.selection.get();
 		let index = selection.length > 0 ? selection[0] + n : 0;
-		this.setSelection(loop ? index % this.length : Math.min(index, this.length - 1));
+		this.setSelection(loop ? [index % this.length] : [Math.min(index, this.length - 1)]);
 	}
 
 	selectPrevious(n = 1, loop = false): void {
@@ -303,17 +316,17 @@ export class List<T> implements IDisposable {
 		if (loop && index < 0) {
 			index = this.length + (index % this.length);
 		}
-		this.setSelection(Math.max(index, 0));
+		this.setSelection([Math.max(index, 0)]);
 	}
 
 	getSelection(): number[] {
 		return this.selection.get();
 	}
 
-	setFocus(...indexes: number[]): void {
+	setFocus(indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.focus.set(...indexes));
-			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+			indexes = indexes.concat(this.focus.set(indexes));
+			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -321,7 +334,7 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) { return; }
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] + n : 0;
-		this.setFocus(loop ? index % this.length : Math.min(index, this.length - 1));
+		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)]);
 	}
 
 	focusPrevious(n = 1, loop = false): void {
@@ -329,7 +342,7 @@ export class List<T> implements IDisposable {
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
 		if (loop && index < 0) { index = (this.length + (index % this.length)) % this.length; }
-		this.setFocus(Math.max(index, 0));
+		this.setFocus([Math.max(index, 0)]);
 	}
 
 	focusNextPage(): void {
@@ -339,7 +352,7 @@ export class List<T> implements IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
-			this.setFocus(lastPageIndex);
+			this.setFocus([lastPageIndex]);
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
 			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
@@ -365,7 +378,7 @@ export class List<T> implements IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
-			this.setFocus(firstPageIndex);
+			this.setFocus([firstPageIndex]);
 		} else {
 			const previousScrollTop = scrollTop;
 			this.view.setScrollTop(scrollTop - this.view.renderHeight);
@@ -418,7 +431,16 @@ export class List<T> implements IDisposable {
 	}
 
 	private _onFocusChange(): void {
-		DOM.toggleClass(this.view.domNode, 'element-focused', this.focus.get().length > 0);
+		const focus = this.focus.get();
+
+		if (focus.length > 0) {
+			this.view.domNode.setAttribute('aria-activedescendant', this.getElementId(focus[0]));
+		} else {
+			this.view.domNode.removeAttribute('aria-activedescendant');
+		}
+
+		this.view.domNode.setAttribute('role', 'tree');
+		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
 	}
 
 	dispose(): void {

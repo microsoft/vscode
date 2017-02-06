@@ -39,19 +39,19 @@ export class SideBySideEditor extends BaseEditor {
 		super(SideBySideEditor.ID, telemetryService);
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 		const parentElement = parent.getHTMLElement();
 		DOM.addClass(parentElement, 'side-by-side-editor');
 		this.createSash(parentElement);
 	}
 
 	public setInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = <SideBySideEditorInput>this.getInput();
+		const oldInput = <SideBySideEditorInput>this.input;
 		return super.setInput(newInput, options)
 			.then(() => this.updateInput(oldInput, newInput, options));
 	}
 
-	public setEditorVisible(visible: boolean, position: Position): void {
+	protected setEditorVisible(visible: boolean, position: Position): void {
 		if (this.masterEditor) {
 			this.masterEditor.setVisible(visible, position);
 		}
@@ -118,6 +118,7 @@ export class SideBySideEditor extends BaseEditor {
 		} else {
 			this.detailsEditor.setInput(newInput.details);
 			this.masterEditor.setInput(newInput.master, options);
+			return undefined;
 		}
 	}
 

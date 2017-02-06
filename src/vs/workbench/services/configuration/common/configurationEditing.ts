@@ -58,6 +58,7 @@ export enum ConfigurationTarget {
 export interface IConfigurationValue {
 	key: string;
 	value: any;
+	overrideIdentifier?: string;
 }
 
 export interface IConfigurationEditingOptions {

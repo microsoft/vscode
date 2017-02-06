@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-var es = require('event-stream');
-var _ = require('underscore');
-var util = require('gulp-util');
+var es = require("event-stream");
+var _ = require("underscore");
+var util = require("gulp-util");
 var allErrors = [];
 var startTime = null;
 var count = 0;

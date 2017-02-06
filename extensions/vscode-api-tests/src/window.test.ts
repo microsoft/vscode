@@ -15,7 +15,7 @@ suite('window namespace tests', () => {
 	teardown(cleanUp);
 
 	test('editor, active text editor', () => {
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
@@ -31,7 +31,7 @@ suite('window namespace tests', () => {
 
 	test('editor, assign and check view columns', () => {
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			let p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
 				assert.equal(editor.viewColumn, ViewColumn.One);
 			});
@@ -52,7 +52,7 @@ suite('window namespace tests', () => {
 			eventCounter += 1;
 		});
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
 				assert.equal(eventCounter, 1);
 				return doc;
@@ -111,8 +111,8 @@ suite('window namespace tests', () => {
 	});
 
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
-		const file10Path = join(workspace.rootPath, './10linefile.ts');
-		const file30Path = join(workspace.rootPath, './30linefile.ts');
+		const file10Path = join(workspace.rootPath || '', './10linefile.ts');
+		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
 
 		let finished = false;
 		let failOncePlease = (err: Error) => {
@@ -291,7 +291,7 @@ suite('window namespace tests', () => {
 	});
 
 	test('editor, selection change kind', () => {
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
 
 			return new Promise((resolve, reject) => {
@@ -315,7 +315,7 @@ suite('window namespace tests', () => {
 		assert.equal(terminal.name, 'foo');
 
 		assert.throws(() => {
-			terminal.name = 'bar';
+			(<any>terminal).name = 'bar';
 		}, 'Terminal.name should be readonly');
 	});
 

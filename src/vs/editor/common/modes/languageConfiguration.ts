@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
 /**
  * Describes how comments for a language work.
@@ -174,6 +174,10 @@ export interface EnterAction {
 	 * Describe what to do with the indentation.
 	 */
 	indentAction: IndentAction;
+	/**
+	 * Describe whether to outdent current line.
+	 */
+	outdentCurrentLine?: boolean;
 	/**
 	 * Describes text to be appended after the new line and after the indentation.
 	 */

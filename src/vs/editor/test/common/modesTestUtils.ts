@@ -4,37 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
-import { Token } from 'vs/editor/common/core/token';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { TokensBinaryEncoding, TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
-
-export function createFakeLineTokens(line: string, modeId: string, tokens: Token[], modeTransitions: ModeTransition[]): LineTokens {
-	let map = new TokensInflatorMap(modeId);
-	let deflatedTokens = TokensBinaryEncoding.deflateArr(map, tokens);
-	return new LineTokens(map, deflatedTokens, modeTransitions, line);
-}
+import { StandardTokenType, MetadataConsts } from 'vs/editor/common/modes';
 
 export interface TokenText {
 	text: string;
-	type: string;
+	type: StandardTokenType;
 }
 
-export function createFakeScopedLineTokens(modeId: string, tokens: TokenText[]): ScopedLineTokens {
-	return createScopedLineTokens(createLineContextFromTokenText(modeId, tokens), 0);
-}
-
-function createLineContextFromTokenText(modeId: string, tokens: TokenText[]): LineTokens {
+export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTokens {
+	let tokens = new Uint32Array(rawTokens.length << 1);
 	let line = '';
-	let processedTokens: Token[] = [];
 
-	let indexSoFar = 0;
-	for (let i = 0; i < tokens.length; ++i) {
-		processedTokens.push(new Token(indexSoFar, tokens[i].type));
-		line += tokens[i].text;
-		indexSoFar += tokens[i].text.length;
+	for (let i = 0, len = rawTokens.length; i < len; i++) {
+		let rawToken = rawTokens[i];
+
+		let startOffset = line.length;
+		let metadata = (
+			(rawToken.type << MetadataConsts.TOKEN_TYPE_OFFSET)
+		) >>> 0;
+
+		tokens[(i << 1)] = startOffset;
+		tokens[(i << 1) + 1] = metadata;
+		line += rawToken.text;
 	}
 
-	return createFakeLineTokens(line, modeId, processedTokens, [new ModeTransition(0, modeId)]);
+	return createScopedLineTokens(new LineTokens([], tokens, line), 0);
 }

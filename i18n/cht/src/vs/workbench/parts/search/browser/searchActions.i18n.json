@@ -6,6 +6,8 @@
 {
 	"ClearSearchResultsAction.label": "清除搜尋結果",
 	"ConfigureGlobalExclusionsAction.label": "開啟設定",
+	"FocusNextSearchResult.label": "將焦點放在下一個搜尋結果",
+	"FocusPreviousSearchResult.label": "將焦點放在上一個搜尋結果",
 	"RefreshAction.label": "重新整理",
 	"RemoveAction.label": "移除",
 	"file.replaceAll.label": "全部取代",

@@ -11,6 +11,8 @@ import * as platform from 'vs/base/common/platform';
 import * as extfs from 'vs/base/node/extfs';
 import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export class BackupMainService implements IBackupMainService {
@@ -24,7 +26,8 @@ export class BackupMainService implements IBackupMainService {
 	private mapWindowToBackupFolder: { [windowId: number]: string; };
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
@@ -34,6 +37,12 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	public getWorkspaceBackupPaths(): string[] {
+		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+		if (config && config.files && config.files.hotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+			// Only non-folder windows are restored on main process launch when
+			// hot exit is configured as onExitAndWindowClose.
+			return [];
+		}
 		return this.backups.folderWorkspaces.slice(0); // return a copy
 	}
 

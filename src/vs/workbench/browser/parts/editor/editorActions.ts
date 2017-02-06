@@ -591,7 +591,7 @@ export class CloseAllEditorsAction extends Action {
 		// Otherwise ask for combined confirmation
 		const confirm = this.textFileService.confirmSave();
 		if (confirm === ConfirmResult.CANCEL) {
-			return;
+			return undefined;
 		}
 
 		let saveOrRevertPromise: TPromise<boolean>;
@@ -605,6 +605,7 @@ export class CloseAllEditorsAction extends Action {
 			if (success) {
 				return this.editorService.closeAllEditors();
 			}
+			return undefined;
 		});
 	}
 }
@@ -824,7 +825,7 @@ export class MaximizeGroupAction extends Action {
 	public run(): TPromise<any> {
 		if (this.editorService.getActiveEditor()) {
 			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
-			this.partService.setSideBarHidden(true);
+			return this.partService.setSideBarHidden(true);
 		}
 
 		return TPromise.as(false);

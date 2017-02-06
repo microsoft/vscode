@@ -19,6 +19,12 @@ class SingleLineTestModel implements ISimpleModel {
 	private _line: string;
 	private _eol: string;
 
+	public coordinatesConverter = {
+		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
+			return viewPosition;
+		}
+	};
+
 	constructor(line: string) {
 		this._line = line;
 		this._eol = '\n';
@@ -46,10 +52,6 @@ class SingleLineTestModel implements ISimpleModel {
 
 	getLineCount(): number {
 		return 1;
-	}
-
-	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		return new Position(viewLineNumber, viewColumn);
 	}
 }
 
@@ -124,7 +126,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 		cursorOffset = off;
 		cursorLength = len;
 		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
-		handler.writePlaceholderAndSelectTextAreaSync();
+		handler.focusTextArea();
 	};
 
 	let updateModelAndPosition = (text: string, off: number, len: number) => {

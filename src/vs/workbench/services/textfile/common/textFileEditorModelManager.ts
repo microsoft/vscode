@@ -321,9 +321,19 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	}
 
 	public getAll(resource?: URI): ITextFileEditorModel[] {
-		return Object.keys(this.mapResourceToModel)
-			.filter(r => !resource || resource.toString() === r)
-			.map(r => this.mapResourceToModel[r]);
+		if (resource) {
+			const res = this.mapResourceToModel[resource.toString()];
+
+			return res ? [res] : [];
+		}
+
+		const keys = Object.keys(this.mapResourceToModel);
+		const res: ITextFileEditorModel[] = [];
+		for (let i = 0; i < keys.length; i++) {
+			res.push(this.mapResourceToModel[keys[i]]);
+		}
+
+		return res;
 	}
 
 	public add(resource: URI, model: ITextFileEditorModel): void {

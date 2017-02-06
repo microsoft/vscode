@@ -11,6 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Token } from 'vs/editor/common/core/token';
 import URI from 'vs/base/common/uri';
 
 // --------------------------------------------
@@ -230,6 +231,7 @@ export function createMonacoBaseAPI(): typeof monaco {
 		SelectionDirection: SelectionDirection,
 		Severity: Severity,
 		Promise: TPromise,
-		Uri: URI
+		Uri: URI,
+		Token: Token
 	};
 }

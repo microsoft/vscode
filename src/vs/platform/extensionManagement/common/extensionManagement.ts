@@ -292,6 +292,8 @@ export interface IExtensionTipsService {
 	getRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
+	getKeywordsForExtension(extension: string): string[];
+	getRecommendationsForExtension(extension: string): string[];
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

@@ -23,6 +23,7 @@ namespace MapMap {
 		if (map[key1]) {
 			return map[key1][key2];
 		}
+		return undefined;
 	}
 
 	export function set<V>(map: MapMap<V>, key1: string, key2: string, value: V): void {
@@ -82,7 +83,7 @@ class MarkerStats implements MarkerStatistics {
 		const result: MarkerStatistics = { errors: 0, warnings: 0, infos: 0, unknowns: 0 };
 
 		// TODO this is a hack
-		if (resource.scheme === Schemas.inMemory) {
+		if (resource.scheme === Schemas.inMemory || resource.scheme === Schemas.walkThrough || resource.scheme === Schemas.walkThroughSnippet) {
 			return result;
 		}
 
@@ -182,7 +183,7 @@ export class MarkerService implements IMarkerService {
 		let {code, severity, message, source, startLineNumber, startColumn, endLineNumber, endColumn} = data;
 
 		if (!message) {
-			return;
+			return undefined;
 		}
 
 		// santize data

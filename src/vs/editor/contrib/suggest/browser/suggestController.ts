@@ -7,6 +7,7 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,6 +25,52 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/sugg
 import { SuggestModel } from '../common/suggestModel';
 import { ICompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
+
+class AcceptOnCharacterOracle {
+
+	private _disposables: IDisposable[] = [];
+
+	private _activeAcceptCharacters = new Set<string>();
+	private _activeItem: ICompletionItem;
+
+	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (item: ICompletionItem) => any) {
+
+		this._disposables.push(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
+		this._disposables.push(widget.onDidFocus(this._onItem, this));
+		this._disposables.push(widget.onDidHide(this.reset, this));
+
+		this._disposables.push(editor.onWillType(text => {
+			if (this._activeItem) {
+				const ch = text[text.length - 1];
+				if (this._activeAcceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
+					accept(this._activeItem);
+				}
+			}
+		}));
+	}
+
+	private _onItem(item: ICompletionItem): void {
+		if (!item || isFalsyOrEmpty(item.suggestion.commitCharacters)) {
+			this.reset();
+			return;
+		}
+		this._activeItem = item;
+		this._activeAcceptCharacters.clear();
+		for (const ch of item.suggestion.commitCharacters) {
+			if (ch.length > 0) {
+				this._activeAcceptCharacters.add(ch[0]);
+			}
+		}
+	}
+
+	reset(): void {
+		this._activeItem = undefined;
+	}
+
+	dispose() {
+		dispose(this._disposables);
+	}
+}
 
 @editorContribution
 export class SuggestController implements IEditorContribution {
@@ -59,6 +106,17 @@ export class SuggestController implements IEditorContribution {
 
 		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
 		this.toDispose.push(this.widget.onDidSelect(this.onDidSelectItem, this));
+
+		// Wire up logic to accept a suggestion on certain characters
+		const autoAcceptOracle = new AcceptOnCharacterOracle(editor, this.widget, item => this.onDidSelectItem(item));
+		this.toDispose.push(
+			autoAcceptOracle,
+			this.model.onDidSuggest(e => {
+				if (e.completionModel.items.length === 0) {
+					autoAcceptOracle.reset();
+				}
+			})
+		);
 	}
 
 	getId(): string {
