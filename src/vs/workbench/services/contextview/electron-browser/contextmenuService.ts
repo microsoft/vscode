@@ -98,7 +98,7 @@ export class ContextMenuService implements IContextMenuService {
 							if (isWindows) {
 								options.sublabel = label; // leverage sublabel support on Windows (only)
 							} else {
-								options.label = `${options.label} [${label}]`;
+								options.label = `${options.label} 〔${label}〕`;
 							}
 						}
 					}
