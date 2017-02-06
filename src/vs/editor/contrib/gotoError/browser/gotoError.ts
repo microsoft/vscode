@@ -247,12 +247,14 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this.editor.applyFontInfo(this._message.domNode);
 	}
 
-	public show(where: editorCommon.IPosition, heightInLines: number): void {
-		super.show(where, heightInLines);
-		this.focus();
+	public show(where: editorCommon.IPosition, heightInLines: number, reveal: boolean): void {
+		super.show(where, heightInLines, reveal);
+		if(reveal) {
+			this.focus();
+		}
 	}
 
-	public showAtMarker(marker: IMarker): void {
+	public showAtMarker(marker: IMarker, reveal : boolean): void {
 
 		if (!marker) {
 			return;
@@ -281,7 +283,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 			this.show({
 				lineNumber: marker.startLineNumber,
 				column: marker.startColumn
-			}, this.computeRequiredHeight());
+			}, this.computeRequiredHeight(), reveal);
 		});
 	}
 
@@ -345,11 +347,11 @@ class MarkerNavigationWidgetsController {
 			(<IMarker[]>marker).forEach(m => {
 				let widget = new MarkerNavigationWidget(this._editor, this._model, this._commandService);
 				this._widgets.push(widget);
-				widget.showAtMarker(m);
+				widget.showAtMarker(m, false);
 			});
 		}
 		else if(this._navigationWidget && !this._showingAll){
-			this._navigationWidget.showAtMarker(<IMarker>marker);
+			this._navigationWidget.showAtMarker(<IMarker>marker, true);
 		}
 	}
 
