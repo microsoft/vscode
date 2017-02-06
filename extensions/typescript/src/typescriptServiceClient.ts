@@ -129,6 +129,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.storagePath = storagePath;
 		this.globalState = globalState;
 		this.pathSeparator = path.sep;
+		this.lastStart = Date.now();
 
 		var p = new Promise<void>((resolve, reject) => {
 			this._onReady = { promise: p, resolve, reject };
