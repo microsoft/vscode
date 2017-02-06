@@ -15,7 +15,8 @@
     "compile": "gulp compile --max_old_space_size=4096",
     "watch": "gulp watch --max_old_space_size=4096",
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
-    "monaco-editor-test": "mocha --only-monaco-editor"
+    "monaco-editor-test": "mocha --only-monaco-editor",
+    "precommit": "node build/gulpfile.hygiene.js"
   },
   "dependencies": {
     "applicationinsights": "0.17.0",
@@ -49,7 +50,6 @@
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
     "flatpak-bundler": "^0.1.1",
-    "ghooks": "1.0.3",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
     "gulp-atom-electron": "^1.9.0",
@@ -73,6 +73,7 @@
     "gulp-uglify": "^2.0.0",
     "gulp-util": "^3.0.6",
     "gulp-vinyl-zip": "^1.2.2",
+    "husky": "^0.13.1",
     "innosetup-compiler": "^5.5.60",
     "is": "^3.1.0",
     "istanbul": "^0.3.17",
@@ -105,11 +106,6 @@
   },
   "bugs": {
     "url": "https://github.com/Microsoft/vscode/issues"
-  },
-  "config": {
-    "ghooks": {
-      "pre-commit": "node build/gulpfile.hygiene.js"
-    }
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
