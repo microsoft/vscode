@@ -643,7 +643,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let startService = true;
 			if (this.numberRestarts > 5) {
 				let prompt: Thenable<MyMessageItem | undefined> | undefined = undefined;
+				this.numberRestarts = 0;
 				if (diff < 60 * 1000 /* 1 Minutes */) {
+					this.lastStart = Date.now();
 					prompt = window.showWarningMessage<MyMessageItem>(
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
 						{
@@ -651,7 +653,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							id: MessageAction.reportIssue,
 							isCloseAffordance: true
 						});
-				} else if (diff < 2 * 1000 /* 2 seconds */) {
+				} else if (diff < 10 * 1000 /* 10 seconds */) {
+					this.lastStart = Date.now();
 					startService = false;
 					prompt = window.showErrorMessage<MyMessageItem>(
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
