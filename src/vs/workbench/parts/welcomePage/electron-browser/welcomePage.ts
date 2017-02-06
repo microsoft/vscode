@@ -30,7 +30,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 const enabledKey = 'workbench.welcome.enabled';
-const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
 
@@ -100,7 +99,7 @@ class WelcomePage {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
 		const uri = URI.parse(require.toUrl('./vs_code_welcome_page.html'))
 			.with({ scheme: Schemas.walkThrough });
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened));
+		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, 'welcomePage', container => this.onReady(container, recentlyOpened));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(null, onUnexpectedError);
 	}
@@ -136,10 +135,6 @@ class WelcomePage {
 				a.title = folder;
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
-					this.telemetryService.publicLog('workbenchActionExecuted', {
-						id: 'openRecentFolder',
-						from: telemetryFrom
-					});
 					this.windowsService.openWindow([folder]);
 					e.preventDefault();
 					e.stopPropagation();
