@@ -91,7 +91,7 @@ export class Renderer implements IRenderer {
 
 	public getTemplateId(tree: ITree, element: any): string {
 		if (element instanceof Resource) {
-			if ((<Resource>element).uri.scheme === network.Schemas.file) {
+			if ((<Resource>element).uri.scheme === network.Schemas.file || (<Resource>element).uri.scheme === network.Schemas.untitled) {
 				return Renderer.FILE_RESOURCE_TEMPLATE_ID;
 			} else {
 				return Renderer.RESOURCE_TEMPLATE_ID;
