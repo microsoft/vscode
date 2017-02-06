@@ -13,6 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 
 export interface IViewCursorRenderData {
+	domNode: HTMLElement;
 	position: Position;
 	contentTop: number;
 	contentLeft: number;
@@ -190,6 +191,7 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 
 		return {
+			domNode: this._domNode.domNode,
 			position: this._position,
 			contentTop: top,
 			contentLeft: this._renderData.left,
