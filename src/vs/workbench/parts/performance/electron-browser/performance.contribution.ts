@@ -46,7 +46,7 @@ class PerformanceContribution implements IWorkbenchContribution {
 		const id = generateUuid();
 		const all = assign({ id, commit: product.commit }, metrics);
 		const raw = JSON.stringify(all);
-		return writeFile(join(folder, `${id}.json`), raw).then(() => this._windowsService.quit());
+		return writeFile(join(folder, `timers-${id}.json`), raw).then(() => this._windowsService.quit());
 	}
 }
 
