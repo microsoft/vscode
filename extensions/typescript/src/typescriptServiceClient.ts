@@ -698,7 +698,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public asUrl(filepath: string): Uri {
-		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)) {
+		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)
+			|| (filepath.startsWith('untitled:') && this._apiVersion.has213Features())
+		) {
 			return Uri.parse(filepath);
 		}
 		return Uri.file(filepath);
