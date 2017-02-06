@@ -108,4 +108,22 @@ suite('ConfigurationService - Model', () => {
 		assert.deepEqual(testObject.configWithOverrides('b').contents, {});
 	});
 
+	test('Test update with empty data', () => {
+		const testObject = new model.ConfigModel();
+		testObject.update('');
+
+		assert.deepEqual(testObject.contents, {});
+		assert.deepEqual(testObject.keys, []);
+
+		testObject.update(null);
+
+		assert.deepEqual(testObject.contents, {});
+		assert.deepEqual(testObject.keys, []);
+
+		testObject.update(undefined);
+
+		assert.deepEqual(testObject.contents, {});
+		assert.deepEqual(testObject.keys, []);
+	});
+
 });
