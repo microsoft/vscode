@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
@@ -275,7 +275,7 @@ export class VSCodeMenu {
 	}
 
 	private onClose(remainingWindowCount: number): void {
-		if (remainingWindowCount === 0 && platform.isMacintosh) {
+		if (remainingWindowCount === 0 && isMacintosh) {
 			this.updateMenu();
 		}
 	}
@@ -287,7 +287,7 @@ export class VSCodeMenu {
 
 		// Mac: Application
 		let macApplicationMenuItem: Electron.MenuItem;
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			const applicationMenu = new Menu();
 			macApplicationMenuItem = new MenuItem({ label: product.nameShort, submenu: applicationMenu });
 			this.setMacApplicationMenu(applicationMenu);
@@ -320,7 +320,7 @@ export class VSCodeMenu {
 
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			const windowMenu = new Menu();
 			macWindowMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
 			this.setMacWindowMenu(windowMenu);
@@ -351,7 +351,7 @@ export class VSCodeMenu {
 		Menu.setApplicationMenu(menubar);
 
 		// Dock Menu
-		if (platform.isMacintosh && !this.appMenuInstalled) {
+		if (isMacintosh && !this.appMenuInstalled) {
 			this.appMenuInstalled = true;
 
 			const dockMenu = new Menu();
@@ -432,9 +432,9 @@ export class VSCodeMenu {
 			newFile,
 			newWindow,
 			__separator__(),
-			platform.isMacintosh ? open : null,
-			!platform.isMacintosh ? openFile : null,
-			!platform.isMacintosh ? openFolder : null,
+			isMacintosh ? open : null,
+			!isMacintosh ? openFile : null,
+			!isMacintosh ? openFolder : null,
 			openRecent,
 			__separator__(),
 			saveFile,
@@ -443,14 +443,14 @@ export class VSCodeMenu {
 			__separator__(),
 			autoSave,
 			__separator__(),
-			!platform.isMacintosh ? preferences : null,
-			!platform.isMacintosh ? __separator__() : null,
+			!isMacintosh ? preferences : null,
+			!isMacintosh ? __separator__() : null,
 			revertFile,
 			closeEditor,
 			closeFolder,
-			!platform.isMacintosh ? closeWindow : null,
-			!platform.isMacintosh ? __separator__() : null,
-			!platform.isMacintosh ? exit : null
+			!isMacintosh ? closeWindow : null,
+			!isMacintosh ? __separator__() : null,
+			!isMacintosh ? exit : null
 		]).forEach(item => fileMenu.append(item));
 	}
 
@@ -507,7 +507,7 @@ export class VSCodeMenu {
 
 	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
 		let label = path;
-		if ((platform.isMacintosh || platform.isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
+		if ((isMacintosh || isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
 			label = `~${path.substr(this.environmentService.userHome.length)}`;
 		}
 
@@ -523,7 +523,7 @@ export class VSCodeMenu {
 	}
 
 	private isOptionClick(event: Electron.Event): boolean {
-		return event && ((!platform.isMacintosh && (event.ctrlKey || event.shiftKey)) || (platform.isMacintosh && (event.metaKey || event.altKey)));
+		return event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 	}
 
 	private createRoleMenuItem(label: string, commandId: string, role: Electron.MenuItemRole): Electron.MenuItem {
@@ -543,7 +543,7 @@ export class VSCodeMenu {
 		let copy: Electron.MenuItem;
 		let paste: Electron.MenuItem;
 
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			undo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo', devTools => devTools.undo());
 			redo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo', devTools => devTools.redo());
 			cut = this.createRoleMenuItem(nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "Cu&&t"), 'editor.action.clipboardCutAction', 'cut');
@@ -602,7 +602,7 @@ export class VSCodeMenu {
 		const moveLinesDown = this.createMenuItem(nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"), 'editor.action.moveLinesDownAction');
 
 		let selectAll: Electron.MenuItem;
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			selectAll = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"), 'editor.action.selectAll', (devTools) => devTools.selectAll());
 		} else {
 			selectAll = this.createMenuItem(nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"), 'editor.action.selectAll');
@@ -714,7 +714,7 @@ export class VSCodeMenu {
 			__separator__(),
 			fullscreen,
 			toggleZenMode,
-			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
+			isWindows || isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
 			toggleEditorLayout,
@@ -846,7 +846,7 @@ export class VSCodeMenu {
 			}
 		}
 
-		const keyboardShortcutsUrl = platform.isLinux ? product.keyboardShortcutsUrlLinux : platform.isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
+		const keyboardShortcutsUrl = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
 			new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.showWelcomePage') }),
 			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openDocumentationUrl') }) : null,
@@ -861,9 +861,9 @@ export class VSCodeMenu {
 			(product.twitterUrl || product.requestFeatureUrl || product.reportIssueUrl) ? __separator__() : null,
 			product.licenseUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")), click: () => {
-					if (platform.language) {
+					if (language) {
 						const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-						this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${platform.language}`, 'openLicenseUrl');
+						this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
 					} else {
 						this.openUrl(product.licenseUrl, 'openLicenseUrl');
 					}
@@ -871,9 +871,9 @@ export class VSCodeMenu {
 			}) : null,
 			product.privacyStatementUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => {
-					if (platform.language) {
+					if (language) {
 						const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-						this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${platform.language}`, 'openPrivacyStatement');
+						this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
 					} else {
 						this.openUrl(product.privacyStatementUrl, 'openPrivacyStatement');
 					}
@@ -881,10 +881,10 @@ export class VSCodeMenu {
 			}) : null,
 			(product.licenseUrl || product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
-			platform.isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
+			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
 		]).forEach(item => helpMenu.append(item));
 
-		if (!platform.isMacintosh) {
+		if (!isMacintosh) {
 			const updateMenuItems = this.getUpdateMenuItems();
 			if (updateMenuItems.length) {
 				helpMenu.append(__separator__());
@@ -913,7 +913,7 @@ export class VSCodeMenu {
 				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
 
 			case UpdateState.UpdateAvailable:
-				if (platform.isLinux) {
+				if (isLinux) {
 					return [new MenuItem({
 						label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
 							this.updateService.quitAndInstall();
@@ -921,7 +921,7 @@ export class VSCodeMenu {
 					})];
 				}
 
-				const updateAvailableLabel = platform.isWindows
+				const updateAvailableLabel = isWindows
 					? nls.localize('miDownloadingUpdate', "Downloading Update...")
 					: nls.localize('miInstallingUpdate', "Installing Update...");
 
@@ -1006,7 +1006,7 @@ export class VSCodeMenu {
 			// the keybinding is not native so we cannot show it as part of the accelerator of
 			// the menu item. we fallback to a different strategy so that we always display it
 			else {
-				if (platform.isWindows) {
+				if (isWindows) {
 					options.sublabel = binding.label; // leverage sublabel support on Windows (only)
 				} else {
 					const bindingIndex = options.label.indexOf('[');
@@ -1022,7 +1022,7 @@ export class VSCodeMenu {
 		// Unset bindings if there is none
 		else {
 			options.accelerator = void 0;
-			if (platform.isWindows) {
+			if (isWindows) {
 				options.sublabel = void 0;
 			}
 		}
@@ -1084,7 +1084,7 @@ function __separator__(): Electron.MenuItem {
 }
 
 function mnemonicLabel(label: string): string {
-	if (platform.isMacintosh) {
+	if (isMacintosh) {
 		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac
 	}
 
@@ -1092,7 +1092,7 @@ function mnemonicLabel(label: string): string {
 }
 
 function unMnemonicLabel(label: string): string {
-	if (platform.isMacintosh) {
+	if (isMacintosh) {
 		return label; // no mnemonic support on mac
 	}
 
