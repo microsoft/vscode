@@ -93,7 +93,7 @@ export class ConfigModel<T> implements IConfigModel<T> {
 	protected _keys: string[] = [];
 	protected _parseErrors: any[] = [];
 
-	constructor(content: string, private name: string = '') {
+	constructor(content: string = '', private name: string = '') {
 		if (content) {
 			this.update(content);
 		}
@@ -210,12 +210,14 @@ export class ConfigModel<T> implements IConfigModel<T> {
 				parseErrors.push({ error: error });
 			}
 		};
-		try {
-			json.visit(content, visitor);
-			parsed = currentParent[0];
-		} catch (e) {
-			console.error(`Error while parsing settings file ${this.name}: ${e}`);
-			this._parseErrors = [e];
+		if (content) {
+			try {
+				json.visit(content, visitor);
+				parsed = currentParent[0] || {};
+			} catch (e) {
+				console.error(`Error while parsing settings file ${this.name}: ${e}`);
+				this._parseErrors = [e];
+			}
 		}
 		this.processRaw(parsed);
 
