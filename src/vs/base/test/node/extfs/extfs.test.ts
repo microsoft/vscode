@@ -202,4 +202,31 @@ suite('Extfs', () => {
 			});
 		});
 	});
+
+	test('realpath', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+
+			// assume case insensitive file system
+			if (process.platform === 'win32' || process.platform === 'darwin') {
+				const upper = newDir.toUpperCase();
+				const real = extfs.realpathSync(upper);
+
+				assert.notEqual(real, upper);
+				assert.equal(real.toUpperCase(), upper);
+				assert.equal(real, newDir);
+			}
+
+			// linux, unix, etc. -> assume case sensitive file system
+			else {
+				const real = extfs.realpathSync(newDir);
+				assert.equal(real, newDir);
+			}
+
+			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+		});
+	});
 });
