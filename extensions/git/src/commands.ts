@@ -286,9 +286,8 @@ export class CommandCenter {
 
 		const basename = path.basename(resource.uri.fsPath);
 		const message = localize('confirm clean', "Are you sure you want to clean changes in {0}?", basename);
-		const yes = localize('yes', "Yes");
-		const no = localize('no, keep them', "No, keep them");
-		const pick = await window.showQuickPick([yes, no], { placeHolder: message });
+		const yes = localize('clean', "Clean Changes");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
 			return;
@@ -301,9 +300,8 @@ export class CommandCenter {
 	@CommandCenter.CatchErrors
 	async cleanAll(): Promise<void> {
 		const message = localize('confirm clean all', "Are you sure you want to clean all changes?");
-		const yes = localize('yes', "Yes");
-		const no = localize('no, keep them', "No, keep them");
-		const pick = await window.showQuickPick([yes, no], { placeHolder: message });
+		const yes = localize('clean', "Clean Changes");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
 			return;
