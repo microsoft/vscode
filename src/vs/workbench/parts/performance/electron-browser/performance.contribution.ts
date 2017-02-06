@@ -6,6 +6,8 @@
 'use strict';
 
 import { assign } from 'vs/base/common/objects';
+import { join } from 'path';
+import { generateUuid } from 'vs/base/common/uuid';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { writeFile } from 'vs/base/node/pfs';
@@ -29,7 +31,7 @@ class PerformanceContribution implements IWorkbenchContribution {
 		if (dumpFile) {
 			// wait for extensions being loaded
 			extensionService.onReady()
-				.then(() => TPromise.timeout(100)) // time service isn't ready yet because it listens on the same event...
+				.then(() => TPromise.timeout(1000)) // time service isn't ready yet because it listens on the same event...
 				.then(() => this._dumpTimersAndQuit(dumpFile))
 				.done(undefined, err => console.error(err));
 		}
@@ -39,11 +41,12 @@ class PerformanceContribution implements IWorkbenchContribution {
 		return 'performance';
 	}
 
-	private _dumpTimersAndQuit(path: string) {
+	private _dumpTimersAndQuit(folder: string) {
 		const metrics = this._timerService.startupMetrics;
-		const all = assign({ commit: product.commit }, metrics);
+		const id = generateUuid();
+		const all = assign({ id, commit: product.commit }, metrics);
 		const raw = JSON.stringify(all);
-		return writeFile(path, raw).then(() => this._windowsService.quit());
+		return writeFile(join(folder, `${id}.json`), raw).then(() => this._windowsService.quit());
 	}
 }
 
