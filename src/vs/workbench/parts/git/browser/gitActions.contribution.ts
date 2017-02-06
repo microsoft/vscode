@@ -38,6 +38,7 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 function getStatus(gitService: IGitService, contextService: IWorkspaceContextService, input: WorkbenchEditorCommon.IFileEditorInput): IFileStatus {
 	const model = gitService.getModel();
@@ -480,13 +481,15 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 	static ID = 'workbench.action.git.revertRanges';
 	static LABEL = nls.localize('revertSelectedLines', "Revert Selected Lines");
 
-	private editorService: IWorkbenchEditorService;
 	private editor: editorbrowser.IDiffEditor;
 
-	constructor(editor: tdeditor.TextDiffEditor, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+	constructor(
+		editor: tdeditor.TextDiffEditor,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService
+	) {
 		super(RevertRangesAction.ID, RevertRangesAction.LABEL);
 
-		this.editorService = editorService;
 		this.editor = editor.getControl();
 		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
@@ -518,6 +521,21 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 		const {original, modified} = this.editor.getModel();
 
 		const revertEdits = getChangeRevertEdits(original, modified, changes);
+
+		if (revertEdits.length === 0) {
+			return TPromise.as(null);
+		}
+
+		const confirm = {
+			message: nls.localize('confirmRevertMessage', "Are you sure you want to revert the selected changes?"),
+			detail: nls.localize('', "This action is irreversible!"),
+			primaryButton: nls.localize({ key: 'revertChangesLabel', comment: ['&& denotes a mnemonic'] }, "&&Revert Changes")
+		};
+
+		if (!this.messageService.confirm(confirm)) {
+			return TPromise.as(null);
+		}
+
 		modified.pushEditOperations(selections, revertEdits, () => selections);
 		modified.pushStackElement();
 
