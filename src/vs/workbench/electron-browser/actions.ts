@@ -15,11 +15,13 @@ import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
+import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -920,4 +922,19 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 	return editorService.openEditor({ resource }, column).then(() => {
 		return void 0;
 	});
+});
+
+CommandsRegistry.registerCommand('_workbench.newUntitled', function (accessor: ServicesAccessor, args: [string, string, string]) {
+	const untitledEditorService = accessor.get(IUntitledEditorService);
+	const editorService = accessor.get(IWorkbenchEditorService);
+	const [value, path, modeId] = args;
+
+	const input = untitledEditorService.createOrGet(path ? URI.file(path) : void 0, modeId);
+
+	let valuePromise = TPromise.as(void 0);
+	if (value) {
+		valuePromise = input.resolve().then(model => (model as UntitledEditorModel).textEditorModel.setValue(value));
+	}
+
+	return valuePromise.then(() => editorService.openEditor(input, { pinned: true })).then(() => void 0); // untitled are always pinned
 });
