@@ -7,7 +7,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import { isWindows } from 'vs/base/common/platform';
 import { IAction } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
@@ -95,11 +94,7 @@ export class ContextMenuService implements IContextMenuService {
 					} else {
 						const label = this.keybindingService.getLabelFor(keybinding);
 						if (label) {
-							if (isWindows) {
-								options.sublabel = label; // leverage sublabel support on Windows (only)
-							} else {
-								options.label = `${options.label} 〔${label}〕`;
-							}
+							options.label = `${options.label} 〔${label}〕`;
 						}
 					}
 				}
