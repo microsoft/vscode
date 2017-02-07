@@ -117,17 +117,6 @@
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
 			},
 			"sourceMaps": true
-		},
-		{
-			"type": "node",
-			"request": "launch",
-			"name": "Debug Monaco",
-			"program": "${workspaceRoot}/build/lib/monaco.js",
-			"cwd": "${workspaceRoot}/build/lib"
-			// ,
-			// "port": 5870,
-			// "sourceMaps": true,
-			// "outFiles": [ "${workspaceRoot}/out/**/*.js" ]
 		}
 	]
 }
