@@ -7,7 +7,10 @@
 		"module": "commonjs",
 		"outDir": "./out",
 		"strictNullChecks": true,
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
+		"types": [
+			"node"
+		]
 	},
 	"exclude": [
 		"node_modules"

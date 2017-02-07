@@ -6,7 +6,11 @@
 		"lib": [
 			"es2015"
 		],
-		"sourceMap": true
+		"sourceMap": true,
+		"types": [
+			"mocha",
+			"node"
+		]
 	},
 	"exclude": [
 		"node_modules"
