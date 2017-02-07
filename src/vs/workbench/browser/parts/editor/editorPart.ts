@@ -104,6 +104,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private pendingEditorInputsToClose: EditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
 
+	private onLayoutEmitter = new Emitter<Dimension>();
+	public onLayout = this.onLayoutEmitter.event;
+
 	constructor(
 		id: string,
 		restoreFromStorage: boolean,
@@ -1190,6 +1193,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Pass to Side by Side Control
 		this.dimension = sizes[1];
 		this.editorGroupsControl.layout(this.dimension);
+
+		this.onLayoutEmitter.fire(dimension);
 
 		return sizes;
 	}

@@ -9,7 +9,7 @@ import 'vs/css!./media/workbench';
 
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, chain } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer } from 'vs/base/common/async';
@@ -234,6 +234,12 @@ export class Workbench implements IPartService {
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
+	}
+
+	public get onEditorLayout(): Event<void> {
+		return chain(this.editorPart.onLayout)
+			.map(() => void 0)
+			.event;
 	}
 
 	/**

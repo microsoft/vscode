@@ -175,9 +175,15 @@ export class WatermarkContribution implements IWorkbenchContribution {
 				});
 			});
 		};
+		const layout = () => {
+			const { height } = container.getBoundingClientRect();
+			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
+		};
 		update();
-		watermark.build(container.firstChild as HTMLElement, 0);
+		watermark.build(container.firstElementChild as HTMLElement, 0);
+		layout();
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
+		this.toDispose.push(this.partService.onEditorLayout(layout));
 	}
 
 	public dispose(): void {

@@ -240,9 +240,14 @@ export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
+	private _onEditorLayout = new Emitter<void>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
+	}
+
+	public get onEditorLayout(): Event<void> {
+		return this._onEditorLayout.event;
 	}
 
 	public layout(): void { }
