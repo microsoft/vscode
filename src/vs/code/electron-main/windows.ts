@@ -1028,7 +1028,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private findBestWindow(context: OpenContext, filePaths: IPath[]): VSCodeWindow {
 		const findContainer = context === OpenContext.DESKTOP || context === OpenContext.CLI;
-		return findContainer && this.findContainingWindow(filePaths) || this.getLastActiveWindow();
+		return (findContainer && this.findContainingWindow(filePaths)) || this.getLastActiveWindow();
 	}
 
 	private findContainingWindow(filePaths: IPath[]): VSCodeWindow {
