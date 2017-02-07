@@ -257,6 +257,14 @@ export class DefaultConfigModel<T> extends ConfigModel<T> {
 	public update(): void {
 		this._contents = getDefaultValues(); // defaults coming from contributions to registries
 		this._keys = getConfigurationKeys();
+		this._overrides = Object.keys(this._contents)
+			.filter(key => OVERRIDE_PROPERTY_PATTERN.test(key))
+			.map(key => {
+				return <IOverrides<any>>{
+					identifiers: [overrideIdentifierFromKey(key).trim()],
+					contents: toValuesTree(this._contents[key], message => console.error(`Conflict in default settings file: ${message}`))
+				};
+			});
 	}
 }
 

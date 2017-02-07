@@ -6,17 +6,22 @@
 
 import * as assert from 'assert';
 import * as model from 'vs/platform/configuration/common/model';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry, IConfigurationExtension } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/platform';
 
 suite('ConfigurationService - Model', () => {
 
 	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'problems',
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(<IConfigurationExtension>{
+			'id': 'a',
 			'order': 1,
 			'title': 'a',
 			'type': 'object',
+			'defaults': {
+				'[b]': {
+					'a': false
+				}
+			},
 			'properties': {
 				'a': {
 					'description': 'a',
@@ -126,4 +131,14 @@ suite('ConfigurationService - Model', () => {
 		assert.deepEqual(testObject.keys, []);
 	});
 
+	test('Test default settings', () => {
+		const testObject = new model.DefaultConfigModel();
+
+		assert.deepEqual(testObject.contents, { 'a': true, '[b]': { 'a': false } });
+		assert.deepEqual(testObject.keys, ['a', '[b]']);
+		assert.deepEqual(testObject.overrides, [{
+			identifiers: ['b'],
+			contents: { 'a': false }
+		}]);
+	});
 });
