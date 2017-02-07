@@ -128,14 +128,26 @@ export class CommandCenter {
 		};
 	}
 
+	private model: Model;
 	private disposables: Disposable[];
 
 	constructor(
-		private model: Model,
+		model: Model | undefined,
 		private outputChannel: OutputChannel
 	) {
+		if (model) {
+			this.model = model;
+		}
+
 		this.disposables = CommandCenter.Commands
-			.map(({ commandId, method }) => commands.registerCommand(commandId, method, this));
+			.map(({ commandId, method }) => commands.registerCommand(commandId, (...args) => {
+				if (!model) {
+					window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
+					return;
+				}
+
+				return method.apply(this, args);
+			}));
 	}
 
 	@CommandCenter.Command('git.refresh')

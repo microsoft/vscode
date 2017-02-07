@@ -373,6 +373,11 @@
     "configuration": {
       "title": "Git",
       "properties": {
+        "git.enabled": {
+          "type": "boolean",
+          "description": "%config.enabled%",
+          "default": true
+        },
         "git.path": {
           "type": [
             "string",
