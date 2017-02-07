@@ -654,6 +654,9 @@ class TabActionRunner extends ActionRunner {
 
 	public run(action: IAction, context?: any): TPromise<any> {
 		const group = this.group();
+		if (!group) {
+			return TPromise.as(void 0);
+		}
 
 		return super.run(action, { group, editor: group.getEditor(this.index) });
 	}
