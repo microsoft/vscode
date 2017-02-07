@@ -29,7 +29,41 @@ class ToggleBreakpointAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
+		const debugService = accessor.get(IDebugService);
+
+		const position = editor.getPosition();
+		const modelUri = editor.getModel().uri;
+		const bps = debugService.getModel().getBreakpoints()
+			.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === modelUri.toString());
+
+		if (bps.length) {
+			return TPromise.join(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+		}
+		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }]);
+		}
+
+		return TPromise.as(null);
+	}
+}
+
+@editorAction
+class ToggleColumnBreakpointAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.debug.action.toggleColumnBreakpoint',
+			label: nls.localize('toggleColumnBreakpointAction', "Debug: Toggle Column Breakpoint"),
+			alias: 'Debug: Toggle Column Breakpoint',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.F9
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
