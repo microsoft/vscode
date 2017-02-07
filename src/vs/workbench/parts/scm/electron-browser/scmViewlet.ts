@@ -95,9 +95,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		private actionItemProvider: IActionItemProvider,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
-	) {
-
-	}
+	) { }
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
@@ -193,17 +191,6 @@ export class SCMViewlet extends Viewlet {
 		this.disposables.push(this.editor);
 
 		this.disposables.push(this.scmService.inputBoxModel.onDidChangeContent(() => this.layout()));
-
-		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-		// 	placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
-		// 	ariaLabel: localize('acceptAria', "Changes: Type message and press {0} to accept the changes", SCMViewlet.ACCEPT_KEYBINDING),
-		// 	flexibleHeight: true
-		// });
-
-		// chain(domEvent(this.inputBox.inputElement, 'keydown'))
-		// 	.map(e => new StandardKeyboardEvent(e))
-		// 	.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-		// 	.on(this.accept, this, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
