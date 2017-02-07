@@ -19,7 +19,6 @@ import Strings = require('./utils/strings');
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
 import { ProjectJSONContribution } from './jsoncontributions/projectJSONContribution';
 import { GlobPatternContribution } from './jsoncontributions/globPatternContribution';
-import { WindowTitleContribution } from './jsoncontributions/windowTitleContribution';
 import { FileAssociationContribution } from './jsoncontributions/fileAssociationContribution';
 import { getLanguageModelCache } from './languageModelCache';
 
@@ -129,7 +128,6 @@ let languageService = getLanguageService({
 	contributions: [
 		new ProjectJSONContribution(),
 		new GlobPatternContribution(),
-		new WindowTitleContribution(),
 		filesAssociationContribution
 	]
 });
