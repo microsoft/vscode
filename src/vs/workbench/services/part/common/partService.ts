@@ -37,6 +37,11 @@ export interface IPartService {
 	onTitleBarVisibilityChange: Event<void>;
 
 	/**
+	 * Emits when the editor part's layout changes.
+	 */
+	onEditorLayout: Event<void>;
+
+	/**
 	 * Asks the part service to layout all parts.
 	 */
 	layout(options?: ILayoutOptions): void;
