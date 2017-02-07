@@ -83,7 +83,7 @@ export class LaunchService implements ILaunchService {
 
 		const openUrlArg = args['open-url'] || [];
 		const openUrl = typeof openUrlArg === 'string' ? [openUrlArg] : openUrlArg;
-		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.OTHER;
+		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 
 		if (openUrl.length > 0) {
 			openUrl.forEach(url => this.urlService.open(url));

@@ -48,8 +48,11 @@ export enum OpenContext {
 	// opening from a file or folder dialog
 	DIALOG,
 
-	// any other way of opening
-	OTHER
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
 }
 
 export interface IOpenConfiguration {
@@ -406,15 +409,15 @@ export class WindowsManager implements IWindowsMainService {
 			}
 
 			// Open Files in last instance if any and flag tells us so
-			const lastActiveWindow = this.getLastActiveWindow();
-			if (!openFilesInNewWindow && lastActiveWindow) {
-				lastActiveWindow.focus();
+			let bestWindow;
+			if (!openFilesInNewWindow && (bestWindow = this.findBestWindow(openConfig.context, [...filesToOpen, ...filesToCreate, ...filesToDiff]))) {
+				bestWindow.focus();
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
-				lastActiveWindow.ready().then(readyWindow => {
+				bestWindow.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', files);
 				});
 
-				usedWindows.push(lastActiveWindow);
+				usedWindows.push(bestWindow);
 			}
 
 			// Otherwise open instance with files
@@ -1021,6 +1024,21 @@ export class WindowsManager implements IWindowsMainService {
 		const res = this.open({ context, cli });
 
 		return res && res[0];
+	}
+
+	private findBestWindow(context: OpenContext, filePaths: IPath[]): VSCodeWindow {
+		const findContainer = context === OpenContext.DESKTOP || context === OpenContext.CLI;
+		return (findContainer && this.findContainingWindow(filePaths)) || this.getLastActiveWindow();
+	}
+
+	private findContainingWindow(filePaths: IPath[]): VSCodeWindow {
+		for (const filePath of filePaths) {
+			const windows = WindowsManager.WINDOWS.filter(window => typeof window.openedWorkspacePath === 'string' && paths.isEqualOrParent(filePath.filePath, window.openedWorkspacePath));
+			if (windows.length) {
+				return windows.sort((a, b) => -(a.openedWorkspacePath.length - b.openedWorkspacePath.length))[0];
+			}
+		}
+		return null;
 	}
 
 	public getLastActiveWindow(): VSCodeWindow {
