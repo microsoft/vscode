@@ -44,7 +44,7 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 			if (location.path[1] === 'command') {
 
 				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-				return commands.then(ids => ids.map(id => newCompletionItem(JSON.stringify(id), range)));
+				return commands.then(ids => ids.map(id => newSimpleCompletionItem(JSON.stringify(id), range)));
 			}
 		}
 	});
@@ -61,13 +61,107 @@ function registerSettingsCompletions(): vscode.Disposable {
 			if (location.path[0] === 'window.title') {
 				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 
-				completions.push(newCompletionItem('${activeEditorName}', range, localize('activeEditorName', "e.g. myFile.txt")));
-				completions.push(newCompletionItem('${activeFilePath}', range, localize('activeFilePath', "e.g. /Users/Development/myProject/myFile.txt")));
-				completions.push(newCompletionItem('${rootName}', range, localize('rootName', "e.g. myProject")));
-				completions.push(newCompletionItem('${rootPath}', range, localize('rootPath', "e.g. /Users/Development/myProject")));
-				completions.push(newCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
-				completions.push(newCompletionItem('${dirty}', range, localize('dirty', "a dirty indicator if the active editor is dirty")));
-				completions.push(newCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));
+				completions.push(newSimpleCompletionItem('${activeEditorName}', range, localize('activeEditorName', "e.g. myFile.txt")));
+				completions.push(newSimpleCompletionItem('${activeFilePath}', range, localize('activeFilePath', "e.g. /Users/Development/myProject/myFile.txt")));
+				completions.push(newSimpleCompletionItem('${rootName}', range, localize('rootName', "e.g. myProject")));
+				completions.push(newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "e.g. /Users/Development/myProject")));
+				completions.push(newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
+				completions.push(newSimpleCompletionItem('${dirty}', range, localize('dirty', "a dirty indicator if the active editor is dirty")));
+				completions.push(newSimpleCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));
+			}
+
+			// files.association
+			else if (location.path[0] === 'files.associations') {
+				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+
+				// Key
+				if (location.path.length === 1) {
+					completions.push(newSnippetCompletionItem({
+						label: localize('assocLabelFile', "Files with Extension"),
+						documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
+						snippet: '"*.${1:extension}": "${2:language}"',
+						range
+					}));
+
+					completions.push(newSnippetCompletionItem({
+						label: localize('assocLabelPath', "Files with Path"),
+						documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
+						snippet: '"/${1:path to file}/*.${2:extension}": "${3:language}"',
+						range
+					}));
+				}
+
+				// Value
+				else {
+					return vscode.languages.getLanguages().then(languages => {
+						return Promise.resolve(languages.map(l => {
+							return newSimpleCompletionItem(l, range);
+						}));
+					});
+				}
+			}
+
+			// files.exclude, search.exclude
+			else if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude') {
+				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+
+				// Key
+				if (location.path.length === 1) {
+					completions.push(newSnippetCompletionItem({
+						label: localize('fileLabel', "Files by Extension"),
+						documentation: localize('fileDescription', "Match all files of a specific file extension."),
+						snippet: '"**/*.${1:extension}": true',
+						range
+					}));
+
+					completions.push(newSnippetCompletionItem({
+						label: localize('filesLabel', "Files with Multiple Extensions"),
+						documentation: localize('filesDescription', "Match all files with any of the file extensions."),
+						snippet: '"**/*.{ext1,ext2,ext3}": true',
+						range
+					}));
+
+					completions.push(newSnippetCompletionItem({
+						label: localize('derivedLabel', "Files with Siblings by Name"),
+						documentation: localize('derivedDescription', "Match files that have siblings with the same name but a different extension."),
+						snippet: '"**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" }',
+						range
+					}));
+
+					completions.push(newSnippetCompletionItem({
+						label: localize('topFolderLabel', "Folder by Name (Top Level)"),
+						documentation: localize('topFolderDescription', "Match a top level folder with a specific name."),
+						snippet: '"${1:name}": true',
+						range
+					}));
+
+					completions.push(newSnippetCompletionItem({
+						label: localize('topFoldersLabel', "Folders with Multiple Names (Top Level)"),
+						documentation: localize('topFoldersDescription', "Match multiple top level folders."),
+						snippet: '"{folder1,folder2,folder3}": true',
+						range
+					}));
+
+					completions.push(newSnippetCompletionItem({
+						label: localize('folderLabel', "Folder by Name (Any Location)"),
+						documentation: localize('folderDescription', "Match a folder with a specific name in any location."),
+						snippet: '"**/${1:name}": true',
+						range
+					}));
+				}
+
+				// Value
+				else {
+					completions.push(newSimpleCompletionItem('false', range, localize('falseDescription', "Disable the pattern.")));
+					completions.push(newSimpleCompletionItem('true', range, localize('trueDescription', "Enable the pattern.")));
+
+					completions.push(newSnippetCompletionItem({
+						label: localize('derivedLabel', "Files with Siblings by Name"),
+						documentation: localize('siblingsDescription', "Match files that have siblings with the same name but a different extension."),
+						snippet: '{ "when": "$(basename).${1:extension}" }',
+						range
+					}));
+				}
 			}
 
 			return Promise.resolve(completions);
@@ -75,7 +169,7 @@ function registerSettingsCompletions(): vscode.Disposable {
 	});
 }
 
-function newCompletionItem(text: string, range: vscode.Range, description?: string): vscode.CompletionItem {
+function newSimpleCompletionItem(text: string, range: vscode.Range, description?: string): vscode.CompletionItem {
 	const item = new vscode.CompletionItem(text);
 	item.kind = vscode.CompletionItemKind.Value;
 	item.detail = description;
@@ -83,6 +177,16 @@ function newCompletionItem(text: string, range: vscode.Range, description?: stri
 		range,
 		newText: item.label
 	};
+
+	return item;
+}
+
+function newSnippetCompletionItem(o: { label: string; documentation?: string; snippet: string; range: vscode.Range; }): vscode.CompletionItem {
+	const item = new vscode.CompletionItem(o.label);
+	item.kind = vscode.CompletionItemKind.Value;
+	item.documentation = o.documentation;
+	item.insertText = new vscode.SnippetString(o.snippet);
+	item.range = o.range;
 
 	return item;
 }
