@@ -268,8 +268,13 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 	}
 
 	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {
-		if (!ctx.emmet.run(this.emmetActionName, ctx.editorAccessor)) {
+		try {
+			if (!ctx.emmet.run(this.emmetActionName, ctx.editorAccessor)) {
+				this.noExpansionOccurred(ctx.editor);
+			}
+		} catch (err) {
 			this.noExpansionOccurred(ctx.editor);
 		}
+
 	}
 }
