@@ -134,8 +134,10 @@ suite('ConfigurationService - Model', () => {
 	test('Test default settings', () => {
 		const testObject = new model.DefaultConfigModel();
 
-		assert.deepEqual(testObject.contents, { 'a': true, '[b]': { 'a': false } });
-		assert.deepEqual(testObject.keys, ['a', '[b]']);
+		assert.equal(testObject.getContentsFor('a'), true);
+		assert.deepEqual(testObject.getContentsFor('[b]'), { 'a': false });
+		assert.ok(testObject.keys.indexOf('a') !== -1);
+		assert.ok(testObject.keys.indexOf('[b]') !== -1);
 		assert.deepEqual(testObject.overrides, [{
 			identifiers: ['b'],
 			contents: { 'a': false }
