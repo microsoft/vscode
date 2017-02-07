@@ -61,6 +61,8 @@ export const InSCMInputContextKey = new RawContextKey<boolean>('inSCMInput', fal
 
 export class SCMEditor {
 
+	private static VerticalPadding = 4;
+
 	private editor: SCMCodeEditorWidget;
 	private disposables: IDisposable[] = [];
 
@@ -76,7 +78,7 @@ export class SCMEditor {
 			scrollbar: {
 				horizontal: 'hidden'
 			},
-			lineDecorationsWidth: 0,
+			lineDecorationsWidth: 3,
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme().id,
 			renderLineHighlight: 'none',
@@ -106,15 +108,24 @@ export class SCMEditor {
 		this.editor = scopedInstantiationService.createInstance(SCMCodeEditorWidget, container, this.editorOptions);
 		this.themeService.onDidColorThemeChange(e => this.editor.updateOptions(this.editorOptions), null, this.disposables);
 
-		this.editor.setModel(this.scmService.inputBoxModel);
+		const model = this.scmService.inputBoxModel;
+		this.editor.setModel(model);
+
+		this.editor.changeViewZones(accessor => {
+			accessor.addZone({
+				afterLineNumber: 0,
+				heightInPx: SCMEditor.VerticalPadding,
+				domNode: document.createElement('div')
+			});
+		});
 	}
 
-	get lineHeight(): number {
+	private get lineHeight(): number {
 		return this.editor.getConfiguration().lineHeight;
 	}
 
 	// TODO@joao TODO@alex isn't there a better way to get the number of lines?
-	get lineCount(): number {
+	private get lineCount(): number {
 		const model = this.scmService.inputBoxModel;
 		const modelLength = model.getValueLength();
 		const lastPosition = model.getPositionAt(modelLength);
@@ -122,6 +133,10 @@ export class SCMEditor {
 		const viewHeight = lastLineTop + this.lineHeight;
 
 		return viewHeight / this.lineHeight;
+	}
+
+	get viewHeight(): number {
+		return Math.min(this.lineCount, 8) * this.lineHeight + (SCMEditor.VerticalPadding);
 	}
 
 	layout(dimension: IDimension): void {

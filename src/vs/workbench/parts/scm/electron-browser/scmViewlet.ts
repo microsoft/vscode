@@ -238,7 +238,7 @@ export class SCMViewlet extends Viewlet {
 
 		this.cachedDimension = dimension;
 
-		const editorHeight = Math.min(this.editor.lineCount, 8) * this.editor.lineHeight;
+		const editorHeight = this.editor.viewHeight;
 		this.editor.layout({ width: dimension.width - 25, height: editorHeight });
 
 		const listHeight = dimension.height - (editorHeight + 12 /* margin */);
