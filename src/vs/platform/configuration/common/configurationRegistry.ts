@@ -67,6 +67,10 @@ export interface IConfigurationNode {
 	overridable?: boolean;
 }
 
+export interface IConfigurationExtension extends IConfigurationNode {
+	defaults?: any;
+}
+
 const schemaId = 'vscode://schemas/settings';
 const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -90,7 +94,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
-		this.registerOverrideSettingsConfiguration();
 	}
 
 	public get onDidRegisterConfiguration() {
@@ -103,6 +106,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	public registerConfigurations(configurations: IConfigurationNode[]): void {
 		configurations.forEach(configuration => {
+			this.registerDefaultOverrides(configuration); /// fills in default overrides
 			this.registerProperties(configuration); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
@@ -115,6 +119,26 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
 		this.overrideIdentifiers.push(...overrideIdentifiers);
 		this.updateOverridePropertyPatternKey();
+	}
+
+	private registerDefaultOverrides(configurationNode: IConfigurationExtension): void {
+		if (!configurationNode.defaults) {
+			return;
+		}
+
+		for (const key in configurationNode.defaults) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				if (!configurationNode.properties) {
+					configurationNode.properties = {};
+				}
+				configurationNode.properties[key] = {
+					type: 'object',
+					default: configurationNode.defaults[key],
+					description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for {0} language.", key),
+					$ref: editorConfigurationSchemaId
+				};
+			}
+		}
 	}
 
 	private registerProperties(configuration: IConfigurationNode, overridable: boolean = false) {
@@ -166,11 +190,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				subNodes.forEach(register);
 			}
 		};
-		if (configuration.id === SETTINGS_OVERRRIDE_NODE_ID) {
-			configurationSchema.patternProperties[this.overridePropertyPattern] = objects.clone(configuration.properties['[]']);
-		} else {
-			register(configuration);
-		}
+		register(configuration);
 		contributionRegistry.registerSchema(schemaId, configurationSchema);
 	}
 
@@ -182,13 +202,19 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private updateOverridePropertyPatternKey(): void {
-		let patternProperties = this.configurationSchema.patternProperties[this.overridePropertyPattern];
-		if (patternProperties) {
-			delete this.configurationSchema.patternProperties[this.overridePropertyPattern];
-			this.computeOverridePropertyPattern();
-			this.configurationSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
-			contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+		let patternProperties: IJSONSchema = this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		if (!patternProperties) {
+			patternProperties = {
+				type: 'object',
+				description: nls.localize('overrideSettings.defaultDescription', "Configure editor settings to be overridden for a language."),
+				errorMessage: 'Unknown Identifier. Use language identifiers',
+				$ref: editorConfigurationSchemaId
+			};
 		}
+		delete this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		this.computeOverridePropertyPattern();
+		this.configurationSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
+		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
 
 	private update(configuration: IConfigurationNode, overridePropertiesSchema: IJSONSchema): void {
@@ -208,24 +234,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private computeOverridePropertyPattern(): void {
 		this.overridePropertyPattern = this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.join('|')) : OVERRIDE_PROPERTY;
-	}
-
-	private registerOverrideSettingsConfiguration(): void {
-		const properties = {
-			'[]': <IConfigurationPropertySchema>{
-				type: 'object',
-				description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for a language."),
-				additionalProperties: false,
-				errorMessage: 'Unknown Identifier. Use language identifiers',
-				$ref: editorConfigurationSchemaId
-			}
-		};
-		this.registerConfiguration({
-			id: SETTINGS_OVERRRIDE_NODE_ID,
-			type: 'object',
-			title: nls.localize('overrideSettings.title', "Override Settings"),
-			properties
-		});
 	}
 }
 
@@ -283,14 +291,25 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 				]
 			}
 		},
+		defaults: {
+			description: nls.localize('vscode.extension.contributes.configuration.defaults', 'Override default editor settings for a language'),
+			type: 'object',
+			patternProperties: {
+				'\\[.*\\]$': {
+					type: 'object',
+					default: {},
+					$ref: editorConfigurationSchemaId,
+				}
+			}
+		}
 	}
 });
 
 configurationExtPoint.setHandler(extensions => {
-	const configurations: IConfigurationNode[] = [];
+	const configurations: IConfigurationExtension[] = [];
 
 	for (let i = 0; i < extensions.length; i++) {
-		const configuration = <IConfigurationNode>extensions[i].value;
+		const configuration = <IConfigurationExtension>extensions[i].value;
 		const collector = extensions[i].collector;
 
 		if (configuration.type && configuration.type !== 'object') {
@@ -305,6 +324,11 @@ configurationExtPoint.setHandler(extensions => {
 
 		if (configuration.properties && (typeof configuration.properties !== 'object')) {
 			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
+			return;
+		}
+
+		if (configuration.defaults && typeof configuration.defaults !== 'object') {
+			collector.error(nls.localize('invalid.defaults', "'configuration.defaults' must be an object"));
 			return;
 		}
 
