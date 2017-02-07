@@ -397,6 +397,11 @@
           "description": "%config.enableLongCommitWarning%",
           "default": true
         },
+        "git.confirmSync": {
+          "type": "boolean",
+          "description": "%config.confirmSync%",
+          "default": true
+        },
         "git.countBadge": {
           "type": "string",
           "enum": [

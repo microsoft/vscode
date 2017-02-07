@@ -27,6 +27,7 @@
 	"config.autorefresh": "Whether auto refreshing is enabled",
 	"config.autofetch": "Whether auto fetching is enabled",
 	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
+	"config.confirmSync": "Confirm before synchronizing git repositories",
 	"config.countBadge": "Controls the git badge counter",
 	"config.checkoutType": "Controls what type of branches are listed"
 }
