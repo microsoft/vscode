@@ -45,7 +45,10 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 	// propagate focus
 	ipcRenderer.on('focus', function () {
-		getTarget().contentWindow.focus();
+		const target = getTarget();
+		if (target) {
+			target.contentWindow.focus();
+		}
 	});
 
 	// update iframe-contents
@@ -109,10 +112,12 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		styleBody(newDocument.body);
 
 		const frame = getTarget();
-		frame.setAttribute('id', '_oldTarget')
+		if (frame) {
+			frame.setAttribute('id', '_oldTarget');
+		}
 
 		// keep current scrollTop around and use later
-		const scrollTop = frame.contentDocument.body.scrollTop;
+		const scrollTop = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
 
 		const newFrame = document.createElement('iframe');
 		newFrame.setAttribute('id', '_target');
@@ -144,7 +149,9 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	// Forward message to the embedded iframe
 	ipcRenderer.on('message', function (event, data) {
 		const target = getTarget();
-		target.contentWindow.postMessage(data, 'file://');
+		if (target) {
+			target.contentWindow.postMessage(data, 'file://');
+		}
 	});
 
 	// forward messages from the embedded iframe
