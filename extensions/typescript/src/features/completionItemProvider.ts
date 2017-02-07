@@ -22,13 +22,14 @@ class MyCompletionItem extends CompletionItem {
 		public position: Position,
 		public document: TextDocument,
 		entry: CompletionEntry,
-		enableDotCompletions: boolean
+		enableDotCompletions: boolean,
+		enableCallCompletions: boolean
 	) {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, entry.kind);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, enableCallCompletions, entry.kind);
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
@@ -89,7 +90,7 @@ class MyCompletionItem extends CompletionItem {
 		return CompletionItemKind.Property;
 	}
 
-	private static getCommitCharacters(enableDotCompletions: boolean, kind: string): string[] | undefined {
+	private static getCommitCharacters(enableDotCompletions: boolean, enableCallCompletions: boolean, kind: string): string[] | undefined {
 		switch (kind) {
 			case PConst.Kind.externalModuleName:
 				return ['"', '\''];
@@ -117,7 +118,7 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.class:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
-				return enableDotCompletions ? ['.', '('] : undefined;
+				return enableDotCompletions ? (enableCallCompletions ? ['.', '('] : ['.']) : undefined;
 		}
 
 		return undefined;
@@ -202,7 +203,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 				for (let i = 0; i < body.length; i++) {
 					const element = body[i];
-					const item = new MyCompletionItem(position, document, element, enableDotCompletions);
+					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
 			}
