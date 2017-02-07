@@ -76,11 +76,18 @@
 	display: none;
 }
 
-/* HACK */
-.action-label.scm-commit {
-	background-image: url('check.svg');
+.monaco-shell.vs .scm-viewlet > .scm-editor > .monaco-editor.focused {
+	outline: 1px solid rgba(0, 122, 204, 0.4);
 }
 
-.vs-dark .action-label.scm-commit {
-	background-image: url('check-inverse.svg');
+.monaco-shell.vs-dark .scm-viewlet > .scm-editor > .monaco-editor.focused {
+	outline: 1px solid rgba(14, 99, 156, 0.6);
+}
+
+.monaco-shell.hc-black .scm-viewlet > .scm-editor > .monaco-editor {
+	outline: 1px solid #6fc3df;
+}
+
+.monaco-shell.hc-black .scm-viewlet > .scm-editor > .monaco-editor.focused {
+	outline: 2px solid #f38518;
 }
