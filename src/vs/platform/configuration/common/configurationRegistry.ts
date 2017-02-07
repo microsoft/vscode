@@ -127,13 +127,14 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 
 		for (const key in configurationNode.defaults) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+			const defaultValue = configurationNode.defaults[key];
+			if (OVERRIDE_PROPERTY_PATTERN.test(key) && typeof defaultValue === 'object') {
 				if (!configurationNode.properties) {
 					configurationNode.properties = {};
 				}
 				configurationNode.properties[key] = {
 					type: 'object',
-					default: configurationNode.defaults[key],
+					default: defaultValue,
 					description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for {0} language.", key),
 					$ref: editorConfigurationSchemaId
 				};
