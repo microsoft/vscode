@@ -15,7 +15,7 @@ import { LinkedMap as Map } from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
 import { isUUID } from 'vs/base/common/uuid';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { isPromiseCanceledError, onUnexpectedError, canceled } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
@@ -689,8 +689,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 					installed.local = local;
 				} else {
 					this.installed.push(extension);
-					this.checkForOtherKeymaps(extension)
-						.then(null, onUnexpectedError);
 				}
 			}
 			if (extension.gallery) {
@@ -699,48 +697,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			}
 		}
 		this._onChange.fire();
-	}
-
-	private checkForOtherKeymaps(extension: Extension): TPromise<void> {
-		if (!extension.disabledGlobally && this.isKeymapExtension(extension)) {
-			const otherKeymaps = this.installed.filter(ext => ext.identifier !== extension.identifier &&
-				!ext.disabledGlobally &&
-				this.isKeymapExtension(ext));
-			if (otherKeymaps.length) {
-				return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
-			}
-		}
-		return TPromise.as(undefined);
-	}
-
-	private isKeymapExtension(extension: Extension): boolean {
-		const cats = extension.local.manifest.categories;
-		return cats && cats.indexOf('Keymaps') !== -1 || this.tipsService.getKeymapRecommendations().indexOf(extension.identifier) !== -1;
-	}
-
-	private promptForDisablingOtherKeymaps(newKeymap: Extension, oldKeymaps: Extension[]): TPromise<void> {
-		const telemetryData: { [key: string]: any; } = {
-			newKeymap: newKeymap.identifier,
-			oldKeymaps: oldKeymaps.map(k => k.identifier)
-		};
-		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
-		const message = nls.localize('disableOtherKeymapsConfirmation', "Disable other keymaps to avoid conflicts between keybindings?");
-		const options = [
-			nls.localize('yes', "Yes"),
-			nls.localize('no', "No")
-		];
-		return this.choiceService.choose(Severity.Info, message, options, false)
-			.then<void>(value => {
-				const confirmed = value === 0;
-				telemetryData['confirmed'] = confirmed;
-				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
-				if (confirmed) {
-					return TPromise.join(oldKeymaps.map(keymap => {
-						return this.setEnablement(keymap, false);
-					}));
-				}
-				return undefined;
-			}, error => TPromise.wrapError(canceled()));
 	}
 
 	private onUninstallExtension(id: string): void {
@@ -785,8 +741,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
 			extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
 			this._onChange.fire();
-			this.checkForOtherKeymaps(<Extension>extension)
-				.then(null, onUnexpectedError);
 		}
 	}
 
