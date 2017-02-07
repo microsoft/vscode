@@ -34,7 +34,7 @@ export interface IWorkspaceContextService {
 	 * without leading or trailing slashes. Returns null if the file is not inside an opened
 	 * workspace.
 	 */
-	toWorkspaceRelativePath: (resource: URI) => string;
+	toWorkspaceRelativePath: (resource: URI, toOSPath?: boolean) => string;
 
 	/**
 	 * Given a workspace relative path, returns the resource with the absolute path.
@@ -89,9 +89,9 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 		return false;
 	}
 
-	public toWorkspaceRelativePath(resource: URI): string {
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
 		if (this.isInsideWorkspace(resource)) {
-			return paths.normalize(paths.relative(this.workspace.resource.fsPath, resource.fsPath));
+			return paths.normalize(paths.relative(this.workspace.resource.fsPath, resource.fsPath), toOSPath);
 		}
 
 		return null;

@@ -602,7 +602,7 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
-		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource), siblingsFn)) {
+		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource, true), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 

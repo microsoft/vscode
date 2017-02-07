@@ -96,8 +96,8 @@ export class TestContextService implements IWorkspaceContextService {
 		return false;
 	}
 
-	public toWorkspaceRelativePath(resource: URI): string {
-		return paths.makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length)));
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		return paths.makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
