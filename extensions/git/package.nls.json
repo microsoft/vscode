@@ -23,6 +23,7 @@
 	"command.sync": "Sync",
 	"command.publish": "Publish",
 	"command.showOutput": "Show Git Output",
+	"config.enabled": "Whether git is enabled",
 	"config.path": "Path to the git executable",
 	"config.autorefresh": "Whether auto refreshing is enabled",
 	"config.autofetch": "Whether auto fetching is enabled",
