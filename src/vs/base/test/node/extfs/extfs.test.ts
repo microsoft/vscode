@@ -215,9 +215,11 @@ suite('Extfs', () => {
 				const upper = newDir.toUpperCase();
 				const real = extfs.realpathSync(upper);
 
-				assert.notEqual(real, upper);
-				assert.equal(real.toUpperCase(), upper);
-				assert.equal(real, newDir);
+				if (real) { // can be null in case of permission errors
+					assert.notEqual(real, upper);
+					assert.equal(real.toUpperCase(), upper);
+					assert.equal(real, newDir);
+				}
 			}
 
 			// linux, unix, etc. -> assume case sensitive file system
