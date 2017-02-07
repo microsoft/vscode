@@ -92,11 +92,11 @@ function registerSettingsCompletions(): vscode.Disposable {
 				}
 
 				// Value
-				else {
+				else if (location.path.length === 2 && !location.isAtPropertyKey) {
 					return vscode.languages.getLanguages().then(languages => {
-						return Promise.resolve(languages.map(l => {
-							return newSimpleCompletionItem(l, range);
-						}));
+						return languages.map(l => {
+							return newSimpleCompletionItem(JSON.stringify(l), range);
+						});
 					});
 				}
 			}
@@ -173,10 +173,8 @@ function newSimpleCompletionItem(text: string, range: vscode.Range, description?
 	const item = new vscode.CompletionItem(text);
 	item.kind = vscode.CompletionItemKind.Value;
 	item.detail = description;
-	item.textEdit = {
-		range,
-		newText: item.label
-	};
+	item.insertText = text;
+	item.range = range;
 
 	return item;
 }
