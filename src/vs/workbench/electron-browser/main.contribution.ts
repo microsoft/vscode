@@ -190,7 +190,7 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'description':
 		nls.localize('openFilesInNewWindow',
 			`Controls if files should open in a new window.
-- default: files will open in the window with the files' folder open or or the last active window unless opened via the dock or from finder (macOS only)
+- default: files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)
 - on: files will open in a new window
 - off: files will open in the window with the files' folder open or the last active window
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
