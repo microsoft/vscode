@@ -5,6 +5,9 @@
 		"outDir": "./out",
 		"lib": [
 			"es2015"
+		],
+		"types": [
+			"node"
 		]
 	},
 	"exclude": [
