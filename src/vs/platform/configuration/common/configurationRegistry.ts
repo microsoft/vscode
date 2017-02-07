@@ -45,6 +45,9 @@ export interface IConfigurationRegistry {
 	 */
 	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
 
+	/**
+	 * Register the identifiers for editor configurations
+	 */
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
@@ -65,12 +68,14 @@ export interface IConfigurationNode {
 }
 
 const schemaId = 'vscode://schemas/settings';
+const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private configurationSchema: IJSONSchema;
+	private editorConfigurationSchema: IJSONSchema;
 	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
@@ -78,11 +83,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	constructor() {
 		this.configurationContributors = [];
 		this.configurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 		this.registerOverrideSettingsConfiguration();
 	}
 
@@ -169,14 +176,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
 		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
-			let patternProperties = this.configurationSchema.patternProperties[this.overridePropertyPattern];
-			if (patternProperties) {
-				if (!patternProperties.properties) {
-					patternProperties.properties = {};
-				}
-				this.update(configuration, patternProperties);
-				contributionRegistry.registerSchema(schemaId, this.configurationSchema);
-			}
+			this.update(configuration, this.editorConfigurationSchema);
+			contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 		}
 	}
 
@@ -211,11 +212,12 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private registerOverrideSettingsConfiguration(): void {
 		const properties = {
-			'[]': {
+			'[]': <IConfigurationPropertySchema>{
 				type: 'object',
-				description: nls.localize('overrideSettings.description', "Configure settings to be overridden for a set of language identifiers."),
+				description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for a language."),
 				additionalProperties: false,
-				errorMessage: 'Unknown Identifier. Use language identifiers'
+				errorMessage: 'Unknown Identifier. Use language identifiers',
+				$ref: editorConfigurationSchemaId
 			}
 		};
 		this.registerConfiguration({
