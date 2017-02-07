@@ -16,10 +16,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { MenuPreventer } from 'vs/editor/contrib/multicursor/browser/menuPreventer';
 import { SelectionClipboard } from 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { TabCompletionController } from 'vs/editor/contrib/suggest/browser/tabCompletion';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -44,11 +40,7 @@ class SCMCodeEditorWidget extends CodeEditorWidget {
 		return [
 			MenuPreventer,
 			SelectionClipboard,
-			ContextMenuController,
-			SuggestController,
-			SnippetController,
-			TabCompletionController,
-			ModesHoverController
+			ContextMenuController
 		];
 	}
 

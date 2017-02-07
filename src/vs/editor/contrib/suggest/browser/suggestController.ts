@@ -236,7 +236,13 @@ export class TriggerSuggestAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		SuggestController.get(editor).triggerSuggest();
+		const controller = SuggestController.get(editor);
+
+		if (!controller) {
+			return;
+		}
+
+		controller.triggerSuggest();
 	}
 }
 
