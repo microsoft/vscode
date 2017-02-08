@@ -210,8 +210,15 @@ export function registerCommands(): void {
 			const listService = accessor.get(IListService);
 			const focused = listService.getFocused();
 
-			// Tree only
-			if (!(focused instanceof List)) {
+			// List
+			if (focused instanceof List) {
+				const list = focused;
+
+				list.setFocus([0]);
+			}
+
+			// Tree
+			else if (focused) {
 				const tree = focused;
 
 				tree.focusFirst({ origin: 'keyboard' });
@@ -229,8 +236,15 @@ export function registerCommands(): void {
 			const listService = accessor.get(IListService);
 			const focused = listService.getFocused();
 
-			// Tree only
-			if (!(focused instanceof List)) {
+			// List
+			if (focused instanceof List) {
+				const list = focused;
+
+				list.setFocus([list.length - 1]);
+			}
+
+			// Tree
+			else if (focused) {
 				const tree = focused;
 
 				tree.focusLast({ origin: 'keyboard' });
