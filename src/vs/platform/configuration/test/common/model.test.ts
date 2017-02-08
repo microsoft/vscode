@@ -6,22 +6,17 @@
 
 import * as assert from 'assert';
 import * as model from 'vs/platform/configuration/common/model';
-import { Extensions, IConfigurationRegistry, IConfigurationExtension } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/platform';
 
 suite('ConfigurationService - Model', () => {
 
 	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(<IConfigurationExtension>{
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 			'id': 'a',
 			'order': 1,
 			'title': 'a',
 			'type': 'object',
-			'defaults': {
-				'[b]': {
-					'a': false
-				}
-			},
 			'properties': {
 				'a': {
 					'description': 'a',
@@ -131,16 +126,4 @@ suite('ConfigurationService - Model', () => {
 		assert.deepEqual(testObject.keys, []);
 	});
 
-	test('Test default settings', () => {
-		const testObject = new model.DefaultConfigModel();
-
-		assert.equal(testObject.getContentsFor('a'), true);
-		assert.deepEqual(testObject.getContentsFor('[b]'), { 'a': false });
-		assert.ok(testObject.keys.indexOf('a') !== -1);
-		assert.ok(testObject.keys.indexOf('[b]') !== -1);
-		assert.deepEqual(testObject.overrides, [{
-			identifiers: ['b'],
-			contents: { 'a': false }
-		}]);
-	});
 });
