@@ -102,7 +102,6 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			}
 
 			const body = this.engine.render(sourceUri, previewFrontMatter === 'hide', document.getText());
-
 			return `<!DOCTYPE html>
 				<html>
 				<head>
@@ -112,9 +111,6 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 					${this.getSettingsOverrideStyles()}
 					${this.computeCustomStyleSheetIncludes(uri)}
 					<base href="${document.uri.toString(true)}">
-				</head>
-				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''} ${!!markdownConfig.get('preview.markEditorSelection') ? 'showEditorSelection' : ''}">
-					${body}
 					<script>
 						window.initialData = {
 							source: "${encodeURIComponent(sourceUri.toString(true))}",
@@ -124,6 +120,9 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 							doubleClickToSwitchToEditor: ${!!markdownConfig.get('preview.doubleClickToSwitchToEditor', true)},
 						};
 					</script>
+				</head>
+				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''} ${!!markdownConfig.get('preview.markEditorSelection') ? 'showEditorSelection' : ''}">
+					${body}
 					<script src="${this.getMediaPath('main.js')}"></script>
 				</body>
 				</html>`;
