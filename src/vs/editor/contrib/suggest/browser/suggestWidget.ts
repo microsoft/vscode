@@ -634,6 +634,22 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
+	selectLast(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				// Not worried about details just yet...
+				// this.details.pageDown();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusLast();
+				return true;
+		}
+	}
+
 	selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
@@ -662,6 +678,22 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			default:
 				this.list.focusPrevious(1, true);
 				return false;
+		}
+	}
+
+	selectFirst(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				// Not worried about details just yet...
+				// this.details.pageUp();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusFirst();
+				return true;
 		}
 	}
 

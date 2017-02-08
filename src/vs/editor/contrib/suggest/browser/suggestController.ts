@@ -199,6 +199,12 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
+	selectLastSuggestion(): void {
+		if (this.widget) {
+			this.widget.selectLast();
+		}
+	}
+
 	selectPrevSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectPrevious();
@@ -208,6 +214,12 @@ export class SuggestController implements IEditorContribution {
 	selectPrevPageSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectPreviousPage();
+		}
+	}
+
+	selectFirstSuggestion(): void {
+		if (this.widget) {
+			this.widget.selectFirst();
 		}
 	}
 
@@ -311,6 +323,17 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 }));
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'selectLastSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectLastSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
+		primary: KeyCode.End
+	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevSuggestion(),
@@ -332,6 +355,17 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.PageUp,
 		secondary: [KeyMod.Alt | KeyCode.PageUp]
+	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'selectFirstSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectFirstSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
+		primary: KeyCode.Home
 	}
 }));
 
