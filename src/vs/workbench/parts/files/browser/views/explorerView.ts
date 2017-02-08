@@ -28,6 +28,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -80,6 +81,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
+		@IListService private listService: IListService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
@@ -347,10 +349,14 @@ export class ExplorerView extends CollapsibleViewletView {
 				autoExpandSingleChildren: true,
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				twistiePixels: 12,
-				showTwistie: false
+				showTwistie: false,
+				keyboardSupport: false
 			});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
+
+		// Register to list service
+		this.toDispose.push(this.listService.register(this.explorerViewer));
 
 		// Update Viewer based on File Change Events
 		this.toDispose.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));

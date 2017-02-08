@@ -13,18 +13,13 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
-import { MessagesVisibleContext, NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
+import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { registerCommands } from 'vs/workbench/electron-browser/commands';
 
-const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
+// Contribute Commands
+registerCommands();
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
@@ -66,46 +61,11 @@ workbenchActionsRegistry.registerWorkbenchAction(
 	}), 'View: Reset Zoom', viewCategory
 );
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, MessagesVisibleContext), 'Close Notification Messages');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, closeEditorOrWindowKeybindings), 'View: Close Editor', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } }), 'View: Close Editor', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
 if (isWindows || isLinux) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
-
-// close the window when the last editor is closed by reusing the same keybinding
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.closeWindow',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: NoEditorsVisibleContext,
-	primary: closeEditorOrWindowKeybindings.primary,
-	handler: accessor => {
-		const windowService = accessor.get(IWindowIPCService);
-		windowService.getWindow().close();
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.exitZenMode',
-	weight: CommonEditorRegistry.commandWeight(-1000),
-	handler(accessor: ServicesAccessor, configurationOrName: any) {
-		const partService = accessor.get(IPartService);
-		partService.toggleZenMode();
-	},
-	when: InZenModeContext,
-	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.quit',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	handler(accessor: ServicesAccessor) {
-		const windowsService = accessor.get(IWindowsService);
-		windowsService.quit();
-	},
-	when: void 0,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-	win: { primary: void 0 }
-});
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

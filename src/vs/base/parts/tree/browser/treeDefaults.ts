@@ -93,6 +93,7 @@ export enum ClickBehavior {
 
 export interface IControllerOptions {
 	clickBehavior?: ClickBehavior;
+	keyboardSupport?: boolean;
 }
 
 interface IKeybindingDispatcherItem {
@@ -134,20 +135,24 @@ export class DefaultController implements _.IController {
 
 	private options: IControllerOptions;
 
-	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP }) {
+	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: true }) {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
-		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, (t, e) => this.onUp(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.DownArrow, (t, e) => this.onDown(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.LeftArrow, (t, e) => this.onLeft(t, e));
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, (t, e) => this.onLeft(t, e));
+		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
+			this.downKeyBindingDispatcher.set(KeyCode.UpArrow, (t, e) => this.onUp(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.DownArrow, (t, e) => this.onDown(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.LeftArrow, (t, e) => this.onLeft(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.RightArrow, (t, e) => this.onRight(t, e));
+			if (platform.isMacintosh) {
+				this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, (t, e) => this.onLeft(t, e));
+			}
 		}
-		this.downKeyBindingDispatcher.set(KeyCode.RightArrow, (t, e) => this.onRight(t, e));
+
+		// TODO@Ben adopt more keybindings as configurable commands
+		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));
 		this.downKeyBindingDispatcher.set(KeyCode.Escape, (t, e) => this.onEscape(t, e));
 		this.downKeyBindingDispatcher.set(KeyCode.Home, (t, e) => this.onHome(t, e));
 		this.downKeyBindingDispatcher.set(KeyCode.End, (t, e) => this.onEnd(t, e));

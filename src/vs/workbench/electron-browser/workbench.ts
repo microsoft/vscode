@@ -58,6 +58,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -450,6 +451,9 @@ export class Workbench implements IPartService {
 
 		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, window);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
+
+		// List
+		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
 
 		// Context Menu
 		serviceCollection.set(IContextMenuService, new SyncDescriptor(ContextMenuService));

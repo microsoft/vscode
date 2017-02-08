@@ -28,6 +28,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 
@@ -58,6 +59,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IListService private listService: IListService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewletService private viewletService: IViewletService
@@ -115,8 +117,12 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 				indentPixels: 0,
 				twistiePixels: 22,
 				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors: List of Active Files"),
-				showTwistie: false
+				showTwistie: false,
+				keyboardSupport: false
 			});
+
+		// Register to list service
+		this.toDispose.push(this.listService.register(this.tree));
 
 		// Update open editors focus context
 		const viewerFocusTracker = dom.trackFocus(this.tree.getHTMLElement());
