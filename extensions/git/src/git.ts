@@ -22,7 +22,7 @@ export interface IGit {
 	version: string;
 }
 
-export interface IPushOptions {
+export interface PushOptions {
 	setUpstream?: boolean;
 }
 
@@ -33,7 +33,7 @@ export interface IFileStatus {
 	rename?: string;
 }
 
-export interface IRemote {
+export interface Remote {
 	name: string;
 	url: string;
 }
@@ -44,14 +44,14 @@ export enum RefType {
 	Tag
 }
 
-export interface IRef {
+export interface Ref {
 	type: RefType;
 	name?: string;
 	commit?: string;
 	remote?: string;
 }
 
-export interface IBranch extends IRef {
+export interface Branch extends Ref {
 	upstream?: string;
 	ahead?: number;
 	behind?: number;
@@ -371,7 +371,7 @@ export class Git {
 	}
 }
 
-export interface ICommit {
+export interface Commit {
 	hash: string;
 	message: string;
 }
@@ -676,7 +676,7 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
+	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
 		const args = ['push'];
 
 		if (options && options.setUpstream) {
@@ -754,7 +754,7 @@ export class Repository {
 		return result;
 	}
 
-	async getHEAD(): Promise<IRef> {
+	async getHEAD(): Promise<Ref> {
 		try {
 			const result = await this.run(['symbolic-ref', '--short', 'HEAD']);
 
@@ -774,10 +774,10 @@ export class Repository {
 		}
 	}
 
-	async getRefs(): Promise<IRef[]> {
+	async getRefs(): Promise<Ref[]> {
 		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
 
-		const fn = (line): IRef | null => {
+		const fn = (line): Ref | null => {
 			let match: RegExpExecArray | null;
 
 			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
@@ -794,10 +794,10 @@ export class Repository {
 		return result.stdout.trim().split('\n')
 			.filter(line => !!line)
 			.map(fn)
-			.filter(ref => !!ref) as IRef[];
+			.filter(ref => !!ref) as Ref[];
 	}
 
-	async getRemotes(): Promise<IRemote[]> {
+	async getRemotes(): Promise<Remote[]> {
 		const result = await this.run(['remote', '--verbose']);
 		const regex = /^([^\s]+)\s+([^\s]+)\s/;
 		const rawRemotes = result.stdout.trim().split('\n')
@@ -809,7 +809,7 @@ export class Repository {
 		return uniqBy(rawRemotes, remote => remote.name);
 	}
 
-	async getBranch(name: string): Promise<IBranch> {
+	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
 		}
@@ -817,7 +817,7 @@ export class Repository {
 		const result = await this.run(['rev-parse', name]);
 
 		if (!result.stdout) {
-			return Promise.reject<IBranch>(new Error('No such branch'));
+			return Promise.reject<Branch>(new Error('No such branch'));
 		}
 
 		const commit = result.stdout.trim();
@@ -872,12 +872,12 @@ export class Repository {
 		}
 	}
 
-	async getCommit(ref: string): Promise<ICommit> {
+	async getCommit(ref: string): Promise<Commit> {
 		const result = await this.run(['show', '-s', '--format=%H\n%B', ref]);
 		const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
 
 		if (!match) {
-			return Promise.reject<ICommit>('bad commit format');
+			return Promise.reject<Commit>('bad commit format');
 		}
 
 		return { hash: match[1], message: match[2] };

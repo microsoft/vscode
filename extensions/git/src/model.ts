@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
-import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
+import { Repository, Ref, Branch, Remote, PushOptions, Commit } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
@@ -161,10 +161,11 @@ export enum Operation {
 	Clean = 1 << 4,
 	Branch = 1 << 5,
 	Checkout = 1 << 6,
-	Fetch = 1 << 7,
-	Pull = 1 << 8,
-	Push = 1 << 9,
-	Sync = 1 << 10
+	Reset = 1 << 7,
+	Fetch = 1 << 8,
+	Pull = 1 << 9,
+	Push = 1 << 10,
+	Sync = 1 << 11,
 }
 
 export interface Operations {
@@ -274,18 +275,18 @@ export class Model {
 		return this._repositoryRoot;
 	}
 
-	private _HEAD: IBranch | undefined;
-	get HEAD(): IBranch | undefined {
+	private _HEAD: Branch | undefined;
+	get HEAD(): Branch | undefined {
 		return this._HEAD;
 	}
 
-	private _refs: IRef[] = [];
-	get refs(): IRef[] {
+	private _refs: Ref[] = [];
+	get refs(): Ref[] {
 		return this._refs;
 	}
 
-	private _remotes: IRemote[] = [];
-	get remotes(): IRemote[] {
+	private _remotes: Remote[] = [];
+	get remotes(): Remote[] {
 		return this._remotes;
 	}
 
@@ -359,6 +360,16 @@ export class Model {
 	}
 
 	@throttle
+	async getCommit(ref: string): Promise<Commit> {
+		return await this.repository.getCommit(ref);
+	}
+
+	@throttle
+	async reset(treeish: string, hard?: boolean): Promise<void> {
+		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+	}
+
+	@throttle
 	async fetch(): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
@@ -369,7 +380,7 @@ export class Model {
 	}
 
 	@throttle
-	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
+	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
 	}
 
@@ -396,7 +407,7 @@ export class Model {
 	@throttle
 	private async update(): Promise<void> {
 		const status = await this.repository.getStatus();
-		let HEAD: IBranch | undefined;
+		let HEAD: Branch | undefined;
 
 		try {
 			HEAD = await this.repository.getHEAD();
