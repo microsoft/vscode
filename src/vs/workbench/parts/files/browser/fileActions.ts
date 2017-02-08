@@ -43,7 +43,7 @@ import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/commo
 import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { createKeybinding, Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -1914,13 +1914,13 @@ export class GlobalCopyPathAction extends Action {
 export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
 	switch (id) {
 		case GlobalNewUntitledFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
+			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
 		case SaveFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
+			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
 		case CopyFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_C);
+			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_C);
 		case PasteFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_V);
+			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_V);
 	}
 
 	if (keybindingService) {

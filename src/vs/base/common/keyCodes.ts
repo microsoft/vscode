@@ -486,16 +486,32 @@ export class BinaryKeybindings {
 	}
 }
 
-export class Keybinding {
+export function createKeybinding(keybinding: number): Keybinding {
+	if (BinaryKeybindings.hasChord(keybinding)) {
+		return new ChordKeybinding(keybinding);
+	}
+	return new SimpleKeybinding(keybinding);
+}
 
-	public value: number;
+export class SimpleKeybinding {
+	public readonly value: number;
 
 	constructor(keybinding: number) {
 		this.value = keybinding;
 	}
 
+	/**
+	 * @internal
+	 */
+	public isChord(): this is ChordKeybinding {
+		return false;
+	}
+
+	/**
+	 * @internal
+	 */
 	public equals(other: Keybinding): boolean {
-		return this.value === other.value;
+		return (other && this.value === other.value);
 	}
 
 	public hasCtrlCmd(): boolean {
@@ -522,3 +538,29 @@ export class Keybinding {
 		return BinaryKeybindings.extractKeyCode(this.value);
 	}
 }
+
+export class ChordKeybinding {
+	public readonly value: number;
+
+	constructor(keybinding: number) {
+		this.value = keybinding;
+	}
+
+	public isChord(): this is ChordKeybinding {
+		return true;
+	}
+
+	public equals(other: Keybinding): boolean {
+		return (other && this.value === other.value);
+	}
+
+	public extractFirstPart(): SimpleKeybinding {
+		return new SimpleKeybinding(BinaryKeybindings.extractFirstPart(this.value));
+	}
+
+	public extractChordPart(): SimpleKeybinding {
+		return new SimpleKeybinding(BinaryKeybindings.extractChordPart(this.value));
+	}
+}
+
+export type Keybinding = SimpleKeybinding | ChordKeybinding;

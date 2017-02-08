@@ -363,10 +363,9 @@ declare module monaco {
         static chord(firstPart: number, secondPart: number): number;
     }
 
-    export class Keybinding {
-        value: number;
+    export class SimpleKeybinding {
+        readonly value: number;
         constructor(keybinding: number);
-        equals(other: Keybinding): boolean;
         hasCtrlCmd(): boolean;
         hasShift(): boolean;
         hasAlt(): boolean;
@@ -392,7 +391,7 @@ declare module monaco {
         readonly altKey: boolean;
         readonly metaKey: boolean;
         readonly keyCode: KeyCode;
-        toKeybinding(): Keybinding;
+        toKeybinding(): SimpleKeybinding;
         equals(keybinding: number): boolean;
         preventDefault(): void;
         stopPropagation(): void;
