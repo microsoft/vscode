@@ -6,7 +6,7 @@
 'use strict';
 
 import { window, Disposable, StatusBarItem, StatusBarAlignment } from 'vscode';
-import { RefType, IBranch } from './git';
+import { RefType, Branch } from './git';
 import { Model, Operation } from './model';
 import * as nls from 'vscode-nls';
 
@@ -58,7 +58,7 @@ export class CheckoutStatusBar {
 interface SyncStatusBarState {
 	isSyncRunning: boolean;
 	hasRemotes: boolean;
-	HEAD: IBranch | undefined;
+	HEAD: Branch | undefined;
 }
 
 export class SyncStatusBar {

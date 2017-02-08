@@ -247,7 +247,7 @@
         {
           "command": "git.undoCommit",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.unstageAll",

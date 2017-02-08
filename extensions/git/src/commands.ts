@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
-import { IRef, RefType } from './git';
+import { Ref, RefType } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
@@ -38,7 +38,7 @@ class CheckoutItem implements QuickPickItem {
 	get label(): string { return this.ref.name || this.shortCommit; }
 	get description(): string { return this.shortCommit; }
 
-	constructor(protected ref: IRef) { }
+	constructor(protected ref: Ref) { }
 
 	async run(model: Model): Promise<void> {
 		const ref = this.treeish;
@@ -415,7 +415,15 @@ export class CommandCenter {
 	@CommandCenter.Command('git.undoCommit')
 	@CommandCenter.CatchErrors
 	async undoCommit(): Promise<void> {
-		await Promise.reject('not implemented');
+		const HEAD = this.model.HEAD;
+
+		if (!HEAD || !HEAD.commit) {
+			return;
+		}
+
+		const commit = await this.model.getCommit('HEAD');
+		await this.model.reset('HEAD~');
+		scm.inputBox.value = commit.message;
 	}
 
 	@CommandCenter.Command('git.checkout')
