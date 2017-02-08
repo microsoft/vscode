@@ -53,12 +53,12 @@ class ToggleColumnBreakpointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.toggleColumnBreakpoint',
-			label: nls.localize('toggleColumnBreakpointAction', "Debug: Toggle Column Breakpoint"),
-			alias: 'Debug: Toggle Column Breakpoint',
+			label: nls.localize('columnBreakpointAction', "Debug: Column Breakpoint"),
+			alias: 'Debug: Column Breakpoint',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F9
+				primary: KeyMod.Shift | KeyCode.F9
 			}
 		});
 	}
