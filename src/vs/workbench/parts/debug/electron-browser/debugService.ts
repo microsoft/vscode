@@ -69,6 +69,7 @@ export class DebugService implements debug.IDebugService {
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private inDebugMode: IContextKey<boolean>;
+	private debugType: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 
 	constructor(
@@ -100,6 +101,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+		this.debugType = debug.CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
@@ -713,6 +715,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
+				this.debugType.set(configuration.type);
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
 				}
@@ -874,6 +877,7 @@ export class DebugService implements debug.IDebugService {
 			this.model.updateBreakpoints(data);
 
 			this.inDebugMode.reset();
+			this.debugType.reset();
 			this.viewModel.setMultiProcessView(false);
 
 			if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
