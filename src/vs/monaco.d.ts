@@ -1349,6 +1349,10 @@ declare module monaco.editor {
          */
         emptySelectionClipboard?: boolean;
         /**
+         * Copying text with colorization to the clipboard
+         */
+        richTextClipboard?: boolean;
+        /**
          * Enable tab completion. Defaults to 'false'
          */
         tabCompletion?: boolean;
@@ -1556,6 +1560,7 @@ declare module monaco.editor {
         readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
+        readonly richTextClipboard: boolean;
         readonly tabCompletion: boolean;
         readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;

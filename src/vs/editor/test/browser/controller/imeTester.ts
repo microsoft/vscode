@@ -11,6 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 // To run this test, open imeTester.html
 
@@ -52,6 +53,10 @@ class SingleLineTestModel implements ISimpleModel {
 
 	getLineCount(): number {
 		return 1;
+	}
+
+	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+		return null;
 	}
 }
 
@@ -96,7 +101,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model, () => { });
+	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model, null, () => { });
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);
