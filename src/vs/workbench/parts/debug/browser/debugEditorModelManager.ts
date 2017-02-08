@@ -20,7 +20,6 @@ interface IDebugEditorModelData {
 	breakpointLines: number[];
 	breakpointDecorationsAsMap: Map<string, boolean>;
 	currentStackDecorations: string[];
-	topStackFrameRange: IRange;
 	dirty: boolean;
 }
 
@@ -88,7 +87,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			breakpointLines: breakpoints.map(bp => bp.lineNumber),
 			breakpointDecorationsAsMap,
 			currentStackDecorations: currentStackDecorations,
-			topStackFrameRange: null,
 			dirty: false
 		});
 	}
@@ -140,15 +138,10 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				});
 
 				if (this.modelDataMap.has(modelUriStr)) {
-					const modelData = this.modelDataMap.get(modelUriStr);
-					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
-						modelData.topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
-						result.push({
-							options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
-							range: wholeLineRange
-						});
-					}
-					modelData.topStackFrameRange = wholeLineRange;
+					result.push({
+						options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
+						range: wholeLineRange
+					});
 				}
 			}
 		} else {

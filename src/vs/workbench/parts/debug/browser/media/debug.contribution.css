@@ -17,7 +17,7 @@
 }
 
 .monaco-editor .debug-top-stack-frame-column {
-	background: rgba(255, 255, 0, 0.7);
+	background: rgba(255, 200, 0, 0.2);
 }
 
 .monaco-editor .debug-focused-stack-frame-line {
