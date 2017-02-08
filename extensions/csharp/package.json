@@ -1,0 +1,35 @@
+{
+  "name": "csharp",
+  "version": "0.1.0",
+  "publisher": "vscode",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js dotnet/csharp-tmLanguage grammars/csharp.tmLanguage ./syntaxes/csharp.tmLanguage.json"
+	},
+
+  "contributes": {
+    "languages": [
+      {
+        "id": "csharp",
+        "extensions": [
+          ".cs",
+          ".csx"
+        ],
+        "aliases": [
+          "C#",
+          "csharp"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "csharp",
+        "scopeName": "source.cs",
+        "path": "./syntaxes/csharp.tmLanguage.json"
+      }
+    ]
+  }
+}
