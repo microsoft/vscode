@@ -44,6 +44,7 @@
     "@types/mocha": "^2.2.39",
     "@types/semver": "^5.3.30",
     "@types/sinon": "^1.16.34",
+    "@types/winreg": "^1.2.30",
     "azure-storage": "^0.3.1",
     "clean-css": "3.4.6",
     "coveralls": "^2.11.11",
