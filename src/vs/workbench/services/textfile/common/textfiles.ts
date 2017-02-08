@@ -149,6 +149,7 @@ export interface ITextFileEditorModelManager {
 }
 
 export interface IModelSaveOptions {
+	force?: boolean;
 	reason?: SaveReason;
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
