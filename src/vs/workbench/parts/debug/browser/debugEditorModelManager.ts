@@ -244,9 +244,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): IModelDeltaDecoration[] {
 		return breakpoints.map((breakpoint) => {
+			const range = breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
+				: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE);
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),
-				range: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE)
+				range
 			};
 		});
 	}
@@ -262,12 +264,15 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
 					!breakpoint.condition && !breakpoint.hitCondition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 
-		if (result && breakpoint.message) {
-			result = objects.clone(result);
-			result.glyphMarginHoverMessage = breakpoint.message;
-		}
-
 		if (result) {
+			result = objects.clone(result);
+			if (breakpoint.message) {
+				result.glyphMarginHoverMessage = breakpoint.message;
+			}
+			if (breakpoint.column) {
+				result.beforeContentClassName = `debug-breakpoint-column ${result.glyphMarginClassName}-column`;
+			}
+
 			return result;
 		}
 
