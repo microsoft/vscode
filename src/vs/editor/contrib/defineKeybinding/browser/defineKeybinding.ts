@@ -356,7 +356,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			switch (kb.value) {
 				case KeyCode.Enter:
 					if (this._lastKeybinding) {
-						this._onAccepted(KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value));
+						this._onAccepted(KeybindingLabels.toUserSettingsLabel(this._lastKeybinding));
 					}
 					this._stop();
 					return;
@@ -368,7 +368,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 
 			this._lastKeybinding = kb;
 
-			this._inputNode.value = KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value).toLowerCase();
+			this._inputNode.value = KeybindingLabels.toUserSettingsLabel(this._lastKeybinding).toLowerCase();
 			this._inputNode.title = 'keyCode: ' + keyEvent.browserEvent.keyCode;
 
 			dom.clearNode(this._outputNode);

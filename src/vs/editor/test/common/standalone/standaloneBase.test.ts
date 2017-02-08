@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity } from 'vs/editor/common/standalone/standaloneBase';
-import { KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
+import { createKeybinding, KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import RuntimeSeverity from 'vs/base/common/severity';
 
@@ -157,7 +157,7 @@ suite('KeyCode', () => {
 			if (ignore[keyCode]) {
 				continue;
 			}
-			let userSettings = KeybindingLabels.toUserSettingsLabel(keyCode);
+			let userSettings = KeybindingLabels.toUserSettingsLabel(createKeybinding(keyCode));
 			testIsGood(userSettings, keyCode + ' - ' + StandaloneKeyCode[keyCode] + ' - ' + userSettings);
 		}
 
