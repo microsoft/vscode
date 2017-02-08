@@ -151,12 +151,11 @@ export class TextResourceEditor extends BaseTextEditor {
 	 * Reveals the last line of this editor if it has a model set.
 	 * If smart reveal is true will only reveal the last line if the line before last is visible #3351
 	 */
-	public revealLastLine(smartReveal = false): void {
+	public revealLastLine(): void {
 		const codeEditor = <ICodeEditor>this.getControl();
 		const model = codeEditor.getModel();
-		const lineBeforeLastRevealed = codeEditor.getScrollTop() + codeEditor.getLayoutInfo().height >= codeEditor.getScrollHeight();
 
-		if (model && (!smartReveal || lineBeforeLastRevealed)) {
+		if (model) {
 			const lastLine = model.getLineCount();
 			codeEditor.revealLine(lastLine);
 		}
