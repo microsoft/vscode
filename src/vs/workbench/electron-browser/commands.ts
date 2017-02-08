@@ -26,7 +26,7 @@ import URI from 'vs/base/common/uri';
 export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.down',
+		id: 'list.focusDown',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.DownArrow,
@@ -58,7 +58,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.up',
+		id: 'list.focusUp',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.UpArrow,
@@ -148,7 +148,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.pageUp',
+		id: 'list.focusPageUp',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.PageUp,
@@ -175,7 +175,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.pageDown',
+		id: 'list.focusPageDown',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.PageDown,
@@ -202,7 +202,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.first',
+		id: 'list.focusFirst',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.Home,
@@ -221,7 +221,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.last',
+		id: 'list.focusLast',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.End,
