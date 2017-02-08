@@ -5,10 +5,7 @@
 			"es2015"
 		],
 		"module": "commonjs",
-		"outDir": "./out",
-		"types": [
-			"node"
-		]
+		"outDir": "./out"
 	},
 	"exclude": [
 		"node_modules"
