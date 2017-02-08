@@ -79,14 +79,14 @@ function registerSettingsCompletions(): vscode.Disposable {
 					completions.push(newSnippetCompletionItem({
 						label: localize('assocLabelFile', "Files with Extension"),
 						documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
-						snippet: '"*.${1:extension}": "${2:language}"',
+						snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
 						range
 					}));
 
 					completions.push(newSnippetCompletionItem({
 						label: localize('assocLabelPath', "Files with Path"),
 						documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
-						snippet: '"/${1:path to file}/*.${2:extension}": "${3:language}"',
+						snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
 						range
 					}));
 				}
@@ -110,42 +110,42 @@ function registerSettingsCompletions(): vscode.Disposable {
 					completions.push(newSnippetCompletionItem({
 						label: localize('fileLabel', "Files by Extension"),
 						documentation: localize('fileDescription', "Match all files of a specific file extension."),
-						snippet: '"**/*.${1:extension}": true',
+						snippet: location.isAtPropertyKey ? '"**/*.${1:extension}": true' : '{ "**/*.${1:extension}": true }',
 						range
 					}));
 
 					completions.push(newSnippetCompletionItem({
 						label: localize('filesLabel', "Files with Multiple Extensions"),
 						documentation: localize('filesDescription', "Match all files with any of the file extensions."),
-						snippet: '"**/*.{ext1,ext2,ext3}": true',
+						snippet: location.isAtPropertyKey ? '"**/*.{ext1,ext2,ext3}": true' : '{ "**/*.{ext1,ext2,ext3}": true }',
 						range
 					}));
 
 					completions.push(newSnippetCompletionItem({
 						label: localize('derivedLabel', "Files with Siblings by Name"),
 						documentation: localize('derivedDescription', "Match files that have siblings with the same name but a different extension."),
-						snippet: '"**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" }',
+						snippet: location.isAtPropertyKey ? '"**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" }' : '{ "**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" } }',
 						range
 					}));
 
 					completions.push(newSnippetCompletionItem({
 						label: localize('topFolderLabel', "Folder by Name (Top Level)"),
 						documentation: localize('topFolderDescription', "Match a top level folder with a specific name."),
-						snippet: '"${1:name}": true',
+						snippet: location.isAtPropertyKey ? '"${1:name}": true' : '{ "${1:name}": true }',
 						range
 					}));
 
 					completions.push(newSnippetCompletionItem({
 						label: localize('topFoldersLabel', "Folders with Multiple Names (Top Level)"),
 						documentation: localize('topFoldersDescription', "Match multiple top level folders."),
-						snippet: '"{folder1,folder2,folder3}": true',
+						snippet: location.isAtPropertyKey ? '"{folder1,folder2,folder3}": true' : '{ "{folder1,folder2,folder3}": true }',
 						range
 					}));
 
 					completions.push(newSnippetCompletionItem({
 						label: localize('folderLabel', "Folder by Name (Any Location)"),
 						documentation: localize('folderDescription', "Match a folder with a specific name in any location."),
-						snippet: '"**/${1:name}": true',
+						snippet: location.isAtPropertyKey ? '"**/${1:name}": true' : '{ "**/${1:name}": true }',
 						range
 					}));
 				}
