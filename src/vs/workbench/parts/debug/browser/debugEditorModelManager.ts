@@ -289,11 +289,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
 		}
 		const glyphMarginHoverMessage = `\`\`\`${modeId}\n${condition}\`\`\``;
+		const glyphMarginClassName = 'debug-breakpoint-conditional-glyph';
+		const beforeContentClassName = breakpoint.column ? `debug-breakpoint-column ${glyphMarginClassName}-column` : undefined;
 
 		return {
-			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
+			glyphMarginClassName,
 			glyphMarginHoverMessage,
-			stickiness
+			stickiness,
+			beforeContentClassName
 		};
 	}
 
