@@ -227,22 +227,22 @@
         {
           "command": "git.commitStaged",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.commitStagedSigned",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.commitAll",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.commitAllSigned",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.undoCommit",

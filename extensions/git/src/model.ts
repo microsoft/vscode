@@ -195,6 +195,12 @@ class OperationsImpl implements Operations {
 	}
 }
 
+export interface CommitOptions {
+	all?: boolean;
+	amend?: boolean;
+	signoff?: boolean;
+}
+
 export class Model {
 
 	private _onDidChange = new EventEmitter<SCMResourceGroup[]>();
@@ -299,7 +305,7 @@ export class Model {
 	}
 
 	@throttle
-	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
 		await this.run(Operation.Commit, async () => {
 			if (opts.all) {
 				await this.repository.add([]);

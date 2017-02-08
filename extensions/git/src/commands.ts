@@ -7,7 +7,7 @@
 
 import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
 import { IRef, RefType } from './git';
-import { Model, Resource, Status } from './model';
+import { Model, Resource, Status, CommitOptions } from './model';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -322,31 +322,39 @@ export class CommandCenter {
 		await this.model.clean(...this.model.workingTreeGroup.resources);
 	}
 
-	private async _commit(fn: () => Promise<string>): Promise<boolean> {
-		if (this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.length === 0) {
+	private async smartCommit(
+		getCommitMessage: () => Promise<string>,
+		opts?: CommitOptions
+	): Promise<boolean> {
+		if (!opts) {
+			opts = { all: this.model.indexGroup.resources.length === 0 };
+		}
+
+		if (
+			// no changes
+			(this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.length === 0)
+			// or no staged changes and not `all`
+			|| (!opts.all && this.model.indexGroup.resources.length === 0)
+		) {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
 			return false;
 		}
 
-		const message = await fn();
+		const message = await getCommitMessage();
 
 		if (!message) {
 			// TODO@joao: show modal dialog to confirm empty message commit
 			return false;
 		}
 
-		const all = this.model.indexGroup.resources.length === 0;
-		await this.model.commit(message, { all });
+		await this.model.commit(message, opts);
 
 		return true;
 	}
 
-	@CommandCenter.Command('git.commit')
-	@CommandCenter.CatchErrors
-	async commit(): Promise<void> {
+	private async commitWithAnyInput(opts?: CommitOptions): Promise<void> {
 		const message = scm.inputBox.value;
-
-		const didCommit = await this._commit(async () => {
+		const getCommitMessage = async () => {
 			if (message) {
 				return message;
 			}
@@ -355,17 +363,25 @@ export class CommandCenter {
 				placeHolder: localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message")
 			});
-		});
+		};
+
+		const didCommit = await this.smartCommit(getCommitMessage, opts);
 
 		if (message && didCommit) {
 			scm.inputBox.value = '';
 		}
 	}
 
+	@CommandCenter.Command('git.commit')
+	@CommandCenter.CatchErrors
+	async commit(): Promise<void> {
+		await this.commitWithAnyInput();
+	}
+
 	@CommandCenter.Command('git.commitWithInput')
 	@CommandCenter.CatchErrors
 	async commitWithInput(): Promise<void> {
-		const didCommit = await this._commit(async () => scm.inputBox.value);
+		const didCommit = await this.smartCommit(async () => scm.inputBox.value);
 
 		if (didCommit) {
 			scm.inputBox.value = '';
@@ -375,25 +391,25 @@ export class CommandCenter {
 	@CommandCenter.Command('git.commitStaged')
 	@CommandCenter.CatchErrors
 	async commitStaged(): Promise<void> {
-		await Promise.reject('not implemented');
+		await this.commitWithAnyInput({ all: false });
 	}
 
 	@CommandCenter.Command('git.commitStagedSigned')
 	@CommandCenter.CatchErrors
 	async commitStagedSigned(): Promise<void> {
-		await Promise.reject('not implemented');
+		await this.commitWithAnyInput({ all: false, signoff: true });
 	}
 
 	@CommandCenter.Command('git.commitAll')
 	@CommandCenter.CatchErrors
 	async commitAll(): Promise<void> {
-		await Promise.reject('not implemented');
+		await this.commitWithAnyInput({ all: true });
 	}
 
 	@CommandCenter.Command('git.commitAllSigned')
 	@CommandCenter.CatchErrors
 	async commitAllSigned(): Promise<void> {
-		await Promise.reject('not implemented');
+		await this.commitWithAnyInput({ all: true, signoff: true });
 	}
 
 	@CommandCenter.Command('git.undoCommit')
