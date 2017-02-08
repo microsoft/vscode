@@ -11,6 +11,7 @@
 	"lines.copyUp": "Zeile nach oben kopieren",
 	"lines.delete": "Zeile löschen",
 	"lines.deleteAllLeft": "Alle übrigen löschen",
+	"lines.deleteAllRight": "Alle rechts löschen",
 	"lines.indent": "Zeileneinzug",
 	"lines.insertAfter": "Zeile unten einfügen",
 	"lines.insertBefore": "Zeile oben einfügen",

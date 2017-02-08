@@ -10,6 +10,8 @@
 	"command.cleanAll": "Alle bereinigen",
 	"command.commitAll": "Alle committen",
 	"command.commitAllSigned": "Alle committen (abgemeldet)",
+	"command.commitStaged": "Commit bereitgestellt",
+	"command.commitStagedSigned": "Gestaffelt committen (abgemeldet)",
 	"command.openChange": "Änderung öffnen",
 	"command.openFile": "Datei öffnen",
 	"command.publish": "Veröffentlichen",

@@ -6,17 +6,17 @@
 {
 	"activeVersion": "Attualmente attiva",
 	"channelName": "TypeScript",
+	"later": "In seguito",
 	"learnMore": "Altre informazioni",
 	"noServerFound": "Il percorso {0} non punta a un'installazione valida di tsserver. Verrà eseguito il fallback alla versione in bundle di TypeScript.",
 	"reloadBlurb": "Ricaricare la finestra per applicare le modifiche",
 	"reloadTitle": "Ricarica",
-	"selectTsVersion": "Selezionare la versione di TypeScript usata per le funzionalità del linguaggio",
+	"selectTsVersion": "Selezionare la versione di TypeScript usata per le funzionalità del linguaggio JavaScript e TypeScript",
 	"serverCouldNotBeStarted": "Non è stato possibile avviare il server di linguaggio TypeScript. Messaggio di errore: {0}",
 	"serverDied": "Il servizio di linguaggio Typescript è stato arrestato in modo imprevisto per cinque volte negli ultimi cinque minuti.",
 	"serverDiedAfterStart": "Il servizio di linguaggio TypeScript è stato arrestato in modo imprevisto per cinque volte dopo che è stato avviato e non verrà riavviato.",
 	"serverDiedReportIssue": "Segnala problema",
 	"useVSCodeVersionOption": "Usa versione di VSCode",
 	"useWorkspaceVersionOption": "Usa versione dell'area di lavoro",
-	"versionCheckUsingBundledTS": "Uso della versione {0} di TypeScript inclusa in VSCode per le funzionalità del linguaggio Typescript",
 	"versionNumber.custom": "personalizzato"
 }

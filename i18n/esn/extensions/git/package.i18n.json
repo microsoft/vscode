@@ -10,6 +10,8 @@
 	"command.cleanAll": "Limpiar todo",
 	"command.commitAll": "Confirmar todo",
 	"command.commitAllSigned": "Confirmar todo (aprobado)",
+	"command.commitStaged": "Confirmar elementos almacenados provisionalmente",
+	"command.commitStagedSigned": "Confirmar elementos almacenados provisionalmente (aprobado)",
 	"command.openChange": "Abrir cambio",
 	"command.openFile": "Abrir archivo",
 	"command.publish": "Publicar",
