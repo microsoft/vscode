@@ -41,7 +41,11 @@ function log() {
         var path = _a[1], line = _a[2], column = _a[3], message = _a[4];
         return ({ path: path, line: Number.parseInt(line), column: Number.parseInt(column), message: message });
     });
-    fs.writeFileSync(buildLogPath, JSON.stringify(messages));
+    try {
+        fs.writeFileSync(buildLogPath, JSON.stringify(messages));
+    }
+    catch (err) {
+    }
     util.log("Finished " + util.colors.green('compilation') + " with " + errors.length + " errors after " + util.colors.magenta((new Date().getTime() - startTime) + ' ms'));
 }
 function createReporter() {
