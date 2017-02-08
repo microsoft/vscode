@@ -449,25 +449,67 @@ export class CommandCenter {
 	@CommandCenter.Command('git.pull')
 	@CommandCenter.CatchErrors
 	async pull(): Promise<void> {
-		await Promise.reject('not implemented');
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
+			return;
+		}
+
+		await this.model.pull();
 	}
 
 	@CommandCenter.Command('git.pullRebase')
 	@CommandCenter.CatchErrors
 	async pullRebase(): Promise<void> {
-		await Promise.reject('not implemented');
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
+			return;
+		}
+
+		await this.model.pull(true);
 	}
 
 	@CommandCenter.Command('git.push')
 	@CommandCenter.CatchErrors
 	async push(): Promise<void> {
-		await Promise.reject('not implemented');
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		await this.model.push();
 	}
 
 	@CommandCenter.Command('git.pushTo')
 	@CommandCenter.CatchErrors
 	async pushTo(): Promise<void> {
-		await Promise.reject('not implemented');
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		if (!this.model.HEAD || !this.model.HEAD.name) {
+			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+			return;
+		}
+
+		const branchName = this.model.HEAD.name;
+		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+		const pick = await window.showQuickPick(picks, { placeHolder });
+
+		if (!pick) {
+			return;
+		}
+
+		this.model.push(pick.label, branchName);
 	}
 
 	@CommandCenter.Command('git.sync')
@@ -501,6 +543,13 @@ export class CommandCenter {
 	@CommandCenter.Command('git.publish')
 	@CommandCenter.CatchErrors
 	async publish(): Promise<void> {
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
+			return;
+		}
+
 		const branchName = this.model.HEAD && this.model.HEAD.name || '';
 		const picks = this.model.remotes.map(r => r.name);
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
