@@ -10,6 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { MockTextAreaWrapper } from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 suite('TextAreaState', () => {
 
@@ -471,5 +472,9 @@ class SimpleModel implements ISimpleModel {
 
 	public getLineCount(): number {
 		return this._lines.length;
+	}
+
+	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+		return null;
 	}
 }

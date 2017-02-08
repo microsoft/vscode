@@ -10,10 +10,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Constants } from 'vs/editor/common/core/uint';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
-	setTextData(text: string): void;
+	setTextData(text: string, richText?: string): void;
 	getTextData(): string;
 }
 
@@ -56,6 +57,7 @@ export interface ISimpleModel {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getModelLineContent(lineNumber: number): string;
 	getLineCount(): number;
+	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 
 	coordinatesConverter: {
 		convertViewPositionToModelPosition(viewPosition: Position): Position;

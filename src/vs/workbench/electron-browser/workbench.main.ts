@@ -12,6 +12,7 @@ import 'vs/base/common/errors';
 // Editor
 import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
+import 'vs/editor/contrib/clipboard/electron-browser/richClipboard';
 import 'vs/editor/contrib/inspectTMScopes/electron-browser/inspectTMScopes';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
 import 'vs/editor/browser/editor.all';

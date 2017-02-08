@@ -294,6 +294,7 @@ class InternalEditorOptionsHelper {
 			acceptSuggestionOnCommitCharacter: toBoolean(opts.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: opts.snippetSuggestions,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
+			richTextClipboard: opts.richTextClipboard,
 			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
 			suggestFontSize: opts.suggestFontSize,
@@ -703,6 +704,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.emptySelectionClipboard,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
+		},
+		'editor.richTextClipboard': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.richTextClipboard,
+			'description': nls.localize('richTextClipboard', "Controls whether copying text with colorization to the clipboard.")
 		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
