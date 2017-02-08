@@ -131,7 +131,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
 		setTimeout(function () {
-			if (scrollTop !== newFrame.contentDocument.body.scrollTop) {
+			if (newFrame.contentDocument && newFrame.contentDocument.body && scrollTop !== newFrame.contentDocument.body.scrollTop) {
 				newFrame.contentDocument.body.scrollTop = scrollTop;
 			}
 			document.body.removeChild(frame);
