@@ -52,10 +52,10 @@
 }
 
 .monaco-editor .debug-breakpoint-column::before {
-    content: " ";
-    width: 0.9em;
-    height: 0.8em;
-    display: inline-block;
+	content: " ";
+	width: 0.9em;
+	height: 0.8em;
+	display: inline-block;
 	margin-right: 2px;
 	margin-left: 2px;
 	background-size: 110% !important;

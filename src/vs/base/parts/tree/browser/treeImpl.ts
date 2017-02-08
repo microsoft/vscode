@@ -57,15 +57,12 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	private model: Model.TreeModel;
 	private view: View.TreeView;
 
-	get onDOMFocus(): Event<FocusEvent> { return this.view.onDOMFocus; }
-	get onDOMBlur(): Event<FocusEvent> { return this.view.onDOMBlur; }
-
-	private _onDispose: Emitter<void> = new Emitter<void>();
-	get onDispose(): Event<void> { return this._onDispose.event; }
+	private _onDispose: Emitter<void>;
 
 	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		super();
 
+		this._onDispose = new Emitter<void>();
 		this.container = container;
 		this.configuration = configuration;
 		this.options = options;
@@ -85,6 +82,18 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.addEmitter2(this.model);
 		this.addEmitter2(this.view);
+	}
+
+	get onDOMFocus(): Event<FocusEvent> {
+		return this.view && this.view.onDOMFocus;
+	}
+
+	get onDOMBlur(): Event<FocusEvent> {
+		return this.view && this.view.onDOMBlur;
+	}
+
+	get onDispose(): Event<void> {
+		return this._onDispose && this._onDispose.event;
 	}
 
 	public getHTMLElement(): HTMLElement {
