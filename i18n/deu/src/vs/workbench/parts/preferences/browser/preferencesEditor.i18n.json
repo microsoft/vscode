@@ -13,6 +13,7 @@
 	"settingsEditorName": "Standardeinstellungen",
 	"settingsFound": "{0} Einstellungen zugeordnet",
 	"totalSettingsMessage": "Insgesamt {0} Einstellungen",
+	"unsupportedPHPExecutablePathSetting": "Diese Einstellung muss eine Benutzereinstellung sein. Öffnen Sie zum Konfigurieren von PHP für den Arbeitsbereich eine PHP-Datei, und klicken Sie in der Statusleiste auf \"PHP-Pfad\".",
 	"unsupportedTypeScriptTsdkSetting": "Diese Einstellung muss eine Benutzereinstellung sein. Öffnen Sie zum Konfigurieren von TypeScript für den Arbeitsbereich eine TypeScript-Datei, und klicken Sie in der Statusleiste auf die TypeScript-Version.",
 	"unsupportedWorkspaceSetting": "Diese Einstellung muss eine Benutzereinstellung sein."
 }

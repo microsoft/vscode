@@ -15,6 +15,7 @@
 	"noResultsFound": "Es wurden keine Ergebnisse gefunden. Überprüfen Sie Ihre Einstellungen für konfigurierte Ausschlüsse – ",
 	"noResultsIncludes": "Keine Ergebnisse in \"{0}\" gefunden – ",
 	"noResultsIncludesExcludes": "Keine Ergebnisse in \"{0}\" unter Ausschluss von \"{1}\" gefunden – ",
+	"openFolder": "Ordner öffnen",
 	"openSettings.message": "Einstellungen öffnen",
 	"removeAll.confirmation.message": "{0} Vorkommen in {1} Dateien entfernen?",
 	"removeAll.message": "Es wurden {0} Vorkommen in {1} Dateien entfernt.",

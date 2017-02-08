@@ -6,5 +6,6 @@
 {
 	"clearOutput": "Borrar salida",
 	"switchToOutput.label": "Cambiar a salida",
-	"toggleOutput": "Alternar salida"
+	"toggleOutput": "Alternar salida",
+	"toggleOutputScrollLock": "Alternar Bloq Despl salida"
 }

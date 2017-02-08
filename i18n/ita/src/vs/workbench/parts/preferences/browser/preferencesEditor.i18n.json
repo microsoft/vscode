@@ -13,6 +13,7 @@
 	"settingsEditorName": "Impostazioni predefinite",
 	"settingsFound": "{0} impostazioni corrispondenti",
 	"totalSettingsMessage": "{0} impostazioni in totale",
+	"unsupportedPHPExecutablePathSetting": "Questa deve essere un'impostazione utente. Per configurare PHP per l'area di lavoro, aprire un file PHP e fare clic su 'Percorso' nella barra di stato.",
 	"unsupportedTypeScriptTsdkSetting": "Questa deve essere un'impostazione utente. Per configurare TypeScript per l'area di lavoro, aprire un file TypeScript e fare clic sulla versione di TypeScript nella barra di stato.",
 	"unsupportedWorkspaceSetting": "Questa deve essere un'impostazione utente."
 }
