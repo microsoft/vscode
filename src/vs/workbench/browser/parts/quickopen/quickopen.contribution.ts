@@ -119,12 +119,12 @@ export class QuickOpenSelectPreviousAction extends BaseQuickOpenNavigateAction {
 	}
 }
 
-const condition = ContextKeyExpr.has('inQuickOpen');
+const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeQuickOpen',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: condition,
+	when: inQuickOpenContext,
 	primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape],
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -135,7 +135,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.acceptSelectedQuickOpenItem',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: condition,
+	when: inQuickOpenContext,
 	primary: null,
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -146,7 +146,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.focusQuickOpen',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: condition,
+	when: inQuickOpenContext,
 	primary: null,
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -187,8 +187,8 @@ function navigateKeybinding(shift: boolean): IKeybindings {
 const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E], mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: null } }), 'Go to File...');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), condition, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Next in Quick Open');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), condition, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, condition, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Next in Quick Open');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, condition, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Previous in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Next in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Next in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Previous in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistoryAction, RemoveFromEditorHistoryAction.ID, RemoveFromEditorHistoryAction.LABEL), 'Remove From History');

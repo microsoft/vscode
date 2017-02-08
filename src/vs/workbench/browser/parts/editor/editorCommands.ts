@@ -17,10 +17,12 @@ import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel'
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
+	registerOpenEditorAtIndexCommands();
 	handleCommandDeprecations();
 }
 
@@ -220,4 +222,52 @@ function handleCommandDeprecations(): void {
 			primary: undefined
 		});
 	});
+}
+
+function registerOpenEditorAtIndexCommands(): void {
+
+	// Keybindings to focus a specific index in the tab folder if tabs are enabled
+	for (let i = 0; i < 9; i++) {
+		const editorIndex = i;
+		const visibleIndex = i + 1;
+
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: 'workbench.action.openEditorAtIndex' + visibleIndex,
+			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			when: void 0,
+			primary: KeyMod.Alt | toKeyCode(visibleIndex),
+			mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
+			handler: accessor => {
+				const editorService = accessor.get(IWorkbenchEditorService);
+				const editorGroupService = accessor.get(IEditorGroupService);
+
+				const active = editorService.getActiveEditor();
+				if (active) {
+					const group = editorGroupService.getStacksModel().groupAt(active.position);
+					const editor = group.getEditor(editorIndex);
+
+					if (editor) {
+						return editorService.openEditor(editor);
+					}
+				}
+				return undefined;
+			}
+		});
+	}
+
+	function toKeyCode(index: number): KeyCode {
+		switch (index) {
+			case 0: return KeyCode.KEY_0;
+			case 1: return KeyCode.KEY_1;
+			case 2: return KeyCode.KEY_2;
+			case 3: return KeyCode.KEY_3;
+			case 4: return KeyCode.KEY_4;
+			case 5: return KeyCode.KEY_5;
+			case 6: return KeyCode.KEY_6;
+			case 7: return KeyCode.KEY_7;
+			case 8: return KeyCode.KEY_8;
+			case 9: return KeyCode.KEY_9;
+		}
+		return undefined;
+	}
 }
