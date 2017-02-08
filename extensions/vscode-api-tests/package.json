@@ -32,6 +32,12 @@
 					"default": "get-prop"
 				}
 			}
+		},
+		"configurationDefaults": {
+			"[abcLang]": {
+				"editor.lineNumbers": "off",
+				"editor.tabSize": 2
+			}
 		}
 	},
 	"scripts": {

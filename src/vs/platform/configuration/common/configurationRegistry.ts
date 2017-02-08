@@ -67,8 +67,10 @@ export interface IConfigurationNode {
 	overridable?: boolean;
 }
 
-export interface IConfigurationExtension extends IConfigurationNode {
-	defaults?: any;
+export interface IDefaultConfigurationExtension {
+	id: string;
+	name: string;
+	defaults: { [key: string]: {} };
 }
 
 const schemaId = 'vscode://schemas/settings';
@@ -106,7 +108,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	public registerConfigurations(configurations: IConfigurationNode[]): void {
 		configurations.forEach(configuration => {
-			this.registerDefaultOverrides(configuration); /// fills in default overrides
 			this.registerProperties(configuration); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
@@ -121,25 +122,26 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private registerDefaultOverrides(configurationNode: IConfigurationExtension): void {
-		if (!configurationNode.defaults) {
-			return;
-		}
-
-		for (const key in configurationNode.defaults) {
-			const defaultValue = configurationNode.defaults[key];
-			if (OVERRIDE_PROPERTY_PATTERN.test(key) && typeof defaultValue === 'object') {
-				if (!configurationNode.properties) {
-					configurationNode.properties = {};
+	public registerDefaultConfigurations(defaultConnfigurations: IDefaultConfigurationExtension[]): void {
+		const configurationNode: IConfigurationNode = {
+			id: 'defaultOverrides',
+			title: nls.localize('defaultConfigurations.title', "Default Configuration Overrides"),
+			properties: {}
+		};
+		for (const defaultConfiguration of defaultConnfigurations) {
+			for (const key in defaultConfiguration.defaults) {
+				const defaultValue = defaultConfiguration.defaults[key];
+				if (OVERRIDE_PROPERTY_PATTERN.test(key) && typeof defaultValue === 'object') {
+					configurationNode.properties[key] = {
+						type: 'object',
+						default: defaultValue,
+						description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for {0} language.", key),
+						$ref: editorConfigurationSchemaId
+					};
 				}
-				configurationNode.properties[key] = {
-					type: 'object',
-					default: defaultValue,
-					description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for {0} language.", key),
-					$ref: editorConfigurationSchemaId
-				};
 			}
 		}
+		this.registerConfigurations([configurationNode]);
 	}
 
 	private registerProperties(configuration: IConfigurationNode, overridable: boolean = false) {
@@ -291,26 +293,15 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 					}
 				]
 			}
-		},
-		defaults: {
-			description: nls.localize('vscode.extension.contributes.configuration.defaults', 'Override default editor settings for a language'),
-			type: 'object',
-			patternProperties: {
-				'\\[.*\\]$': {
-					type: 'object',
-					default: {},
-					$ref: editorConfigurationSchemaId,
-				}
-			}
 		}
 	}
 });
 
 configurationExtPoint.setHandler(extensions => {
-	const configurations: IConfigurationExtension[] = [];
+	const configurations: IConfigurationNode[] = [];
 
 	for (let i = 0; i < extensions.length; i++) {
-		const configuration = <IConfigurationExtension>extensions[i].value;
+		const configuration = <IConfigurationNode>extensions[i].value;
 		const collector = extensions[i].collector;
 
 		if (configuration.type && configuration.type !== 'object') {
@@ -328,15 +319,35 @@ configurationExtPoint.setHandler(extensions => {
 			return;
 		}
 
-		if (configuration.defaults && typeof configuration.defaults !== 'object') {
-			collector.error(nls.localize('invalid.defaults', "'configuration.defaults' must be an object"));
-			return;
-		}
-
 		const clonedConfiguration = objects.clone(configuration);
 		clonedConfiguration.id = extensions[i].description.id;
 		configurations.push(clonedConfiguration);
 	}
 
 	configurationRegistry.registerConfigurations(configurations);
+});
+
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {
+	description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
+	type: 'object',
+	defaultSnippets: [{ body: {} }],
+	patternProperties: {
+		'\\[.*\\]$': {
+			type: 'object',
+			default: {},
+			$ref: editorConfigurationSchemaId,
+		}
+	}
+});
+
+defaultConfigurationExtPoint.setHandler(extensions => {
+	const defaultConfigurations: IDefaultConfigurationExtension[] = extensions.map(extension => {
+		const id = extension.description.id;
+		const name = extension.description.name;
+		const defaults = objects.clone(extension.value);
+		return <IDefaultConfigurationExtension>{
+			id, name, defaults
+		};
+	});
+	configurationRegistry.registerDefaultConfigurations(defaultConfigurations);
 });
