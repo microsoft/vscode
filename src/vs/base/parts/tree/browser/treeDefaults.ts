@@ -139,6 +139,8 @@ export class DefaultController implements _.IController {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
+		this.upKeyBindingDispatcher = new KeybindingDispatcher();
+
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			this.downKeyBindingDispatcher.set(KeyCode.UpArrow, (t, e) => this.onUp(t, e));
 			this.downKeyBindingDispatcher.set(KeyCode.DownArrow, (t, e) => this.onDown(t, e));
@@ -147,19 +149,17 @@ export class DefaultController implements _.IController {
 			if (platform.isMacintosh) {
 				this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, (t, e) => this.onLeft(t, e));
 			}
+			this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.Home, (t, e) => this.onHome(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.End, (t, e) => this.onEnd(t, e));
+
+			this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.Escape, (t, e) => this.onEscape(t, e));
+
+			this.upKeyBindingDispatcher.set(KeyCode.Enter, this.onEnter.bind(this));
+			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 		}
-
-		// TODO@Ben adopt more keybindings as configurable commands
-		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (t, e) => this.onEscape(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.Home, (t, e) => this.onHome(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.End, (t, e) => this.onEnd(t, e));
-
-		this.upKeyBindingDispatcher = new KeybindingDispatcher();
-		this.upKeyBindingDispatcher.set(KeyCode.Enter, this.onEnter.bind(this));
-		this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 	}
 
 	public onMouseDown(tree: _.ITree, element: any, event: mouse.IMouseEvent, origin: string = 'mouse'): boolean {

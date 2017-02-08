@@ -90,7 +90,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.left',
+		id: 'list.collapse',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.LeftArrow,
@@ -121,7 +121,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.right',
+		id: 'list.expand',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.RightArrow,
@@ -143,6 +143,176 @@ export function registerCommands(): void {
 
 					return void 0;
 				}).done(null, errors.onUnexpectedError);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.pageUp',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: KeyCode.PageUp,
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const focused = listService.getFocused();
+
+			// List
+			if (focused instanceof List) {
+				const list = focused;
+
+				list.focusPreviousPage();
+				list.reveal(list.getFocus()[0]);
+			}
+
+			// Tree
+			else if (focused) {
+				const tree = focused;
+
+				tree.focusPreviousPage({ origin: 'keyboard' });
+				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.pageDown',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: KeyCode.PageDown,
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const focused = listService.getFocused();
+
+			// List
+			if (focused instanceof List) {
+				const list = focused;
+
+				list.focusNextPage();
+				list.reveal(list.getFocus()[0]);
+			}
+
+			// Tree
+			else if (focused) {
+				const tree = focused;
+
+				tree.focusNextPage({ origin: 'keyboard' });
+				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.first',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: KeyCode.Home,
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const focused = listService.getFocused();
+
+			// Tree only
+			if (!(focused instanceof List)) {
+				const tree = focused;
+
+				tree.focusFirst({ origin: 'keyboard' });
+				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.last',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: KeyCode.End,
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const focused = listService.getFocused();
+
+			// Tree only
+			if (!(focused instanceof List)) {
+				const tree = focused;
+
+				tree.focusLast({ origin: 'keyboard' });
+				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.select',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const focused = listService.getFocused();
+
+			// List
+			if (focused instanceof List) {
+				const list = focused;
+
+				list.setSelection(list.getFocus());
+			}
+
+			// Tree
+			else if (focused) {
+				const tree = focused;
+				const focus = tree.getFocus();
+
+				if (focus) {
+					tree.setSelection([focus], { origin: 'keyboard' });
+				}
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.toggleExpand',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: KeyCode.Space,
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const focused = listService.getFocused();
+
+			// Tree only
+			if (!(focused instanceof List)) {
+				const tree = focused;
+				const focus = tree.getFocus();
+
+				if (focus) {
+					tree.toggleExpansion(focus);
+				}
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.clear',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: KeyCode.Escape,
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const focused = listService.getFocused();
+
+			// Tree only
+			if (!(focused instanceof List)) {
+				const tree = focused;
+
+				if (tree.getSelection().length) {
+					tree.clearSelection({ origin: 'keyboard' });
+
+					return void 0;
+				}
+
+				if (tree.getFocus()) {
+					tree.clearFocus({ origin: 'keyboard' });
+
+					return void 0;
+				}
 			}
 		}
 	});
