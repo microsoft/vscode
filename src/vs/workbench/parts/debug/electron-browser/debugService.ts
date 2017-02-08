@@ -944,6 +944,10 @@ export class DebugService implements debug.IDebugService {
 				const data: { [id: string]: { line?: number, column?: number, verified: boolean } } = {};
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
+					if (!breakpointsToSend[i].column) {
+						// If there was no column sent ignore the breakpoint column response from the adapter
+						data[breakpointsToSend[i].getId()].column = undefined;
+					}
 				}
 
 				this.model.updateBreakpoints(data);
