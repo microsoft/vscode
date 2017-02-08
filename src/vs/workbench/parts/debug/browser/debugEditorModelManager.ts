@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, TrackedRangeStickiness, IRange, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -120,7 +120,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
 		// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-		if (stackFrame === stackFrame.thread.getCallStack()[0]) {
+		const callStack = stackFrame.thread.getCallStack();
+		if (callStack && callStack.length && stackFrame === callStack[0]) {
 			result.push({
 				options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
 				range
