@@ -50,7 +50,12 @@ function log(): void {
 		.filter(match => !!match)
 		.map(([, path, line, column, message]) => ({ path, line: Number.parseInt(line), column: Number.parseInt(column), message }));
 
-	fs.writeFileSync(buildLogPath, JSON.stringify(messages));
+	try {
+
+		fs.writeFileSync(buildLogPath, JSON.stringify(messages));
+	} catch (err) {
+		//noop
+	}
 
 	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
 }
