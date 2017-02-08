@@ -47,7 +47,12 @@ export class SCMMenus implements IDisposable {
 		}
 
 		const titleMenu = this.menuService.createMenu(MenuId.SCMTitle, this.contextKeyService);
-		const updateActions = () => fillInActions(titleMenu, null, { primary: this.titleActions, secondary: this.titleSecondaryActions });
+		const updateActions = () => {
+			this.titleActions = [];
+			this.titleSecondaryActions = [];
+			fillInActions(titleMenu, null, { primary: this.titleActions, secondary: this.titleSecondaryActions });
+		};
+
 		const listener = titleMenu.onDidChange(updateActions);
 		updateActions();
 
