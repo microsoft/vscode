@@ -204,8 +204,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				}
 
 				for (let i = 0; i < body.length; i++) {
-					let element = body[i];
-					let item = new MyCompletionItem(position, document, element, enableDotCompletions);
 					const element = body[i];
 					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
