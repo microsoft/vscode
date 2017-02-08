@@ -647,6 +647,7 @@ export interface ITreeOptions {
 	useShadows?: boolean;
 	paddingOnRow?: boolean;
 	ariaLabel?: string;
+	keyboardSupport?: boolean;
 }
 
 export interface ITreeContext extends ITreeConfiguration {

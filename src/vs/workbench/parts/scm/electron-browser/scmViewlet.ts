@@ -24,6 +24,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -156,6 +157,7 @@ export class SCMViewlet extends Viewlet {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
+		@IListService private listService: IListService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
@@ -199,8 +201,10 @@ export class SCMViewlet extends Viewlet {
 
 		this.list = new List(this.listContainer, delegate, [
 			new ResourceGroupRenderer(this.menus, actionItemProvider),
-			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider)
-		]);
+			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider),
+		], { keyboardSupport: false });
+
+		this.disposables.push(this.listService.register(this.list));
 
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])

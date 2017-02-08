@@ -173,7 +173,7 @@ export class Controller extends treedefaults.DefaultController {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
+		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 	}
 
 	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {

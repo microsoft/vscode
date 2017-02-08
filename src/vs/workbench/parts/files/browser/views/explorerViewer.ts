@@ -386,7 +386,7 @@ export class FileController extends DefaultController {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
