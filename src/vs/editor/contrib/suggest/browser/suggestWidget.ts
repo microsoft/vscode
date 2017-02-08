@@ -265,6 +265,14 @@ class SuggestionDetails {
 		this.body.scrollTop -= much;
 	}
 
+	scrollTop(): void {
+		this.body.scrollTop = 0;
+	}
+
+	scrollBottom(): void {
+		this.body.scrollTop = this.body.scrollHeight;
+	}
+
 	pageDown(): void {
 		this.scrollDown(80);
 	}
@@ -639,8 +647,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				return false;
 			case State.Details:
-				// Not worried about details just yet...
-				// this.details.pageDown();
+				this.details.scrollBottom();
 				return true;
 			case State.Loading:
 				return !this.isAuto;
@@ -686,8 +693,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				return false;
 			case State.Details:
-				// Not worried about details just yet...
-				// this.details.pageUp();
+				this.details.scrollTop();
 				return true;
 			case State.Loading:
 				return !this.isAuto;
