@@ -6,9 +6,11 @@
 {
 	"error.cannotloadicontheme": "No se puede cargar {0}",
 	"error.cannotloadtheme": "No se puede cargar {0}",
-	"error.cannotparse": "Problemas al analizar el archivo plist: {0}",
+	"error.cannotparse": "Problemas al analizar el archivo de tema: {0}",
 	"error.cannotparseicontheme": "Problema al analizar el archivo de iconos del archivo: {0}",
 	"error.cannotparsejson": "Problemas al analizar el archivo de tema JSON: {0}",
+	"error.invalidformat": "Problema al analizar el archivo de tema de JSON: {0}. \"settings\" no es una matriz.",
+	"error.plist.invalidformat": "Problema al analizar el archivo de tema: {0}. \"settings\" no es una matriz.",
 	"invalid.path.1": "Se esperaba que 'contributes.{0}.path' ({1}) se incluyera en la carpeta de la extensión ({2}). Esto puede hacer que la extensión no sea portátil.",
 	"reqarray": "El punto de extensión '{0}' debe ser una matriz.",
 	"reqid": "Se esperaba una cadena en `contributes.{0}.id`. Valor proporcionado: {1}",

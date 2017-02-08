@@ -8,6 +8,7 @@
 	"autoDetectHighContrast": "如果已启用，将自动更改为高对比度主题；如果 Windows 正在使用高对比度主题，则当离开 Windows 高对比度主题时会更改为深色主题。",
 	"closeOnFocusLost": "控制 Quick Open 是否应在失去焦点时自动关闭。",
 	"editorOpenPositioning": "控制打开编辑器的位置。选择“左侧”或“右侧”以在当前活动位置的左侧或右侧打开编辑器。选择“第一个”或“最后一个”以从当前活动位置独立打开编辑器。",
+	"editorTabCloseButton": "控制编辑器的选项卡关闭按钮的位置，或当设置为“关闭”时禁用关闭它们。",
 	"enablePreview": "控制打开的编辑器是否显示为预览。预览编辑器可以重新使用，直到将其保留(例如，双击或编辑)。",
 	"enablePreviewFromQuickOpen": "控制 Quick Open 中打开的编辑器是否显示为预览。预览编辑器可以重新使用，直到将其保留(例如，通过双击或编辑)。",
 	"file": "文件",
