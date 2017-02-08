@@ -9,6 +9,10 @@
 		"sourceMap": false,
 		"experimentalDecorators": true,
 		"declaration": true,
-		"noImplicitReturns": true
+		"noImplicitReturns": true,
+		"typeRoots": [
+			"typings",
+			"../node_modules/@types"
+		]
 	}
 }

@@ -56,7 +56,7 @@ function createCompile(build, emitError) {
 function compileTask(out, build) {
     var compile = createCompile(build, true);
     return function () {
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'), gulp.src('node_modules/@types/**/index.d.ts'));
         return src
             .pipe(compile())
             .pipe(gulp.dest(out))
@@ -67,7 +67,7 @@ exports.compileTask = compileTask;
 function watchTask(out, build) {
     var compile = createCompile(build);
     return function () {
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'), gulp.src('node_modules/@types/**/index.d.ts'));
         var watchSrc = watch('src/**', { base: 'src' });
         return watchSrc
             .pipe(util.incremental(compile, src, true))
