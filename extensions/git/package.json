@@ -202,22 +202,22 @@
         {
           "command": "git.pull",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.pullRebase",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.push",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.pushTo",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.publish",

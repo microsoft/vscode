@@ -154,16 +154,17 @@ export class WorkingTreeGroup extends ResourceGroup {
 }
 
 export enum Operation {
-	Status = 0o1,
-	Stage = 0o2,
-	Unstage = 0o4,
-	Commit = 0o10,
-	Clean = 0o20,
-	Branch = 0o40,
-	Checkout = 0o100,
-	Fetch = 0o200,
-	Sync = 0o400,
-	Push = 0o1000
+	Status = 1 << 0,
+	Stage = 1 << 1,
+	Unstage = 1 << 2,
+	Commit = 1 << 3,
+	Clean = 1 << 4,
+	Branch = 1 << 5,
+	Checkout = 1 << 6,
+	Fetch = 1 << 7,
+	Pull = 1 << 8,
+	Push = 1 << 9,
+	Sync = 1 << 10
 }
 
 export interface Operations {
@@ -357,13 +358,18 @@ export class Model {
 	}
 
 	@throttle
-	async sync(): Promise<void> {
-		await this.run(Operation.Sync, () => this.repository.sync());
+	async pull(rebase?: boolean): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase));
 	}
 
 	@throttle
 	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
+	}
+
+	@throttle
+	async sync(): Promise<void> {
+		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
 	private async run(operation: Operation, fn: () => Promise<void> = () => Promise.resolve()): Promise<void> {
