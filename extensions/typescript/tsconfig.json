@@ -11,10 +11,7 @@
 		"noImplicitAny": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"types": [
-			"node"
-		]
+		"noUnusedParameters": true
 	},
 	"exclude": [
 		"node_modules",

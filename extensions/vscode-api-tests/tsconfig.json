@@ -7,10 +7,7 @@
 			"es2015"
 		],
 		"sourceMap": true,
-		"strictNullChecks": true,
-		"types": [
-			"node"
-		]
+		"strictNullChecks": true
 	},
 	"exclude": [
 		"node_modules"

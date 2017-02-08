@@ -6,10 +6,7 @@
 		"lib": [
 			"es2015"
 		],
-		"strictNullChecks": true,
-		"types": [
-			"node"
-		]
+		"strictNullChecks": true
 	},
 	"exclude": [
 		"node_modules"
