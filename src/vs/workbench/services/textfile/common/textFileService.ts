@@ -402,9 +402,12 @@ export abstract class TextFileService implements ITextFileService {
 
 	public save(resource: URI, options?: ISaveOptions): TPromise<boolean> {
 
-		// touch resource if options tell so and file is not dirty
+		// Run a forced save if we detect the file is not dirty so that save participants can still run
 		if (options && options.force && resource.scheme === 'file' && !this.isDirty(resource)) {
-			return this.fileService.touchFile(resource).then(() => true, () => true /* gracefully ignore errors if just touching */);
+			const model = this._models.get(resource);
+			if (model) {
+				model.save({ force: true, reason: SaveReason.EXPLICIT }).then(() => !model.isDirty());
+			}
 		}
 
 		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);

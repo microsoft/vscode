@@ -520,10 +520,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromise();
 
-		return this.doSave(this.versionId, types.isUndefinedOrNull(options.reason) ? SaveReason.EXPLICIT : options.reason, options.overwriteReadonly, options.overwriteEncoding);
+		return this.doSave(this.versionId, types.isUndefinedOrNull(options.reason) ? SaveReason.EXPLICIT : options.reason, options.overwriteReadonly, options.overwriteEncoding, options.force);
 	}
 
-	private doSave(versionId: number, reason: SaveReason, overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
+	private doSave(versionId: number, reason: SaveReason, overwriteReadonly?: boolean, overwriteEncoding?: boolean, force?: boolean): TPromise<void> {
 		diag(`doSave(${versionId}) - enter with versionId ' + versionId`, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
@@ -537,14 +537,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return this.saveSequentializer.pendingSave;
 		}
 
-		// Return early if not dirty or version changed meanwhile
+		// Return early if not dirty (unless forced) or version changed meanwhile
 		//
 		// Scenario A: user invoked save action even though the model is not dirty
 		// Scenario B: auto save was triggered for a certain change by the user but meanwhile the user changed
 		//             the contents and the version for which auto save was started is no longer the latest.
 		//             Thus we avoid spawning multiple auto saves and only take the latest.
 		//
-		if (!this.dirty || versionId !== this.versionId) {
+		if ((!force && !this.dirty) || versionId !== this.versionId) {
 			diag(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource, new Date());
 
 			return TPromise.as<void>(null);
@@ -593,6 +593,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// mark the save participant as current pending save operation
 		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
+
+			// the model was not dirty and no save participant changed the contents, so we do not have
+			// to write the contents to disk, as they are already on disk. we still want to trigger
+			// a change on the file though so that external file watchers can be notified
+			if (force && !this.dirty && reason === SaveReason.EXPLICIT && versionId === newVersionId) {
+				return this.fileService.touchFile(this.resource).then(() => void 0, () => void 0 /* gracefully ignore errors if just touching */);
+			}
 
 			// update versionId with its new value (if pre-save changes happened)
 			versionId = newVersionId;
