@@ -8,7 +8,7 @@ import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import Event from 'vs/base/common/event';
-import { IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding, IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 
@@ -89,6 +89,10 @@ export class MockKeybindingService2 implements IKeybindingService {
 	}
 
 	public lookupKeybindings(commandId: string): Keybinding[] {
+		return [];
+	}
+
+	public lookupKeybindings2(commandId: string): ResolvedKeybinding[] {
 		return [];
 	}
 
