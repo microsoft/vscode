@@ -22,6 +22,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface IRow {
 	element: HTMLElement;
@@ -438,6 +439,12 @@ export class TreeView extends HeightMap {
 
 	private highlightedItemWasDraggable: boolean;
 	private onHiddenScrollTop: number;
+
+	private _onDOMFocus: Emitter<FocusEvent> = new Emitter<FocusEvent>();
+	get onDOMFocus(): Event<FocusEvent> { return this._onDOMFocus.event; }
+
+	private _onDOMBlur: Emitter<FocusEvent> = new Emitter<FocusEvent>();
+	get onDOMBlur(): Event<FocusEvent> { return this._onDOMBlur.event; }
 
 	constructor(context: _.ITreeContext, container: HTMLElement) {
 		super();
@@ -1202,7 +1209,7 @@ export class TreeView extends HeightMap {
 
 	private onContextMenu(keyboardEvent: KeyboardEvent): void;
 	private onContextMenu(mouseEvent: MouseEvent): void;
-	private onContextMenu(event: Event): void {
+	private onContextMenu(event: KeyboardEvent | MouseEvent): void {
 		var resultEvent: _.ContextMenuEvent;
 		var element: any;
 
@@ -1515,6 +1522,8 @@ export class TreeView extends HeightMap {
 		if (!this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
 		}
+
+		this._onDOMFocus.fire();
 	}
 
 	private onBlur(): void {
@@ -1523,6 +1532,8 @@ export class TreeView extends HeightMap {
 		}
 
 		this.domNode.removeAttribute('aria-activedescendant'); // ARIA
+
+		this._onDOMBlur.fire();
 	}
 
 	// MS specific DOM Events
@@ -1616,6 +1627,9 @@ export class TreeView extends HeightMap {
 		this.modelListeners = null;
 
 		this.viewListeners = Lifecycle.dispose(this.viewListeners);
+
+		this._onDOMFocus.dispose();
+		this._onDOMBlur.dispose();
 
 		if (this.domNode.parentNode) {
 			this.domNode.parentNode.removeChild(this.domNode);

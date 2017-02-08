@@ -237,6 +237,12 @@ export class List<T> implements IDisposable {
 	private _onDOMFocus: Event<FocusEvent>;
 	get onDOMFocus(): Event<FocusEvent> { return this._onDOMFocus; }
 
+	private _onDOMBlur: Event<FocusEvent>;
+	get onDOMBlur(): Event<FocusEvent> { return this._onDOMBlur; }
+
+	private _onDispose: Emitter<void>;
+	get onDispose(): Event<void> { return this._onDispose.event; }
+
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<T>,
@@ -257,9 +263,13 @@ export class List<T> implements IDisposable {
 		this.view.domNode.setAttribute('role', 'tree');
 		this.view.domNode.tabIndex = 0;
 		this.controller = new Controller(this, this.view);
-		this.disposables = [this.focus, this.selection, this.view, this.controller];
 
 		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
+		this._onDOMBlur = domEvent(this.view.domNode, 'blur');
+		this._onDispose = new Emitter<void>();
+
+		this.disposables = [this.focus, this.selection, this.view, this.controller, this._onDispose];
+
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
 
 		if (options.ariaLabel) {
@@ -426,6 +436,10 @@ export class List<T> implements IDisposable {
 		return `${this.idPrefix}_${index}`;
 	}
 
+	isDOMFocused(): boolean {
+		return this.view.domNode === document.activeElement;
+	}
+
 	private toListEvent({ indexes }: ITraitChangeEvent) {
 		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
@@ -444,6 +458,7 @@ export class List<T> implements IDisposable {
 	}
 
 	dispose(): void {
+		this._onDispose.fire();
 		this.disposables = dispose(this.disposables);
 	}
 }

@@ -12,6 +12,7 @@ import Model = require('vs/base/parts/tree/browser/treeModel');
 import View = require('./treeView');
 import _ = require('vs/base/parts/tree/browser/tree');
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class TreeContext implements _.ITreeContext {
 
@@ -55,6 +56,12 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	private context: _.ITreeContext;
 	private model: Model.TreeModel;
 	private view: View.TreeView;
+
+	get onDOMFocus(): Event<FocusEvent> { return this.view.onDOMFocus; }
+	get onDOMBlur(): Event<FocusEvent> { return this.view.onDOMBlur; }
+
+	private _onDispose: Emitter<void> = new Emitter<void>();
+	get onDispose(): Event<void> { return this._onDispose.event; }
 
 	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		super();
@@ -331,6 +338,9 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 			this.view.dispose();
 			this.view = null;
 		}
+
+		this._onDispose.fire();
+		this._onDispose.dispose();
 
 		super.dispose();
 	}
