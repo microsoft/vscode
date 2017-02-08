@@ -210,7 +210,7 @@ export class WorkbenchShell {
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
 			customKeybindingsCount: info.customKeybindingsCount,
-			theme: this.themeService.getColorTheme(),
+			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
 			experiments: this.telemetryService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets
