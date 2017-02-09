@@ -103,7 +103,7 @@ export function registerCommands(): void {
 			const focused = listService.getFocused();
 
 			// Tree only
-			if (!(focused instanceof List)) {
+			if (focused && !(focused instanceof List)) {
 				const tree = focused;
 				const focus = tree.getFocus();
 
@@ -130,7 +130,7 @@ export function registerCommands(): void {
 			const focused = listService.getFocused();
 
 			// Tree only
-			if (!(focused instanceof List)) {
+			if (focused && !(focused instanceof List)) {
 				const tree = focused;
 				const focus = tree.getFocus();
 
@@ -292,7 +292,7 @@ export function registerCommands(): void {
 			const focused = listService.getFocused();
 
 			// Tree only
-			if (!(focused instanceof List)) {
+			if (focused && !(focused instanceof List)) {
 				const tree = focused;
 				const focus = tree.getFocus();
 
@@ -313,7 +313,7 @@ export function registerCommands(): void {
 			const focused = listService.getFocused();
 
 			// Tree only
-			if (!(focused instanceof List)) {
+			if (focused && !(focused instanceof List)) {
 				const tree = focused;
 
 				if (tree.getSelection().length) {

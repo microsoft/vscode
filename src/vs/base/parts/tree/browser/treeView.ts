@@ -440,11 +440,11 @@ export class TreeView extends HeightMap {
 	private highlightedItemWasDraggable: boolean;
 	private onHiddenScrollTop: number;
 
-	private _onDOMFocus: Emitter<FocusEvent> = new Emitter<FocusEvent>();
-	get onDOMFocus(): Event<FocusEvent> { return this._onDOMFocus.event; }
+	private _onDOMFocus: Emitter<void> = new Emitter<void>();
+	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
-	private _onDOMBlur: Emitter<FocusEvent> = new Emitter<FocusEvent>();
-	get onDOMBlur(): Event<FocusEvent> { return this._onDOMBlur.event; }
+	private _onDOMBlur: Emitter<void> = new Emitter<void>();
+	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
 
 	constructor(context: _.ITreeContext, container: HTMLElement) {
 		super();
@@ -1523,7 +1523,7 @@ export class TreeView extends HeightMap {
 			DOM.addClass(this.domNode, 'focused');
 		}
 
-		this._onDOMFocus.fire();
+		setTimeout(() => this._onDOMFocus.fire());
 	}
 
 	private onBlur(): void {
