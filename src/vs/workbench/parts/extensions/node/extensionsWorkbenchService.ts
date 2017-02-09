@@ -807,6 +807,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	dispose(): void {
+		this.syncDelayer.cancel();
 		this.disposables = dispose(this.disposables);
 	}
 }
