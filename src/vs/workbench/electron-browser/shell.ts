@@ -74,8 +74,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CrashReporter } from 'vs/workbench/electron-browser/crashReporter';
 import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
@@ -122,7 +120,6 @@ export class WorkbenchShell {
 	private contextViewService: ContextViewService;
 	private threadService: MainThreadService;
 	private configurationService: IConfigurationService;
-	private themeService: ThemeService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
 	private extensionService: MainProcessExtensionService;
@@ -210,7 +207,7 @@ export class WorkbenchShell {
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
 			customKeybindingsCount: info.customKeybindingsCount,
-			theme: this.themeService.getColorTheme().id,
+			theme: this.workbench.getThemeService().getColorTheme().id,
 			language: platform.language,
 			experiments: this.telemetryService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets
@@ -359,9 +356,6 @@ export class WorkbenchShell {
 
 		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
 
-		this.themeService = instantiationService.createInstance(ThemeService);
-		serviceCollection.set(IThemeService, this.themeService);
-
 		serviceCollection.set(ITextMateService, new SyncDescriptor(MainProcessTextMateSyntax));
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
@@ -408,7 +402,7 @@ export class WorkbenchShell {
 		this.registerListeners();
 
 		// Enable theme support
-		this.themeService.initialize(this.container).then(null, error => {
+		this.workbench.getThemeService().initialize(this.container).then(null, error => {
 			errors.onUnexpectedError(error);
 		});
 	}
