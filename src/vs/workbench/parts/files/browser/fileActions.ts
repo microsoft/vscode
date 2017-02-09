@@ -887,7 +887,7 @@ export class ImportFileAction extends BaseFileAction {
 let fileToCopy: FileStat;
 export class CopyFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.copyFile';
+	public static ID = 'filesExplorer.copy';
 
 	private tree: ITree;
 	constructor(

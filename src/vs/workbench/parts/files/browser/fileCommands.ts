@@ -190,6 +190,10 @@ export const moveFocussedExplorerViewItemToTrashCommand = (accessor: ServicesAcc
 	runActionOnFocussedExplorerViewItem(accessor, 'filesExplorer.moveFileToTrash', { useTrash: true });
 };
 
+export const copyFocussedExplorerViewItem = (accessor: ServicesAccessor) => {
+	runActionOnFocussedExplorerViewItem(accessor, 'filesExplorer.copy');
+};
+
 export const copyPathOfFocussedExplorerItem = (accessor: ServicesAccessor) => {
 	withFocussedExplorerItem(accessor).then(item => {
 		const file = explorerItemToFileResource(item);
