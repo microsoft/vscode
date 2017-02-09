@@ -189,7 +189,10 @@ export function template(template: string, values: { [key: string]: string | ISe
 
 			// Separator
 			else if (resolved) {
-				segments.push({ value: resolved.label, type: Type.SEPARATOR });
+				const prevSegment = segments[segments.length - 1];
+				if (!prevSegment || prevSegment.type !== Type.SEPARATOR) {
+					segments.push({ value: resolved.label, type: Type.SEPARATOR }); // prevent duplicate separators
+				}
 			}
 
 			curVal = '';
