@@ -10,7 +10,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { MockTextAreaWrapper } from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 suite('TextAreaState', () => {
 
@@ -474,7 +473,11 @@ class SimpleModel implements ISimpleModel {
 		return this._lines.length;
 	}
 
-	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		return null;
+	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
+
+	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
 	}
 }

@@ -11,10 +11,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/common/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference, InternalEditorOptions } from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 const enum ReadFromTextArea {
 	Type,
@@ -75,7 +71,6 @@ export class TextAreaHandler extends Disposable {
 	private Browser: IBrowser;
 	private textArea: ITextAreaWrapper;
 	private model: ISimpleModel;
-	private config: InternalEditorOptions;
 	private flushAnyAccumulatedEvents: () => void;
 
 	private selection: Range;
@@ -94,12 +89,11 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Browser: IBrowser, strategy: TextAreaStrategy, textArea: ITextAreaWrapper, model: ISimpleModel, config: InternalEditorOptions, flushAnyAccumulatedEvents: () => void) {
+	constructor(Browser: IBrowser, strategy: TextAreaStrategy, textArea: ITextAreaWrapper, model: ISimpleModel, flushAnyAccumulatedEvents: () => void) {
 		super();
 		this.Browser = Browser;
 		this.textArea = textArea;
 		this.model = model;
-		this.config = config;
 		this.flushAnyAccumulatedEvents = flushAnyAccumulatedEvents;
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
@@ -328,14 +322,10 @@ export class TextAreaHandler extends Disposable {
 	// ------------- Clipboard operations
 
 	private _ensureClipboardGetsEditorSelection(e: IClipboardEvent): void {
-		let whatToCopy = this._getPlainTextToCopy();
+		let whatToCopy = this.model.getPlainTextToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 		if (e.canUseTextData()) {
-			if (this.config.contribInfo.richTextClipboard) {
-				let whatRichTextToCopy = this._getHTMLToCopy();
-				e.setTextData(whatToCopy, whatRichTextToCopy === undefined ? whatToCopy : whatRichTextToCopy);
-			} else {
-				e.setTextData(whatToCopy);
-			}
+			let whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
+			e.setTextData(whatToCopy, whatHTMLToCopy);
 		} else {
 			this.setTextAreaState('copy or cut', this.textAreaState.fromText(whatToCopy), false);
 		}
@@ -352,87 +342,5 @@ export class TextAreaHandler extends Disposable {
 			let selections = this.selections;
 			this.lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
 		}
-	}
-
-	private _getPlainTextToCopy(): string {
-		let newLineCharacter = this.model.getEOL();
-		let selections = this.selections;
-
-		if (selections.length === 1) {
-			let range: Range = selections[0];
-			if (range.isEmpty()) {
-				if (this.Browser.enableEmptySelectionClipboard) {
-					let modelLineNumber = this.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.model.getModelLineContent(modelLineNumber) + newLineCharacter;
-				} else {
-					return '';
-				}
-			}
-
-			return this.model.getValueInRange(range, EndOfLinePreference.TextDefined);
-		} else {
-			selections = selections.slice(0).sort(Range.compareRangesUsingStarts);
-			let result: string[] = [];
-			for (let i = 0; i < selections.length; i++) {
-				result.push(this.model.getValueInRange(selections[i], EndOfLinePreference.TextDefined));
-			}
-
-			return result.join(newLineCharacter);
-		}
-	}
-
-	private _getHTMLToCopy(): string | undefined {
-		if (!this.config) {
-			return undefined;
-		}
-
-		let selections = this.selections;
-
-		let rules: string[] = [];
-		let colorMap = TokenizationRegistry.getColorMap();
-		for (let i = 1, len = colorMap.length; i < len; i++) {
-			let color = colorMap[i];
-			if (/^(?:[0-9a-fA-F]{3}){1,2}$/.test(color)) {
-				color = '#' + color;
-			}
-			rules[i] = `.mtk${i} { color: ${color}; }`;
-		}
-		rules.push('.mtki { font-style: italic; }');
-		rules.push('.mtkb { font-weight: bold; }');
-		rules.push('.mtku { text-decoration: underline; }');
-
-		let output = `<style>${rules.join('\n')}</style>`;
-		output += '<div class="monaco-editor-background">';
-
-		if (selections.length === 1) {
-			let range: Range = selections[0];
-			for (let i = 0, lineCount = range.endLineNumber - range.startLineNumber; i <= lineCount; i++) {
-				let viewLineRenderingData = this.model.getViewLineRenderingData(range, range.startLineNumber + i);
-				let lineContent = viewLineRenderingData.content;
-				let startOffset = i === 0 ? range.startColumn - 1 : 0;
-				let endOffset = i === lineCount ? range.endColumn - 1 : lineContent.length;
-				lineContent = viewLineRenderingData.content.substring(startOffset, endOffset);
-
-				let r = renderViewLine(new RenderLineInput(
-					(this.config.fontInfo.isMonospace && !this.config.viewInfo.disableMonospaceOptimizations),
-					lineContent,
-					viewLineRenderingData.mightContainRTL,
-					0,
-					viewLineRenderingData.tokens,
-					[],
-					viewLineRenderingData.tabSize,
-					this.config.fontInfo.spaceWidth,
-					endOffset,
-					'none',
-					false
-				));
-
-				output += `<div>${r.html}</div>`;
-			}
-		}
-
-		output += '</div>';
-
-		return output;
 	}
 }

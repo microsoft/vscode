@@ -87,6 +87,9 @@ export interface IViewModel extends IEventEmitter {
 	getModelLineContent(modelLineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
+
+	getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
+	getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
 }
 
 export class ViewLineRenderingData {

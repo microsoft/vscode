@@ -56,7 +56,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.contentWidth = 0;
 		this.scrollLeft = 0;
 
-		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model, this._context.configuration.editor, () => this.viewHelper.flushAnyAccumulatedEvents());
+		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
 
 		this._toDispose = [];
 		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<IKeyboardEvent>e._actual)));
