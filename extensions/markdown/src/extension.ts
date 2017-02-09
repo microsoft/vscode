@@ -20,6 +20,11 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
+interface OpenDocumentLinkArgs {
+	path: string;
+	fragment: string;
+}
+
 var telemetryReporter: TelemetryReporter | null;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -70,7 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.openDocumentLink', (args) => {
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.openDocumentLink', (args: OpenDocumentLinkArgs) => {
 		const tryRevealLine = (editor: vscode.TextEditor) => {
 			if (editor && args.fragment) {
 				const toc = new TableOfContentProvider(engine, editor.document);
@@ -82,10 +87,10 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		};
-		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === args.fsPath) {
+		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === args.path) {
 			return tryRevealLine(vscode.window.activeTextEditor);
 		} else {
-			const resource = vscode.Uri.file(args.fsPath);
+			const resource = vscode.Uri.file(args.path);
 			vscode.workspace.openTextDocument(resource)
 				.then(vscode.window.showTextDocument)
 				.then(tryRevealLine, _ => vscode.commands.executeCommand('vscode.open', resource));
