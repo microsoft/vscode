@@ -624,7 +624,8 @@ export class Breakpoint implements debug.IBreakpoint {
 		public column: number,
 		public enabled: boolean,
 		public condition: string,
-		public hitCondition: string
+		public hitCondition: string,
+		public respectColumn: boolean // TODO@Isidor remove this in March
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
@@ -777,7 +778,7 @@ export class Model implements debug.IModel {
 
 	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, true)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}
