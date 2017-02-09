@@ -5,7 +5,7 @@
 'use strict';
 
 import { createKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { ISimplifiedPlatform, KeybindingLabels } from 'vs/base/common/keybinding';
+import { ISimplifiedPlatform, KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as platform from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
