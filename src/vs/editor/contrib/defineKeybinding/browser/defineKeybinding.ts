@@ -161,12 +161,13 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			let numKeybinding = IOSupport.readKeybinding(strKeybinding);
 
 			let keybinding = createKeybinding(numKeybinding);
+			let resolvedKeybinding = this._keybindingService.resolveKeybinding(keybinding);
 
 			return {
 				strKeybinding: strKeybinding,
 				keybinding: keybinding,
 				usLabel: KeybindingLabels._toUSLabel(keybinding),
-				label: this._keybindingService.getLabelFor(keybinding),
+				label: resolvedKeybinding.getLabel(),
 				range: range
 			};
 		});
@@ -191,7 +192,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			} else {
 				// this is the info case
 				msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
-				msg = msg.concat(this._keybindingService.getLabelFor(item.keybinding));
+				msg = msg.concat(item.label);
 				className = 'keybindingInfo';
 				inlineClassName = 'inlineKeybindingInfo';
 				overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
@@ -242,10 +243,10 @@ class DefineKeybindingLauncherWidget implements IOverlayWidget {
 		this._domNode.className = 'defineKeybindingLauncher';
 		this._domNode.style.display = 'none';
 		this._isVisible = false;
-		let keybinding = keybindingService.lookupKeybindings(DefineKeybindingAction.ID);
+		let keybinding = keybindingService.lookupKeybindings2(DefineKeybindingAction.ID);
 		let extra = '';
 		if (keybinding.length > 0) {
-			extra += ' (' + keybindingService.getLabelFor(keybinding[0]) + ')';
+			extra += ' (' + keybinding[0].getLabel() + ')';
 		}
 		this._domNode.appendChild(document.createTextNode(NLS_LAUNCH_MESSAGE + extra));
 

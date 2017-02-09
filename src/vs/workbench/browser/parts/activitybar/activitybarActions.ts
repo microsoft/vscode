@@ -140,7 +140,7 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	private getKeybindingLabel(id: string): string {
-		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
+		const keys = this.keybindingService.lookupKeybindings2(id).map(k => k.getLabel());
 		if (keys && keys.length) {
 			return keys[0];
 		}

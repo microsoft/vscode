@@ -341,7 +341,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		let keybinding: string = null;
-		let keys = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
+		let keys = this.keybindingService.lookupKeybindings2(compositeId).map(k => k.getLabel());
 		if (keys && keys.length) {
 			keybinding = keys[0];
 		}

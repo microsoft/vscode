@@ -95,7 +95,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._createResolvedKeybinding(keybinding);
 	}
 
-	public getLabelFor(keybinding: Keybinding): string {
+	protected getLabelFor(keybinding: Keybinding): string {
 		return KeybindingLabels._toUSLabel(keybinding);
 	}
 
