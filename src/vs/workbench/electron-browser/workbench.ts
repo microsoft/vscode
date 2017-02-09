@@ -67,6 +67,8 @@ import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/m
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -160,6 +162,7 @@ export class Workbench implements IPartService {
 	private editorService: WorkbenchEditorService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
+	private themeService: ThemeService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
@@ -520,6 +523,10 @@ export class Workbench implements IPartService {
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
+
+		// Theme Service
+		this.themeService = this.instantiationService.createInstance(ThemeService);
+		serviceCollection.set(IThemeService, this.themeService);
 
 		// Configuration Resolver
 		const workspace = this.contextService.getWorkspace();
@@ -1075,6 +1082,10 @@ export class Workbench implements IPartService {
 		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
 
 		return this.instantiationService;
+	}
+
+	public getThemeService(): ThemeService {
+		return this.themeService;
 	}
 
 	public addClass(clazz: string): void {
