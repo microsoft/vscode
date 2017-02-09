@@ -529,11 +529,22 @@ export class SearchViewlet extends Viewlet {
 
 	public selectNextMatch(): void {
 		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
-		let next = navigator.next();
 
+		// Expand the initial selected node, if needed
+		if (selected instanceof FileMatch) {
+			if (!this.tree.isExpanded(selected)) {
+				this.tree.expand(selected);
+			}
+		}
+
+		let navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+
+		let next = navigator.next();
 		if (!next) {
-			return;
+			// Reached the end - get a new navigator from the root.
+			// .first and .last only work when subTreeOnly = true. Maybe there's a simpler way.
+			navigator = this.tree.getNavigator(this.tree.getInput(), /*subTreeOnly*/true);
+			next = navigator.first();
 		}
 
 		// Expand and go past FileMatch nodes
@@ -556,16 +567,27 @@ export class SearchViewlet extends Viewlet {
 
 	public selectPreviousMatch(): void {
 		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+		let navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
 
 		let prev = navigator.previous();
-		if (!prev) {
-			return;
-		}
 
 		// Expand and go past FileMatch nodes
 		if (!(prev instanceof Match)) {
 			prev = navigator.previous();
+			if (!prev) {
+				// Wrap around. Get a new tree starting from the root
+				navigator = this.tree.getNavigator(this.tree.getInput(), /*subTreeOnly*/true);
+				prev = navigator.last();
+
+				// This is complicated because .last will set the navigator to the last FileMatch,
+				// so expand it and FF to its last child
+				this.tree.expand(prev);
+				let tmp;
+				while (tmp = navigator.next()) {
+					prev = tmp;
+				}
+			}
+
 			if (!(prev instanceof Match)) {
 				// There is a second non-Match result, which must be a collapsed FileMatch.
 				// Expand it then select its last child.
