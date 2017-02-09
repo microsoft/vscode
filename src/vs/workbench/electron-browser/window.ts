@@ -319,12 +319,7 @@ export class ElectronWindow {
 						getAnchor: () => target,
 						getActions: () => TPromise.as(TextInputActions),
 						getKeyBinding: action => {
-							const opts = this.keybindingService.lookupKeybindings2(action.id);
-							if (opts.length > 0) {
-								return opts[0]; // only take the first one
-							}
-
-							return null;
+							return this.keybindingService.lookupKeybinding(action.id);
 						}
 					});
 				}

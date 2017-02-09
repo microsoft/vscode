@@ -1924,10 +1924,7 @@ export function keybindingForAction(id: string, keybindingService: IKeybindingSe
 	}
 
 	if (keybindingService) {
-		const keys = keybindingService.lookupKeybindings2(id);
-		if (keys.length > 0) {
-			return keys[0]; // only take the first one
-		}
+		return keybindingService.lookupKeybinding(id);
 	}
 
 	return null;

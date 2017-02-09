@@ -89,11 +89,11 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
-		let keybindings = this._keybindingService.lookupKeybindings2(actionId);
-		if (keybindings.length === 0) {
+		let keybinding = this._keybindingService.lookupKeybinding(actionId);
+		if (!keybinding) {
 			return '';
 		}
-		return ' (' + keybindings[0].getLabel() + ')';
+		return ' (' + keybinding.getLabel() + ')';
 	}
 
 	public dispose(): void {

@@ -115,6 +115,11 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._getResolver().lookupKeybinding(commandId).map(kb => this._createResolvedKeybinding(kb));
 	}
 
+	public lookupKeybinding(commandId: string): ResolvedKeybinding {
+		let result = this.lookupKeybindings2(commandId);
+		return (result.length > 0 ? result[0] : null);
+	}
+
 	private _getAllCommandsAsComment(): string {
 		const commands = CommandsRegistry.getCommands();
 		const unboundCommands: string[] = [];

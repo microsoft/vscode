@@ -62,8 +62,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const keybindings = keybindingService.lookupKeybindings2('editor.action.triggerSuggest');
-		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindings[0].getLabel()})`;
+		const keybinding = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
+		this.triggerKeybindingLabel = keybinding ? ` (${keybinding.getLabel()})` : '';
 	}
 
 	get templateId(): string {

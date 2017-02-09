@@ -116,7 +116,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let [keybind] = keybindingService.lookupKeybindings2(action.id);
+			let keybind = keybindingService.lookupKeybinding(action.id);
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);

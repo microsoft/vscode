@@ -420,11 +420,11 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	// ----- initialization
 
 	private _keybindingLabelFor(actionId: string): string {
-		let keybindings = this._keybindingService.lookupKeybindings2(actionId);
-		if (keybindings.length === 0) {
+		let keybinding = this._keybindingService.lookupKeybinding(actionId);
+		if (!keybinding) {
 			return '';
 		}
-		return ' (' + keybindings[0].getLabel() + ')';
+		return ' (' + keybinding.getLabel() + ')';
 	}
 
 	private _buildFindPart(): HTMLElement {

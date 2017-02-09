@@ -140,9 +140,9 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	private getKeybindingLabel(id: string): string {
-		const keys = this.keybindingService.lookupKeybindings2(id).map(k => k.getLabel());
-		if (keys && keys.length) {
-			return keys[0];
+		const key = this.keybindingService.lookupKeybinding(id);
+		if (key) {
+			return key.getLabel();
 		}
 
 		return null;
@@ -455,12 +455,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 	}
 
 	private getKeybinding(action: IAction): ResolvedKeybinding {
-		const opts = this.keybindingService.lookupKeybindings2(action.id);
-		if (opts.length > 0) {
-			return opts[0]; // only take the first one
-		}
-
-		return null;
+		return this.keybindingService.lookupKeybinding(action.id);
 	}
 
 	private getActions(): OpenViewletAction[] {
