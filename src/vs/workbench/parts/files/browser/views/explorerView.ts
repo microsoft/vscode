@@ -356,7 +356,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.explorerViewer));
+		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocussedContext, this.filesExplorerFocussedContext]));
 
 		// Update Viewer based on File Change Events
 		this.toDispose.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
@@ -366,19 +366,6 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => {
 			this.resourceContext.set(e.focus && e.focus.resource);
 			this.folderContext.set(e.focus && e.focus.isDirectory);
-		}));
-
-		// Update explorer focus context
-		this.toDispose.push(this.explorerViewer.onDOMFocus(() => {
-			setTimeout(() => {
-				this.filesExplorerFocussedContext.set(true);
-				this.explorerFocussedContext.set(true);
-			}, 0 /* helps when focus jumps from one tree to another */);
-		}));
-
-		this.toDispose.push(this.explorerViewer.onDOMBlur(() => {
-			this.filesExplorerFocussedContext.reset();
-			this.explorerFocussedContext.reset();
 		}));
 
 		return this.explorerViewer;
