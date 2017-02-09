@@ -113,7 +113,7 @@ export class Renderer implements IRenderer {
 			const editorGroupActions = this.actionProvider.getEditorGroupActions();
 			editorGroupActions.forEach(a => {
 				const key = keybindingForAction(a.id, this.keybindingService);
-				editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+				editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 			});
 
 			return editorGroupTemplate;
@@ -126,7 +126,7 @@ export class Renderer implements IRenderer {
 		const openEditorActions = this.actionProvider.getOpenEditorActions();
 		openEditorActions.forEach(a => {
 			const key = keybindingForAction(a.id, this.keybindingService);
-			editorTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+			editorTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 		});
 
 		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);

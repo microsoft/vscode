@@ -43,7 +43,7 @@ import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/commo
 import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { createKeybinding, Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { createKeybinding, ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -1911,20 +1911,20 @@ export class GlobalCopyPathAction extends Action {
 	}
 }
 
-export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
+export function keybindingForAction(id: string, keybindingService: IKeybindingService): ResolvedKeybinding {
 	switch (id) {
 		case GlobalNewUntitledFileAction.ID:
-			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
+			return keybindingService.resolveKeybinding(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_N));
 		case SaveFileAction.ID:
-			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
+			return keybindingService.resolveKeybinding(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_S));
 		case CopyFileAction.ID:
-			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_C);
+			return keybindingService.resolveKeybinding(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_C));
 		case PasteFileAction.ID:
-			return createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_V);
+			return keybindingService.resolveKeybinding(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_V));
 	}
 
 	if (keybindingService) {
-		const keys = keybindingService.lookupKeybindings(id);
+		const keys = keybindingService.lookupKeybindings2(id);
 		if (keys.length > 0) {
 			return keys[0]; // only take the first one
 		}

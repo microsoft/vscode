@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -92,12 +92,12 @@ export class Controller extends treedefaults.DefaultController {
 			getActionItem: (action) => {
 				const keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: this._keybindingService.getLabelFor(keybinding) });
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
 				return null;
 			},
 
-			getKeyBinding: (action): Keybinding => {
+			getKeyBinding: (action): ResolvedKeybinding => {
 				return this._keybindingFor(action);
 			},
 
@@ -150,8 +150,8 @@ export class Controller extends treedefaults.DefaultController {
 		return result;
 	}
 
-	private _keybindingFor(action: IAction): Keybinding {
-		var opts = this._keybindingService.lookupKeybindings(action.id);
+	private _keybindingFor(action: IAction): ResolvedKeybinding {
+		var opts = this._keybindingService.lookupKeybindings2(action.id);
 		if (opts.length > 0) {
 			return opts[0]; // only take the first one
 		}

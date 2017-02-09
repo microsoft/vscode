@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -233,8 +233,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			actionItemProvider: (action: Action) => this.actionItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
-			getKeyBinding: (action) => this.getKeybinding(action),
-			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+			getKeyBinding: (action) => this.getKeybinding(action)
 		});
 
 		// Action Run Handling
@@ -434,8 +433,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 		});
 	}
 
-	protected getKeybinding(action: IAction): Keybinding {
-		const opts = this.keybindingService.lookupKeybindings(action.id);
+	protected getKeybinding(action: IAction): ResolvedKeybinding {
+		const opts = this.keybindingService.lookupKeybindings2(action.id);
 		if (opts.length > 0) {
 			return opts[0]; // only take the first one
 		}
@@ -446,7 +445,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	protected getKeybindingLabel(action: IAction): string {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? this.keybindingService.getLabelFor(keybinding) : void 0;
+		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
 	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {

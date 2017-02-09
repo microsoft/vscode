@@ -134,7 +134,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			// Any other item with keybinding
 			const keybinding = keybindingForAction(action.id, this.keybindingService);
 			if (keybinding) {
-				return new ActionItem(context, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
+				return new ActionItem(context, action, { label: true, keybinding: keybinding.getLabel() });
 			}
 		}
 

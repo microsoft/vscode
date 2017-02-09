@@ -45,7 +45,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService, IConfirmation, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -485,7 +485,7 @@ export class FileController extends DefaultController {
 				});
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
-			getKeyBinding: (a): Keybinding => keybindingForAction(a.id, this.keybindingService),
+			getKeyBinding: (a): ResolvedKeybinding => keybindingForAction(a.id, this.keybindingService),
 			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,
