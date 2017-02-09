@@ -12,6 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { isLightTheme, isDarkTheme } from 'vs/platform/theme/common/themes';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IColorTheme } from 'vs/workbench/services/themes/common/themeService';
@@ -56,7 +57,12 @@ export default class Webview {
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
-	constructor(parent: HTMLElement, private _styleElement: Element, options: WebviewOptions) {
+	constructor(
+		parent: HTMLElement,
+		private _styleElement: Element,
+		options: WebviewOptions,
+		private htmlPreviewFocusContexKey?: IContextKey<boolean>
+	) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -103,6 +109,16 @@ export default class Webview {
 					let [stats] = event.args;
 					this._onDidLoadContent.fire({ stats });
 					return;
+				}
+			}),
+			addDisposableListener(this._webview, 'focus', (event: KeyboardEvent) => {
+				if (this.htmlPreviewFocusContexKey) {
+					this.htmlPreviewFocusContexKey.set(true);
+				}
+			}),
+			addDisposableListener(this._webview, 'blur', (event: KeyboardEvent) => {
+				if (this.htmlPreviewFocusContexKey) {
+					this.htmlPreviewFocusContexKey.reset();
 				}
 			})
 		];

@@ -14,6 +14,7 @@ import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/b
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Position } from 'vs/platform/editor/common/editor';
+import { RawContextKey, ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -23,6 +24,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 
 import Webview from './webview';
+
+// --- Register Context Keys
+
+/**  A context key that is set when an html preview has focus. */
+export const KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS = new RawContextKey<boolean>('htmlPreviewFocus', undefined);
+/**  A context key that is set when an html preview does not have focus. */
+export const KEYBINDING_CONTEXT_HTML_PREVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS.toNegated();
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
@@ -44,13 +52,15 @@ export class HtmlPreviewPart extends BaseEditor {
 	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
+	private _htmlPreviewFocusContexKey: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IThemeService themeService: IThemeService,
 		@IOpenerService openerService: IOpenerService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
@@ -58,6 +68,8 @@ export class HtmlPreviewPart extends BaseEditor {
 		this._themeService = themeService;
 		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
+
+		this._htmlPreviewFocusContexKey = KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS.bindTo(this._contextKeyService);
 	}
 
 	dispose(): void {
@@ -81,7 +93,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'), { nodeintegration: true });
+			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'), { nodeintegration: true }, this._htmlPreviewFocusContexKey);
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 
 			this._webviewDisposables = [
